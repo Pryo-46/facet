@@ -2,3 +2,26 @@
 skill-eval-workspace/
 
 node_modules/
+
+# ビルド成果物
+dist/
+dist-ssr/
+*.local
+
+# Tauri（Rust 側のビルド成果物）
+src-tauri/target/
+src-tauri/gen/
+
+# スキーマから生成する型（正は schemas/glossary.schema.json。npm run gen:types で再生成）
+src/types/glossary.ts
+
+# ログ
+logs
+*.log
+npm-debug.log*
+
+# エディタ
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
