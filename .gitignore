@@ -1,0 +1,4 @@
+# Skill の評価ワークスペース（実行結果。evals/ から再生成できる）
+skill-eval-workspace/
+
+node_modules/

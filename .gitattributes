@@ -1,0 +1,4 @@
+# 正規形の改行コード担保（overview-rev.md 5章）。
+# これがないと autocrlf 環境でチェックアウト時に CRLF 化し、
+# LF で書き戻すたびに全行 diff になって決定的シリアライズの目的が無効化される。
+*.json text eol=lf

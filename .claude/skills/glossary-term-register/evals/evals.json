@@ -1,0 +1,26 @@
+{
+  "skill_name": "glossary-term-register",
+  "evals": [
+    {
+      "id": 0,
+      "name": "new-glossary-minimal-entry",
+      "prompt": "いま新規で立ち上げたプロジェクトのフォルダが <PROJECT_DIR> にあります。さっきのキックオフ会議で出てきた言葉をとりあえず用語集に入れておきたい。出てきたのは「申請者」「承認待ち」「差し戻し」「受注データ」の4つです。申請者は経費申請を出す社員のこと。承認待ちは、申請が出されて上長の判断待ちになってる状態。差し戻しと受注データは、正直まだ何を指してるのか会議でも詰まってないです。",
+      "expected_output": "<PROJECT_DIR> に type=glossary の JSON が1つ作られる。4用語すべてが登録され、差し戻し・受注データは kind=undecided かつ definition=\"\" のまま（AIが定義を捏造しない）。ID は term_ + 英数字10文字。ファイルは正規形（キー順・LF・末尾改行）。",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "append-to-existing-glossary",
+      "prompt": "<PROJECT_DIR> のプロジェクトに用語を1つ足してください。「代理承認」＝上長が不在のときに、その上の役職者が代わりに承認すること。会議では「代理決裁」とも呼ばれてます。",
+      "expected_output": "既存の用語集ファイルに追記される（2つ目の用語集ファイルを作らない）。既存2件の id と配列順が変わらず、新規用語が末尾に追加される。aliases に「代理決裁」が入る。ID は採番スクリプト由来の形式。",
+      "files": ["fixtures/existing-project/用語集.json"]
+    },
+    {
+      "id": 2,
+      "name": "extract-from-meeting-memo",
+      "prompt": "<PROJECT_DIR>/kickoff-memo.md が今日の打ち合わせのメモです。ここから用語集を作っておいてもらえますか。プロジェクトフォルダは <PROJECT_DIR> です。",
+      "expected_output": "メモから用語候補を抽出してユーザーに提示し、登録対象の確認を取る（全部を独断で登録しない）。メモに定義が書かれていない語の definition を推測で埋めない。書き出す場合はスキーマ検証を通り正規形。",
+      "files": ["fixtures/memo-project/kickoff-memo.md"]
+    }
+  ]
+}

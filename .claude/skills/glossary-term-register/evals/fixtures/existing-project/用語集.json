@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "type": "glossary",
+  "title": "経費申請システム 用語集",
+  "terms": [
+    {
+      "id": "term_Qw8mLp2ZaV",
+      "name": "申請者",
+      "kind": "actor",
+      "definition": "経費申請を提出する社員。",
+      "aliases": [],
+      "notes": ""
+    },
+    {
+      "id": "term_Hj4nRt9BcX",
+      "name": "承認待ち",
+      "kind": "state",
+      "definition": "申請が提出され、上長の判断を待っている状態。",
+      "aliases": [
+        "承認待"
+      ],
+      "notes": ""
+    }
+  ]
+}
