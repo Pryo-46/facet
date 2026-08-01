@@ -1,7 +1,7 @@
 # 引き継ぎ: 用語登録Skill作成セッション
 
-作成日: 2026-07-23 ／ 前提: overview-rev2.md（handoff-04 の反映後）＋ glossary-session-notes.md ＋ glossary.schema.json
-※ ファイル名を handoff-05 としないのは、rev2 が過去文書として handoff-05 を参照しており番号が衝突するため。
+作成日: 2026-07-23 ／ 前提: overview-rev.md（handoff-04 の反映後）＋ glossary-session-notes.md ＋ glossary.schema.json
+※ ファイル名を handoff-05 としないのは、rev が過去文書として handoff-05 を参照しており番号が衝突するため。
 
 ## 目的（handoff-04 からの継承）
 
@@ -10,19 +10,20 @@ AI連携の全ラウンドトリップを最小構成で通す検証。
 
 用語集スキーマは確定済み（glossary.schema.json）。このセッションの成果物は Skill 一式のみ。
 
-## Skill の構成（rev2 4章の決定を反映）
+## Skill の構成（rev 4章の決定を反映）
 
 1. **SKILL.md**: ヒアリング手順と出力仕様
    - ヒアリングで name / kind / definition / aliases を埋める。ユーザーが即答できない項目は `undecided`・空文字のまま書いてよい（アプリ側で warning 可視化される設計。無理に埋めさせない——埋まっていない事実こそが情報）
-   - 出力仕様に正規形（下記）を含める。ただしこれは緩和策であり、保証はアプリの受け口（rev2 5章）
+   - 出力仕様に正規形（下記）を含める。ただしこれは緩和策であり、保証はアプリの受け口（rev 5章）
 2. **ID採番スクリプト**: nanoid `customAlphabet`（A-Za-z0-9 の62文字）・10文字、`term_` プレフィクス付与。SKILL.md に「IDは必ずこれで採番せよ」と明記
 3. **書き込み前検証スクリプト**: glossary.schema.json でのバリデーション。スキーマファイルはアプリと同一の実体を参照（正は一つ。コピーを同梱しない）
 
-## 正規形の提案値（アプリ実装と共有する。未確定につきSkillセッション冒頭で確定させること）
+## 正規形（2026-08-01 確定。正は rev 5章「正規形の定義」。以下は要約）
 
-- キー順: スキーマの properties 記載順（エンベロープ: schemaVersion → type → title → terms ／ 用語: id → name → kind → definition → aliases → notes）
-- インデント: スペース2 ／ 改行: LF ／ 末尾改行あり ／ エンコーディング: UTF-8（BOMなし）
-- rev2 5章は「キー順固定・インデント固定」とのみ規定し具体値未定。ここで決めた値が全ツールの正規形の初出になるため、確定時は rev2 に反映する
+- キー順: スキーマの properties 記載順（エンベロープ: schemaVersion → type → title → terms ／ 用語: id → name → kind → definition → aliases → notes）。**ハードコードせず実行時にスキーマから読む**
+- インデント: スペース2 ／ 区切りは `JSON.stringify(v, null, 2)` 準拠 ／ 非ASCIIはエスケープしない ／ 改行: LF ／ 末尾改行あり ／ UTF-8（BOMなし）
+- 改行の担保としてプロジェクト雛形に `.gitattributes`（`*.json text eol=lf`）を同梱する（追加決定。autocrlf による全行diffの回避）
+- 提案値からの変更点: なし（追加規定として 区切り・非ASCII・キー順の参照方式・.gitattributes を明文化）
 
 ## 検証チェックリスト（このセッションで実地確認すること）
 
@@ -34,7 +35,7 @@ AI連携の全ラウンドトリップを最小構成で通す検証。
 
 ## 依存関係の登録
 
-- Skill は `type: glossary` × `schemaVersion: 1` に紐づく（rev2 4章の追従管理）。Skill 側にこの対応を明記すること
+- Skill は `type: glossary` × `schemaVersion: 1` に紐づく（rev 4章の追従管理）。Skill 側にこの対応を明記すること
 
 ## 蒸し返さないこと（handoff-04 セッションで決定済み）
 
