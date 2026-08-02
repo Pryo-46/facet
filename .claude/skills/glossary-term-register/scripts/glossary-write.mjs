@@ -16,9 +16,9 @@
 // 終了コード: 0=成功（警告はあり得る） / 1=スキーマ検証失敗 / 2=使い方の誤り
 
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const SKILL_DIR = path.resolve(fileURLToPath(import.meta.url), "../..");
@@ -108,6 +108,15 @@ const seenId = new Map();
 for (const t of terms) {
   if (seenId.has(t.id)) warnings.push(`ID重複: ${t.id}（${seenId.get(t.id)} と ${t.name}）`);
   else seenId.set(t.id, t.name);
+}
+
+// name の重複（用語集は「この語を正式名とする」宣言なので、同名2件は宣言としての矛盾。
+// IDが違うためスキーマの uniqueItems では防げず、追記のたびに発生確率が上がる）
+const seenName = new Map(); // 正規化name -> 元の表記
+for (const t of terms) {
+  const k = fold(t.name);
+  if (seenName.has(k)) warnings.push(`name重複: 「${t.name}」が複数登録されています（既存: ${seenName.get(k)}）`);
+  else seenName.set(k, t.name);
 }
 
 const aliasOwner = new Map(); // 正規化alias -> [用語名...]
