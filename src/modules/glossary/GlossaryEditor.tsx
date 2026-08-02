@@ -1,12 +1,21 @@
-import { useState } from 'react'
-import { CellInput } from '@/components/CellInput'
+import { useEffect, useRef, useState } from 'react'
+import { CellInput, type FieldState } from '@/components/CellInput'
+import {
+  resolveCommand,
+  toKeyEventLike,
+  type Command,
+  type KeyContext,
+} from '@/core/keyboard/keymap'
+import { currentPlatform } from '@/core/keyboard/platform'
+import { insertAt, moveItem, removeAt } from '@/core/list-ops'
+import { newId } from '@/core/new-id'
 import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
 import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
 import glossarySchema from '../../../schemas/glossary.schema.json'
-import { FIELD_LABELS, type GlossaryField } from './fields'
+import { FIELD_LABELS, stepField, type GlossaryField } from './fields'
 import { kindLabel } from './kind-labels'
-import { EMPTY_FILTER, filterTermIndices, type GlossaryFilter } from './search'
+import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } from './search'
 
 // 種別の選択肢はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂時に静かにずれる）
 const KIND_OPTIONS = glossarySchema.$defs.term.properties.kind.enum
@@ -25,9 +34,51 @@ function cellId(rowKey: string, field: GlossaryField): string {
   return `${rowKey}:${field}`
 }
 
+const PLATFORM = currentPlatform()
+
+/**
+ * 新規行の既定の名称。空文字はスキーマ違反（minLength 1）なので置けない——
+ * 空のまま自動保存が走ると、次に開けないファイルを自分で作ることになる。
+ * 放置すると2件目から名称重複で赤くなるが、それは「名前を付けていない用語が
+ * 2つある」という正しい指摘（未定義を消せなくする、という設計思想の適用）
+ */
+const NEW_TERM_NAME = '新しい用語'
+
+function newTerm(): Term {
+  return {
+    id: newId('term'),
+    name: NEW_TERM_NAME,
+    kind: 'undecided',
+    definition: '',
+    aliases: [],
+    notes: '',
+  }
+}
+
+/** セルにフォーカスを移す。data-cell 属性で引く */
+function focusCell(container: HTMLElement | null, rowKey: string, field: GlossaryField): boolean {
+  const el = container?.querySelector<HTMLElement>(`[data-cell="${cellId(rowKey, field)}"]`)
+  if (!el) return false
+  el.focus()
+  return true
+}
+
 export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossarySchemaVersion1>) {
   // 検索・フィルタの UI は Task 14 で足す。ここでは絞り込み無しで通す
   const [filter] = useState<GlossaryFilter>(EMPTY_FILTER)
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
+  const [pendingFocus, setPendingFocus] = useState<{
+    rowKey: string
+    field: GlossaryField
+  } | null>(null)
+
+  useEffect(() => {
+    if (pendingFocus === null) return
+    focusCell(containerRef.current, pendingFocus.rowKey, pendingFocus.field)
+    setPendingFocus(null)
+  }, [pendingFocus])
 
   const rowKeys = computeRowKeys(data.terms)
   const visible = filterTermIndices(data.terms, filter)
@@ -36,6 +87,106 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
     const terms = data.terms.map((t, i) => (i === index ? { ...t, ...patch } : t))
     onChange({ ...data, terms }, mergeKey)
   }
+
+  // 導出表示中（検索・フィルタ適用中）は並び替えを止める（session-notes 論点4）
+  const reorderEnabled = !isDerivedView(filter)
+
+  const insertRowAfter = (index: number) => {
+    const term = newTerm()
+    onChange({ ...data, terms: insertAt(data.terms, index + 1, term) }, null)
+    // 採番したての ID は重複しないので出現順は 0
+    setPendingFocus({ rowKey: `${term.id}#0`, field: 'name' })
+  }
+
+  const deleteRow = (index: number) => {
+    onChange({ ...data, terms: removeAt(data.terms, index) }, null)
+    if (index - 1 >= 0) setPendingFocus({ rowKey: rowKeys[index - 1], field: 'name' })
+  }
+
+  const moveRow = (index: number, delta: -1 | 1, field: GlossaryField) => {
+    const to = index + delta
+    if (to < 0 || to >= data.terms.length) return
+    onChange({ ...data, terms: moveItem(data.terms, index, to) }, null)
+    // 行キーは ID 由来なので、動かした行を追いかけられる
+    setPendingFocus({ rowKey: rowKeys[index], field })
+  }
+
+  /** 表示中の並びで n 番目の行の指定セルへフォーカスする */
+  const focusVisible = (visiblePos: number, field: GlossaryField): boolean => {
+    const index = visible[visiblePos]
+    if (index === undefined) return false
+    return focusCell(containerRef.current, rowKeys[index], field)
+  }
+
+  /** コマンドを用語集の構造へ写像する。戻り値 true＝消費した（既定動作を止める） */
+  const runCommand = (
+    cmd: Command,
+    at: { index: number; visiblePos: number; field: GlossaryField },
+  ): boolean => {
+    switch (cmd) {
+      case 'insert-item-after':
+        insertRowAfter(at.index)
+        return true
+      case 'delete-item':
+        deleteRow(at.index)
+        return true
+      case 'move-item-up':
+        moveRow(at.index, -1, at.field)
+        return true
+      case 'move-item-down':
+        moveRow(at.index, 1, at.field)
+        return true
+      case 'focus-prev':
+        return focusVisible(at.visiblePos - 1, at.field)
+      case 'focus-next':
+        return focusVisible(at.visiblePos + 1, at.field)
+      case 'focus-next-field': {
+        const step = stepField(at.field, 1)
+        return focusVisible(at.visiblePos + step.rowDelta, step.field)
+      }
+      case 'focus-prev-field': {
+        const step = stepField(at.field, -1)
+        return focusVisible(at.visiblePos + step.rowDelta, step.field)
+      }
+      case 'cancel':
+        // 編集の打ち切り。フォーカスを外すと CellInput が確定値に戻す
+        ;(document.activeElement as HTMLElement | null)?.blur()
+        return true
+      default:
+        // undo / redo は額縁（App）のグローバル層が取る。ここでは消費しない
+        return false
+    }
+  }
+
+  /** セルのキー入力。キーの判定はコアの resolveCommand に委ねる（rev 10章） */
+  const onCellKeyDown = (
+    e: React.KeyboardEvent,
+    at: { index: number; visiblePos: number; field: GlossaryField },
+    field: Pick<
+      KeyContext,
+      'editing' | 'fieldEmpty' | 'deletableField' | 'caretAtStart' | 'caretAtEnd' | 'arrowsOwnedByField'
+    >,
+  ) => {
+    const cmd = resolveCommand(toKeyEventLike(e), {
+      platform: PLATFORM,
+      // M4 の削除確認・M5 の二択ダイアログを出すときにここへ渡す
+      modalOpen: false,
+      reorderEnabled,
+      ...field,
+    })
+    if (cmd === null) return
+    if (runCommand(cmd, at)) e.preventDefault()
+  }
+
+  /** テキストセル共通の文脈。空欄 Backspace の行削除は名称セルだけ認める */
+  const textFieldContext = (state: FieldState, deletableField: boolean) => ({
+    editing: true,
+    fieldEmpty: state.empty,
+    deletableField,
+    caretAtStart: state.caretAtStart,
+    caretAtEnd: state.caretAtEnd,
+    arrowsOwnedByField: false,
+  })
 
   // locations を「配列位置 → 赤表示するフィールド集合」に引き直す。
   // entityId ではなく位置で引く——ID 重複時に同じ ID を持つ全行へ
@@ -53,7 +204,7 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
   const mark = (index: number, field: string) => (marks.get(index)?.has(field) ? ` ${errorCell}` : '')
 
   return (
-    <div className="p-4">
+    <div ref={containerRef} className="p-4">
       <h2 className="mb-3 text-base font-bold text-ink">{data.title}</h2>
       {issues.length > 0 && (
         <ul className="mb-3 list-disc pl-5 text-sm text-warning">
@@ -89,6 +240,15 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
                     // 空欄の間の表示は CellInput のドラフトが持ち、セルを抜けると戻る
                     sanitize={(raw) => (raw.trim() === '' ? null : raw)}
                     onValueChange={(v) => updateTerm(index, { name: v }, `${rowKey}:name`)}
+                    onFieldKeyDown={(e, s) =>
+                      onCellKeyDown(
+                        e,
+                        { index, visiblePos, field: 'name' },
+                        // 名称セルだけが空欄 Backspace で行を消せる。定義セルは
+                        // 空（未定義 warning）が常態なので、そこで消えると事故になる
+                        textFieldContext(s, true),
+                      )
+                    }
                   />
                 </td>
                 <td className={term.kind === 'undecided' ? warnCell : ''}>
@@ -99,6 +259,21 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
                     value={term.kind}
                     onChange={(e) =>
                       updateTerm(index, { kind: e.target.value as Term['kind'] }, null)
+                    }
+                    onKeyDown={(e) =>
+                      onCellKeyDown(
+                        e,
+                        { index, visiblePos, field: 'kind' },
+                        {
+                          editing: false,
+                          fieldEmpty: false,
+                          deletableField: false,
+                          caretAtStart: true,
+                          caretAtEnd: true,
+                          // 素の↑↓は select の選択肢切り替えに使う（Alt+↑↓ は有効）
+                          arrowsOwnedByField: true,
+                        },
+                      )
                     }
                   >
                     {KIND_OPTIONS.map((kind) => (
@@ -120,6 +295,9 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
                     onValueChange={(v) =>
                       updateTerm(index, { definition: v }, `${rowKey}:definition`)
                     }
+                    onFieldKeyDown={(e, s) =>
+                      onCellKeyDown(e, { index, visiblePos, field: 'definition' }, textFieldContext(s, false))
+                    }
                   />
                 </td>
                 <td className={mark(index, 'aliases')}>
@@ -136,6 +314,9 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
                         `${rowKey}:aliases`,
                       )
                     }
+                    onFieldKeyDown={(e, s) =>
+                      onCellKeyDown(e, { index, visiblePos, field: 'aliases' }, textFieldContext(s, false))
+                    }
                   />
                 </td>
                 <td>
@@ -145,6 +326,9 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
                     data-cell={cellId(rowKey, 'notes')}
                     value={term.notes}
                     onValueChange={(v) => updateTerm(index, { notes: v }, `${rowKey}:notes`)}
+                    onFieldKeyDown={(e, s) =>
+                      onCellKeyDown(e, { index, visiblePos, field: 'notes' }, textFieldContext(s, false))
+                    }
                   />
                 </td>
               </tr>
@@ -152,6 +336,15 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
           })}
         </tbody>
       </table>
+      {data.terms.length === 0 && (
+        <button
+          type="button"
+          className="mt-3 rounded-sm border border-rule px-3 py-1 text-sm text-ink hover:bg-surface"
+          onClick={() => insertRowAfter(-1)}
+        >
+          用語を追加
+        </button>
+      )}
     </div>
   )
 }
