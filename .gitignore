@@ -25,3 +25,6 @@ npm-debug.log*
 !.vscode/extensions.json
 .idea
 .DS_Store
+
+# 開発時の一時ファイル
+docs/screenshots/
