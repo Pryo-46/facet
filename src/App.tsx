@@ -5,6 +5,7 @@ import { serialize } from '@/core/canonical'
 import type { ConsistencyIssue } from '@/core/consistency'
 import { classifyFile, type LoadResult } from '@/core/load'
 import { checkProjectConsistency } from '@/core/project-consistency'
+import { interceptClose } from '@/fs/app-window'
 import {
   listJsonFiles,
   pickProjectFolder,
@@ -50,6 +51,7 @@ function App() {
   // 編集中データ。selected が editable のときだけ非 null
   const [editingData, setEditingData] = useState<unknown>(null)
   const [ioError, setIoError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const saverRef = useRef<AutoSaver | null>(null)
   // selectFile の連続呼び出しを直列化するためのトークン。
   // 後続の選択（または openFolder）が始まったら、先行呼び出しの結果は破棄する。
@@ -69,12 +71,32 @@ function App() {
     }
   }, [])
 
-  const closeCurrentFile = async () => {
-    await saverRef.current?.flush()
-    saverRef.current?.dispose()
-    saverRef.current = null
+  // ウィンドウ close を横取りして保留中の編集を書き切る。
+  // flush が失敗したら閉じない（saveError バナーが出る。再度閉じる操作＝再試行）
+  useEffect(() => {
+    const unlisten = interceptClose(async () => {
+      const saver = saverRef.current
+      return saver ? saver.flush() : true
+    })
+    return () => {
+      void unlisten.then((f) => f())
+    }
+  }, [])
+
+  /** 現在のファイルを閉じる。false＝保留編集を書き切れず中断（saver は生かしたまま） */
+  const closeCurrentFile = async (): Promise<boolean> => {
+    const saver = saverRef.current
+    if (saver) {
+      const ok = await saver.flush()
+      // flush 失敗時に dispose すると、catch が復元した pending を破棄してしまう
+      //（M1 レビューの二重失敗エッジ）。dispose せず中断する
+      if (!ok) return false
+      saver.dispose()
+      saverRef.current = null
+    }
     setSelectedPath(null)
     setEditingData(null)
+    return true
   }
 
   const openFolder = async () => {
@@ -82,7 +104,7 @@ function App() {
     if (dir === null) return
     // 進行中の selectFile を無効化する（フォルダ切替中に古い選択結果が紛れ込まないように）
     selectSeq.current++
-    await closeCurrentFile()
+    if (!(await closeCurrentFile())) return
     try {
       const paths = await listJsonFiles(dir)
       const loaded: ProjectFile[] = []
@@ -100,7 +122,7 @@ function App() {
 
   const selectFile = async (file: ProjectFile) => {
     const token = ++selectSeq.current
-    await closeCurrentFile()
+    if (!(await closeCurrentFile())) return
     try {
       // 選択時に必ずディスクから読み直す（走査時キャッシュを編集の起点にすると、
       // 直前の自動保存分を古い内容で上書きするデータ喪失経路になる）
@@ -121,6 +143,13 @@ function App() {
         delayMs: AUTOSAVE_DELAY_MS,
         baseline: serialize(result.data, module.schema),
         write: (text) => writeProjectFile(file.path, text),
+        onError: (err) =>
+          setSaveError(
+            `自動保存に失敗しました（編集を続けるか、もう一度閉じる操作で再試行されます）: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          ),
+        onSuccess: () => setSaveError(null),
       })
       setEditingData(result.data)
     } catch (err) {
@@ -151,6 +180,7 @@ function App() {
       </header>
 
       {ioError && <p className="px-6 py-2 text-sm text-warning">{ioError}</p>}
+      {saveError && <p className="px-6 py-2 text-sm text-warning">{saveError}</p>}
 
       <div className="flex min-h-0 flex-1">
         <aside className="w-64 shrink-0 border-r border-rule">
