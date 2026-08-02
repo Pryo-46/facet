@@ -11,7 +11,7 @@ import type { AnyToolModule, ModuleRegistry } from './registry'
  */
 export type LoadResult =
   | { status: 'editable'; type: string; title: string; data: unknown }
-  | { status: 'rejected'; title: string | null; reason: string; errors: string[] }
+  | { status: 'rejected'; type: string | null; title: string | null; reason: string; errors: string[] }
   | { status: 'listOnly'; type: string | null; title: string | null; reason: string }
 
 const validatorCache = new WeakMap<AnyToolModule, (data: unknown) => SchemaValidationResult>()
@@ -23,6 +23,7 @@ export function classifyFile(text: string, registry: ModuleRegistry): LoadResult
   } catch (e) {
     return {
       status: 'rejected',
+      type: null,
       title: null,
       reason: 'JSON として解釈できません',
       errors: [e instanceof Error ? e.message : String(e)],
@@ -31,6 +32,7 @@ export function classifyFile(text: string, registry: ModuleRegistry): LoadResult
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return {
       status: 'rejected',
+      type: null,
       title: null,
       reason: 'オブジェクトではありません',
       errors: [],
@@ -42,12 +44,20 @@ export function classifyFile(text: string, registry: ModuleRegistry): LoadResult
 
   // type / schemaVersion はスキーマ検証より先に読む（rev 5章。
   // 新版ファイルを「開けない」でなく「一覧表示のみ」に落とすため）
-  if (type === null) {
+  if (!('type' in record)) {
     return {
       status: 'listOnly',
       type: null,
       title,
       reason: 'ツールのファイルではありません（type がありません）',
+    }
+  }
+  if (type === null) {
+    return {
+      status: 'listOnly',
+      type: null,
+      title,
+      reason: 'ツールのファイルではありません（type が文字列ではありません）',
     }
   }
   const module = registry.get(type)
@@ -57,6 +67,14 @@ export function classifyFile(text: string, registry: ModuleRegistry): LoadResult
       type,
       title,
       reason: `このバージョンでは編集できない type です: ${type}`,
+    }
+  }
+  if (!('schemaVersion' in record)) {
+    return {
+      status: 'listOnly',
+      type,
+      title,
+      reason: 'schemaVersion がありません（このバージョンでは編集できません）',
     }
   }
   if (record.schemaVersion !== module.schemaVersion) {
@@ -79,6 +97,7 @@ export function classifyFile(text: string, registry: ModuleRegistry): LoadResult
   if (!result.ok) {
     return {
       status: 'rejected',
+      type,
       title,
       reason: 'スキーマ検証に失敗しました（このファイルは開けません）',
       errors: result.errors,
