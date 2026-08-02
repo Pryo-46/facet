@@ -70,18 +70,23 @@ function App() {
 
   const selectFile = async (file: ProjectFile) => {
     await closeCurrentFile()
+    // 選択時に必ずディスクから読み直す（走査時キャッシュを編集の起点にすると、
+    // 直前の自動保存分を古い内容で上書きするデータ喪失経路になる）
+    const text = await readProjectFile(file.path)
+    const result = classifyFile(text, appRegistry)
+    setFiles((prev) => prev.map((f) => (f.path === file.path ? { ...f, result } : f)))
     setSelectedPath(file.path)
-    if (file.result.status !== 'editable') return
-    const module = appRegistry.get(file.result.type)
+    if (result.status !== 'editable') return
+    const module = appRegistry.get(result.type)
     if (!module) return
     // baseline は「読み込んだ内容の正規形」。無編集ならバイト一致で書き込みが起きず、
     // 非正規ファイルでも最初の編集まで書き戻さない（rev 5章）
     saverRef.current = createAutoSaver({
       delayMs: AUTOSAVE_DELAY_MS,
-      baseline: serialize(file.result.data, module.schema),
+      baseline: serialize(result.data, module.schema),
       write: (text) => writeProjectFile(file.path, text),
     })
-    setEditingData(file.result.data)
+    setEditingData(result.data)
   }
 
   const selected = files.find((f) => f.path === selectedPath) ?? null
