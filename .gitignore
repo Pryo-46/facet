@@ -28,3 +28,11 @@ npm-debug.log*
 
 # 開発時の一時ファイル
 docs/screenshots/
+
+# 作業ツリー（EnterWorktree が作る。中身はリポジトリの複製なので、
+# 無視しないと誤ってツリー全体をコミットしうる）。.claude/skills/ は追跡対象
+.claude/worktrees/
+
+# 実装計画の実行ワークスペース（ブリーフ・レポート・レビューパッケージ。
+# 記録は git 履歴側に残るため再生成不要）
+.superpowers/
