@@ -27,7 +27,10 @@ describe('checkGlossaryConsistency', () => {
     const issues = checkGlossaryConsistency(data)
     expect(issues).toHaveLength(1)
     expect(issues[0].rule).toBe('duplicate-id')
-    expect(issues[0].locations).toEqual([{ entityId: 'term_aaaaaaaaaa', field: 'id' }])
+    expect(issues[0].locations).toEqual([
+      { entityId: 'term_aaaaaaaaaa', entityIndex: 0, field: 'id' },
+      { entityId: 'term_aaaaaaaaaa', entityIndex: 1, field: 'id' },
+    ])
   })
 
   it('name 重複を NFKC＋大文字小文字同一視で検出する', () => {
@@ -39,8 +42,8 @@ describe('checkGlossaryConsistency', () => {
     expect(issues).toHaveLength(1)
     expect(issues[0].rule).toBe('duplicate-name')
     expect(issues[0].locations).toEqual([
-      { entityId: 'term_aaaaaaaaaa', field: 'name' },
-      { entityId: 'term_bbbbbbbbbb', field: 'name' },
+      { entityId: 'term_aaaaaaaaaa', entityIndex: 0, field: 'name' },
+      { entityId: 'term_bbbbbbbbbb', entityIndex: 1, field: 'name' },
     ])
   })
 
@@ -79,7 +82,9 @@ describe('checkGlossaryConsistency', () => {
     const issues = checkGlossaryConsistency(data)
     expect(issues).toHaveLength(1)
     expect(issues[0].rule).toBe('duplicate-alias')
-    expect(issues[0].locations).toEqual([{ entityId: 'term_aaaaaaaaaa', field: 'aliases' }])
+    expect(issues[0].locations).toEqual([
+      { entityId: 'term_aaaaaaaaaa', entityIndex: 0, field: 'aliases' },
+    ])
   })
 
   it('用語間の alias 重複を検出する', () => {
@@ -91,8 +96,8 @@ describe('checkGlossaryConsistency', () => {
     expect(issues).toHaveLength(1)
     expect(issues[0].rule).toBe('duplicate-alias')
     expect(issues[0].locations).toEqual([
-      { entityId: 'term_aaaaaaaaaa', field: 'aliases' },
-      { entityId: 'term_bbbbbbbbbb', field: 'aliases' },
+      { entityId: 'term_aaaaaaaaaa', entityIndex: 0, field: 'aliases' },
+      { entityId: 'term_bbbbbbbbbb', entityIndex: 1, field: 'aliases' },
     ])
   })
 
@@ -105,8 +110,8 @@ describe('checkGlossaryConsistency', () => {
     expect(issues).toHaveLength(1)
     expect(issues[0].rule).toBe('alias-name-collision')
     expect(issues[0].locations).toEqual([
-      { entityId: 'term_bbbbbbbbbb', field: 'aliases' },
-      { entityId: 'term_aaaaaaaaaa', field: 'name' },
+      { entityId: 'term_bbbbbbbbbb', entityIndex: 1, field: 'aliases' },
+      { entityId: 'term_aaaaaaaaaa', entityIndex: 0, field: 'name' },
     ])
   })
 
@@ -123,5 +128,18 @@ describe('checkGlossaryConsistency', () => {
     const rules = checkGlossaryConsistency(data).map((i) => i.rule)
     expect(rules).toContain('duplicate-id')
     expect(rules).toContain('duplicate-name')
+  })
+
+  it('ID が重複していても name 重複は該当の行だけを指す', () => {
+    const data = glossary([
+      term({ id: 'term_aaaaaaaaaa', name: '受注' }),
+      term({ id: 'term_aaaaaaaaaa', name: '見積' }),
+      term({ id: 'term_bbbbbbbbbb', name: '見積' }),
+    ])
+    const nameIssue = checkGlossaryConsistency(data).find((i) => i.rule === 'duplicate-name')
+    expect(nameIssue?.locations).toEqual([
+      { entityId: 'term_aaaaaaaaaa', entityIndex: 1, field: 'name' },
+      { entityId: 'term_bbbbbbbbbb', entityIndex: 2, field: 'name' },
+    ])
   })
 })

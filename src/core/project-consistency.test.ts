@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { checkProjectConsistency } from './project-consistency'
+import type { ConsistencyIssue } from './consistency'
+import { addIssue, checkProjectConsistency } from './project-consistency'
 import { createRegistry, type AnyToolModule } from './registry'
 
 function fakeModule(type: string, singleton: boolean): AnyToolModule {
@@ -70,5 +71,12 @@ describe('checkProjectConsistency', () => {
       makeRegistry(),
     )
     expect(out.size).toBe(0)
+  })
+
+  it('同じファイルへの issue は上書きせず積み上げる', () => {
+    const out = new Map<string, ConsistencyIssue[]>()
+    addIssue(out, 'a.json', { rule: 'r1', message: 'one', locations: [] })
+    addIssue(out, 'a.json', { rule: 'r2', message: 'two', locations: [] })
+    expect(out.get('a.json')?.map((i) => i.rule)).toEqual(['r1', 'r2'])
   })
 })

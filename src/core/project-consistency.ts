@@ -37,7 +37,19 @@ export function checkProjectConsistency(
       message: `${module.displayName}のファイルがプロジェクトに${group.length}件あります（1つにしてください）: ${names}`,
       locations: [],
     }
-    for (const f of group) out.set(f.path, [issue])
+    for (const f of group) addIssue(out, f.path, issue)
   }
   return out
+}
+
+/**
+ * 検証結果への追記。コア横断ルールが2本目になったとき、先のルールの
+ * issue を上書きで消さないためのヘルパ。新しいルールは必ずこれを通すこと
+ */
+export function addIssue(
+  out: Map<string, ConsistencyIssue[]>,
+  path: string,
+  issue: ConsistencyIssue,
+): void {
+  out.set(path, [...(out.get(path) ?? []), issue])
 }
