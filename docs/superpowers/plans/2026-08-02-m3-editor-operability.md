@@ -1020,7 +1020,7 @@ describe('history', () => {
     let h = createHistory(0)
     for (let i = 1; i <= HISTORY_LIMIT + 10; i++) h = record(h, i, null, i * 10_000)
     expect(h.past).toHaveLength(HISTORY_LIMIT)
-    expect(h.past[0]).toBe(11)
+    expect(h.past[0]).toBe(10)
   })
 })
 ```
