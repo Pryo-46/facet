@@ -1,12 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "既定の権限。fs はコマンド許可のみで、パスの scope はダイアログで選んだフォルダ（recursive）に実行時付与される",
+  "description": "既定の権限。fs はコマンド許可のみで、パスの scope はダイアログで選んだフォルダ（recursive）に実行時付与される。core:window:allow-destroy は close 横取り（onCloseRequested → preventDefault → flush → destroy）に必要",
   "windows": [
     "main"
   ],
   "permissions": [
     "core:default",
+    "core:window:allow-destroy",
     "fs:default",
     "fs:allow-read-dir",
     "fs:allow-read-text-file",

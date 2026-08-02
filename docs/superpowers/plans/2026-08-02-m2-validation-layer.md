@@ -14,7 +14,7 @@
 - **レベル2は「受け入れて赤表示」**: 整合性検証の不合格でファイルを開けなくしない。編集は継続でき、人間がアプリ内で直せる（rev 5章）
 - **スキーマの正は `schemas/glossary.schema.json` の1ファイル。コピーを作らない**
 - **型は手書きしない**: `src/types/glossary.ts` は生成物（gitignore 済み、`pretest`/`predev` 等で自動再生成）
-- **Rust を書かない。Tauri コマンドを追加しない**。capabilities の変更も不要（フォルダ走査は M1 で `recursive: true` の scope 導通済み）
+- **Rust を書かない。Tauri コマンドを追加しない**。capabilities は close 横取りに `core:window:allow-destroy` の1行追加のみ必要（最終レビューで判明。フォルダ走査は M1 で `recursive: true` の scope 導通済み）
 - **色値の直書き禁止**: 役割トークン（`text-ink` / `text-warning` / `bg-warning` / `text-warning-fg` / `border-rule` / `bg-surface` / `text-ink-muted` / `bg-canvas` 等）のみ。`bg-warning/15` のような不透明度修飾はトークン由来なので可
 - **読み込み・閲覧では書き戻さない**。書き込みは編集起点のみ（rev 5章）
 - **Skill 側（`.claude/skills/glossary-term-register/`）は変更しない**。name 重複検査はアプリ側にのみ追加する（実装スコープ定義書 4節 M2。Skill スクリプトへの同検査の追加は別セッションの仕事として本計画のスコープ外）
