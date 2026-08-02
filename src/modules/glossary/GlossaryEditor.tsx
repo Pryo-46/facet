@@ -15,10 +15,12 @@ function parseAliases(raw: string): string[] {
 
 const cellInput =
   'w-full bg-transparent px-2 py-1 text-ink outline-none focus:bg-surface rounded-sm'
-// レベル2エラー（受け入れて赤表示）はセルの面で示す
-const errorCell = 'bg-warning/15'
-// warning（undecided / 未定義）はエラーより弱い点線下線。見た目の確定は M7
-const warnInput = 'border-b border-dashed border-warning'
+// レベル2エラー（受け入れて赤表示）と warning（undecided / 未定義）は
+// どちらも同系色の面で示し、濃さで強度を区別する。
+// 波線下線は表記ゆれの「指摘（suggestion）」用に予約されているため使わない
+// （glossary-session-notes 論点5）。濃さの値は仮置きで、確定は M7
+const errorCell = 'bg-warning/25'
+const warnCell = 'bg-warning/10'
 
 export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossarySchemaVersion1>) {
   const updateTerm = (index: number, patch: Partial<Term>) => {
@@ -79,11 +81,9 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
                   }}
                 />
               </td>
-              <td>
+              <td className={term.kind === 'undecided' ? warnCell : ''}>
                 <select
-                  className={
-                    cellInput + (term.kind === 'undecided' ? ` ${warnInput}` : '')
-                  }
+                  className={cellInput}
                   defaultValue={term.kind}
                   onChange={(e) => updateTerm(i, { kind: e.target.value as Term['kind'] })}
                 >
@@ -94,11 +94,12 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
                   ))}
                 </select>
               </td>
-              <td>
+              <td className={term.definition === '' ? warnCell : ''}>
                 <input
-                  className={
-                    cellInput + (term.definition === '' ? ` ${warnInput}` : '')
-                  }
+                  className={`${cellInput} placeholder:text-warning/70`}
+                  // 空欄は「未定義」と明示する（負債を消えなくして見せる。
+                  // M6 の Markdown 出力が空定義を「（未定義）」と書く仕様と揃える）
+                  placeholder="未定義"
                   defaultValue={term.definition}
                   onChange={(e) => updateTerm(i, { definition: e.target.value })}
                 />
