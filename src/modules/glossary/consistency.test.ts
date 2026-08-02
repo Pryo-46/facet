@@ -44,6 +44,26 @@ describe('checkGlossaryConsistency', () => {
     ])
   })
 
+  it('前後の空白違いは name 重複として検出する（スペースですり抜けられない）', () => {
+    const data = glossary([
+      term({ id: 'term_aaaaaaaaaa', name: '受注' }),
+      term({ id: 'term_bbbbbbbbbb', name: '受注 ' }),
+    ])
+    const issues = checkGlossaryConsistency(data)
+    expect(issues).toHaveLength(1)
+    expect(issues[0].rule).toBe('duplicate-name')
+  })
+
+  it('前後の空白違いは alias 重複としても検出する', () => {
+    const data = glossary([
+      term({ id: 'term_aaaaaaaaaa', name: '案件', aliases: ['取引'] }),
+      term({ id: 'term_bbbbbbbbbb', name: '商談', aliases: ['　取引'] }),
+    ])
+    const issues = checkGlossaryConsistency(data)
+    expect(issues).toHaveLength(1)
+    expect(issues[0].rule).toBe('duplicate-alias')
+  })
+
   it('表記が完全一致しない name は重複にしない', () => {
     const data = glossary([
       term({ id: 'term_aaaaaaaaaa', name: '受注' }),

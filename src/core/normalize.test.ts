@@ -21,4 +21,16 @@ describe('normalizeForMatch', () => {
   it('日本語はそのまま', () => {
     expect(normalizeForMatch('受注')).toBe('受注')
   })
+
+  it('前後の空白を除去する（スペースで重複判定をすり抜けられないように）', () => {
+    expect(normalizeForMatch(' 受注 ')).toBe('受注')
+  })
+
+  it('前後の全角スペースも除去する（NFKC で半角化してから trim）', () => {
+    expect(normalizeForMatch('　受注　')).toBe('受注')
+  })
+
+  it('語中の空白は残す（別の表記として扱う）', () => {
+    expect(normalizeForMatch('order id')).toBe('order id')
+  })
 })
