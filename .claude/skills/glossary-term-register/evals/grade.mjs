@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 
 const ITER = path.resolve(process.argv[2] ?? ".");
 const SKILL = path.resolve("C:/Dev/Projects/facet/.claude/skills/glossary-term-register");
-const SCHEMA = "C:/Dev/Projects/facet/glossary.schema.json";
+const SCHEMA = "C:/Dev/Projects/facet/schemas/glossary.schema.json";
 const ID_RE = /^term_[A-Za-z0-9]{10}$/;
 
 function glossaryFiles(dir) {
