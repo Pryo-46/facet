@@ -222,6 +222,32 @@ describe('createAutoSaver', () => {
     expect(write).toHaveBeenLastCalledWith('B')
   })
 
+  it('古い write の失敗は、後続の write が最新を書いた後に復元されない（巻き戻り防止）', async () => {
+    // write('B') は遅延して失敗、write('C') は成功するよう順序制御する
+    let rejectB!: (err: Error) => void
+    const calls: string[] = []
+    const write = vi.fn((text: string) => {
+      calls.push(text)
+      if (text === 'B') {
+        return new Promise<void>((_, reject) => {
+          rejectB = reject
+        })
+      }
+      return Promise.resolve()
+    })
+    const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write })
+    saver.update('B')
+    await vi.advanceTimersByTimeAsync(500) // write('B') が in-flight になる
+    saver.update('C') // 新しい編集が pending に入る
+    const flushPromise = saver.flush() // 'C' を chain に接続
+    rejectB(new Error('slow failure')) // その後で 'B' が失敗する
+    await expect(flushPromise).resolves.toBe(true) // 'C' は書けたので書き残しなし
+    expect(calls).toEqual(['B', 'C'])
+    // もう一度 flush しても 'B' は書かれない（巻き戻りしない）
+    await saver.flush()
+    expect(calls).toEqual(['B', 'C'])
+  })
+
   it('write 失敗で onError、成功で onSuccess が呼ばれる', async () => {
     const onError = vi.fn()
     const onSuccess = vi.fn()

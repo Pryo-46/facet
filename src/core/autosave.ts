@@ -22,6 +22,8 @@ export function createAutoSaver(opts: {
   onSuccess?: () => void
 }): AutoSaver {
   let lastSaved = opts.baseline
+  // 直近に要求された内容（復元の適否判定に使う。lastSaved はディスク確定値、latest は要求値）
+  let latest = opts.baseline
   let inFlight = false
   let pending: string | null = null
   let timer: ReturnType<typeof setTimeout> | null = null
@@ -56,15 +58,17 @@ export function createAutoSaver(opts: {
       .catch((err: unknown) => {
         console.error('自動保存に失敗しました', err)
         opts.onError?.(err)
-        // 失敗した内容を pending に戻し、後続の flush()/タイマーで再試行可能にする
-        // （すでに新しい編集が pending にあるならそちらが優先）
-        if (pending === null) pending = text
+        // 失敗した内容を pending に戻し、後続の flush()/タイマーで再試行可能にする。
+        // ただし失敗した内容が最新の要求（latest）でないなら復元しない——
+        // 後続の write が最新を書いた後に古い内容で上書きする巻き戻りを防ぐ
+        if (pending === null && text === latest) pending = text
       })
     return chain
   }
 
   return {
     update(text) {
+      latest = text
       // 早期 no-op は write が飛んでいない時だけ安全
       if (text === lastSaved && !inFlight) {
         pending = null
