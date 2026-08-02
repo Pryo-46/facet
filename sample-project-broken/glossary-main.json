@@ -40,7 +40,10 @@
       "name": "顧客",
       "kind": "actor",
       "definition": "サービスを利用する企業・個人。",
-      "aliases": ["クライアント", "クライアント"],
+      "aliases": [
+        "クライアント",
+        "クライアント"
+      ],
       "notes": "同一用語内の alias 重複"
     },
     {
@@ -48,7 +51,9 @@
       "name": "案件",
       "kind": "data",
       "definition": "商談の単位。",
-      "aliases": ["取引"],
+      "aliases": [
+        "取引"
+      ],
       "notes": "用語間 alias 重複の1件目"
     },
     {
@@ -56,7 +61,9 @@
       "name": "商談",
       "kind": "event",
       "definition": "受注前の交渉。",
-      "aliases": ["取引"],
+      "aliases": [
+        "取引"
+      ],
       "notes": "用語間 alias 重複の2件目"
     },
     {
@@ -64,7 +71,9 @@
       "name": "見積",
       "kind": "data",
       "definition": "金額の提示。",
-      "aliases": ["受注"],
+      "aliases": [
+        "受注"
+      ],
       "notes": "alias が用語「受注」の name と衝突"
     },
     {
