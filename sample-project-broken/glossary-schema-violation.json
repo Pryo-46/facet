@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "type": "glossary",
+  "title": "スキーマ違反の用語集（レベル1拒否の確認用）",
+  "terms": [
+    {
+      "id": "term_zzzzzzzzzz",
+      "name": "孤立した用語",
+      "kind": "other",
+      "definition": "notes キーが無いのでスキーマ検証に落ちる。",
+      "aliases": []
+    }
+  ]
+}

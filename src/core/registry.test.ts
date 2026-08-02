@@ -4,10 +4,13 @@ import { createRegistry, type AnyToolModule } from './registry'
 function fakeModule(type: string, prefixes: string[]): AnyToolModule {
   return {
     type,
+    displayName: type,
     schemaVersion: 1,
     schema: {},
     idPrefixes: prefixes,
     Editor: () => null,
+    checkConsistency: () => [],
+    singleton: false,
     migrate: (d) => d,
   }
 }
@@ -37,5 +40,10 @@ describe('createRegistry', () => {
     expect(() => registry.register(fakeModule('stateMachine', ['state', 'term']))).toThrow(
       /term/,
     )
+  })
+
+  it('同一モジュール内の ID プレフィクス重複も例外', () => {
+    const registry = createRegistry()
+    expect(() => registry.register(fakeModule('glossary', ['term', 'term']))).toThrow(/term/)
   })
 })

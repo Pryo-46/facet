@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "type": "glossary",
+  "title": "壊れた用語集（整合性検証の確認用）",
+  "terms": [
+    {
+      "id": "term_aaaaaaaaaa",
+      "name": "受注",
+      "kind": "event",
+      "definition": "顧客からの注文を受け付けること。",
+      "aliases": [],
+      "notes": "ID 重複ペアの1件目（次の行と同じ ID）"
+    },
+    {
+      "id": "term_aaaaaaaaaa",
+      "name": "発注",
+      "kind": "event",
+      "definition": "仕入先へ注文を出すこと。",
+      "aliases": [],
+      "notes": "ID 重複ペアの2件目"
+    },
+    {
+      "id": "term_bbbbbbbbbb",
+      "name": "API連携",
+      "kind": "data",
+      "definition": "外部システムとの API 連携。",
+      "aliases": [],
+      "notes": "name 重複ペアの1件目（次の行と NFKC で同名）"
+    },
+    {
+      "id": "term_cccccccccc",
+      "name": "ＡＰＩ連携",
+      "kind": "data",
+      "definition": "全角表記の重複。",
+      "aliases": [],
+      "notes": "name 重複ペアの2件目"
+    },
+    {
+      "id": "term_dddddddddd",
+      "name": "顧客",
+      "kind": "actor",
+      "definition": "サービスを利用する企業・個人。",
+      "aliases": [
+        "クライアント",
+        "クライアント"
+      ],
+      "notes": "同一用語内の alias 重複"
+    },
+    {
+      "id": "term_eeeeeeeeee",
+      "name": "案件",
+      "kind": "data",
+      "definition": "商談の単位。",
+      "aliases": [
+        "取引"
+      ],
+      "notes": "用語間 alias 重複の1件目"
+    },
+    {
+      "id": "term_ffffffffff",
+      "name": "商談",
+      "kind": "event",
+      "definition": "受注前の交渉。",
+      "aliases": [
+        "取引"
+      ],
+      "notes": "用語間 alias 重複の2件目"
+    },
+    {
+      "id": "term_gggggggggg",
+      "name": "見積",
+      "kind": "data",
+      "definition": "金額の提示。",
+      "aliases": [
+        "受注"
+      ],
+      "notes": "alias が用語「受注」の name と衝突"
+    },
+    {
+      "id": "term_hhhhhhhhhh",
+      "name": "請求",
+      "kind": "undecided",
+      "definition": "",
+      "aliases": [],
+      "notes": "warning 確認用（kind=undecided と definition 空）"
+    }
+  ]
+}

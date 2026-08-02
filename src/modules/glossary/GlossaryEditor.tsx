@@ -15,16 +15,41 @@ function parseAliases(raw: string): string[] {
 
 const cellInput =
   'w-full bg-transparent px-2 py-1 text-ink outline-none focus:bg-surface rounded-sm'
+// レベル2エラー（受け入れて赤表示）と warning（undecided / 未定義）は
+// どちらも同系色の面で示し、濃さで強度を区別する。
+// 波線下線は表記ゆれの「指摘（suggestion）」用に予約されているため使わない
+// （glossary-session-notes 論点5）。濃さの値は仮置きで、確定は M7
+const errorCell = 'bg-warning/25'
+const warnCell = 'bg-warning/10'
 
-export function GlossaryEditor({ data, onChange }: EditorProps<GlossarySchemaVersion1>) {
+export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossarySchemaVersion1>) {
   const updateTerm = (index: number, patch: Partial<Term>) => {
     const terms = data.terms.map((t, i) => (i === index ? { ...t, ...patch } : t))
     onChange({ ...data, terms })
   }
 
+  // locations を「entityId → 赤表示するフィールド集合」に引き直す。
+  // field 'id' は ID 列が UI に無いため行全体の赤表示として扱う
+  const marks = new Map<string, Set<string>>()
+  for (const issue of issues) {
+    for (const loc of issue.locations) {
+      const set = marks.get(loc.entityId) ?? new Set<string>()
+      if (loc.field !== null) set.add(loc.field)
+      marks.set(loc.entityId, set)
+    }
+  }
+  const mark = (id: string, field: string) => (marks.get(id)?.has(field) ? ` ${errorCell}` : '')
+
   return (
     <div className="p-4">
       <h2 className="mb-3 text-base font-bold text-ink">{data.title}</h2>
+      {issues.length > 0 && (
+        <ul className="mb-3 list-disc pl-5 text-sm text-warning">
+          {issues.map((issue, i) => (
+            <li key={`${issue.rule}-${i}`}>{issue.message}</li>
+          ))}
+        </ul>
+      )}
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-rule text-left text-ink-muted">
@@ -37,8 +62,13 @@ export function GlossaryEditor({ data, onChange }: EditorProps<GlossarySchemaVer
         </thead>
         <tbody>
           {data.terms.map((term, i) => (
-            <tr key={term.id} className="border-b border-rule align-top">
-              <td>
+            // 行キーは index。ID 重複ファイルを「受け入れて赤表示」するため term.id は
+            // キーに使えない（重複キーで描画が壊れる）。並び替え導入時（M3）に再検討する
+            <tr
+              key={i}
+              className={`border-b border-rule align-top${mark(term.id, 'id')}`}
+            >
+              <td className={mark(term.id, 'name')}>
                 <input
                   className={cellInput}
                   defaultValue={term.name}
@@ -51,7 +81,7 @@ export function GlossaryEditor({ data, onChange }: EditorProps<GlossarySchemaVer
                   }}
                 />
               </td>
-              <td>
+              <td className={term.kind === 'undecided' ? warnCell : ''}>
                 <select
                   className={cellInput}
                   defaultValue={term.kind}
@@ -64,14 +94,17 @@ export function GlossaryEditor({ data, onChange }: EditorProps<GlossarySchemaVer
                   ))}
                 </select>
               </td>
-              <td>
+              <td className={term.definition === '' ? warnCell : ''}>
                 <input
-                  className={cellInput}
+                  className={`${cellInput} placeholder:text-warning/70`}
+                  // 空欄は「未定義」と明示する（負債を消えなくして見せる。
+                  // M6 の Markdown 出力が空定義を「（未定義）」と書く仕様と揃える）
+                  placeholder="未定義"
                   defaultValue={term.definition}
                   onChange={(e) => updateTerm(i, { definition: e.target.value })}
                 />
               </td>
-              <td>
+              <td className={mark(term.id, 'aliases')}>
                 <input
                   className={cellInput}
                   defaultValue={term.aliases.join('、')}

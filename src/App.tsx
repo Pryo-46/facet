@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { createAutoSaver, type AutoSaver } from '@/core/autosave'
 import { serialize } from '@/core/canonical'
+import type { ConsistencyIssue } from '@/core/consistency'
 import { classifyFile, type LoadResult } from '@/core/load'
+import { checkProjectConsistency } from '@/core/project-consistency'
+import { interceptClose } from '@/fs/app-window'
 import {
   listJsonFiles,
   pickProjectFolder,
@@ -17,10 +20,27 @@ interface ProjectFile {
   path: string
   name: string
   result: LoadResult
+  /** モジュール内検証＋コア横断検証の結果（レベル2）。一覧バッジとエディタ赤表示に使う */
+  issues: ConsistencyIssue[]
 }
 
 function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path
+}
+
+/** 全ファイルの整合性検証（レベル2）をやり直す。走査時と編集時の両方から呼ぶ */
+function computeIssues(files: ProjectFile[]): ProjectFile[] {
+  const cross = checkProjectConsistency(
+    files.map((f) => ({ path: f.path, type: f.result.type })),
+    appRegistry,
+  )
+  return files.map((f) => {
+    const local =
+      f.result.status === 'editable'
+        ? (appRegistry.get(f.result.type)?.checkConsistency(f.result.data) ?? [])
+        : []
+    return { ...f, issues: [...local, ...(cross.get(f.path) ?? [])] }
+  })
 }
 
 function App() {
@@ -31,6 +51,7 @@ function App() {
   // 編集中データ。selected が editable のときだけ非 null
   const [editingData, setEditingData] = useState<unknown>(null)
   const [ioError, setIoError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const saverRef = useRef<AutoSaver | null>(null)
   // selectFile の連続呼び出しを直列化するためのトークン。
   // 後続の選択（または openFolder）が始まったら、先行呼び出しの結果は破棄する。
@@ -50,45 +71,75 @@ function App() {
     }
   }, [])
 
-  const closeCurrentFile = async () => {
-    await saverRef.current?.flush()
-    saverRef.current?.dispose()
-    saverRef.current = null
+  // ウィンドウ close を横取りして保留中の編集を書き切る。
+  // flush が失敗したら閉じない（saveError バナーが出る。再度閉じる操作＝再試行）
+  useEffect(() => {
+    const unlisten = interceptClose(async () => {
+      const saver = saverRef.current
+      return saver ? saver.flush() : true
+    })
+    return () => {
+      void unlisten.then((f) => f())
+    }
+  }, [])
+
+  /** 現在のファイルを閉じる。false＝保留編集を書き切れず中断（saver は生かしたまま） */
+  const closeCurrentFile = async (): Promise<boolean> => {
+    const saver = saverRef.current
+    if (saver) {
+      const ok = await saver.flush()
+      // flush 失敗時に dispose すると、catch が復元した pending を破棄してしまう
+      //（M1 レビューの二重失敗エッジ）。dispose せず中断する
+      if (!ok) return false
+      saver.dispose()
+      saverRef.current = null
+    }
     setSelectedPath(null)
     setEditingData(null)
+    return true
   }
 
   const openFolder = async () => {
     const dir = await pickProjectFolder()
     if (dir === null) return
-    // 進行中の selectFile を無効化する（フォルダ切替中に古い選択結果が紛れ込まないように）
-    selectSeq.current++
-    await closeCurrentFile()
+    const token = ++selectSeq.current
+    // 先に現在のファイルを閉じる（flush 後の内容で走査するため）。
+    // flush が失敗したらフォルダ切替を中断する（書けていない編集を捨てない）
+    if (!(await closeCurrentFile())) return
     try {
       const paths = await listJsonFiles(dir)
       const loaded: ProjectFile[] = []
       for (const path of paths) {
         const text = await readProjectFile(path)
-        loaded.push({ path, name: fileName(path), result: classifyFile(text, appRegistry) })
+        loaded.push({ path, name: fileName(path), result: classifyFile(text, appRegistry), issues: [] })
       }
+      // 後続の openFolder / selectFile が始まっていたら、この結果は破棄する
+      if (token !== selectSeq.current) return
+      // 全部読めてから一括で入れ替える（途中失敗で新旧が混ざった状態を作らない）
       setProjectDir(dir)
-      setFiles(loaded)
+      setFiles(computeIssues(loaded))
       setIoError(null)
     } catch (err) {
-      setIoError(`ファイルの読み込みに失敗しました: ${err instanceof Error ? err.message : String(err)}`)
+      if (token !== selectSeq.current) return
+      // 旧フォルダの一覧はそのまま残す。選択は closeCurrentFile 済みなので選び直せる
+      setIoError(
+        `フォルダの読み込みに失敗しました: ${err instanceof Error ? err.message : String(err)}`,
+      )
     }
   }
 
   const selectFile = async (file: ProjectFile) => {
     const token = ++selectSeq.current
-    await closeCurrentFile()
+    if (!(await closeCurrentFile())) return
     try {
       // 選択時に必ずディスクから読み直す（走査時キャッシュを編集の起点にすると、
       // 直前の自動保存分を古い内容で上書きするデータ喪失経路になる）
       const text = await readProjectFile(file.path)
       if (token !== selectSeq.current) return // 後続の選択が始まっていたら破棄
       const result = classifyFile(text, appRegistry)
-      setFiles((prev) => prev.map((f) => (f.path === file.path ? { ...f, result } : f)))
+      setFiles((prev) =>
+        computeIssues(prev.map((f) => (f.path === file.path ? { ...f, result } : f))),
+      )
       setSelectedPath(file.path)
       setIoError(null)
       if (result.status !== 'editable') return
@@ -100,6 +151,13 @@ function App() {
         delayMs: AUTOSAVE_DELAY_MS,
         baseline: serialize(result.data, module.schema),
         write: (text) => writeProjectFile(file.path, text),
+        onError: (err) =>
+          setSaveError(
+            `自動保存に失敗しました（編集を続けるか、もう一度閉じる操作で再試行されます）: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          ),
+        onSuccess: () => setSaveError(null),
       })
       setEditingData(result.data)
     } catch (err) {
@@ -130,6 +188,7 @@ function App() {
       </header>
 
       {ioError && <p className="px-6 py-2 text-sm text-warning">{ioError}</p>}
+      {saveError && <p className="px-6 py-2 text-sm text-warning">{saveError}</p>}
 
       <div className="flex min-h-0 flex-1">
         <aside className="w-64 shrink-0 border-r border-rule">
@@ -155,6 +214,11 @@ function App() {
                         <span className="text-warning">開けない</span>
                       )}
                       {file.result.status === 'listOnly' && '編集不可'}
+                      {file.issues.length > 0 && (
+                        <span className="ml-1 rounded-sm bg-warning px-1 text-xs text-warning-fg">
+                          {file.issues.length}
+                        </span>
+                      )}
                     </span>
                   </button>
                 </li>
@@ -166,6 +230,13 @@ function App() {
         <section className="min-w-0 flex-1 overflow-auto">
           {selected === null && (
             <p className="p-6 text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
+          )}
+          {selected && selected.result.status !== 'editable' && selected.issues.length > 0 && (
+            <ul className="list-disc px-6 pt-4 pl-10 text-sm text-warning">
+              {selected.issues.map((issue, i) => (
+                <li key={`${issue.rule}-${i}`}>{issue.message}</li>
+              ))}
+            </ul>
           )}
           {selected?.result.status === 'rejected' && (
             <div className="p-6">
@@ -191,9 +262,20 @@ function App() {
               <selectedModule.Editor
                 key={selected.path}
                 data={editingData}
+                issues={selected.issues}
                 onChange={(next: unknown) => {
                   setEditingData(next)
                   saverRef.current?.update(serialize(next, selectedModule.schema))
+                  // 編集を契機に整合性検証をやり直す（rev 5章の「自己編集」側。外部変更は M5）
+                  setFiles((prev) =>
+                    computeIssues(
+                      prev.map((f) =>
+                        f.path === selected.path && f.result.status === 'editable'
+                          ? { ...f, result: { ...f.result, data: next } }
+                          : f,
+                      ),
+                    ),
+                  )
                 }}
               />
             )}
