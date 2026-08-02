@@ -50,6 +50,9 @@ export function createAutoSaver(opts: {
       })
       .catch((err: unknown) => {
         console.error('自動保存に失敗しました', err)
+        // 失敗した内容を pending に戻し、後続の flush()/タイマーで再試行可能にする
+        // （すでに新しい編集が pending にあるならそちらが優先）
+        if (pending === null) pending = text
       })
     return chain
   }

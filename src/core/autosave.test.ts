@@ -134,15 +134,20 @@ describe('createAutoSaver', () => {
   })
 
   it('in-flight と同内容の update は write 失敗後に再試行される', async () => {
-    const deferred = (() => {
-      let resolve: () => void, reject: (err: unknown) => void
+    // 呼び出しごとに独立した deferred を返す（前回の promise を使い回すと
+    // 「2回目の成功」を検証したつもりでも実は1回目の reject 済み promise を
+    // 再利用してしまい、テストが失敗を検出できなくなる）
+    const deferreds: { resolve: () => void; reject: (err: unknown) => void }[] = []
+    const write = vi.fn(() => {
+      let resolve!: () => void
+      let reject!: (err: unknown) => void
       const promise = new Promise<void>((res, rej) => {
         resolve = res
         reject = rej
       })
-      return { promise, resolve: resolve!, reject: reject! }
-    })()
-    const write = vi.fn(() => deferred.promise)
+      deferreds.push({ resolve, reject })
+      return promise
+    })
     const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write })
     saver.update('B')
     await vi.runAllTimersAsync()
@@ -151,13 +156,51 @@ describe('createAutoSaver', () => {
     expect(write).toHaveBeenNthCalledWith(1, 'B')
     // in-flight 中に同じ内容を update（スケジュールされる）
     saver.update('B')
-    // write を reject させて失敗を起こす
-    deferred.reject(new Error('write failed'))
+    // 1回目の write を reject させて失敗を起こす
+    deferreds[0].reject(new Error('write failed'))
     await vi.runAllTimersAsync()
-    // pending に残っているので flush で再試行
-    await saver.flush()
-    // write が 2回呼ばれる（1回目失敗、2回目成功）
+    // pending に残っているので flush で再試行される
+    const flushPromise = saver.flush()
+    await vi.runAllTimersAsync()
+    // write が新しい呼び出しとして再試行される（1回目とは別の promise インスタンス）
     expect(write).toHaveBeenCalledTimes(2)
     expect(write).toHaveBeenNthCalledWith(2, 'B')
+    // 2回目を成功させる
+    deferreds[1].resolve()
+    await flushPromise
+    // 成功後、同内容を再度 update しても重複書き込みは起きない
+    saver.update('B')
+    await vi.runAllTimersAsync()
+    expect(write).toHaveBeenCalledTimes(2)
+  })
+
+  it('write 失敗後、update を挟まなくても flush() が失敗内容を再書き込みする', async () => {
+    const deferreds: { resolve: () => void; reject: (err: unknown) => void }[] = []
+    const write = vi.fn(() => {
+      let resolve!: () => void
+      let reject!: (err: unknown) => void
+      const promise = new Promise<void>((res, rej) => {
+        resolve = res
+        reject = rej
+      })
+      deferreds.push({ resolve, reject })
+      return promise
+    })
+    const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write })
+    saver.update('B')
+    await vi.runAllTimersAsync()
+    // write('B') が呼ばれてタイマー経由で走った
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(write).toHaveBeenNthCalledWith(1, 'B')
+    // update を挟まず write('B') を失敗させる
+    deferreds[0].reject(new Error('write failed'))
+    await vi.runAllTimersAsync()
+    // 失敗した内容が pending に復元され、flush() だけで再試行される
+    const flushPromise = saver.flush()
+    await vi.runAllTimersAsync()
+    expect(write).toHaveBeenCalledTimes(2)
+    expect(write).toHaveBeenNthCalledWith(2, 'B')
+    deferreds[1].resolve()
+    await flushPromise
   })
 })

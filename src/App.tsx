@@ -189,6 +189,7 @@ function App() {
             selectedModule &&
             editingData !== null && (
               <selectedModule.Editor
+                key={selected.path}
                 data={editingData}
                 onChange={(next: unknown) => {
                   setEditingData(next)
