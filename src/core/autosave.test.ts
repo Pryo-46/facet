@@ -203,4 +203,36 @@ describe('createAutoSaver', () => {
     deferreds[1].resolve()
     await flushPromise
   })
+
+  it('flush は書き残しが無ければ true を返す', async () => {
+    const write = vi.fn(() => Promise.resolve())
+    const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write })
+    saver.update('B')
+    await expect(saver.flush()).resolves.toBe(true)
+  })
+
+  it('write が失敗し続けたら flush は false を返す（pending は破棄されない）', async () => {
+    const write = vi.fn(() => Promise.reject(new Error('disk full')))
+    const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write })
+    saver.update('B')
+    await expect(saver.flush()).resolves.toBe(false)
+    // 復元された pending は次の flush で再試行される
+    write.mockImplementation(() => Promise.resolve())
+    await expect(saver.flush()).resolves.toBe(true)
+    expect(write).toHaveBeenLastCalledWith('B')
+  })
+
+  it('write 失敗で onError、成功で onSuccess が呼ばれる', async () => {
+    const onError = vi.fn()
+    const onSuccess = vi.fn()
+    const write = vi.fn(() => Promise.reject(new Error('boom')))
+    const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write, onError, onSuccess })
+    saver.update('B')
+    await saver.flush()
+    expect(onError).toHaveBeenCalledTimes(1)
+    expect(onSuccess).not.toHaveBeenCalled()
+    write.mockImplementation(() => Promise.resolve())
+    await saver.flush()
+    expect(onSuccess).toHaveBeenCalledTimes(1)
+  })
 })
