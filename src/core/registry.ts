@@ -45,7 +45,12 @@ export function createRegistry(): ModuleRegistry {
       if (byType.has(module.type)) {
         throw new Error(`type が重複しています: ${module.type}`)
       }
+      const seen = new Set<string>()
       for (const p of module.idPrefixes) {
+        if (seen.has(p)) {
+          throw new Error(`ID プレフィクスがモジュール内で重複しています: ${p}（${module.type}）`)
+        }
+        seen.add(p)
         const owner = prefixOwner.get(p)
         if (owner) {
           throw new Error(`ID プレフィクスが重複しています: ${p}（${owner} と ${module.type}）`)

@@ -38,4 +38,9 @@ describe('createRegistry', () => {
       /term/,
     )
   })
+
+  it('同一モジュール内の ID プレフィクス重複も例外', () => {
+    const registry = createRegistry()
+    expect(() => registry.register(fakeModule('glossary', ['term', 'term']))).toThrow(/term/)
+  })
 })
