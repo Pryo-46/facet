@@ -15,16 +15,39 @@ function parseAliases(raw: string): string[] {
 
 const cellInput =
   'w-full bg-transparent px-2 py-1 text-ink outline-none focus:bg-surface rounded-sm'
+// レベル2エラー（受け入れて赤表示）はセルの面で示す
+const errorCell = 'bg-warning/15'
+// warning（undecided / 未定義）はエラーより弱い点線下線。見た目の確定は M7
+const warnInput = 'border-b border-dashed border-warning'
 
-export function GlossaryEditor({ data, onChange }: EditorProps<GlossarySchemaVersion1>) {
+export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossarySchemaVersion1>) {
   const updateTerm = (index: number, patch: Partial<Term>) => {
     const terms = data.terms.map((t, i) => (i === index ? { ...t, ...patch } : t))
     onChange({ ...data, terms })
   }
 
+  // locations を「entityId → 赤表示するフィールド集合」に引き直す。
+  // field 'id' は ID 列が UI に無いため行全体の赤表示として扱う
+  const marks = new Map<string, Set<string>>()
+  for (const issue of issues) {
+    for (const loc of issue.locations) {
+      const set = marks.get(loc.entityId) ?? new Set<string>()
+      if (loc.field !== null) set.add(loc.field)
+      marks.set(loc.entityId, set)
+    }
+  }
+  const mark = (id: string, field: string) => (marks.get(id)?.has(field) ? ` ${errorCell}` : '')
+
   return (
     <div className="p-4">
       <h2 className="mb-3 text-base font-bold text-ink">{data.title}</h2>
+      {issues.length > 0 && (
+        <ul className="mb-3 list-disc pl-5 text-sm text-warning">
+          {issues.map((issue, i) => (
+            <li key={`${issue.rule}-${i}`}>{issue.message}</li>
+          ))}
+        </ul>
+      )}
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-rule text-left text-ink-muted">
@@ -37,8 +60,13 @@ export function GlossaryEditor({ data, onChange }: EditorProps<GlossarySchemaVer
         </thead>
         <tbody>
           {data.terms.map((term, i) => (
-            <tr key={term.id} className="border-b border-rule align-top">
-              <td>
+            // 行キーは index。ID 重複ファイルを「受け入れて赤表示」するため term.id は
+            // キーに使えない（重複キーで描画が壊れる）。並び替え導入時（M3）に再検討する
+            <tr
+              key={i}
+              className={`border-b border-rule align-top${mark(term.id, 'id')}`}
+            >
+              <td className={mark(term.id, 'name')}>
                 <input
                   className={cellInput}
                   defaultValue={term.name}
@@ -53,7 +81,9 @@ export function GlossaryEditor({ data, onChange }: EditorProps<GlossarySchemaVer
               </td>
               <td>
                 <select
-                  className={cellInput}
+                  className={
+                    cellInput + (term.kind === 'undecided' ? ` ${warnInput}` : '')
+                  }
                   defaultValue={term.kind}
                   onChange={(e) => updateTerm(i, { kind: e.target.value as Term['kind'] })}
                 >
@@ -66,12 +96,14 @@ export function GlossaryEditor({ data, onChange }: EditorProps<GlossarySchemaVer
               </td>
               <td>
                 <input
-                  className={cellInput}
+                  className={
+                    cellInput + (term.definition === '' ? ` ${warnInput}` : '')
+                  }
                   defaultValue={term.definition}
                   onChange={(e) => updateTerm(i, { definition: e.target.value })}
                 />
               </td>
-              <td>
+              <td className={mark(term.id, 'aliases')}>
                 <input
                   className={cellInput}
                   defaultValue={term.aliases.join('、')}
