@@ -18,7 +18,7 @@ export function createAutoSaver(opts: {
   write: (text: string) => Promise<void>
 }): AutoSaver {
   let lastSaved = opts.baseline
-  let inFlight: string | null = null
+  let inFlight = false
   let pending: string | null = null
   let timer: ReturnType<typeof setTimeout> | null = null
   let chain: Promise<void> = Promise.resolve()
@@ -34,24 +34,30 @@ export function createAutoSaver(opts: {
     const text = pending
     pending = null
     clearTimer()
-    if (text === null || text === (inFlight ?? lastSaved)) return chain
-    inFlight = text
+    if (text === null) return chain
     chain = chain
-      .then(() => opts.write(text))
-      .then(() => {
-        lastSaved = text
-        inFlight = null
+      .then(async () => {
+        // 実行時点で直前の書き込み結果（lastSaved）と比較する。
+        // 成功していれば重複を弾き、失敗していれば書き直しになる。
+        if (text === lastSaved) return
+        inFlight = true
+        try {
+          await opts.write(text)
+          lastSaved = text
+        } finally {
+          inFlight = false
+        }
       })
       .catch((err: unknown) => {
         console.error('自動保存に失敗しました', err)
-        inFlight = null
       })
     return chain
   }
 
   return {
     update(text) {
-      if (text === (inFlight ?? lastSaved)) {
+      // 早期 no-op は write が飛んでいない時だけ安全
+      if (text === lastSaved && !inFlight) {
         pending = null
         clearTimer()
         return

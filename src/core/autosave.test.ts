@@ -132,4 +132,32 @@ describe('createAutoSaver', () => {
     // 2本目が順番に呼ばれる
     expect(writes).toEqual(['B', 'C'])
   })
+
+  it('in-flight と同内容の update は write 失敗後に再試行される', async () => {
+    const deferred = (() => {
+      let resolve: () => void, reject: (err: unknown) => void
+      const promise = new Promise<void>((res, rej) => {
+        resolve = res
+        reject = rej
+      })
+      return { promise, resolve: resolve!, reject: reject! }
+    })()
+    const write = vi.fn(() => deferred.promise)
+    const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write })
+    saver.update('B')
+    await vi.runAllTimersAsync()
+    // この時点で write('B') が呼ばれて in-flight
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(write).toHaveBeenNthCalledWith(1, 'B')
+    // in-flight 中に同じ内容を update（スケジュールされる）
+    saver.update('B')
+    // write を reject させて失敗を起こす
+    deferred.reject(new Error('write failed'))
+    await vi.runAllTimersAsync()
+    // pending に残っているので flush で再試行
+    await saver.flush()
+    // write が 2回呼ばれる（1回目失敗、2回目成功）
+    expect(write).toHaveBeenCalledTimes(2)
+    expect(write).toHaveBeenNthCalledWith(2, 'B')
+  })
 })
