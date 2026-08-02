@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import type { JsonSchema } from './canonical'
+import type { ConsistencyIssue } from './consistency'
 
 export interface EditorProps<TData> {
   data: TData
@@ -13,6 +14,8 @@ export interface EditorProps<TData> {
 export interface ToolModule<TData = unknown> {
   /** 規約1: type 識別子 */
   type: string
+  /** 一覧・エラーメッセージで使う表示名（例: 用語集） */
+  displayName: string
   /** 現行の schemaVersion。これと異なる版のファイルは「一覧表示のみ」に落ちる */
   schemaVersion: number
   /** 規約2: JSON Schema（schemas/ の実体を import する。コピー禁止） */
@@ -21,6 +24,10 @@ export interface ToolModule<TData = unknown> {
   idPrefixes: readonly string[]
   /** 規約3: エディタコンポーネント */
   Editor: ComponentType<EditorProps<TData>>
+  /** 規約4: 整合性検証ルール（モジュール内検証。レベル2＝受け入れて赤表示） */
+  checkConsistency: (data: TData) => ConsistencyIssue[]
+  /** プロジェクト内に同 type のファイルを1つしか許さないか（コア横断検証が使う） */
+  singleton: boolean
   /** 規約6: マイグレータ（旧 schemaVersion → 現行版。初版は恒等） */
   migrate: (data: unknown, fromVersion: number) => TData
 }

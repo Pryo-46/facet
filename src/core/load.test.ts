@@ -17,10 +17,13 @@ function makeRegistry() {
   const registry = createRegistry()
   const mod: AnyToolModule = {
     type: 'glossary',
+    displayName: 'glossary',
     schemaVersion: 1,
     schema: glossarySchema,
     idPrefixes: ['term'],
     Editor: () => null,
+    checkConsistency: () => [],
+    singleton: false,
     migrate: (d) => d,
   }
   registry.register(mod)

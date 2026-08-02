@@ -4,10 +4,13 @@ import { createRegistry, type AnyToolModule } from './registry'
 function fakeModule(type: string, prefixes: string[]): AnyToolModule {
   return {
     type,
+    displayName: type,
     schemaVersion: 1,
     schema: {},
     idPrefixes: prefixes,
     Editor: () => null,
+    checkConsistency: () => [],
+    singleton: false,
     migrate: (d) => d,
   }
 }
