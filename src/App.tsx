@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { createAutoSaver, type AutoSaver } from '@/core/autosave'
 import { serialize } from '@/core/canonical'
+import type { ConsistencyIssue } from '@/core/consistency'
 import { classifyFile, type LoadResult } from '@/core/load'
+import { checkProjectConsistency } from '@/core/project-consistency'
 import {
   listJsonFiles,
   pickProjectFolder,
@@ -17,10 +19,27 @@ interface ProjectFile {
   path: string
   name: string
   result: LoadResult
+  /** モジュール内検証＋コア横断検証の結果（レベル2）。一覧バッジとエディタ赤表示に使う */
+  issues: ConsistencyIssue[]
 }
 
 function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path
+}
+
+/** 全ファイルの整合性検証（レベル2）をやり直す。走査時と編集時の両方から呼ぶ */
+function computeIssues(files: ProjectFile[]): ProjectFile[] {
+  const cross = checkProjectConsistency(
+    files.map((f) => ({ path: f.path, type: f.result.type })),
+    appRegistry,
+  )
+  return files.map((f) => {
+    const local =
+      f.result.status === 'editable'
+        ? (appRegistry.get(f.result.type)?.checkConsistency(f.result.data) ?? [])
+        : []
+    return { ...f, issues: [...local, ...(cross.get(f.path) ?? [])] }
+  })
 }
 
 function App() {
@@ -69,10 +88,10 @@ function App() {
       const loaded: ProjectFile[] = []
       for (const path of paths) {
         const text = await readProjectFile(path)
-        loaded.push({ path, name: fileName(path), result: classifyFile(text, appRegistry) })
+        loaded.push({ path, name: fileName(path), result: classifyFile(text, appRegistry), issues: [] })
       }
       setProjectDir(dir)
-      setFiles(loaded)
+      setFiles(computeIssues(loaded))
       setIoError(null)
     } catch (err) {
       setIoError(`ファイルの読み込みに失敗しました: ${err instanceof Error ? err.message : String(err)}`)
@@ -88,7 +107,9 @@ function App() {
       const text = await readProjectFile(file.path)
       if (token !== selectSeq.current) return // 後続の選択が始まっていたら破棄
       const result = classifyFile(text, appRegistry)
-      setFiles((prev) => prev.map((f) => (f.path === file.path ? { ...f, result } : f)))
+      setFiles((prev) =>
+        computeIssues(prev.map((f) => (f.path === file.path ? { ...f, result } : f))),
+      )
       setSelectedPath(file.path)
       setIoError(null)
       if (result.status !== 'editable') return
@@ -155,6 +176,11 @@ function App() {
                         <span className="text-warning">開けない</span>
                       )}
                       {file.result.status === 'listOnly' && '編集不可'}
+                      {file.issues.length > 0 && (
+                        <span className="ml-1 rounded-sm bg-warning px-1 text-xs text-warning-fg">
+                          {file.issues.length}
+                        </span>
+                      )}
                     </span>
                   </button>
                 </li>
@@ -166,6 +192,13 @@ function App() {
         <section className="min-w-0 flex-1 overflow-auto">
           {selected === null && (
             <p className="p-6 text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
+          )}
+          {selected && selected.result.status !== 'editable' && selected.issues.length > 0 && (
+            <ul className="list-disc px-6 pt-4 pl-10 text-sm text-warning">
+              {selected.issues.map((issue, i) => (
+                <li key={`${issue.rule}-${i}`}>{issue.message}</li>
+              ))}
+            </ul>
           )}
           {selected?.result.status === 'rejected' && (
             <div className="p-6">
@@ -191,9 +224,20 @@ function App() {
               <selectedModule.Editor
                 key={selected.path}
                 data={editingData}
+                issues={selected.issues}
                 onChange={(next: unknown) => {
                   setEditingData(next)
                   saverRef.current?.update(serialize(next, selectedModule.schema))
+                  // 編集を契機に整合性検証をやり直す（rev 5章の「自己編集」側。外部変更は M5）
+                  setFiles((prev) =>
+                    computeIssues(
+                      prev.map((f) =>
+                        f.path === selected.path && f.result.status === 'editable'
+                          ? { ...f, result: { ...f.result, data: next } }
+                          : f,
+                      ),
+                    ),
+                  )
                 }}
               />
             )}

@@ -5,6 +5,8 @@ import type { ConsistencyIssue } from './consistency'
 export interface EditorProps<TData> {
   data: TData
   onChange: (next: TData) => void
+  /** このファイルの整合性検証結果（レベル2）。エディタはセル・行の赤表示に使う */
+  issues: ConsistencyIssue[]
 }
 
 /**
