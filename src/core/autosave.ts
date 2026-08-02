@@ -18,6 +18,7 @@ export function createAutoSaver(opts: {
   write: (text: string) => Promise<void>
 }): AutoSaver {
   let lastSaved = opts.baseline
+  let inFlight: string | null = null
   let pending: string | null = null
   let timer: ReturnType<typeof setTimeout> | null = null
   let chain: Promise<void> = Promise.resolve()
@@ -33,21 +34,24 @@ export function createAutoSaver(opts: {
     const text = pending
     pending = null
     clearTimer()
-    if (text === null || text === lastSaved) return chain
+    if (text === null || text === (inFlight ?? lastSaved)) return chain
+    inFlight = text
     chain = chain
       .then(() => opts.write(text))
       .then(() => {
         lastSaved = text
+        inFlight = null
       })
       .catch((err: unknown) => {
         console.error('自動保存に失敗しました', err)
+        inFlight = null
       })
     return chain
   }
 
   return {
     update(text) {
-      if (text === lastSaved) {
+      if (text === (inFlight ?? lastSaved)) {
         pending = null
         clearTimer()
         return
