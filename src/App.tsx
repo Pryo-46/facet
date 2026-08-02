@@ -102,8 +102,9 @@ function App() {
   const openFolder = async () => {
     const dir = await pickProjectFolder()
     if (dir === null) return
-    // 進行中の selectFile を無効化する（フォルダ切替中に古い選択結果が紛れ込まないように）
-    selectSeq.current++
+    const token = ++selectSeq.current
+    // 先に現在のファイルを閉じる（flush 後の内容で走査するため）。
+    // flush が失敗したらフォルダ切替を中断する（書けていない編集を捨てない）
     if (!(await closeCurrentFile())) return
     try {
       const paths = await listJsonFiles(dir)
@@ -112,11 +113,18 @@ function App() {
         const text = await readProjectFile(path)
         loaded.push({ path, name: fileName(path), result: classifyFile(text, appRegistry), issues: [] })
       }
+      // 後続の openFolder / selectFile が始まっていたら、この結果は破棄する
+      if (token !== selectSeq.current) return
+      // 全部読めてから一括で入れ替える（途中失敗で新旧が混ざった状態を作らない）
       setProjectDir(dir)
       setFiles(computeIssues(loaded))
       setIoError(null)
     } catch (err) {
-      setIoError(`ファイルの読み込みに失敗しました: ${err instanceof Error ? err.message : String(err)}`)
+      if (token !== selectSeq.current) return
+      // 旧フォルダの一覧はそのまま残す。選択は closeCurrentFile 済みなので選び直せる
+      setIoError(
+        `フォルダの読み込みに失敗しました: ${err instanceof Error ? err.message : String(err)}`,
+      )
     }
   }
 
