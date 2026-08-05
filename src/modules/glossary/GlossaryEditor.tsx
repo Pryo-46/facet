@@ -13,6 +13,7 @@ import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
 import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
 import glossarySchema from '../../../schemas/glossary.schema.json'
+import { AliasCell } from './AliasCell'
 import { FIELD_LABELS, stepField, type GlossaryField } from './fields'
 import { kindLabel } from './kind-labels'
 import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } from './search'
@@ -303,22 +304,30 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
                   />
                 </td>
                 <td className={mark(index, 'aliases')}>
-                  {/* 別名パネルへの差し替えは Task 13。ここでは M1 と同じ読点区切り */}
-                  <CellInput
-                    className={cellInput}
-                    aria-label={`${FIELD_LABELS.aliases}（${row}行目）`}
-                    data-cell={cellId(rowKey, 'aliases')}
-                    value={term.aliases.join('、')}
-                    onValueChange={(v) =>
-                      updateTerm(
-                        index,
-                        { aliases: v.split('、').map((s) => s.trim()).filter((s) => s !== '') },
-                        `${rowKey}:aliases`,
+                  <AliasCell
+                    aliases={term.aliases}
+                    onAliasesChange={(next) => updateTerm(index, { aliases: next }, null)}
+                    cellId={cellId(rowKey, 'aliases')}
+                    label={`${FIELD_LABELS.aliases}（${row}行目）`}
+                    reorderEnabled={reorderEnabled}
+                    onClosedKeyDown={(e) =>
+                      onCellKeyDown(
+                        e,
+                        { index, visiblePos, field: 'aliases' },
+                        {
+                          editing: false,
+                          fieldEmpty: false,
+                          deletableField: false,
+                          caretAtStart: true,
+                          caretAtEnd: true,
+                          arrowsOwnedByField: false,
+                        },
                       )
                     }
-                    onFieldKeyDown={(e, s) =>
-                      onCellKeyDown(e, { index, visiblePos, field: 'aliases' }, textFieldContext(s, false))
-                    }
+                    onLeave={(direction) => {
+                      const step = stepField('aliases', direction)
+                      focusVisible(visiblePos + step.rowDelta, step.field)
+                    }}
                   />
                 </td>
                 <td>
