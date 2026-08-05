@@ -65,6 +65,9 @@ export function resolveCommand(e: KeyEventLike, ctx: KeyContext): Command | null
     // 制御入力ではブラウザ標準の Undo が React の再レンダリングと食い違うため、
     // 編集中もアプリの履歴に一本化する（境界規則への明示的な例外）
     if (e.key === 'z' || e.key === 'Z') return e.shiftKey ? 'redo' : 'undo'
+    // Windows/Linux のデファクトは Ctrl+Y も「やり直し」（rev 10章の拡張規則）。
+    // macOS に Cmd+Y を Redo とする慣習は無いので割り当てない
+    if (ctx.platform !== 'mac' && !e.shiftKey && (e.key === 'y' || e.key === 'Y')) return 'redo'
     // Ctrl+C / Ctrl+A などは奪わない
     return null
   }

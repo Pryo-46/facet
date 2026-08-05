@@ -59,6 +59,19 @@ describe('resolveCommand: グローバル層', () => {
   it('Esc は編集のキャンセル', () => {
     expect(resolveCommand(key({ key: 'Escape' }), ctx())).toBe('cancel')
   })
+
+  it('Windows では Ctrl+Y も「やり直し」（デファクトの追加割当）', () => {
+    expect(resolveCommand(key({ key: 'y', ctrlKey: true }), ctx())).toBe('redo')
+    expect(resolveCommand(key({ key: 'Y', ctrlKey: true }), ctx())).toBe('redo')
+  })
+
+  it('macOS の Cmd+Y は「やり直し」にしない（その慣習が無い）', () => {
+    expect(resolveCommand(key({ key: 'y', metaKey: true }), ctx({ platform: 'mac' }))).toBeNull()
+  })
+
+  it('Ctrl+Shift+Y は取らない', () => {
+    expect(resolveCommand(key({ key: 'y', ctrlKey: true, shiftKey: true }), ctx())).toBeNull()
+  })
 })
 
 describe('resolveCommand: 階層・リスト系ファミリー標準', () => {
