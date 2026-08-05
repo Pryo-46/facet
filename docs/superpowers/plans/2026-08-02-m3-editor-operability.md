@@ -2155,9 +2155,11 @@ function focusCell(container: HTMLElement | null, rowKey: string, field: Glossar
   const moveRow = (index: number, delta: -1 | 1, field: GlossaryField) => {
     const to = index + delta
     if (to < 0 || to >= data.terms.length) return
-    onChange({ ...data, terms: moveItem(data.terms, index, to) }, null)
-    // 行キーは ID 由来なので、動かした行を追いかけられる
-    setPendingFocus({ rowKey: rowKeys[index], field })
+    const terms = moveItem(data.terms, index, to)
+    onChange({ ...data, terms }, null)
+    // 移動後の配列から鍵を引く。ID が重複していると入れ替えで出現順が変わり、
+    // 移動前の rowKeys[index] は別の行を指しうる
+    setPendingFocus({ rowKey: computeRowKeys(terms)[to], field })
   }
 
   /** 表示中の並びで n 番目の行の指定セルへフォーカスする */
