@@ -128,6 +128,13 @@ describe('GlossaryEditor: 行の操作言語', () => {
     expect(screen.getByText(/行の追加（Enter）/)).toBeTruthy()
   })
 
+  it('導出表示中は空の状態の「用語を追加」ボタンを出さない（行追加を止めるのと揃える）', () => {
+    renderEditor(glossary([]))
+    expect(screen.getByText('用語を追加')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'その他' }))
+    expect(screen.queryByText('用語を追加')).toBeNull()
+  })
+
   it('先頭行を削除するとフォーカスが新しい先頭行へ移る（body に落ちない）', () => {
     renderEditor(twoTerms)
     const cell = screen.getByLabelText('名称（1行目）')
@@ -200,6 +207,16 @@ describe('GlossaryEditor: 別名パネル', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('別名1'))
     expect(screen.queryByLabelText('別名（2行目）')).toBeNull()
     expect(screen.getByLabelText('別名（1行目）')).toBeTruthy()
+  })
+
+  it('移動先が無い端では↑でパネルを閉じない（フォーカスが body に落ちない）', () => {
+    renderEditor(glossary([term({ id: 'term_aaaaaaaaaa', name: '受注' })]))
+    fireEvent.focus(screen.getByLabelText('別名（1行目）'))
+    const input = screen.getByLabelText('別名1')
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    // 閉じてしまうと入力欄がアンマウントされ、activeElement が body になる
+    expect(document.activeElement).toBe(screen.getByLabelText('別名1'))
+    expect(document.activeElement).not.toBe(document.body)
   })
 })
 

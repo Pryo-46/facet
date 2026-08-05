@@ -404,7 +404,7 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
       {data.terms.length > 0 && visible.length === 0 && (
         <p className="mt-3 text-sm text-ink-muted">該当する用語がありません。</p>
       )}
-      {data.terms.length === 0 && (
+      {data.terms.length === 0 && !derivedView && (
         <button
           type="button"
           className="mt-3 rounded-sm border border-rule px-3 py-1 text-sm text-ink hover:bg-surface"

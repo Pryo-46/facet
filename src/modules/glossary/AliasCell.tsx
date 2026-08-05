@@ -32,8 +32,8 @@ export interface AliasCellProps {
   onClosedKeyDown: (e: React.KeyboardEvent) => void
   /** パネルを Tab / Shift+Tab で抜けたとき、隣のセルへフォーカスを移す */
   onLeave: (direction: 1 | -1) => void
-  /** パネルの上下端で↑↓を受けたとき、上下の行の別名セルへフォーカスを移す */
-  onLeaveVertical: (direction: -1 | 1) => void
+  /** パネルの上下端で↑↓を受けたときの行移動。移動できたら true */
+  onLeaveVertical: (direction: -1 | 1) => boolean
 }
 
 /**
@@ -158,17 +158,16 @@ export function AliasCell(props: AliasCellProps) {
         break
       case 'focus-prev':
         if (index === 0) {
-          // パネルの端では上の行へ抜ける（別名列だけ縦移動が途切れないように）
-          setOpen(false)
-          onLeaveVertical(-1)
+          // パネルの端では上の行へ抜ける（別名列だけ縦移動が途切れないように）。
+          // 移動先が無いときは閉じない（閉じるとフォーカスが body に落ちて操作不能になる）
+          if (onLeaveVertical(-1)) setOpen(false)
           break
         }
         focusAlias(index - 1)
         break
       case 'focus-next':
         if (index === draft.length - 1) {
-          setOpen(false)
-          onLeaveVertical(1)
+          if (onLeaveVertical(1)) setOpen(false)
           break
         }
         focusAlias(index + 1)
