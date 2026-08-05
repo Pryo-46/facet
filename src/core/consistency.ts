@@ -6,8 +6,14 @@
  * - コア横断検証: 単一ファイルでは判定できない検証。core/project-consistency.ts
  */
 export interface ConsistencyLocation {
-  /** 該当エンティティの ID */
+  /** 該当エンティティの ID（メッセージ用。ID 重複時は一意でないことがある） */
   entityId: string
+  /**
+   * そのモジュールのデータ内での配列位置。UI はこれで行を特定する。
+   * ID 重複ファイルを受け入れる以上 entityId では行を一意に指せない。
+   * 位置の概念を持たない検証（ファイル単位の問題）は null
+   */
+  entityIndex: number | null
   /** セルまで特定できる場合のフィールド名。'id' は「行全体」の意味で使う（ID 列は UI に無い） */
   field: string | null
 }

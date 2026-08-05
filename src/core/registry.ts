@@ -4,7 +4,12 @@ import type { ConsistencyIssue } from './consistency'
 
 export interface EditorProps<TData> {
   data: TData
-  onChange: (next: TData) => void
+  /**
+   * 編集の反映。mergeKey は Undo 履歴のまとめ単位（同一セルへの連続入力は
+   * 同じキーを渡すと1履歴にまとまる）。構造操作（行追加・削除・並び替え）は
+   * null を渡して常に独立した履歴にする
+   */
+  onChange: (next: TData, mergeKey?: string | null) => void
   /** このファイルの整合性検証結果（レベル2）。エディタはセル・行の赤表示に使う */
   issues: ConsistencyIssue[]
 }
