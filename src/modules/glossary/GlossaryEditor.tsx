@@ -56,11 +56,17 @@ function newTerm(): Term {
   }
 }
 
-/** セルにフォーカスを移す。data-cell 属性で引く */
-function focusCell(container: HTMLElement | null, rowKey: string, field: GlossaryField): boolean {
+/** セルにフォーカスを移す。data-cell 属性で引く。select＝既定値を打ち替えられるよう全選択する */
+function focusCell(
+  container: HTMLElement | null,
+  rowKey: string,
+  field: GlossaryField,
+  select = false,
+): boolean {
   const el = container?.querySelector<HTMLElement>(`[data-cell="${cellId(rowKey, field)}"]`)
   if (!el) return false
   el.focus()
+  if (select && el instanceof HTMLInputElement) el.select()
   return true
 }
 
@@ -72,11 +78,12 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
   const [pendingFocus, setPendingFocus] = useState<{
     rowKey: string
     field: GlossaryField
+    select?: boolean
   } | null>(null)
 
   useEffect(() => {
     if (pendingFocus === null) return
-    focusCell(containerRef.current, pendingFocus.rowKey, pendingFocus.field)
+    focusCell(containerRef.current, pendingFocus.rowKey, pendingFocus.field, pendingFocus.select)
     setPendingFocus(null)
   }, [pendingFocus])
 
@@ -96,7 +103,7 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
     const term = newTerm()
     onChange({ ...data, terms: insertAt(data.terms, index + 1, term) }, null)
     // 採番したての ID は重複しないので出現順は 0
-    setPendingFocus({ rowKey: `${term.id}#0`, field: 'name' })
+    setPendingFocus({ rowKey: `${term.id}#0`, field: 'name', select: true })
   }
 
   const deleteRow = (index: number) => {

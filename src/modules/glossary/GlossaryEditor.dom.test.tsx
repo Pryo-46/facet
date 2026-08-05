@@ -64,6 +64,9 @@ describe('GlossaryEditor: 行の操作言語', () => {
     expect(names).toHaveLength(3)
     expect(names[1].value).toBe('新しい用語')
     expect(document.activeElement).toBe(names[1])
+    // 既定名は全選択で渡す（打ち始めればそのまま置き換わる）
+    expect(names[1].selectionStart).toBe(0)
+    expect(names[1].selectionEnd).toBe(names[1].value.length)
     // 新規行は kind=undecided / definition="" で warning が見える状態
     expect(latest()?.terms[1].kind).toBe('undecided')
     expect(latest()?.terms[1].id).toMatch(/^term_[A-Za-z0-9]{10}$/)
