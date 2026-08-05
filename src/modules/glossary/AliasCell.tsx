@@ -115,10 +115,15 @@ export function AliasCell(props: AliasCellProps) {
         apply(insertAt(draft, index + 1, ''))
         focusAlias(index + 1)
         break
-      case 'delete-item':
-        apply(removeAt(draft, index))
-        focusAlias(Math.max(0, index - 1))
+      case 'delete-item': {
+        const next = removeAt(draft, index)
+        apply(next)
+        // 最後の1件を消すとパネル内に行が無くなる。存在しない行へフォーカスを
+        // 予約すると、パネルが開いたままどこにもフォーカスが無い状態になる
+        if (next.length === 0) closeAndFocusCell()
+        else focusAlias(Math.max(0, index - 1))
         break
+      }
       case 'move-item-up':
         if (index === 0) return
         apply(moveItem(draft, index, index - 1))
