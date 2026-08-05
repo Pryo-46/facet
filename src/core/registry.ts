@@ -37,6 +37,14 @@ export interface ToolModule<TData = unknown> {
   singleton: boolean
   /** 規約6: マイグレータ（旧 schemaVersion → 現行版。初版は恒等） */
   migrate: (data: unknown, fromVersion: number) => TData
+  /**
+   * 新規作成（額縁のファイル操作。rev 6章）が使う空文書の雛形。
+   * rev 6章のモジュール規約6点セットには無いスロットだが、額縁は type から
+   * モジュールを引いて作るため、雛形を置ける場所はモジュール側しかない。
+   * title は額縁が決めたファイル名（拡張子なし）を渡す——初期状態で
+   * ファイル名と表示名を一致させ、単一性違反時にどちらの話か見分けられるようにする
+   */
+  createEmpty: (title: string) => TData
 }
 
 // Editor の data 型はモジュールごとに異なるため、レジストリ内では any で保持する
@@ -49,6 +57,8 @@ export type AnyToolModule = ToolModule<any>
 export interface ModuleRegistry {
   register(module: AnyToolModule): void
   get(type: string): AnyToolModule | undefined
+  /** 登録順の全モジュール。新規作成の type 選択肢に使う */
+  list(): AnyToolModule[]
 }
 
 export function createRegistry(): ModuleRegistry {
@@ -75,6 +85,9 @@ export function createRegistry(): ModuleRegistry {
     },
     get(type) {
       return byType.get(type)
+    },
+    list() {
+      return [...byType.values()]
     },
   }
 }
