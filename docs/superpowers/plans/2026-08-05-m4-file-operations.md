@@ -21,6 +21,7 @@
 - **DOM テストは対象ファイル先頭の `// @vitest-environment jsdom` で切り替える**。グローバルの `test.environment` は `node` のまま。Vitest の `globals` は無効なので `afterEach(cleanup)` を明示する。要素は **role とアクセシブル名で引き**、クラス名やレイアウトに依存させない。
 - **テストの追加先は `tsconfig.test.json`** が拾う（`src/**/*.test.ts` / `*.test.tsx`）。`node` 型が要るテストを `tsconfig.app.json` に混ぜない。
 - **lint 警告ゼロを維持する**（`npm run lint`）。`src/components/ui/**` は生成物なので対象外・手で整形しない。
+- **実機確認（`npm run tauri dev` の手順）は実装者が実行しない。** GUI 操作（フォルダ選択ダイアログ・OS ゴミ箱・ウィンドウの ×・読み取り専用属性）は自動化できないため、人間が全タスク完了後にまとめて行う。該当ステップは「未実施（人間が後で確認）」と報告し、代わりに `npm test` / `npx tsc -b tsconfig.test.json` / `npm run lint` / `npm run build` を必ず通しきること。
 - **worktree で `npm run tauri dev` する前に、別チェックアウトの dev サーバーがポート5173を掴んでいないか確認する**（`Get-NetTCPConnection -LocalPort 5173`）。掴まれていると古いコードのアプリが表示される。
 - **このタスク中に「新しい Tauri の JS API」を使うときは `src-tauri/capabilities/default.json` を確認する**（M2 で `core:window:allow-destroy` を踏んだ）。ただし**自前の `#[tauri::command]` は ACL 対象外**なので capabilities への追記は不要。
 
@@ -358,9 +359,18 @@ Create `src/fs/project-fs.test.ts`:
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invoke = vi.fn()
+// project-fs が読む @tauri-apps/* は全部モックする。テストは node 環境で走り、
+// 実物は Tauri の webview を前提にしているため
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }))
+vi.mock('@tauri-apps/api/path', () => ({ join: async (...parts: string[]) => parts.join('\\') }))
+vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
+vi.mock('@tauri-apps/plugin-fs', () => ({
+  readDir: vi.fn(),
+  readTextFile: vi.fn(),
+  writeTextFile: vi.fn(),
+}))
 
-// project-fs は import 時に @tauri-apps/* を読むので、モックの後に import する
+// モックの登録後に読む必要があるので動的 import にする
 const { moveFileToTrash } = await import('./project-fs')
 
 beforeEach(() => {
@@ -1018,7 +1028,7 @@ function file(name: string, over: Partial<ProjectFile> = {}): ProjectFile {
 }
 
 function setup(files: ProjectFile[], projectOpen = true) {
-  const handlers = { onSelect: vi.fn(), onCreate: vi.fn(), onDelete: vi.fn() }
+  const handlers = { onSelect: vi.fn(), onCreate: vi.fn() }
   render(
     <FileList
       files={files}
@@ -1051,15 +1061,13 @@ describe('FileList', () => {
     expect(screen.getByRole('button', { name: /用語集を新規作成/ })).not.toBeNull()
   })
 
-  it('行のクリックで onSelect、削除ボタンで onDelete', () => {
-    const { onSelect, onDelete } = setup([file('用語集.json')])
+  it('行のクリックで onSelect を呼ぶ', () => {
+    const { onSelect } = setup([file('用語集.json')])
     fireEvent.click(screen.getByRole('button', { name: /用語集\.json を開く/ }))
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ name: '用語集.json' }))
-    fireEvent.click(screen.getByRole('button', { name: '用語集.json を削除' }))
-    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ name: '用語集.json' }))
   })
 
-  it('開けないファイル・編集不可のファイルも一覧に出し、削除できる', () => {
+  it('開けないファイル・編集不可のファイルも一覧に出す', () => {
     setup([
       file('壊れた.json', {
         result: { status: 'rejected', type: null, title: null, reason: 'JSON として解釈できません', errors: [] },
@@ -1070,7 +1078,6 @@ describe('FileList', () => {
     ])
     expect(screen.getByText('開けない')).not.toBeNull()
     expect(screen.getByText('編集不可')).not.toBeNull()
-    expect(screen.getByRole('button', { name: '壊れた.json を削除' })).not.toBeNull()
   })
 
   it('issues があれば件数バッジを出す', () => {
@@ -1106,11 +1113,10 @@ export interface FileListProps {
   projectOpen: boolean
   onSelect: (file: ProjectFile) => void
   onCreate: (module: AnyToolModule) => void
-  onDelete: (file: ProjectFile) => void
 }
 
 /**
- * ファイル一覧の額縁（rev 6章）。新規作成・削除・赤バッジを持つ。
+ * ファイル一覧の額縁（rev 6章）。新規作成・赤バッジを持つ（削除は Task 6）。
  * 表示だけを担い、状態も I/O も持たない（配線は App）
  */
 export function FileList(props: FileListProps) {
@@ -1162,17 +1168,6 @@ export function FileList(props: FileListProps) {
                     </span>
                   )}
                 </span>
-              </button>
-              {/* 開けない・編集不可のファイルにも削除を出す——単一性違反の解消には
-                  「壊れている方の用語集を消す」が必要で、そこを塞ぐと外部エディタを
-                  強いることになる（rev 5章「拒否は最小限に」のファイル操作への適用） */}
-              <button
-                type="button"
-                aria-label={`${file.name} を削除`}
-                className="shrink-0 px-2 py-2 text-xs text-ink-muted hover:bg-surface hover:text-warning"
-                onClick={() => props.onDelete(file)}
-              >
-                削除
               </button>
             </li>
           ))}
@@ -1242,11 +1237,8 @@ import { createFile } from '@/core/file-ops'
             projectOpen={projectDir !== null}
             onSelect={(file) => void selectFile(file)}
             onCreate={(module) => void createNewFile(module)}
-            onDelete={() => {}}
           />
 ```
-
-（`onDelete` の中身は Task 6 で入れる。）
 
 - [ ] **Step 10: テスト・型・lint・ビルドを通す**
 
@@ -1279,13 +1271,15 @@ M3 の申し送りが指定した配線点——`GLOBAL_KEY_CONTEXT`（`src/App.
 
 **Files:**
 - Modify: `src/core/registry.ts`（`EditorProps` に `modalOpen` を追加）
+- Modify: `src/components/FileList.tsx`（削除ボタンを追加）
+- Modify: `src/components/FileList.dom.test.tsx`
 - Modify: `src/modules/glossary/GlossaryEditor.tsx`
 - Modify: `src/modules/glossary/GlossaryEditor.dom.test.tsx`
 - Modify: `src/App.tsx`
 
 **Interfaces:**
-- Consumes: `trashFile`（Task 3）、`moveFileToTrash`（Task 2）、`ConfirmDialog`（Task 4）、`FileList.onDelete`（Task 5）
-- Produces: `EditorProps<TData>.modalOpen: boolean`
+- Consumes: `trashFile`（Task 3）、`moveFileToTrash`（Task 2）、`ConfirmDialog`（Task 4）、`FileList`（Task 5）
+- Produces: `EditorProps<TData>.modalOpen: boolean`、`FileListProps.onDelete: (file: ProjectFile) => void`
 
 ---
 
@@ -1355,6 +1349,59 @@ export function GlossaryEditor({ data, onChange, issues, modalOpen }: EditorProp
 - [ ] **Step 5: テストが通ることを確認する**
 
 Run: `npm test -- src/modules/glossary/GlossaryEditor.dom.test.tsx`
+Expected: PASS
+
+- [ ] **Step 5b: FileList に削除ボタンを足す（先に失敗するテスト）**
+
+Modify `src/components/FileList.dom.test.tsx` — `setup` の `handlers` に `onDelete: vi.fn()` を足す（`{ onSelect: vi.fn(), onCreate: vi.fn(), onDelete: vi.fn() }`）。ファイル末尾に追加する:
+
+```tsx
+describe('削除', () => {
+  it('行ごとの削除ボタンで onDelete を呼ぶ', () => {
+    const { onDelete } = setup([file('用語集.json')])
+    fireEvent.click(screen.getByRole('button', { name: '用語集.json を削除' }))
+    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ name: '用語集.json' }))
+  })
+
+  it('開けないファイルにも削除ボタンを出す', () => {
+    setup([
+      file('壊れた.json', {
+        result: { status: 'rejected', type: null, title: null, reason: 'JSON として解釈できません', errors: [] },
+      }),
+    ])
+    expect(screen.getByRole('button', { name: '壊れた.json を削除' })).not.toBeNull()
+  })
+})
+```
+
+Run: `npm test -- src/components/FileList.dom.test.tsx`
+Expected: FAIL（削除ボタンが見つからない）
+
+Modify `src/components/FileList.tsx` — `FileListProps` の `onCreate` の直後に追加する:
+
+```ts
+  onDelete: (file: ProjectFile) => void
+```
+
+行の `</button>` と `</li>` の間に追加する:
+
+```tsx
+              {/* 開けない・編集不可のファイルにも削除を出す——単一性違反の解消には
+                  「壊れている方の用語集を消す」が必要で、そこを塞ぐと外部エディタを
+                  強いることになる（rev 5章「拒否は最小限に」のファイル操作への適用） */}
+              <button
+                type="button"
+                aria-label={`${file.name} を削除`}
+                className="shrink-0 px-2 py-2 text-xs text-ink-muted hover:bg-surface hover:text-warning"
+                onClick={() => props.onDelete(file)}
+              >
+                削除
+              </button>
+```
+
+コンポーネント冒頭の doc コメントの「（削除は Task 6）」を消す。
+
+Run: `npm test -- src/components/FileList.dom.test.tsx`
 Expected: PASS
 
 - [ ] **Step 6: App に確認ダイアログの状態と削除を配線する**
@@ -1459,7 +1506,7 @@ function globalKeyContext(modalOpen: boolean): KeyContext {
   }
 ```
 
-`FileList` の `onDelete` を差し替える:
+`FileList` に `onDelete` を追加する（`onCreate` の直後）:
 
 ```tsx
             onDelete={requestDelete}
@@ -1509,7 +1556,7 @@ Run: `npm run tauri dev`
 - [ ] **Step 9: Commit**
 
 ```bash
-git add src/core/registry.ts src/modules/glossary/GlossaryEditor.tsx src/modules/glossary/GlossaryEditor.dom.test.tsx src/App.tsx
+git add src/core/registry.ts src/components/FileList.tsx src/components/FileList.dom.test.tsx src/modules/glossary/GlossaryEditor.tsx src/modules/glossary/GlossaryEditor.dom.test.tsx src/App.tsx
 git commit -m "M4: ファイル削除（OSゴミ箱）とモーダル中の操作言語停止を配線"
 ```
 
