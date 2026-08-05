@@ -65,8 +65,7 @@ function focusCell(container: HTMLElement | null, rowKey: string, field: Glossar
 }
 
 export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossarySchemaVersion1>) {
-  // 検索・フィルタの UI は Task 14 で足す。ここでは絞り込み無しで通す
-  const [filter] = useState<GlossaryFilter>(EMPTY_FILTER)
+  const [filter, setFilter] = useState<GlossaryFilter>(EMPTY_FILTER)
 
   const containerRef = useRef<HTMLDivElement>(null)
   // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
@@ -209,6 +208,47 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
   return (
     <div ref={containerRef} className="p-4">
       <h2 className="mb-3 text-base font-bold text-ink">{data.title}</h2>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          aria-label="用語を検索"
+          className="w-64 rounded-sm border border-rule bg-canvas px-2 py-1 text-sm text-ink outline-none focus:bg-surface"
+          placeholder="名称・別名・定義を検索"
+          value={filter.query}
+          onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
+        />
+        {KIND_OPTIONS.map((kind) => {
+          const active = filter.kinds.includes(kind)
+          return (
+            <button
+              key={kind}
+              type="button"
+              aria-pressed={active}
+              className={`rounded-sm border border-rule px-2 py-1 text-xs ${
+                active ? 'bg-ink text-canvas' : 'text-ink-muted hover:bg-surface'
+              }`}
+              onClick={() =>
+                setFilter((f) => ({
+                  ...f,
+                  kinds: active ? f.kinds.filter((k) => k !== kind) : [...f.kinds, kind],
+                }))
+              }
+            >
+              {kindLabel(kind)}
+            </button>
+          )
+        })}
+        <span className="text-xs text-ink-muted">
+          {visible.length} / {data.terms.length} 件
+        </span>
+        {!reorderEnabled && (
+          // データ順と表示順が食い違う状態での並び替えは結果が予測不能になる
+          // （session-notes 論点4）。無効であることを画面でも示す
+          <span className="text-xs text-ink-muted">
+            検索・フィルタ中は並び替え（Alt+↑↓）を使えません
+          </span>
+        )}
+      </div>
       {issues.length > 0 && (
         <ul className="mb-3 list-disc pl-5 text-sm text-warning">
           {issues.map((issue, i) => (
@@ -347,6 +387,9 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
           })}
         </tbody>
       </table>
+      {data.terms.length > 0 && visible.length === 0 && (
+        <p className="mt-3 text-sm text-ink-muted">該当する用語がありません。</p>
+      )}
       {data.terms.length === 0 && (
         <button
           type="button"
