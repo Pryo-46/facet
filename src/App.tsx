@@ -241,6 +241,10 @@ function App() {
     applyEdit(setFiles, saverRef.current, selectedPath, selectedModule, next.present)
   }
 
+  // window リスナーからは常に最新の runHistory を呼ぶ（購読はマウント時の1回だけ）
+  const runHistoryRef = useRef(runHistory)
+  runHistoryRef.current = runHistory
+
   // グローバル層（rev 10章）: Undo/Redo は全ツール共通で額縁が取る。
   // 制御入力ではブラウザ標準の Undo が React の再レンダリングと食い違うため、
   // テキスト編集中もアプリの履歴に一本化する（境界規則への明示的な例外）
@@ -249,11 +253,11 @@ function App() {
       const cmd = resolveCommand(toKeyEventLike(e), GLOBAL_KEY_CONTEXT)
       if (cmd !== 'undo' && cmd !== 'redo') return
       e.preventDefault()
-      runHistory(cmd)
+      runHistoryRef.current(cmd)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [selectedPath, selectedModule])
+  }, [])
 
   return (
     <main className="flex min-h-screen flex-col bg-canvas text-ink">
