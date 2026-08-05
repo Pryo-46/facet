@@ -1,10 +1,23 @@
+import type { Dispatch, SetStateAction } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { createAutoSaver, type AutoSaver } from '@/core/autosave'
 import { serialize } from '@/core/canonical'
 import type { ConsistencyIssue } from '@/core/consistency'
+import {
+  canRedo,
+  canUndo,
+  createHistory,
+  record,
+  redo as redoHistory,
+  undo as undoHistory,
+  type HistoryState,
+} from '@/core/history'
+import { resolveCommand, toKeyEventLike, type KeyContext } from '@/core/keyboard/keymap'
+import { currentPlatform } from '@/core/keyboard/platform'
 import { classifyFile, type LoadResult } from '@/core/load'
 import { checkProjectConsistency } from '@/core/project-consistency'
+import type { AnyToolModule } from '@/core/registry'
 import { interceptClose } from '@/fs/app-window'
 import {
   listJsonFiles,
@@ -43,19 +56,65 @@ function computeIssues(files: ProjectFile[]): ProjectFile[] {
   })
 }
 
+/**
+ * 額縁が取るグローバル層のキー文脈（rev 10章）。Undo/Redo だけを扱うため
+ * 構造依存層の文脈は固定値でよい。modalOpen は M4 の削除確認・
+ * M5 の二択ダイアログを出すときに true にする配線点
+ */
+const GLOBAL_KEY_CONTEXT: KeyContext = {
+  platform: currentPlatform(),
+  modalOpen: false,
+  editing: false,
+  fieldEmpty: false,
+  deletableField: false,
+  caretAtStart: false,
+  caretAtEnd: false,
+  arrowsOwnedByField: false,
+  reorderEnabled: false,
+}
+
+/**
+ * 編集後の共通処理: 自動保存へ渡し、整合性検証をやり直す。
+ * 編集・Undo・Redo の3経路から同じ処理を通す（外部変更の取り込みが
+ * 4本目の経路になる。M5）
+ */
+function applyEdit(
+  setFiles: Dispatch<SetStateAction<ProjectFile[]>>,
+  saver: AutoSaver | null,
+  path: string,
+  module: AnyToolModule,
+  next: unknown,
+): void {
+  saver?.update(serialize(next, module.schema))
+  setFiles((prev) =>
+    computeIssues(
+      prev.map((f) =>
+        f.path === path && f.result.status === 'editable'
+          ? { ...f, result: { ...f.result, data: next } }
+          : f,
+      ),
+    ),
+  )
+}
+
 function App() {
   const [dark, setDark] = useState(false)
   const [projectDir, setProjectDir] = useState<string | null>(null)
   const [files, setFiles] = useState<ProjectFile[]>([])
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
-  // 編集中データ。selected が editable のときだけ非 null
-  const [editingData, setEditingData] = useState<unknown>(null)
+  // 編集中データは履歴の present が正（Undo/Redo で入れ替わる。
+  // ファイル単位・メモリ内。それ以前への復帰は Git の担当。rev 5章）
+  const [history, setHistory] = useState<HistoryState<unknown> | null>(null)
+  const historyRef = useRef<HistoryState<unknown> | null>(null)
+  historyRef.current = history
   const [ioError, setIoError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const saverRef = useRef<AutoSaver | null>(null)
   // selectFile の連続呼び出しを直列化するためのトークン。
   // 後続の選択（または openFolder）が始まったら、先行呼び出しの結果は破棄する。
   const selectSeq = useRef(0)
+
+  const editingData = history === null ? null : history.present
 
   const toggleTheme = () => {
     const next = !dark
@@ -95,7 +154,7 @@ function App() {
       saverRef.current = null
     }
     setSelectedPath(null)
-    setEditingData(null)
+    setHistory(null)
     return true
   }
 
@@ -159,7 +218,7 @@ function App() {
           ),
         onSuccess: () => setSaveError(null),
       })
-      setEditingData(result.data)
+      setHistory(createHistory(result.data))
     } catch (err) {
       if (token !== selectSeq.current) return
       setIoError(`ファイルの読み込みに失敗しました: ${err instanceof Error ? err.message : String(err)}`)
@@ -172,11 +231,41 @@ function App() {
       ? appRegistry.get(selected.result.type)
       : undefined
 
+  const runHistory = (kind: 'undo' | 'redo') => {
+    const h = historyRef.current
+    if (h === null || selectedPath === null || selectedModule === undefined) return
+    const next = kind === 'undo' ? undoHistory(h) : redoHistory(h)
+    // 戻れない／進めないときは同一参照が返る
+    if (next === h) return
+    setHistory(next)
+    applyEdit(setFiles, saverRef.current, selectedPath, selectedModule, next.present)
+  }
+
+  // グローバル層（rev 10章）: Undo/Redo は全ツール共通で額縁が取る。
+  // 制御入力ではブラウザ標準の Undo が React の再レンダリングと食い違うため、
+  // テキスト編集中もアプリの履歴に一本化する（境界規則への明示的な例外）
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const cmd = resolveCommand(toKeyEventLike(e), GLOBAL_KEY_CONTEXT)
+      if (cmd !== 'undo' && cmd !== 'redo') return
+      e.preventDefault()
+      runHistory(cmd)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedPath, selectedModule])
+
   return (
     <main className="flex min-h-screen flex-col bg-canvas text-ink">
       <header className="flex items-center gap-4 border-b border-rule px-6 py-3">
         <h1 className="text-lg font-bold text-ink">facet</h1>
         <Button onClick={() => void openFolder()}>フォルダを開く</Button>
+        <Button disabled={history === null || !canUndo(history)} onClick={() => runHistory('undo')}>
+          元に戻す
+        </Button>
+        <Button disabled={history === null || !canRedo(history)} onClick={() => runHistory('redo')}>
+          やり直す
+        </Button>
         {projectDir && <span className="text-sm text-ink-muted">{projectDir}</span>}
         <button
           type="button"
@@ -263,19 +352,9 @@ function App() {
                 key={selected.path}
                 data={editingData}
                 issues={selected.issues}
-                onChange={(next: unknown) => {
-                  setEditingData(next)
-                  saverRef.current?.update(serialize(next, selectedModule.schema))
-                  // 編集を契機に整合性検証をやり直す（rev 5章の「自己編集」側。外部変更は M5）
-                  setFiles((prev) =>
-                    computeIssues(
-                      prev.map((f) =>
-                        f.path === selected.path && f.result.status === 'editable'
-                          ? { ...f, result: { ...f.result, data: next } }
-                          : f,
-                      ),
-                    ),
-                  )
+                onChange={(next: unknown, mergeKey?: string | null) => {
+                  setHistory((h) => (h === null ? h : record(h, next, mergeKey ?? null, Date.now())))
+                  applyEdit(setFiles, saverRef.current, selected.path, selectedModule, next)
                 }}
               />
             )}
