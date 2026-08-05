@@ -6,7 +6,7 @@ import {
   type Command,
   type KeyContext,
 } from '@/core/keyboard/keymap'
-import { currentPlatform } from '@/core/keyboard/platform'
+import { altModifierLabel, currentPlatform } from '@/core/keyboard/platform'
 import { insertAt, moveItem, removeAt } from '@/core/list-ops'
 import { newId } from '@/core/new-id'
 import type { EditorProps } from '@/core/registry'
@@ -89,7 +89,8 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
   }
 
   // 導出表示中（検索・フィルタ適用中）は並び替えを止める（session-notes 論点4）
-  const reorderEnabled = !isDerivedView(filter)
+  const derivedView = isDerivedView(filter)
+  const reorderEnabled = !derivedView
 
   const insertRowAfter = (index: number) => {
     const term = newTerm()
@@ -99,8 +100,15 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
   }
 
   const deleteRow = (index: number) => {
-    onChange({ ...data, terms: removeAt(data.terms, index) }, null)
-    if (index - 1 >= 0) setPendingFocus({ rowKey: rowKeys[index - 1], field: 'name' })
+    const terms = removeAt(data.terms, index)
+    onChange({ ...data, terms }, null)
+    if (terms.length === 0) return
+    // 削除後の配列から鍵を引く。先頭行を消したときは新しい先頭行へ移る
+    // （前の行が無いからとフォーカスを放置すると body に落ちて操作不能になる）
+    setPendingFocus({
+      rowKey: computeRowKeys(terms)[Math.min(index, terms.length - 1)],
+      field: 'name',
+    })
   }
 
   const moveRow = (index: number, delta: -1 | 1, field: GlossaryField) => {
@@ -127,6 +135,9 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
   ): boolean => {
     switch (cmd) {
       case 'insert-item-after':
+        // 導出表示中に挿入すると、絞り込みに掛からない行が見えないまま増える
+        // （並び替えを止めるのと同じ理由）。キーは消費して何もしない
+        if (derivedView) return true
         insertRowAfter(at.index)
         return true
       case 'delete-item':
@@ -245,7 +256,7 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
           // データ順と表示順が食い違う状態での並び替えは結果が予測不能になる
           // （session-notes 論点4）。無効であることを画面でも示す
           <span className="text-xs text-ink-muted">
-            検索・フィルタ中は並び替え（Alt+↑↓）を使えません
+            検索・フィルタ中は行の追加（Enter）と並び替え（{altModifierLabel(PLATFORM)}+↑↓）を使えません
           </span>
         )}
       </div>
@@ -346,7 +357,9 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
                 <td className={mark(index, 'aliases')}>
                   <AliasCell
                     aliases={term.aliases}
-                    onAliasesChange={(next) => updateTerm(index, { aliases: next }, null)}
+                    onAliasesChange={(next, mergeKey) =>
+                      updateTerm(index, { aliases: next }, mergeKey ?? null)
+                    }
                     cellId={cellId(rowKey, 'aliases')}
                     label={`${FIELD_LABELS.aliases}（${row}行目）`}
                     reorderEnabled={reorderEnabled}
@@ -368,6 +381,7 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
                       const step = stepField('aliases', direction)
                       focusVisible(visiblePos + step.rowDelta, step.field)
                     }}
+                    onLeaveVertical={(direction) => focusVisible(visiblePos + direction, 'aliases')}
                   />
                 </td>
                 <td>

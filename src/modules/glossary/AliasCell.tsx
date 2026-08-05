@@ -10,9 +10,18 @@ const PLATFORM = currentPlatform()
 const aliasInput =
   'w-full bg-transparent px-2 py-1 text-ink outline-none focus:bg-surface rounded-sm'
 
+/** データに載せる形（前後空白を落とし、空要素を除く） */
+function cleanAliases(draft: readonly string[]): string[] {
+  return draft.map((s) => s.trim()).filter((s) => s !== '')
+}
+
+function sameAliases(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((s, i) => s === b[i])
+}
+
 export interface AliasCellProps {
   aliases: string[]
-  onAliasesChange: (next: string[]) => void
+  onAliasesChange: (next: string[], mergeKey?: string | null) => void
   /** 閉じているときのセルの data-cell 属性値（フォーカス移動が引く） */
   cellId: string
   /** aria-label（例: 別名（1行目）） */
@@ -23,6 +32,8 @@ export interface AliasCellProps {
   onClosedKeyDown: (e: React.KeyboardEvent) => void
   /** パネルを Tab / Shift+Tab で抜けたとき、隣のセルへフォーカスを移す */
   onLeave: (direction: 1 | -1) => void
+  /** パネルの上下端で↑↓を受けたとき、上下の行の別名セルへフォーカスを移す */
+  onLeaveVertical: (direction: -1 | 1) => void
 }
 
 /**
@@ -37,7 +48,16 @@ export interface AliasCellProps {
  *   minLength 1 なので、空文字をデータに載せてはいけない
  */
 export function AliasCell(props: AliasCellProps) {
-  const { aliases, onAliasesChange, cellId, label, reorderEnabled, onClosedKeyDown, onLeave } = props
+  const {
+    aliases,
+    onAliasesChange,
+    cellId,
+    label,
+    reorderEnabled,
+    onClosedKeyDown,
+    onLeave,
+    onLeaveVertical,
+  } = props
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<string[]>([])
   const panelRef = useRef<HTMLDivElement>(null)
@@ -47,13 +67,13 @@ export function AliasCell(props: AliasCellProps) {
   const keepOpen = useRef(false)
   // Esc で閉じた直後、セルにフォーカスが戻っても開き直さない
   const suppressOpen = useRef(false)
-  // 自分が上げた変更かどうかの判定用（外部変更ならドラフトを作り直す）
-  const lastApplied = useRef<string[] | null>(null)
   const [seenAliases, setSeenAliases] = useState(aliases)
 
   if (aliases !== seenAliases) {
     setSeenAliases(aliases)
-    if (open && aliases !== lastApplied.current) {
+    // 参照ではなく内容で比較する。Undo→Redo は apply 済みの配列参照を
+    // そのまま復元するため、参照一致では「自分の反映」と区別できない
+    if (open && !sameAliases(aliases, cleanAliases(draft))) {
       setDraft(aliases.length > 0 ? [...aliases] : [''])
     }
   }
@@ -84,11 +104,13 @@ export function AliasCell(props: AliasCellProps) {
   }
 
   /** draft を更新し、空要素を除いたものをデータへ上げる */
-  const apply = (next: string[]) => {
+  const apply = (next: string[], mergeKey: string | null = null) => {
     setDraft(next)
-    const cleaned = next.map((s) => s.trim()).filter((s) => s !== '')
-    lastApplied.current = cleaned
-    onAliasesChange(cleaned)
+    const cleaned = cleanAliases(next)
+    // 内容が変わらない操作（空行の追加など）で履歴を積まない。
+    // 積むと Ctrl+Z が「何も起きない」1回になる
+    if (sameAliases(cleaned, aliases)) return
+    onAliasesChange(cleaned, mergeKey)
   }
 
   const closeAndFocusCell = () => {
@@ -135,11 +157,20 @@ export function AliasCell(props: AliasCellProps) {
         focusAlias(index + 1)
         break
       case 'focus-prev':
-        if (index === 0) return
+        if (index === 0) {
+          // パネルの端では上の行へ抜ける（別名列だけ縦移動が途切れないように）
+          setOpen(false)
+          onLeaveVertical(-1)
+          break
+        }
         focusAlias(index - 1)
         break
       case 'focus-next':
-        if (index === draft.length - 1) return
+        if (index === draft.length - 1) {
+          setOpen(false)
+          onLeaveVertical(1)
+          break
+        }
         focusAlias(index + 1)
         break
       case 'focus-next-field':
@@ -226,7 +257,12 @@ export function AliasCell(props: AliasCellProps) {
             data-cell={`alias-${i}`}
             placeholder="別名を入力"
             value={alias}
-            onValueChange={(v) => apply(draft.map((a, j) => (j === i ? v : a)))}
+            onValueChange={(v) =>
+              apply(
+                draft.map((a, j) => (j === i ? v : a)),
+                `${cellId}:alias-${i}`,
+              )
+            }
             onFieldKeyDown={(e, s) => onAliasKeyDown(e, i, s)}
           />
         ))}
