@@ -20,7 +20,7 @@ import { currentPlatform } from '@/core/keyboard/platform'
 import { classifyFile } from '@/core/load'
 import { computeIssues, fileName, type ProjectFile } from '@/core/project-file'
 import type { AnyToolModule } from '@/core/registry'
-import { interceptClose } from '@/fs/app-window'
+import { forceClose, interceptClose } from '@/fs/app-window'
 import {
   joinPath,
   listJsonFiles,
@@ -123,11 +123,24 @@ function App() {
   }, [])
 
   // ウィンドウ close を横取りして保留中の編集を書き切る。
-  // flush が失敗したら閉じない（saveError バナーが出る。再度閉じる操作＝再試行）
+  // flush が失敗したら閉じず、代わりに脱出口を出す——書けていない編集を
+  // 黙って捨てないが、閉じられなくなる状態も作らない
   useEffect(() => {
     const unlisten = interceptClose(async () => {
       const saver = saverRef.current
-      return saver ? saver.flush() : true
+      if (saver === null) return true
+      if (await saver.flush()) return true
+      setConfirm({
+        title: '保存できないため閉じられません',
+        description:
+          '保存していない編集があります。もう一度閉じる操作をすると保存を再試行します。破棄して閉じると、この編集は失われます（ファイルの内容は最後に保存できた状態のままです）。',
+        confirmLabel: '破棄して閉じる',
+        onConfirm: async () => {
+          saverRef.current?.dispose()
+          await forceClose()
+        },
+      })
+      return false
     })
     return () => {
       void unlisten.then((f) => f())
