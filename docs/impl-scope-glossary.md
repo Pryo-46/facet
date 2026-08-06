@@ -294,3 +294,97 @@ M3 は実装・レビュー・E2E 完了。キーボード操作の共通化・I
 2. 行入れ替え後のフォーカス先を「移動前の配列」の鍵で指していた（ID 重複行が隣接すると別の行を指す）
 3. window リスナーの依存配列が lint 警告を出した（挙動は正しいが、リポジトリの警告ゼロ基準を壊した）
 4. **下書き再同期の参照比較（上記の Critical）**。単体では正しく見え、Undo と Redo を跨いで初めて壊れる。継ぎ目（額縁の履歴とエディタのローカル状態）にテストが無かったことが見逃しの原因で、実際の履歴を通す回帰テストを足して塞いだ
+
+---
+
+## 10. M4 完了に伴う申し送り（2026-08-06 追記）
+
+M4 は実装・レビュー完了。新規作成（type選択）／削除（OSゴミ箱へ移動）／用語集0個からの自動生成／確認ダイアログ／「保存できないまま閉じられない」状態の脱出口が入り、8節・9節の M4 項目（単一性違反の解消手段が無い／モーダルの配線点／用語1件の行を消すとフォーカスが `document.body` に落ちる）と、8節の残件「保存できないと閉じられない」は解消した。
+
+**ただし本節は 7〜9節と違い、実機確認（`npm run tauri dev` の GUI ウォークスルー）を実施する前に書かれている。** 裏取りできているのは自動テスト（29ファイル／215テスト）とコードレビューまでで、「実際に動かして確かめた」保証は付いていない。特に `src/App.tsx` の配線（新規作成・削除・用語集の自動生成・閉じるときの脱出口）にはリポジトリに自動テストが1件も無く、完了条件1〜9の検証は人間の実機確認が唯一の経路である。**M5 の計画立案時には、まず実機確認が済んだかを確認すること**——未実施なら、本節の「解消した」はコード上の解消であって観測された解消ではない。
+
+### 実装で確定した事項（計画の前提に昇格）
+
+- **自前の Tauri コマンドは `move_to_trash` の1本だけ**: 2節の「Tauri コマンドは追加しない」は「fs / dialog で足りる」を前提にした記述で、OS ゴミ箱だけはその前提が成り立たない（fs プラグインの `remove` は完全削除）。Rust 側は `trash::delete` を呼ぶだけで判断を持たない（rev 7章の原則は維持）。**自前コマンドは ACL 対象外なので capabilities への追記は要らない**——M2 で確定した「新しい Tauri JS API を使うたびに権限追加が要る」はプラグイン／コアコマンドの話。クレートは `trash` v5（`src-tauri/Cargo.toml`）
+- **削除の経路は flush してはいけない**: 開いているファイルをゴミ箱へ移すとき `closeCurrentFile()`（flush する経路）を通すと、消したファイルを自動保存が書き戻して復活させる。`src/core/file-ops.ts` の `trashFile` が dispose → trash の順を守り、`flush()` を呼ばないことをテストで固定してある。順序も逆にできない（先にゴミ箱へ移すと直後のデバウンス発火で同じことが起きる）。**ただしこの不変条件はまだ完全ではない**——下記「残件」の in-flight write を参照。M5 の外部変更検知でも「外部で消えたファイル」に対して同じ注意が要る
+- **モジュール規約に `createEmpty(title)` が加わった**: rev 6章の6点セットには無い7つ目のスロット。額縁の新規作成が `type` からモジュールを引く以上、雛形を置ける場所はモジュール側しかない。**2本目のモジュールもこれを実装する**（`src/core/registry.ts`）。あわせて `ModuleRegistry.list()` を足した（新規作成ボタンを登録済みモジュール分だけ並べるため。ボタンをハードコードしない）。規約6点の残る空きスロットは出力ロジック（規約5・M6）のみ
+- **新規ファイルも正規形で書く**: 非正規形で作ると、作った直後の最初の1文字の編集で全行 diff が出る。`buildNewFile`（`src/core/new-file.ts`）はモジュールの `schema` を渡して既存のシリアライザを通す。テストが「スキーマ適合」と「再シリアライズでバイト一致」の両方を固定している（`src/core/new-file.test.ts`）
+- **ファイル名は `<displayName>.json`、衝突時は `-2` から連番**（`src/core/file-naming.ts` の `resolveNewFileName`）。ファイル名は識別子ではない（rev 5章）ので意味は持たせず、衝突回避だけを目的とする。Windows は大文字小文字を区別しないので比較も区別しない。`title` は拡張子を除いたファイル名を初期値にする（単一性違反時にどちらの話か見分けられるようにするため）
+- **作成したファイルの登録経路は `addCreatedFile` の1本**（`src/App.tsx`）: 新規作成と用語集の自動生成が「`classifyFile` で分類 → 一覧に足す → `computeIssues` → 開く」を同じ関数で通る。書いたテキストをそのまま分類し直すのは、editable にならないなら雛形かシリアライザが壊れている証拠だから（一覧に出す前に気付ける）。**M5 の外部変更の取り込みもここへ合流させられる**
+- **`ProjectFile` / `computeIssues` は `src/core/project-file.ts` に移した**（App.tsx の肥大化対策。`computeIssues` は `appRegistry` をクロージャで掴まず引数で受け取る）。`computeIssues` の呼び出し経路は「フォルダ走査時」「ファイル選択時の読み直し」「編集時」の3本に「ファイル作成時」「ファイル削除時」が加わって5本になった（8節が「2経路」と書いているのは選択時を数え落としている）。**M5 の外部変更の取り込みが6本目**
+- **モーダル中の操作言語停止の配線点は3箇所**（9節は2箇所と書いていたが不足だった）: `src/App.tsx` の `globalKeyContext(modalOpen)`、`GlossaryEditor` の `onCellKeyDown`、そして `AliasCell`（別名パネルが独自に `resolveCommand` を呼ぶため、ここを忘れるとダイアログ表示中に別名パネルの Enter/Backspace/Esc が反応する）。`EditorProps` に `modalOpen: boolean` が入ったので、**2本目のモジュールのエディタもこれを受け取って自分の `resolveCommand` 呼び出しすべてに配る**
+- **Radix の `AlertDialogAction` と `AlertDialogCancel` は内部的にどちらも `Dialog.Close`**: `composeEventHandlers(props.onClick, () => onOpenChange(false))` の形なので、確認ボタンを押しても `onClick` の後に `onOpenChange(false)` が走り、`onCancel` まで発火する。`ConfirmDialog` は確認側の `onClick` で `event.preventDefault()` してから `onConfirm()` を呼んで止めている（`composeEventHandlers` の `checkForDefaultPrevented` を使う）。キャンセル側は `onClick` を持たず `onOpenChange` に一本化。**2本目のモーダルを作るときも同じ罠を踏む**
+- **確認ダイアログはアプリに1つだけ置き、`confirm` state（`{ title, description, confirmLabel, onConfirm } | null`）で内容を差し替える**。ファイル削除の確認と「破棄して閉じる」の脱出口が同じ機構を共有している。`modalOpen = confirm !== null` がそのまま操作言語の停止条件になる
+- **ファイル削除には確認を挟み、用語（行）の削除には挟まない**: 行の削除は Undo で戻せるが、ゴミ箱への移動はアプリの履歴では戻せない（戻す手段は OS のゴミ箱）。確認の有無はこの基準で決める
+- **削除ボタンは `rejected` / `listOnly` の行にも出す**: 単一性違反の解消には「壊れている方の用語集を消す」が要る。ここを塞ぐと外部エディタを強いることになり、rev 5章「拒否は最小限に」に反する
+- **保存できないまま閉じられない状態の脱出口は `destroy()` で抜ける**（`src/fs/app-window.ts` の `forceClose`）: `close()` だと `onCloseRequested` が再発火して interceptor がループする。M2 で追加済みの `core:window:allow-destroy` がそのまま効く
+
+### M5 で扱うもの
+
+8節・9節の M5 項目（自己書き込み除外は autosave の現構造を前提に設計する／取り込みは `applyEdit` と `computeIssues` の経路に合流させる／`saveError` のクリア条件／別名パネルの下書き再同期）は引き続き有効。M4 で新たに積んだものを以下に足す。
+
+- **削除・新規作成も監視の自己書き込み除外の対象になる**: フォルダ監視を入れると、アプリ自身のファイル作成・ゴミ箱移動が外部変更として跳ね返る。除外は「書き込み」だけでなく「作成」「消滅」も対象にすること
+- **「外部で消えたファイル」の後始末は `deleteFile` と同じ形になる**（`src/App.tsx`）: 選択中なら `selectSeq.current++` で in-flight の `selectFile`/`openFolder` を捨てさせ、saver を **flush せずに** dispose し、`selectedPath` / `history` / `saveError` を落とし、`computeIssues` をやり直す。外部消滅で flush すると消えたファイルを書き戻す——M4 の削除と同じ事故
+- **`ioError` / `saveError` / トーストの整理**: M4 でファイル作成・削除の失敗も `ioError` バナーに合流させた（`ファイルを作成できませんでした:` / `ファイルを削除できませんでした:` / `用語集を作成できませんでした:`）。現状バナーは2本（`ioError` と `saveError`）が縦に並ぶだけなので、M5 のトースト設計と併せて「どれをバナーに残し、どれをトーストにするか」を決める
+- **`confirm` スロットが1つしかない**（下記「残件」と同じ話）: 現状の生産者は「削除確認」と「破棄して閉じる」の2つで、M5 は外部変更の二択ダイアログという3人目を連れてくる。削除確認や close の脱出口と衝突しうるので、この時点で queue 化かスロット分離を判断すること
+
+### M6 で扱うもの
+
+9節の M6 項目（出力ロジックが規約6点セットの最後の空きスロット／種別の日本語ラベルは `src/modules/glossary/kind-labels.ts` を使い回す）は引き続き有効。M4 で新たに積んだものは無い。
+
+### M7 で扱うもの
+
+9節の M7 項目（別名パネル・検索欄・種別フィルタチップの仮置き／修飾キーの表示名は `platform.ts` を通す）は引き続き有効。M4 で新たに積んだものは以下。
+
+- **確認ダイアログの見た目は shadcn の既定トークンのまま**（`src/components/ui/alert-dialog.tsx` は `npx shadcn@latest add alert-dialog` の生成物で手を入れていない）。`ConfirmDialog` を役割トークンへ寄せるのは M7。生成物そのものを書き換えるのか、`ConfirmDialog` 側で上書きするのかもこの時点で決める
+- **新規作成ボタン・削除ボタン・空状態の文字色は既存の役割トークンの流用で仮置き**（`text-ink` / `text-ink-muted` / `text-warning` / `border-rule` / `hover:bg-surface`）。色値の直書きはしていないので、M7 はトークンの割当を見直すだけで済む
+- **削除ボタンは「削除」の文字**（`src/components/FileList.tsx`）。アイコン化するならアクセシブル名（`aria-label="<名前> を削除"`）を維持したまま行うこと——DOM テストがこの名前で引いている
+
+### いつでもよいが、忘れると実害化する残件
+
+M4 で新たに見つかったもの。上2件は「削除したファイルが復活しない」という M4 の当の不変条件に触るため、レビューの重要度は Minor だが**扱いは他より上に置く**。
+
+- **`trashFile` の `dispose()` は in-flight の write を待たない**（`src/core/file-ops.ts` / `src/core/autosave.ts`）: `dispose()` はタイマーと `pending` を消すだけなので、デバウンスが発火して write が飛んだ**直後**に削除を確定すると、trash が先に完了し、後から着地した write がファイルを復活させうる。M4 が防ごうとしている当の事象。修正案は `trashFile` を `dispose(); await flush()` にすること（dispose 後は `pending` が null なので flush は何も書かず、進行中の chain の完了を待つだけになる）。窓は狭いが、起きたときの症状は「消したはずのファイルが戻ってくる」で、原因の特定が難しい
+- **`deleteFile` の `wasSelected` が古いレンダのクロージャ由来**（`src/App.tsx`）: 確認ダイアログを表示している間に in-flight の `selectFile` が解決すると `wasSelected` が false になり、`selectSeq` の更新と teardown がどちらも飛ぶ。結果 `selectedPath` / `saverRef` がゴミ箱行きのファイルを指したまま残る。実害は現状限定的（editor は unmount され、孤児 saver は pending が null なので書かない）だが、上の in-flight write の件と組み合わさると復活経路になりうる。修正案は `selectedPath` を ref に写して `deleteFile` 内で `selectedPathRef.current` を見ること
+- **`src/App.tsx` に配線レベルのテストが1件も無い**（リポジトリに App のテスト自体が無い）: 「削除で flush しない」は `trashFile` の単体テストだけが担保しており、App がその関数を正しい引数で呼ぶことは誰も検証していない。新規作成・用語集の自動生成・close の脱出口も同様。App のテストハーネスを1つ作るか、コアへの切り出しを進めるかの判断が要る（M4 では `project-file.ts` と `file-ops.ts` への切り出しでその方向に一歩進めた）
+- **`confirm` の状態スロットが1つしかない**（`src/App.tsx`）: 削除確認を出したまま OS の × を押して flush が失敗すると、削除確認が無言で上書きされて要求が落ちる。発生条件が狭く実害も無い（何も削除されない）が、confirm の生産者が増えたら queue 化を検討する。M5 が3人目の生産者を連れてくる
+- **`forceClose()` が `close()` でなく `destroy()` を呼ぶことを固定するテストが無い**（`src/fs/app-window.ts`）: `@tauri-apps/api/window` をモックする狭い単体テストで足りる。取り違えると interceptor ループ（閉じられなくなる）が再発する
+- **`src/core/file-naming.ts` の `ILLEGAL` は Windows の予約デバイス名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）と末尾のドット・空白を弾かない**: 現状 `module.displayName` しか渡らないため実害は無い。**ユーザー入力（ファイル名の指定・リネーム UI）が直接届くようになった時点で塞ぐこと**
+- **`FileList` の行ボタンのアクセシブル名が「`<名前>` を開く」で固定**（`src/components/FileList.tsx`）: スクリーンリーダーには `title`・「開けない」「編集不可」・issue 件数バッジが読まれない。`aria-describedby` で補うのが筋
+- **`ConfirmDialog` の可読性・テストの小さな負債**: `ConfirmDialog.dom.test.tsx` の見出しを `getByText` で引いている（`AlertDialogTitle` は h2 なので `getByRole('heading')` が使える）。また `AlertDialogCancel` 側に「なぜハンドラが要らないか」の一行が無く、`preventDefault` を持つ Action 側との非対称が読み取りにくい
+
+8節・9節からの継続（M4 では手を付けていない）:
+
+- **unmount 時の effect が `void flush()` の直後に `dispose()` を呼ぶ**（`src/App.tsx`）: flush 失敗で復元された pending を捨てる経路。実際の close は `interceptClose` 側を通るので現状は実害なし
+- **編集1打鍵ごとに全ファイルの `checkConsistency` を再実行している**（M4 でファイル作成・削除の経路が増えたが、いずれも頻度が低いので事情は変わらない）
+- **定義セル・種別セルは `mark(index, field)` を参照していない**（`src/modules/glossary/GlossaryEditor.tsx`）。これらを指す検証ルールが増えた時点で、issue 一覧には出るのにセルが赤くならない
+- **`@testing-library/user-event` を devDependencies に入れたが未使用**
+- **`resolveCommand` の細かい非対称**（macOS の `Ctrl+Backspace` / `Alt+Shift+↑↓`）
+- **`CellInput` の `caretAtStart` / `caretAtEnd` は collapsed なキャレットのみ true**
+
+※ 8節の「`checkProjectConsistency` の `out.set` が上書き代入」は M3（`addIssue` ヘルパの追加）で、8節の「保存できないと閉じられない」は M4 Task 8 で解消済み。
+
+### rev への反映事項
+
+**本節の分は反映済み**（このコミットで `docs/overview-rev.md` を編集した）:
+
+- **7章**: 「Rustは原則書かない」の例外として `move_to_trash` を明記
+- **6章**: モジュール規約6点の直後に `createEmpty(title)` を追記
+
+あわせて、**9節の「rev への反映事項」3件（10章の Ctrl+Y／編集中の Undo/Redo／導出表示中に止める操作の一般化）が M3 完了時から未反映のまま残っていた**ので、同じコミットで反映した。教訓として、**rev への反映は当該マイルストーンの完了コミットで済ませ、申し送りに TODO として残さない**こと——次のマイルストーンの計画者は rev を「正」として読むため、反映漏れは設計と実装の食い違いとして伝播する。
+
+### 実装計画そのものに含まれていた誤り（次回の計画立案への教訓）
+
+計画（`docs/superpowers/plans/2026-08-05-m4-file-operations.md`）は着手前に3件修正し（commit `4ec937d`）、さらに実装・レビューの段で3件が出た。9節の教訓（**計画のコードは検証済みの正ではなく、レビューを通す前提の下書きとして扱う**）は M4 でも同じ形で再現している。
+
+着手前に見つかったもの:
+
+1. Task 2 のテストが `@tauri-apps` のモックを1つしか置いていなかった（実際には `api/core` / `api/path` / `plugin-dialog` / `plugin-fs` の4つが要る。テスト対象がインポートするモジュールを数え落とすと import 時に落ちる）
+2. Task 5 が `onDelete={() => {}}` の no-op スタブを作り、Task 6 が即座に置き換える構成だった → 削除ボタンとその prop を Task 6 に一本化した。**次のタスクが即消すスタブを置く分割は、分割線そのものが間違っている**
+3. 実機確認（`npm run tauri dev`）を実装者が実行する前提で書かれていた。**サブエージェントは GUI を操作できない**ので、実機確認は人間の作業として計画に明記する（M4 では最後にまとめて実施する形にした）
+
+実装・レビューの段で出たもの:
+
+4. **`createNewFile` と `ensureGlossary` に同じ9行を書けと指示していた**（Task 7 のレビューで Important 判定。人間が「今直す」と裁定し `addCreatedFile` に抽出）。**計画に完全なコードを載せると、そのコードの設計上の欠陥まで忠実に実装される**——重複は実装者が「計画通りに書いた」結果として生まれる
+5. Task 4 の `ConfirmDialog` のコード（`AlertDialogAction onClick={props.onConfirm}`）では、確認ボタンでも `onCancel` が発火してテストが落ちた（Radix の内部 close 発火。上記「実装で確定した事項」参照）。**ライブラリの内部挙動は計画時点では未検証**であり、計画のコードを verbatim で書けという指示と衝突する。実装者はライブラリのソースを読んで機構を確認し、レビュアーも同じ経路を辿って追認した
+6. Task 5 の期待テスト件数が「5件」と書かれていたが、計画が示したテストファイル自体には `it` が4件しか無かった（数え間違い。実装者は件数に合わせてテストを増やさず、計画の矛盾として報告した——これが正しい対応）
