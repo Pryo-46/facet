@@ -1,9 +1,10 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { FileList } from '@/components/FileList'
 import { Button } from '@/components/ui/button'
 import { createAutoSaver, type AutoSaver } from '@/core/autosave'
 import { serialize } from '@/core/canonical'
-import type { ConsistencyIssue } from '@/core/consistency'
+import { createFile } from '@/core/file-ops'
 import {
   canRedo,
   canUndo,
@@ -15,11 +16,12 @@ import {
 } from '@/core/history'
 import { resolveCommand, toKeyEventLike, type KeyContext } from '@/core/keyboard/keymap'
 import { currentPlatform } from '@/core/keyboard/platform'
-import { classifyFile, type LoadResult } from '@/core/load'
-import { checkProjectConsistency } from '@/core/project-consistency'
+import { classifyFile } from '@/core/load'
+import { computeIssues, fileName, type ProjectFile } from '@/core/project-file'
 import type { AnyToolModule } from '@/core/registry'
 import { interceptClose } from '@/fs/app-window'
 import {
+  joinPath,
   listJsonFiles,
   pickProjectFolder,
   readProjectFile,
@@ -28,33 +30,6 @@ import {
 import { appRegistry } from '@/modules'
 
 const AUTOSAVE_DELAY_MS = 500
-
-interface ProjectFile {
-  path: string
-  name: string
-  result: LoadResult
-  /** モジュール内検証＋コア横断検証の結果（レベル2）。一覧バッジとエディタ赤表示に使う */
-  issues: ConsistencyIssue[]
-}
-
-function fileName(path: string): string {
-  return path.split(/[\\/]/).pop() ?? path
-}
-
-/** 全ファイルの整合性検証（レベル2）をやり直す。走査時と編集時の両方から呼ぶ */
-function computeIssues(files: ProjectFile[]): ProjectFile[] {
-  const cross = checkProjectConsistency(
-    files.map((f) => ({ path: f.path, type: f.result.type })),
-    appRegistry,
-  )
-  return files.map((f) => {
-    const local =
-      f.result.status === 'editable'
-        ? (appRegistry.get(f.result.type)?.checkConsistency(f.result.data) ?? [])
-        : []
-    return { ...f, issues: [...local, ...(cross.get(f.path) ?? [])] }
-  })
-}
 
 /**
  * 額縁が取るグローバル層のキー文脈（rev 10章）。Undo/Redo だけを扱うため
@@ -93,6 +68,7 @@ function applyEdit(
           ? { ...f, result: { ...f.result, data: next } }
           : f,
       ),
+      appRegistry,
     ),
   )
 }
@@ -176,7 +152,7 @@ function App() {
       if (token !== selectSeq.current) return
       // 全部読めてから一括で入れ替える（途中失敗で新旧が混ざった状態を作らない）
       setProjectDir(dir)
-      setFiles(computeIssues(loaded))
+      setFiles(computeIssues(loaded, appRegistry))
       setIoError(null)
     } catch (err) {
       if (token !== selectSeq.current) return
@@ -197,7 +173,10 @@ function App() {
       if (token !== selectSeq.current) return // 後続の選択が始まっていたら破棄
       const result = classifyFile(text, appRegistry)
       setFiles((prev) =>
-        computeIssues(prev.map((f) => (f.path === file.path ? { ...f, result } : f))),
+        computeIssues(
+          prev.map((f) => (f.path === file.path ? { ...f, result } : f)),
+          appRegistry,
+        ),
       )
       setSelectedPath(file.path)
       setIoError(null)
@@ -222,6 +201,35 @@ function App() {
     } catch (err) {
       if (token !== selectSeq.current) return
       setIoError(`ファイルの読み込みに失敗しました: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  /** 新規作成（額縁のファイル操作。rev 6章）。作ったファイルはそのまま開く */
+  const createNewFile = async (module: AnyToolModule) => {
+    if (projectDir === null) return
+    try {
+      const created = await createFile({
+        dir: projectDir,
+        module,
+        existingNames: files.map((f) => f.name),
+        join: joinPath,
+        write: writeProjectFile,
+      })
+      // 書いたテキストをそのまま分類する。ここが editable にならないなら
+      // 雛形かシリアライザが壊れているので、一覧に出す前に気付ける
+      const entry: ProjectFile = {
+        path: created.path,
+        name: created.name,
+        result: classifyFile(created.text, appRegistry),
+        issues: [],
+      }
+      setFiles((prev) => computeIssues([...prev, entry], appRegistry))
+      setIoError(null)
+      await selectFile(entry)
+    } catch (err) {
+      setIoError(
+        `ファイルを作成できませんでした: ${err instanceof Error ? err.message : String(err)}`,
+      )
     }
   }
 
@@ -285,39 +293,14 @@ function App() {
 
       <div className="flex min-h-0 flex-1">
         <aside className="w-64 shrink-0 border-r border-rule">
-          {files.length === 0 ? (
-            <p className="p-4 text-sm text-ink-muted">
-              プロジェクトフォルダを開くと JSON ファイルの一覧が出ます。
-            </p>
-          ) : (
-            <ul>
-              {files.map((file) => (
-                <li key={file.path}>
-                  <button
-                    type="button"
-                    className={`block w-full px-4 py-2 text-left text-sm hover:bg-surface ${
-                      file.path === selectedPath ? 'bg-surface' : ''
-                    }`}
-                    onClick={() => void selectFile(file)}
-                  >
-                    <span className="block text-ink">{file.name}</span>
-                    <span className="block text-xs text-ink-muted">
-                      {file.result.status === 'editable' && file.result.title}
-                      {file.result.status === 'rejected' && (
-                        <span className="text-warning">開けない</span>
-                      )}
-                      {file.result.status === 'listOnly' && '編集不可'}
-                      {file.issues.length > 0 && (
-                        <span className="ml-1 rounded-sm bg-warning px-1 text-xs text-warning-fg">
-                          {file.issues.length}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <FileList
+            files={files}
+            selectedPath={selectedPath}
+            modules={appRegistry.list()}
+            projectOpen={projectDir !== null}
+            onSelect={(file) => void selectFile(file)}
+            onCreate={(module) => void createNewFile(module)}
+          />
         </aside>
 
         <section className="min-w-0 flex-1 overflow-auto">
