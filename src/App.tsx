@@ -5,7 +5,7 @@ import { FileList } from '@/components/FileList'
 import { Button } from '@/components/ui/button'
 import { createAutoSaver, type AutoSaver } from '@/core/autosave'
 import { serialize } from '@/core/canonical'
-import { createFile, trashFile } from '@/core/file-ops'
+import { createFile, ensureFileOfType, trashFile } from '@/core/file-ops'
 import {
   canRedo,
   canUndo,
@@ -290,11 +290,52 @@ function App() {
     })
   }
 
+  /**
+   * 用語集を1つ確保して開く。用語集0個は正常な状態（新規プロジェクト）で、
+   * 本来の発火点は用語のインライン登録（rev 5章。呼び出す側の他ツールが
+   * まだ無いため M4 では額縁の空状態から呼ぶ）。生成の条件と正規形は
+   * コアの ensureFileOfType が持つので、将来の発火点はそちらを呼べばよい
+   */
+  const ensureGlossary = async () => {
+    const module = appRegistry.get('glossary')
+    if (projectDir === null || module === undefined) return
+    try {
+      const { path, created } = await ensureFileOfType({
+        dir: projectDir,
+        module,
+        files: files.map((f) => ({ path: f.path, name: f.name, type: f.result.type })),
+        join: joinPath,
+        write: writeProjectFile,
+      })
+      if (created === null) {
+        // 既にあった。走査済みの一覧から引いて開くだけ
+        const existing = files.find((f) => f.path === path)
+        if (existing) await selectFile(existing)
+        return
+      }
+      const entry: ProjectFile = {
+        path: created.path,
+        name: created.name,
+        result: classifyFile(created.text, appRegistry),
+        issues: [],
+      }
+      setFiles((prev) => computeIssues([...prev, entry], appRegistry))
+      setIoError(null)
+      await selectFile(entry)
+    } catch (err) {
+      setIoError(
+        `用語集を作成できませんでした: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
+
   const selected = files.find((f) => f.path === selectedPath) ?? null
   const selectedModule =
     selected && selected.result.status === 'editable'
       ? appRegistry.get(selected.result.type)
       : undefined
+  // 用語集0個は正常な状態（新規プロジェクト）。押せば作れることを空状態で示す
+  const hasGlossary = files.some((f) => f.result.type === 'glossary')
 
   const runHistory = (kind: 'undo' | 'redo') => {
     const h = historyRef.current
@@ -363,7 +404,23 @@ function App() {
 
         <section className="min-w-0 flex-1 overflow-auto">
           {selected === null && (
-            <p className="p-6 text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
+            <div className="p-6">
+              <p className="text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
+              {projectDir !== null && !hasGlossary && (
+                <div className="mt-4">
+                  <p className="text-sm text-ink-muted">
+                    このプロジェクトにはまだ用語集がありません（新規プロジェクトでは正常な状態です）。
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-2 rounded-sm border border-rule px-3 py-1 text-sm text-ink hover:bg-surface"
+                    onClick={() => void ensureGlossary()}
+                  >
+                    用語集を作る
+                  </button>
+                </div>
+              )}
+            </div>
           )}
           {selected && selected.result.status !== 'editable' && selected.issues.length > 0 && (
             <ul className="list-disc px-6 pt-4 pl-10 text-sm text-warning">

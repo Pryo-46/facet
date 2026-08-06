@@ -278,6 +278,31 @@ describe('GlossaryEditor: 履歴との継ぎ目', () => {
   })
 })
 
+describe('用語0件の空状態', () => {
+  it('最後の1行を消したら「用語を追加」ボタンへフォーカスが移る', async () => {
+    renderEditor(glossary([term({ id: 'term_AAAAAAAAAA', name: '受注' })]))
+    const cell = screen.getByRole('textbox', { name: '名称（1行目）' }) as HTMLInputElement
+    cell.focus()
+    fireEvent.change(cell, { target: { value: '' } })
+    fireEvent.keyDown(cell, { key: 'Backspace' })
+    const add = await screen.findByRole('button', { name: '用語を追加' })
+    expect(document.activeElement).toBe(add)
+  })
+
+  it('検索中に最後の1行を消しても絞り込みが解けてボタンが出る', async () => {
+    renderEditor(glossary([term({ id: 'term_AAAAAAAAAA', name: '受注' })]))
+    fireEvent.change(screen.getByRole('searchbox', { name: '用語を検索' }), {
+      target: { value: '受注' },
+    })
+    const cell = screen.getByRole('textbox', { name: '名称（1行目）' }) as HTMLInputElement
+    cell.focus()
+    fireEvent.change(cell, { target: { value: '' } })
+    fireEvent.keyDown(cell, { key: 'Backspace' })
+    const add = await screen.findByRole('button', { name: '用語を追加' })
+    expect(document.activeElement).toBe(add)
+  })
+})
+
 describe('モーダル表示中', () => {
   it('Enter で行が増えない（キーはモーダル側が取る。rev 10章の境界規則）', () => {
     const { latest } = renderEditor(glossary([term({ id: 'term_AAAAAAAAAA', name: '受注' })]), true)
