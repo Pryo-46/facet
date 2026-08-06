@@ -5,7 +5,7 @@ import { FileList } from '@/components/FileList'
 import { Button } from '@/components/ui/button'
 import { createAutoSaver, type AutoSaver } from '@/core/autosave'
 import { serialize } from '@/core/canonical'
-import { createFile, ensureFileOfType, trashFile } from '@/core/file-ops'
+import { createFile, ensureFileOfType, trashFile, type CreatedFile } from '@/core/file-ops'
 import {
   canRedo,
   canUndo,
@@ -220,6 +220,25 @@ function App() {
     }
   }
 
+  /**
+   * 作成したファイルを一覧へ登録して開く。新規作成と用語集の自動生成が
+   * 同じ後処理を通るための単一経路（M5 の外部変更の取り込みも
+   * ここへ合流させられる）。書いたテキストをそのまま分類するのは、
+   * editable にならないなら雛形かシリアライザが壊れているため——
+   * 一覧に出す前に気付けるようにする
+   */
+  const addCreatedFile = async (created: CreatedFile): Promise<void> => {
+    const entry: ProjectFile = {
+      path: created.path,
+      name: created.name,
+      result: classifyFile(created.text, appRegistry),
+      issues: [],
+    }
+    setFiles((prev) => computeIssues([...prev, entry], appRegistry))
+    setIoError(null)
+    await selectFile(entry)
+  }
+
   /** 新規作成（額縁のファイル操作。rev 6章）。作ったファイルはそのまま開く */
   const createNewFile = async (module: AnyToolModule) => {
     if (projectDir === null) return
@@ -231,17 +250,7 @@ function App() {
         join: joinPath,
         write: writeProjectFile,
       })
-      // 書いたテキストをそのまま分類する。ここが editable にならないなら
-      // 雛形かシリアライザが壊れているので、一覧に出す前に気付ける
-      const entry: ProjectFile = {
-        path: created.path,
-        name: created.name,
-        result: classifyFile(created.text, appRegistry),
-        issues: [],
-      }
-      setFiles((prev) => computeIssues([...prev, entry], appRegistry))
-      setIoError(null)
-      await selectFile(entry)
+      await addCreatedFile(created)
     } catch (err) {
       setIoError(
         `ファイルを作成できませんでした: ${err instanceof Error ? err.message : String(err)}`,
@@ -313,15 +322,7 @@ function App() {
         if (existing) await selectFile(existing)
         return
       }
-      const entry: ProjectFile = {
-        path: created.path,
-        name: created.name,
-        result: classifyFile(created.text, appRegistry),
-        issues: [],
-      }
-      setFiles((prev) => computeIssues([...prev, entry], appRegistry))
-      setIoError(null)
-      await selectFile(entry)
+      await addCreatedFile(created)
     } catch (err) {
       setIoError(
         `用語集を作成できませんでした: ${err instanceof Error ? err.message : String(err)}`,
