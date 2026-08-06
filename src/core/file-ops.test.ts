@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createAutoSaver } from './autosave'
 import { createFile, ensureFileOfType, trashFile } from './file-ops'
 import { glossaryModule } from '@/modules/glossary/module'
 
@@ -28,8 +29,39 @@ describe('createFile', () => {
   })
 })
 
+/** 解決タイミングを外から握る write を作る（in-flight 状態を作るため） */
+function deferredWrite() {
+  let settle!: (err?: unknown) => void
+  let settled = false
+  const calls: string[] = []
+  const write = vi.fn(
+    (text: string) =>
+      new Promise<void>((resolve, reject) => {
+        calls.push(text)
+        settle = (err) => {
+          settled = true
+          if (err === undefined) resolve()
+          else reject(err)
+        }
+      }),
+  )
+  return {
+    write,
+    calls,
+    settle: (err?: unknown) => settle(err),
+    get settled() {
+      return settled
+    },
+  }
+}
+
 describe('trashFile', () => {
-  it('自動保存を破棄してからゴミ箱へ移す（flush は絶対に呼ばない）', async () => {
+  // 失敗時に偽タイマーを残さない（後続ファイルのテストを巻き込むため）
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('自動保存を破棄してからゴミ箱へ移す（dispose が先なので flush は何も書かない）', async () => {
     const order: string[] = []
     const saver = {
       flush: vi.fn(async () => {
@@ -42,10 +74,59 @@ describe('trashFile', () => {
       order.push('trash')
     })
     await trashFile({ path: 'C:\\proj\\用語集.json', saver, trash })
-    // flush すると、消したファイルを自動保存が書き戻して復活させる
-    expect(saver.flush).not.toHaveBeenCalled()
-    // dispose が先。後だと、ゴミ箱へ移した直後にデバウンスタイマーが発火しうる
-    expect(order).toEqual(['dispose', 'trash'])
+    // dispose が先。pending を消してから flush するので「書き戻して復活」は起きない。
+    // flush は進行中の write の完了を待つためだけに呼ぶ（書くためではない）。
+    // 2度目の dispose は、失敗した write が catch で復元した pending を捨てるため
+    // ゴミ箱へ移すのは常に最後。先に移すと直後のデバウンス発火で同じことが起きる
+    expect(order).toEqual(['dispose', 'flush', 'dispose', 'trash'])
+  })
+
+  it('進行中の write が着地するまでゴミ箱へ移さない（実物の AutoSaver と合成）', async () => {
+    vi.useFakeTimers()
+    const io = deferredWrite()
+    const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write: io.write })
+    saver.update('B')
+    // デバウンスを発火させて write('B') を飛ばす（確認ダイアログを開いて押す間に
+    // 500ms は必ず過ぎるので、削除確定時はほぼ常にこの状態になる）
+    await vi.advanceTimersByTimeAsync(500)
+    expect(io.calls).toEqual(['B'])
+    expect(io.settled).toBe(false)
+
+    let inFlightAtTrash: boolean | null = null
+    const trash = vi.fn(async () => {
+      inFlightAtTrash = !io.settled
+    })
+    const trashing = trashFile({ path: 'C:\\proj\\用語集.json', saver, trash })
+    // write が着地していないうちは trash へ進まない（進むと、後から着地した
+    // write が消したはずのファイルを作り直す＝孤児ファイルになる）
+    await vi.advanceTimersByTimeAsync(0)
+    expect(trash).not.toHaveBeenCalled()
+
+    io.settle()
+    await trashing
+    expect(trash).toHaveBeenCalledTimes(1)
+    expect(inFlightAtTrash).toBe(false)
+    // dispose 済みなので、待っている間に追加の書き込みは起きない
+    expect(io.calls).toEqual(['B'])
+  })
+
+  it('進行中の write が失敗しても、復元された pending を書き残さない', async () => {
+    vi.useFakeTimers()
+    const io = deferredWrite()
+    const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write: io.write })
+    saver.update('B')
+    await vi.advanceTimersByTimeAsync(500)
+    expect(io.calls).toEqual(['B'])
+
+    const trash = vi.fn(async () => {})
+    const trashing = trashFile({ path: 'C:\\proj\\用語集.json', saver, trash })
+    io.settle(new Error('disk full'))
+    await trashing
+    expect(trash).toHaveBeenCalledTimes(1)
+    // autosave の catch は失敗内容を pending に復元する。trashFile 側の2度目の
+    // dispose がそれを捨てるので、後続の flush が消したファイルを書き戻さない
+    await expect(saver.flush()).resolves.toBe(true)
+    expect(io.calls).toEqual(['B'])
   })
 
   it('開いていないファイルなら saver は null でよい', async () => {

@@ -82,6 +82,12 @@ function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null)
   const [files, setFiles] = useState<ProjectFile[]>([])
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  // 確認ダイアログの onConfirm は、ダイアログを開いたレンダのクロージャを持ったまま
+  // 人間の操作を待つ。その間に in-flight の selectFile が解決して選択が変わりうるので、
+  // 削除の確定時点の選択は必ず ref から読む（クロージャ値だと、消していないファイルの
+  // saver を dispose して選択を落とす）
+  const selectedPathRef = useRef<string | null>(null)
+  selectedPathRef.current = selectedPath
   // 編集中データは履歴の present が正（Undo/Redo で入れ替わる。
   // ファイル単位・メモリ内。それ以前への復帰は Git の担当。rev 5章）
   const [history, setHistory] = useState<HistoryState<unknown> | null>(null)
@@ -273,11 +279,14 @@ function App() {
 
   /**
    * ファイルを OS のゴミ箱へ移す（rev 6章。完全削除はしない）。
-   * 開いているファイルなら closeCurrentFile を通さない——あれは flush する経路で、
-   * 消したファイルを書き戻して復活させる。trashFile が dispose だけを行う
+   * 開いているファイルなら closeCurrentFile を通さない——あれは保留編集を書き切る
+   * 経路で、消したファイルを書き戻して復活させる。代わりに trashFile が
+   *「書かせない（dispose）」と「進行中の write を待つ（空 flush）」を担う
    */
   const deleteFile = async (file: ProjectFile) => {
-    const wasSelected = file.path === selectedPath
+    // 確認ダイアログを挟むので、選択状態は「押された時点」を ref から読む
+    //（このクロージャが作られた時点の selectedPath は既に古いことがある）
+    const wasSelected = file.path === selectedPathRef.current
     try {
       // 進行中の selectFile / openFolder があれば、その結果を捨てさせる
       if (wasSelected) selectSeq.current++

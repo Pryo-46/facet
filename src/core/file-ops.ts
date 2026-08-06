@@ -34,20 +34,47 @@ export async function createFile(
 /**
  * ファイルを OS のゴミ箱へ移す。
  *
- * 開いているファイルなら、自動保存を **flush せずに** dispose する。
- * flush すると、消したはずのファイルを書き戻して復活させる。順序も逆にしない
- * ——先にゴミ箱へ移すと、その直後にデバウンスタイマーが発火して同じことが起きる。
+ * 開いているファイルなら、自動保存を止めてからゴミ箱へ移す。手順は
+ * `dispose()` → `await flush()` → `dispose()` → `await trash()` で、3つの
+ * 事故をこの順序でしか塞げない。
+ *
+ * 1. **書き戻しによる復活を防ぐ**: 先に `dispose()` して `pending` を空にする。
+ *    以降の `flush()` は「書くもの」を持たないので、消したはずのファイルを
+ *    書き戻せない。**この `flush()` を「削除経路で flush してはいけない」と読んで
+ *    消さないこと**——書かせないのは `dispose()` の役目で、`flush()` は次の役目を持つ。
+ * 2. **着地済みの write を待つ**: `dispose()` はタイマーと `pending` しか消さず、
+ *    既に飛んだ write（autosave 内部の `chain`）には触れない。デバウンスは 500ms で、
+ *    確認ダイアログを開いて押す人間の所要時間はそれより長いので、削除確定時は
+ *    **ほぼ常に write が in-flight**。待たずに `trash()` すると、ゴミ箱移動の後に
+ *    write が着地してファイルを作り直す——UI の一覧からは消えているので、
+ *    次のフォルダ走査まで見えない孤児になる。`pending` が空の `flush()` は
+ *    進行中の chain の完了を待つだけの操作になり、これがその待ちになる。
+ * 3. **失敗した write の復元を捨てる**: in-flight の write が失敗すると autosave の
+ *    catch が内容を `pending` へ戻す（再試行のための仕組み）。消すファイルには
+ *    不要なので `dispose()` をもう一度呼んで捨てる。呼び出し側（`App.tsx`）は
+ *    直後に saver の参照を捨てるので実害が出る経路は現状無いが、
+ *    「削除後の saver は書くものを持たない」を saver 側の状態として成立させておく。
+ *
+ * 順序も逆にできない——先にゴミ箱へ移すと、その直後にデバウンスタイマーが
+ * 発火して同じことが起きる。
  *
  * この結果、ゴミ箱への移動が失敗した場合はデバウンス窓（500ms）内の編集が失われる。
  * 「このファイルを消す」という明示的な操作の副作用としては許容する
  */
 export async function trashFile(opts: {
   path: string
-  /** 対象が現在開いているファイルのときだけ渡す */
-  saver: { dispose(): void } | null
+  /** 対象が現在開いているファイルのときだけ渡す（実体は AutoSaver） */
+  saver: { dispose(): void; flush(): Promise<boolean> } | null
   trash: (path: string) => Promise<void>
 }): Promise<void> {
-  opts.saver?.dispose()
+  const saver = opts.saver
+  if (saver !== null) {
+    saver.dispose()
+    // 書くものが無い状態での flush ＝ 進行中の write の完了待ち
+    await saver.flush()
+    // 失敗した write が復元した pending を捨てる
+    saver.dispose()
+  }
   await opts.trash(opts.path)
 }
 

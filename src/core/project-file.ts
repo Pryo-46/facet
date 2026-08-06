@@ -18,8 +18,9 @@ export function fileName(path: string): string {
 
 /**
  * 全ファイルの整合性検証（レベル2）をやり直す。
- * 現在の呼び出し経路は「フォルダ走査時」「編集時」「ファイル作成・削除時」。
- * M5 の外部変更の取り込みも必ずここを通すこと
+ * 現在の呼び出し経路は5本——「フォルダ走査時」「ファイル選択時の読み直し」
+ *「編集時」「ファイル作成時」「ファイル削除時」（いずれも src/App.tsx）。
+ * M5 の外部変更の取り込みが6本目になる。必ずここを通すこと
  */
 export function computeIssues(files: ProjectFile[], registry: ModuleRegistry): ProjectFile[] {
   const cross = checkProjectConsistency(
