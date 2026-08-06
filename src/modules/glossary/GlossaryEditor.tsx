@@ -70,7 +70,12 @@ function focusCell(
   return true
 }
 
-export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossarySchemaVersion1>) {
+export function GlossaryEditor({
+  data,
+  onChange,
+  issues,
+  modalOpen,
+}: EditorProps<GlossarySchemaVersion1>) {
   const [filter, setFilter] = useState<GlossaryFilter>(EMPTY_FILTER)
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -189,8 +194,7 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
   ) => {
     const cmd = resolveCommand(toKeyEventLike(e), {
       platform: PLATFORM,
-      // M4 の削除確認・M5 の二択ダイアログを出すときにここへ渡す
-      modalOpen: false,
+      modalOpen,
       reorderEnabled,
       ...field,
     })
@@ -370,6 +374,7 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
                     cellId={cellId(rowKey, 'aliases')}
                     label={`${FIELD_LABELS.aliases}（${row}行目）`}
                     reorderEnabled={reorderEnabled}
+                    modalOpen={modalOpen}
                     onClosedKeyDown={(e) =>
                       onCellKeyDown(
                         e,

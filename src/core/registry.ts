@@ -12,6 +12,12 @@ export interface EditorProps<TData> {
   onChange: (next: TData, mergeKey?: string | null) => void
   /** このファイルの整合性検証結果（レベル2）。エディタはセル・行の赤表示に使う */
   issues: ConsistencyIssue[]
+  /**
+   * モーダル（確認ダイアログ等）が開いているか。true の間は操作言語を止める
+   *（Esc をモーダルとエディタで取り合わないため。rev 10章の境界規則）。
+   * 各エディタはこれを KeyContext.modalOpen へそのまま渡すだけでよい
+   */
+  modalOpen: boolean
 }
 
 /**

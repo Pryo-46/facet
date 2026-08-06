@@ -28,6 +28,8 @@ export interface AliasCellProps {
   label: string
   /** 導出表示中は並び替えを止める（行と同じ規則を別名にも適用する） */
   reorderEnabled: boolean
+  /** モーダル表示中は操作言語を止める（行と同じ規則を別名にも適用する。rev 10章の境界規則） */
+  modalOpen: boolean
   /** 閉じている状態で受けたキーを行の操作言語へ渡す */
   onClosedKeyDown: (e: React.KeyboardEvent) => void
   /** パネルを Tab / Shift+Tab で抜けたとき、隣のセルへフォーカスを移す */
@@ -54,6 +56,7 @@ export function AliasCell(props: AliasCellProps) {
     cellId,
     label,
     reorderEnabled,
+    modalOpen,
     onClosedKeyDown,
     onLeave,
     onLeaveVertical,
@@ -121,7 +124,7 @@ export function AliasCell(props: AliasCellProps) {
   const onAliasKeyDown = (e: React.KeyboardEvent, index: number, state: FieldState) => {
     const cmd = resolveCommand(toKeyEventLike(e), {
       platform: PLATFORM,
-      modalOpen: false,
+      modalOpen,
       editing: true,
       fieldEmpty: state.empty,
       // パネル内はどの欄も空欄 Backspace でその別名を消せる

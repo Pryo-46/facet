@@ -18,7 +18,7 @@ function file(name: string, over: Partial<ProjectFile> = {}): ProjectFile {
 }
 
 function setup(files: ProjectFile[], projectOpen = true) {
-  const handlers = { onSelect: vi.fn(), onCreate: vi.fn() }
+  const handlers = { onSelect: vi.fn(), onCreate: vi.fn(), onDelete: vi.fn() }
   render(
     <FileList
       files={files}
@@ -77,5 +77,22 @@ describe('FileList', () => {
       }),
     ])
     expect(screen.getByText('1')).not.toBeNull()
+  })
+})
+
+describe('削除', () => {
+  it('行ごとの削除ボタンで onDelete を呼ぶ', () => {
+    const { onDelete } = setup([file('用語集.json')])
+    fireEvent.click(screen.getByRole('button', { name: '用語集.json を削除' }))
+    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ name: '用語集.json' }))
+  })
+
+  it('開けないファイルにも削除ボタンを出す', () => {
+    setup([
+      file('壊れた.json', {
+        result: { status: 'rejected', type: null, title: null, reason: 'JSON として解釈できません', errors: [] },
+      }),
+    ])
+    expect(screen.getByRole('button', { name: '壊れた.json を削除' })).not.toBeNull()
   })
 })

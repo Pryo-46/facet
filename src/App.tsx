@@ -1,10 +1,11 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { FileList } from '@/components/FileList'
 import { Button } from '@/components/ui/button'
 import { createAutoSaver, type AutoSaver } from '@/core/autosave'
 import { serialize } from '@/core/canonical'
-import { createFile } from '@/core/file-ops'
+import { createFile, trashFile } from '@/core/file-ops'
 import {
   canRedo,
   canUndo,
@@ -23,6 +24,7 @@ import { interceptClose } from '@/fs/app-window'
 import {
   joinPath,
   listJsonFiles,
+  moveFileToTrash,
   pickProjectFolder,
   readProjectFile,
   writeProjectFile,
@@ -33,19 +35,21 @@ const AUTOSAVE_DELAY_MS = 500
 
 /**
  * 額縁が取るグローバル層のキー文脈（rev 10章）。Undo/Redo だけを扱うため
- * 構造依存層の文脈は固定値でよい。modalOpen は M4 の削除確認・
- * M5 の二択ダイアログを出すときに true にする配線点
+ * 構造依存層の文脈は固定値でよい。modalOpen は確認ダイアログが開いている間 true
+ *（M5 の二択ダイアログもここへ合流させる）
  */
-const GLOBAL_KEY_CONTEXT: KeyContext = {
-  platform: currentPlatform(),
-  modalOpen: false,
-  editing: false,
-  fieldEmpty: false,
-  deletableField: false,
-  caretAtStart: false,
-  caretAtEnd: false,
-  arrowsOwnedByField: false,
-  reorderEnabled: false,
+function globalKeyContext(modalOpen: boolean): KeyContext {
+  return {
+    platform: currentPlatform(),
+    modalOpen,
+    editing: false,
+    fieldEmpty: false,
+    deletableField: false,
+    caretAtStart: false,
+    caretAtEnd: false,
+    arrowsOwnedByField: false,
+    reorderEnabled: false,
+  }
 }
 
 /**
@@ -89,6 +93,18 @@ function App() {
   // selectFile の連続呼び出しを直列化するためのトークン。
   // 後続の選択（または openFolder）が始まったら、先行呼び出しの結果は破棄する。
   const selectSeq = useRef(0)
+
+  // 確認ダイアログ。開いている間は操作言語を止める（rev 10章の境界規則）
+  const [confirm, setConfirm] = useState<{
+    title: string
+    description: string
+    confirmLabel: string
+    onConfirm: () => void | Promise<void>
+  } | null>(null)
+  const modalOpen = confirm !== null
+  // window リスナーはマウント時の1回しか張らないので、最新値は ref から読む
+  const modalOpenRef = useRef(modalOpen)
+  modalOpenRef.current = modalOpen
 
   const editingData = history === null ? null : history.present
 
@@ -233,6 +249,47 @@ function App() {
     }
   }
 
+  /**
+   * ファイルを OS のゴミ箱へ移す（rev 6章。完全削除はしない）。
+   * 開いているファイルなら closeCurrentFile を通さない——あれは flush する経路で、
+   * 消したファイルを書き戻して復活させる。trashFile が dispose だけを行う
+   */
+  const deleteFile = async (file: ProjectFile) => {
+    const wasSelected = file.path === selectedPath
+    try {
+      // 進行中の selectFile / openFolder があれば、その結果を捨てさせる
+      if (wasSelected) selectSeq.current++
+      await trashFile({
+        path: file.path,
+        saver: wasSelected ? saverRef.current : null,
+        trash: moveFileToTrash,
+      })
+      if (wasSelected) {
+        saverRef.current = null
+        setSelectedPath(null)
+        setHistory(null)
+        setSaveError(null)
+      }
+      // 単一性違反はここで解消されうるので、必ず検証をやり直す
+      setFiles((prev) => computeIssues(prev.filter((f) => f.path !== file.path), appRegistry))
+      setIoError(null)
+    } catch (err) {
+      setIoError(
+        `ファイルを削除できませんでした: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
+
+  /** 削除は Undo で戻せないので確認を挟む（用語の削除に確認を挟まないのとは別。rev 5章） */
+  const requestDelete = (file: ProjectFile) => {
+    setConfirm({
+      title: 'ファイルを削除しますか？',
+      description: `${file.name} を OS のゴミ箱へ移動します。完全には削除しないので、ゴミ箱から戻せます。`,
+      confirmLabel: 'ゴミ箱へ移動',
+      onConfirm: () => deleteFile(file),
+    })
+  }
+
   const selected = files.find((f) => f.path === selectedPath) ?? null
   const selectedModule =
     selected && selected.result.status === 'editable'
@@ -258,7 +315,7 @@ function App() {
   // テキスト編集中もアプリの履歴に一本化する（境界規則への明示的な例外）
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const cmd = resolveCommand(toKeyEventLike(e), GLOBAL_KEY_CONTEXT)
+      const cmd = resolveCommand(toKeyEventLike(e), globalKeyContext(modalOpenRef.current))
       if (cmd !== 'undo' && cmd !== 'redo') return
       e.preventDefault()
       runHistoryRef.current(cmd)
@@ -300,6 +357,7 @@ function App() {
             projectOpen={projectDir !== null}
             onSelect={(file) => void selectFile(file)}
             onCreate={(module) => void createNewFile(module)}
+            onDelete={requestDelete}
           />
         </aside>
 
@@ -339,6 +397,7 @@ function App() {
                 key={selected.path}
                 data={editingData}
                 issues={selected.issues}
+                modalOpen={modalOpen}
                 onChange={(next: unknown, mergeKey?: string | null) => {
                   setHistory((h) => (h === null ? h : record(h, next, mergeKey ?? null, Date.now())))
                   applyEdit(setFiles, saverRef.current, selected.path, selectedModule, next)
@@ -347,6 +406,19 @@ function App() {
             )}
         </section>
       </div>
+
+      <ConfirmDialog
+        open={modalOpen}
+        title={confirm?.title ?? ''}
+        description={confirm?.description ?? ''}
+        confirmLabel={confirm?.confirmLabel ?? ''}
+        onConfirm={() => {
+          const pending = confirm
+          setConfirm(null)
+          void pending?.onConfirm()
+        }}
+        onCancel={() => setConfirm(null)}
+      />
     </main>
   )
 }

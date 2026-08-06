@@ -10,10 +10,11 @@ export interface FileListProps {
   projectOpen: boolean
   onSelect: (file: ProjectFile) => void
   onCreate: (module: AnyToolModule) => void
+  onDelete: (file: ProjectFile) => void
 }
 
 /**
- * ファイル一覧の額縁（rev 6章）。新規作成・赤バッジを持つ（削除は Task 6）。
+ * ファイル一覧の額縁（rev 6章）。新規作成・削除・赤バッジを持つ。
  * 表示だけを担い、状態も I/O も持たない（配線は App）
  */
 export function FileList(props: FileListProps) {
@@ -65,6 +66,17 @@ export function FileList(props: FileListProps) {
                     </span>
                   )}
                 </span>
+              </button>
+              {/* 開けない・編集不可のファイルにも削除を出す——単一性違反の解消には
+                  「壊れている方の用語集を消す」が必要で、そこを塞ぐと外部エディタを
+                  強いることになる（rev 5章「拒否は最小限に」のファイル操作への適用） */}
+              <button
+                type="button"
+                aria-label={`${file.name} を削除`}
+                className="shrink-0 px-2 py-2 text-xs text-ink-muted hover:bg-surface hover:text-warning"
+                onClick={() => props.onDelete(file)}
+              >
+                削除
               </button>
             </li>
           ))}

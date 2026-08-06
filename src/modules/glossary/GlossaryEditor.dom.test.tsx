@@ -20,12 +20,14 @@ function glossary(terms: Term[]): GlossarySchemaVersion1 {
 function Harness(props: {
   initial: GlossarySchemaVersion1
   onChange: (next: GlossarySchemaVersion1, mergeKey?: string | null) => void
+  modalOpen?: boolean
 }) {
   const [data, setData] = useState(props.initial)
   return (
     <GlossaryEditor
       data={data}
       issues={[]}
+      modalOpen={props.modalOpen ?? false}
       onChange={(next, mergeKey) => {
         setData(next)
         props.onChange(next, mergeKey)
@@ -34,9 +36,9 @@ function Harness(props: {
   )
 }
 
-function renderEditor(initial: GlossarySchemaVersion1) {
+function renderEditor(initial: GlossarySchemaVersion1, modalOpen = false) {
   const onChange = vi.fn()
-  render(<Harness initial={initial} onChange={onChange} />)
+  render(<Harness initial={initial} onChange={onChange} modalOpen={modalOpen} />)
   const latest = () => onChange.mock.calls.at(-1)?.[0] as GlossarySchemaVersion1 | undefined
   return { onChange, latest }
 }
@@ -237,6 +239,7 @@ function HistoryHarness({ initial }: { initial: GlossarySchemaVersion1 }) {
       <GlossaryEditor
         data={history.present}
         issues={[]}
+        modalOpen={false}
         onChange={(next, mergeKey) =>
           setHistory((h) => record(h, next, mergeKey ?? null, Date.now()))
         }
@@ -272,5 +275,22 @@ describe('GlossaryEditor: 履歴との継ぎ目', () => {
     fireEvent.click(screen.getByText('元に戻す'))
     const inputs = screen.getAllByLabelText(/^別名\d/) as HTMLInputElement[]
     expect(inputs.map((el) => el.value)).toEqual([''])
+  })
+})
+
+describe('モーダル表示中', () => {
+  it('Enter で行が増えない（キーはモーダル側が取る。rev 10章の境界規則）', () => {
+    const { latest } = renderEditor(glossary([term({ id: 'term_AAAAAAAAAA', name: '受注' })]), true)
+    const cell = screen.getByRole('textbox', { name: '名称（1行目）' })
+    fireEvent.keyDown(cell, { key: 'Enter' })
+    expect(latest()).toBeUndefined()
+  })
+
+  it('空欄 Backspace でも行が消えない', () => {
+    const { latest } = renderEditor(glossary([term({ id: 'term_AAAAAAAAAA', name: '受注' })]), true)
+    const cell = screen.getByRole('textbox', { name: '名称（1行目）' }) as HTMLInputElement
+    fireEvent.change(cell, { target: { value: '' } })
+    fireEvent.keyDown(cell, { key: 'Backspace' })
+    expect(latest()?.terms.length ?? 1).toBe(1)
   })
 })
