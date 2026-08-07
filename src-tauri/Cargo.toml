@@ -23,7 +23,9 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
-tauri-plugin-fs = "2"
+# watch feature が無いと plugin:fs|watch コマンド自体が存在しない
+# （notify / notify-debouncer-full がその後ろにある）
+tauri-plugin-fs = { version = "2", features = ["watch"] }
 tauri-plugin-dialog = "2"
 # OS のゴミ箱への移動。Tauri の fs プラグインは完全削除しか持たないため、
 # rev 6章「完全削除はしない」を満たすにはこのクレートが要る
