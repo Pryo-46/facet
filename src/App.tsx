@@ -23,9 +23,11 @@ import {
 } from '@/core/history'
 import { resolveCommand, toKeyEventLike, type KeyContext } from '@/core/keyboard/keymap'
 import { currentPlatform } from '@/core/keyboard/platform'
+import { createKnownDisk } from '@/core/known-disk'
 import { classifyFile } from '@/core/load'
-import { computeIssues, fileName, type ProjectFile } from '@/core/project-file'
+import { computeIssues, type ProjectFile } from '@/core/project-file'
 import type { AnyToolModule } from '@/core/registry'
+import { scanFolder, toProjectFile } from '@/core/scan'
 import { forceClose, interceptClose } from '@/fs/app-window'
 import {
   fileExists,
@@ -39,6 +41,9 @@ import {
 import { appRegistry } from '@/modules'
 
 const AUTOSAVE_DELAY_MS = 500
+
+/** 走査に渡す I/O。フォルダを開くときと再走査（M5）で同じ経路を通す */
+const scanIo = { list: listJsonFiles, read: readProjectFile }
 
 /**
  * 額縁が取るグローバル層のキー文脈（rev 10章）。Undo/Redo だけを扱うため
@@ -106,6 +111,12 @@ function App() {
   // selectFile の連続呼び出しを直列化するためのトークン。
   // 後続の選択（または openFolder）が始まったら、先行呼び出しの結果は破棄する。
   const selectSeq = useRef(0)
+  /**
+   * ディスクの既知内容の台帳（自己書き込み除外の要）。**state にしないこと**——
+   * 記録が再レンダリングを待つと、その隙の再走査が自分の書き込みを
+   * 外部変更と誤検知する
+   */
+  const knownDisk = useRef(createKnownDisk())
 
   // 確認ダイアログ。開いている間は操作言語を止める（rev 10章の境界規則）
   const [confirm, setConfirm] = useState<{
@@ -160,6 +171,37 @@ function App() {
     }
   }, [])
 
+  /**
+   * アプリからの書き込みは必ずここを通す。**書けた内容を即座に台帳へ記録する**
+   * ことが自己書き込み除外の唯一の前提条件で、記録が遅れると自分の書き込みを
+   * 外部変更として検知してしまう。失敗時は記録しない（ディスクは変わっていない）
+   */
+  const writeAndRecord = async (path: string, text: string): Promise<void> => {
+    await writeProjectFile(path, text)
+    knownDisk.current.set(path, text)
+  }
+
+  /**
+   * 自動保存を張る。baseline は「そのファイルをアプリが正とみなす内容の正規形」で、
+   * 無編集ならバイト一致で書き込みが起きない（非正規ファイルを開いただけでは
+   * 書き戻さない。rev 5章）。外部変更の上書き（M5）では baseline に
+   * 取り込んだディスクの内容を渡して張り直す
+   */
+  const attachSaver = (path: string, baseline: string) => {
+    saverRef.current = createAutoSaver({
+      delayMs: AUTOSAVE_DELAY_MS,
+      baseline,
+      write: (text) => writeAndRecord(path, text),
+      onError: (err) =>
+        setSaveError(
+          `自動保存に失敗しました（編集を続けるか、もう一度閉じる操作で再試行されます）: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        ),
+      onSuccess: () => setSaveError(null),
+    })
+  }
+
   /** 現在のファイルを閉じる。false＝保留編集を書き切れず中断（saver は生かしたまま） */
   const closeCurrentFile = async (): Promise<boolean> => {
     const saver = saverRef.current
@@ -184,17 +226,21 @@ function App() {
     // flush が失敗したらフォルダ切替を中断する（書けていない編集を捨てない）
     if (!(await closeCurrentFile())) return
     try {
-      const paths = await listJsonFiles(dir)
-      const loaded: ProjectFile[] = []
-      for (const path of paths) {
-        const text = await readProjectFile(path)
-        loaded.push({ path, name: fileName(path), result: classifyFile(text, appRegistry), issues: [] })
-      }
+      const scan = await scanFolder(dir, scanIo, appRegistry)
       // 後続の openFolder / selectFile が始まっていたら、この結果は破棄する
       if (token !== selectSeq.current) return
-      // 全部読めてから一括で入れ替える（途中失敗で新旧が混ざった状態を作らない）
+      // 一部でも読めなければ入れ替えない（途中失敗で新旧が混ざった状態を作らない。M1 で確定）
+      if (scan.unreadable.length > 0) {
+        setIoError(
+          `読み込めないファイルがあるため開けませんでした: ${scan.unreadable.join(' / ')}`,
+        )
+        return
+      }
       setProjectDir(dir)
-      setFiles(computeIssues(loaded, appRegistry))
+      setFiles(computeIssues(scan.entries.map(toProjectFile), appRegistry))
+      // 台帳は別フォルダの分を持ち越さない
+      knownDisk.current.clear()
+      for (const entry of scan.entries) knownDisk.current.set(entry.path, entry.text)
       setIoError(null)
     } catch (err) {
       if (token !== selectSeq.current) return
@@ -205,44 +251,35 @@ function App() {
     }
   }
 
-  const selectFile = async (file: ProjectFile) => {
+  const selectFile = async (path: string) => {
     const token = ++selectSeq.current
     if (!(await closeCurrentFile())) return
     try {
       // 選択時に必ずディスクから読み直す（走査時キャッシュを編集の起点にすると、
-      // 直前の自動保存分を古い内容で上書きするデータ喪失経路になる）
-      const text = await readProjectFile(file.path)
+      // 直前の自動保存分を古い内容で上書きするデータ喪失経路になる。M1 で確定）
+      const text = await readProjectFile(path)
       if (token !== selectSeq.current) return // 後続の選択が始まっていたら破棄
+      // 読んだ内容は「アプリが知っているディスクの内容」
+      knownDisk.current.set(path, text)
       const result = classifyFile(text, appRegistry)
       setFiles((prev) =>
         computeIssues(
-          prev.map((f) => (f.path === file.path ? { ...f, result } : f)),
+          prev.map((f) => (f.path === path ? { ...f, result } : f)),
           appRegistry,
         ),
       )
-      setSelectedPath(file.path)
+      setSelectedPath(path)
       setIoError(null)
       if (result.status !== 'editable') return
       const module = appRegistry.get(result.type)
       if (!module) return
-      // baseline は「読み込んだ内容の正規形」。無編集ならバイト一致で書き込みが起きず、
-      // 非正規ファイルでも最初の編集まで書き戻さない（rev 5章）
-      saverRef.current = createAutoSaver({
-        delayMs: AUTOSAVE_DELAY_MS,
-        baseline: serialize(result.data, module.schema),
-        write: (text) => writeProjectFile(file.path, text),
-        onError: (err) =>
-          setSaveError(
-            `自動保存に失敗しました（編集を続けるか、もう一度閉じる操作で再試行されます）: ${
-              err instanceof Error ? err.message : String(err)
-            }`,
-          ),
-        onSuccess: () => setSaveError(null),
-      })
+      attachSaver(path, serialize(result.data, module.schema))
       setHistory(createHistory(result.data))
     } catch (err) {
       if (token !== selectSeq.current) return
-      setIoError(`ファイルの読み込みに失敗しました: ${err instanceof Error ? err.message : String(err)}`)
+      setIoError(
+        `ファイルの読み込みに失敗しました: ${err instanceof Error ? err.message : String(err)}`,
+      )
     }
   }
 
@@ -262,7 +299,7 @@ function App() {
     }
     setFiles((prev) => computeIssues([...prev, entry], appRegistry))
     setIoError(null)
-    await selectFile(entry)
+    await selectFile(created.path)
   }
 
   /** 新規作成（額縁のファイル操作。rev 6章）。作ったファイルはそのまま開く */
@@ -274,7 +311,7 @@ function App() {
         module,
         existingNames: files.map((f) => f.name),
         join: joinPath,
-        write: writeProjectFile,
+        write: writeAndRecord,
         exists: fileExists,
       })
       await addCreatedFile(created)
@@ -309,6 +346,7 @@ function App() {
         setHistory(null)
         setSaveError(null)
       }
+      knownDisk.current.delete(file.path)
       // 単一性違反はここで解消されうるので、必ず検証をやり直す
       setFiles((prev) => computeIssues(prev.filter((f) => f.path !== file.path), appRegistry))
       setIoError(null)
@@ -344,13 +382,12 @@ function App() {
         module,
         files: files.map((f) => ({ path: f.path, name: f.name, type: f.result.type })),
         join: joinPath,
-        write: writeProjectFile,
+        write: writeAndRecord,
         exists: fileExists,
       })
       if (created === null) {
-        // 既にあった。走査済みの一覧から引いて開くだけ
-        const existing = files.find((f) => f.path === path)
-        if (existing) await selectFile(existing)
+        // 既にあった。開くだけ
+        await selectFile(path)
         return
       }
       await addCreatedFile(created)
@@ -436,7 +473,7 @@ function App() {
             modules={appRegistry.list()}
             existingTypes={existingTypes}
             projectOpen={projectDir !== null}
-            onSelect={(file) => void selectFile(file)}
+            onSelect={(file) => void selectFile(file.path)}
             onCreate={(module) => void createNewFile(module)}
             onDelete={requestDelete}
           />
