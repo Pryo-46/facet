@@ -137,7 +137,15 @@ function App() {
   // 確認ダイアログを挟む操作と同じ理由・同じ形で ref に写す（M4 で確定）
   const filesRef = useRef<ProjectFile[]>([])
   const projectDirRef = useRef<string | null>(null)
-  const selectedModuleRef = useRef<AnyToolModule | undefined>(undefined)
+  // フォルダ切替中は再走査を止める（古いフォルダの監視イベントが、切替後の
+  // 一覧を古いフォルダの内容で上書きしうる）。scanSeq は「その瞬間に進行中の
+  // 再走査」しか無効化できないので、切替中に始まる再走査はこちらで止める
+  const switchingFolderRef = useRef(false)
+  // 二択ダイアログの回答待ちのパス。ask の分岐で saver を dispose して null に
+  // するので、hasUnsaved() だけでは「未保存編集あり」の信号が消える——
+  // 回答前に2度目の外部変更が来ると reload に落ちて、ユーザーの編集を持つ
+  // 履歴が黙って置き換わる
+  const pendingAskRef = useRef<string | null>(null)
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const toastSeq = useRef(0)
 
@@ -153,8 +161,12 @@ function App() {
   modalOpenRef.current = modalOpen
   const showModal = (request: ModalRequest) => setModals((prev) => pushModal(prev, request))
   const closeModal = () => setModals((prev) => shiftModal(prev))
-  const showToast = (toast: Omit<ToastItem, 'id'>) =>
-    setToasts((prev) => pushToast(prev, { ...toast, id: ++toastSeq.current }))
+  const showToast = (toast: Omit<ToastItem, 'id'>) => {
+    // updater は純粋でなければならない（StrictMode の二重実行で id を余分に
+    // 消費しないよう、id は先に計算する）
+    const id = ++toastSeq.current
+    setToasts((prev) => pushToast(prev, { ...toast, id }))
+  }
 
   // ToastRow の自動消去タイマーは onDismiss を依存に持つので、毎レンダで
   // 新しい関数を渡すとタイマーが張り直されて自動で消えなくなる
@@ -262,10 +274,11 @@ function App() {
     const token = ++selectSeq.current
     // 進行中の再走査の結果を捨てさせる（別フォルダの走査結果を新しい一覧へ混ぜない）
     scanSeq.current++
-    // 先に現在のファイルを閉じる（flush 後の内容で走査するため）。
-    // flush が失敗したらフォルダ切替を中断する（書けていない編集を捨てない）
-    if (!(await closeCurrentFile())) return
+    switchingFolderRef.current = true
     try {
+      // 先に現在のファイルを閉じる（flush 後の内容で走査するため）。
+      // flush が失敗したらフォルダ切替を中断する（書けていない編集を捨てない）
+      if (!(await closeCurrentFile())) return
       const scan = await scanFolder(dir, scanIo, appRegistry)
       // 後続の openFolder / selectFile が始まっていたら、この結果は破棄する
       if (token !== selectSeq.current) return
@@ -277,6 +290,9 @@ function App() {
         return
       }
       setProjectDir(dir)
+      // ref も同期で更新する——再走査の突き合わせ（projectDirRef.current !== dir）が
+      // 再レンダを待つと、その隙に古いフォルダのイベントが通ってしまう
+      projectDirRef.current = dir
       setFiles(computeIssues(scan.entries.map(toProjectFile), appRegistry))
       // 台帳は別フォルダの分を持ち越さない
       knownDisk.current.clear()
@@ -288,6 +304,8 @@ function App() {
       setIoError(
         `フォルダの読み込みに失敗しました: ${err instanceof Error ? err.message : String(err)}`,
       )
+    } finally {
+      switchingFolderRef.current = false
     }
   }
 
@@ -426,7 +444,11 @@ function App() {
     if (projectDirRef.current === null || module === undefined) return
     // 走査時のスナップショットで判断すると、走査後に外部で増えた用語集
     //（Skill が書いたもの）を見落として2つ目を作る。まず再走査する
-    const scanned = (await handleExternalChange()) ?? filesRef.current
+    const scanned = await handleExternalChange()
+    // 再走査できなかったときは作らない——古いスナップショットで判断すると、
+    // 外部で増えた用語集を見落として単一性違反を自分で作る
+    //（失敗理由は handleExternalChange が ioError に出している）
+    if (scanned === null) return
     const dir = projectDirRef.current
     if (dir === null) return
     try {
@@ -487,6 +509,8 @@ function App() {
    * **applyEdit を通るのは下の overwriteWithMine（上書き）側**
    */
   const importExternalChange = async (path: string, stashText: string | undefined) => {
+    // reload 経由でも呼ばれるが、その場合は既に null なので無害
+    pendingAskRef.current = null
     await selectFile(path)
     showToast({
       key: `external:${path}`,
@@ -502,21 +526,34 @@ function App() {
    * 自分の編集でディスクを上書きする（二択ダイアログの片側）。
    * **baseline は検知したディスクの内容にする**——古い baseline のままだと
    * 「同じ内容だから書かない」に落ちて、外部の内容が残ったまま画面と食い違う。
-   * ここが applyEdit の4本目の経路になる
+   * ここが applyEdit の4本目の経路になる。
+   * **module は呼び出し側（handleExternalChange）が「変更前の」一覧から引いて
+   * 渡す**——ref に写す方式だと、ダイアログが見える前に `setFiles` が反映されて
+   * 「変更後」を指してしまい、外部変更でスキーマ違反や別ツールへの type 変更が
+   * 起きたケースで壊れる（レビューで発覚）
    */
-  const overwriteWithMine = (path: string, diskText: string) => {
+  const overwriteWithMine = (path: string, diskText: string, module: AnyToolModule | undefined) => {
+    pendingAskRef.current = null
     // 確認を挟む操作なので、確定時点の状態は ref から読む（M4 で確定）。
     // 待っている間に選択が変わっていたら何もしない
     if (selectedPathRef.current !== path) return
     const history = historyRef.current
-    const module = selectedModuleRef.current
-    if (history === null || module === undefined) return
+    if (history === null || module === undefined) {
+      // 無言で終わると「上書きを押したのに何も起きず、編集も失われた」に見える
+      setIoError(
+        '編集内容を書き戻せませんでした（このファイルを扱うモジュールが見つかりません）。外部エディタで内容を確認してください。',
+      )
+      return
+    }
     attachSaver(path, diskText)
     applyEdit(setFiles, saverRef.current, path, module, history.present)
   }
 
   /** 未保存編集がある状態の外部変更（rev 3章。マージ UI は作らない） */
-  const askExternalChange = (selected: { path: string; name: string; diskText: string }) => {
+  const askExternalChange = (
+    selected: { path: string; name: string; diskText: string },
+    moduleBeforeChange: AnyToolModule | undefined,
+  ) => {
     showModal({
       kind: 'choice',
       // 同じファイルの二択が積み上がらないよう、新しい要求で置き換える
@@ -525,7 +562,7 @@ function App() {
       description: `${selected.name} が別のプログラム（AI・エディタ・Git など）によって変更されました。保存していない編集があるため、どちらを残すか選んでください。両方を混ぜることはできません。`,
       primaryLabel: '自分の編集で上書き',
       secondaryLabel: '外部変更を取り込む（自分の編集は破棄）',
-      onPrimary: () => overwriteWithMine(selected.path, selected.diskText),
+      onPrimary: () => overwriteWithMine(selected.path, selected.diskText, moduleBeforeChange),
       // 取り込み側に「取り込み前に戻す」は出さない——退避できるのは
       // 取り込み前に**ディスクにあった**内容で、破棄される未保存編集ではないため
       onSecondary: () => importExternalChange(selected.path, undefined),
@@ -540,6 +577,8 @@ function App() {
   const handleSelectedGone = (path: string, name: string) => {
     // 進行中の selectFile / openFolder の結果を捨てさせる
     selectSeq.current++
+    // 回答待ちのファイルが外部で消えた場合、二択ダイアログの回答待ち信号も落とす
+    pendingAskRef.current = null
     saverRef.current?.dispose()
     saverRef.current = null
     setSelectedPath(null)
@@ -561,6 +600,8 @@ function App() {
    * 戻り値は適用後の一覧（続けて使う呼び出し側のため。null＝適用しなかった）
    */
   const handleExternalChange = async (): Promise<ProjectFile[] | null> => {
+    // フォルダ切替中の再走査は捨てる（switchingFolderRef の理由は宣言部を参照）
+    if (switchingFolderRef.current) return null
     const dir = projectDirRef.current
     if (dir === null) return null
     const token = ++scanSeq.current
@@ -581,8 +622,21 @@ function App() {
       scan,
       knownText: (path) => knownDisk.current.get(path),
       selectedPath: selectedPathRef.current,
-      hasUnsavedEdits: saverRef.current?.hasUnsaved() ?? false,
+      hasUnsavedEdits:
+        (saverRef.current?.hasUnsaved() ?? false) ||
+        (pendingAskRef.current !== null && pendingAskRef.current === selectedPathRef.current),
     })
+    // 上書きに使うモジュールは「変更前の」一覧から引く——外部変更でスキーマ違反に
+    // なったファイルは result が rejected になって type からモジュールを引けず、
+    // type が別のツールに書き換えられた場合は別のモジュールを引いてしまう
+    //（古いデータを新しいスキーマでシリアライズすると壊れたファイルを書く）。
+    // レンダごとに代入される ref では「変更前」を保持できない——setFiles は
+    // ダイアログの回答を待たずに反映されるため
+    const before = filesRef.current.find((f) => f.path === selectedPathRef.current)
+    const moduleBeforeChange =
+      before !== undefined && before.result.status === 'editable'
+        ? appRegistry.get(before.result.type)
+        : undefined
     // 台帳をディスクの現状へ合わせる。**plan を作った後**でなければ差分が消える。
     // 読めなかったパスは台帳に残す（消えた扱いにしないため）
     for (const entry of scan.entries) knownDisk.current.set(entry.path, entry.text)
@@ -608,7 +662,8 @@ function App() {
         await importExternalChange(selected.path, selected.stashText)
         break
       case 'ask':
-        askExternalChange(selected)
+        pendingAskRef.current = selected.path
+        askExternalChange(selected, moduleBeforeChange)
         break
       case 'gone':
         handleSelectedGone(selected.path, selected.name)
@@ -626,9 +681,6 @@ function App() {
     selected && selected.result.status === 'editable'
       ? appRegistry.get(selected.result.type)
       : undefined
-  // 外部変更で result が rejected になるとモジュールを引けなくなるので、
-  // 上書き用に「変更前の」モジュールを保持する
-  selectedModuleRef.current = selectedModule
   // 走査済み全ファイルの type（読めなかったファイルは null）。singleton 判定は
   // 型でなく物理条件（type が2件以上）なので、rejected/listOnly の type も含める
   const existingTypes = files.map((f) => f.result.type)
@@ -691,8 +743,11 @@ function App() {
       })
     return () => {
       stopped = true
-      coalescer.dispose()
+      // 先に監視を止めてから coalescer を捨てる——逆順だと、その間に届いた
+      // イベントが notify() で無条件にタイマーを張り直し、切替/アンマウントの
+      // 約 WATCH_COALESCE_MS 後に迷子の再走査が1回走る
       unwatch?.()
+      coalescer.dispose()
     }
   }, [projectDir])
 
