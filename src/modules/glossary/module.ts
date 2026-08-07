@@ -17,4 +17,7 @@ export const glossaryModule: ToolModule<GlossarySchemaVersion1> = {
   // 用語集はハブなのでプロジェクトにつき1つ（rev 5章の単一性）
   singleton: true,
   migrate: migrateGlossary,
+  // 用語集0個は正常な状態（新規プロジェクト）。空の terms で作り、
+  // 用語は M3 の行追加または将来のインライン登録で増える（rev 5章）
+  createEmpty: (title) => ({ schemaVersion: 1, type: 'glossary', title, terms: [] }),
 }

@@ -1,9 +1,17 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { FileList } from '@/components/FileList'
 import { Button } from '@/components/ui/button'
 import { createAutoSaver, type AutoSaver } from '@/core/autosave'
 import { serialize } from '@/core/canonical'
-import type { ConsistencyIssue } from '@/core/consistency'
+import {
+  canCreateFileOfType,
+  createFile,
+  ensureFileOfType,
+  trashFile,
+  type CreatedFile,
+} from '@/core/file-ops'
 import {
   canRedo,
   canUndo,
@@ -15,12 +23,14 @@ import {
 } from '@/core/history'
 import { resolveCommand, toKeyEventLike, type KeyContext } from '@/core/keyboard/keymap'
 import { currentPlatform } from '@/core/keyboard/platform'
-import { classifyFile, type LoadResult } from '@/core/load'
-import { checkProjectConsistency } from '@/core/project-consistency'
+import { classifyFile } from '@/core/load'
+import { computeIssues, fileName, type ProjectFile } from '@/core/project-file'
 import type { AnyToolModule } from '@/core/registry'
-import { interceptClose } from '@/fs/app-window'
+import { forceClose, interceptClose } from '@/fs/app-window'
 import {
+  joinPath,
   listJsonFiles,
+  moveFileToTrash,
   pickProjectFolder,
   readProjectFile,
   writeProjectFile,
@@ -29,48 +39,23 @@ import { appRegistry } from '@/modules'
 
 const AUTOSAVE_DELAY_MS = 500
 
-interface ProjectFile {
-  path: string
-  name: string
-  result: LoadResult
-  /** モジュール内検証＋コア横断検証の結果（レベル2）。一覧バッジとエディタ赤表示に使う */
-  issues: ConsistencyIssue[]
-}
-
-function fileName(path: string): string {
-  return path.split(/[\\/]/).pop() ?? path
-}
-
-/** 全ファイルの整合性検証（レベル2）をやり直す。走査時と編集時の両方から呼ぶ */
-function computeIssues(files: ProjectFile[]): ProjectFile[] {
-  const cross = checkProjectConsistency(
-    files.map((f) => ({ path: f.path, type: f.result.type })),
-    appRegistry,
-  )
-  return files.map((f) => {
-    const local =
-      f.result.status === 'editable'
-        ? (appRegistry.get(f.result.type)?.checkConsistency(f.result.data) ?? [])
-        : []
-    return { ...f, issues: [...local, ...(cross.get(f.path) ?? [])] }
-  })
-}
-
 /**
  * 額縁が取るグローバル層のキー文脈（rev 10章）。Undo/Redo だけを扱うため
- * 構造依存層の文脈は固定値でよい。modalOpen は M4 の削除確認・
- * M5 の二択ダイアログを出すときに true にする配線点
+ * 構造依存層の文脈は固定値でよい。modalOpen は確認ダイアログが開いている間 true
+ *（M5 の二択ダイアログもここへ合流させる）
  */
-const GLOBAL_KEY_CONTEXT: KeyContext = {
-  platform: currentPlatform(),
-  modalOpen: false,
-  editing: false,
-  fieldEmpty: false,
-  deletableField: false,
-  caretAtStart: false,
-  caretAtEnd: false,
-  arrowsOwnedByField: false,
-  reorderEnabled: false,
+function globalKeyContext(modalOpen: boolean): KeyContext {
+  return {
+    platform: currentPlatform(),
+    modalOpen,
+    editing: false,
+    fieldEmpty: false,
+    deletableField: false,
+    caretAtStart: false,
+    caretAtEnd: false,
+    arrowsOwnedByField: false,
+    reorderEnabled: false,
+  }
 }
 
 /**
@@ -93,6 +78,7 @@ function applyEdit(
           ? { ...f, result: { ...f.result, data: next } }
           : f,
       ),
+      appRegistry,
     ),
   )
 }
@@ -102,6 +88,12 @@ function App() {
   const [projectDir, setProjectDir] = useState<string | null>(null)
   const [files, setFiles] = useState<ProjectFile[]>([])
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  // 確認ダイアログの onConfirm は、ダイアログを開いたレンダのクロージャを持ったまま
+  // 人間の操作を待つ。その間に in-flight の selectFile が解決して選択が変わりうるので、
+  // 削除の確定時点の選択は必ず ref から読む（クロージャ値だと、消していないファイルの
+  // saver を dispose して選択を落とす）
+  const selectedPathRef = useRef<string | null>(null)
+  selectedPathRef.current = selectedPath
   // 編集中データは履歴の present が正（Undo/Redo で入れ替わる。
   // ファイル単位・メモリ内。それ以前への復帰は Git の担当。rev 5章）
   const [history, setHistory] = useState<HistoryState<unknown> | null>(null)
@@ -113,6 +105,18 @@ function App() {
   // selectFile の連続呼び出しを直列化するためのトークン。
   // 後続の選択（または openFolder）が始まったら、先行呼び出しの結果は破棄する。
   const selectSeq = useRef(0)
+
+  // 確認ダイアログ。開いている間は操作言語を止める（rev 10章の境界規則）
+  const [confirm, setConfirm] = useState<{
+    title: string
+    description: string
+    confirmLabel: string
+    onConfirm: () => void | Promise<void>
+  } | null>(null)
+  const modalOpen = confirm !== null
+  // window リスナーはマウント時の1回しか張らないので、最新値は ref から読む
+  const modalOpenRef = useRef(modalOpen)
+  modalOpenRef.current = modalOpen
 
   const editingData = history === null ? null : history.present
 
@@ -131,11 +135,24 @@ function App() {
   }, [])
 
   // ウィンドウ close を横取りして保留中の編集を書き切る。
-  // flush が失敗したら閉じない（saveError バナーが出る。再度閉じる操作＝再試行）
+  // flush が失敗したら閉じず、代わりに脱出口を出す——書けていない編集を
+  // 黙って捨てないが、閉じられなくなる状態も作らない
   useEffect(() => {
     const unlisten = interceptClose(async () => {
       const saver = saverRef.current
-      return saver ? saver.flush() : true
+      if (saver === null) return true
+      if (await saver.flush()) return true
+      setConfirm({
+        title: '保存できないため閉じられません',
+        description:
+          '保存していない編集があります。もう一度閉じる操作をすると保存を再試行します。破棄して閉じると、この編集は失われます（ファイルの内容は最後に保存できた状態のままです）。',
+        confirmLabel: '破棄して閉じる',
+        onConfirm: async () => {
+          saverRef.current?.dispose()
+          await forceClose()
+        },
+      })
+      return false
     })
     return () => {
       void unlisten.then((f) => f())
@@ -176,7 +193,7 @@ function App() {
       if (token !== selectSeq.current) return
       // 全部読めてから一括で入れ替える（途中失敗で新旧が混ざった状態を作らない）
       setProjectDir(dir)
-      setFiles(computeIssues(loaded))
+      setFiles(computeIssues(loaded, appRegistry))
       setIoError(null)
     } catch (err) {
       if (token !== selectSeq.current) return
@@ -197,7 +214,10 @@ function App() {
       if (token !== selectSeq.current) return // 後続の選択が始まっていたら破棄
       const result = classifyFile(text, appRegistry)
       setFiles((prev) =>
-        computeIssues(prev.map((f) => (f.path === file.path ? { ...f, result } : f))),
+        computeIssues(
+          prev.map((f) => (f.path === file.path ? { ...f, result } : f)),
+          appRegistry,
+        ),
       )
       setSelectedPath(file.path)
       setIoError(null)
@@ -225,11 +245,133 @@ function App() {
     }
   }
 
+  /**
+   * 作成したファイルを一覧へ登録して開く。新規作成と用語集の自動生成が
+   * 同じ後処理を通るための単一経路（M5 の外部変更の取り込みも
+   * ここへ合流させられる）。書いたテキストをそのまま分類するのは、
+   * editable にならないなら雛形かシリアライザが壊れているため——
+   * 一覧に出す前に気付けるようにする
+   */
+  const addCreatedFile = async (created: CreatedFile): Promise<void> => {
+    const entry: ProjectFile = {
+      path: created.path,
+      name: created.name,
+      result: classifyFile(created.text, appRegistry),
+      issues: [],
+    }
+    setFiles((prev) => computeIssues([...prev, entry], appRegistry))
+    setIoError(null)
+    await selectFile(entry)
+  }
+
+  /** 新規作成（額縁のファイル操作。rev 6章）。作ったファイルはそのまま開く */
+  const createNewFile = async (module: AnyToolModule) => {
+    if (projectDir === null) return
+    try {
+      const created = await createFile({
+        dir: projectDir,
+        module,
+        existingNames: files.map((f) => f.name),
+        join: joinPath,
+        write: writeProjectFile,
+      })
+      await addCreatedFile(created)
+    } catch (err) {
+      setIoError(
+        `ファイルを作成できませんでした: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
+
+  /**
+   * ファイルを OS のゴミ箱へ移す（rev 6章。完全削除はしない）。
+   * 開いているファイルなら closeCurrentFile を通さない——あれは保留編集を書き切る
+   * 経路で、消したファイルを書き戻して復活させる。代わりに trashFile が
+   *「書かせない（dispose）」と「進行中の write を待つ（空 flush）」を担う
+   */
+  const deleteFile = async (file: ProjectFile) => {
+    // 確認ダイアログを挟むので、選択状態は「押された時点」を ref から読む
+    //（このクロージャが作られた時点の selectedPath は既に古いことがある）
+    const wasSelected = file.path === selectedPathRef.current
+    try {
+      // 進行中の selectFile / openFolder があれば、その結果を捨てさせる
+      if (wasSelected) selectSeq.current++
+      await trashFile({
+        path: file.path,
+        saver: wasSelected ? saverRef.current : null,
+        trash: moveFileToTrash,
+      })
+      if (wasSelected) {
+        saverRef.current = null
+        setSelectedPath(null)
+        setHistory(null)
+        setSaveError(null)
+      }
+      // 単一性違反はここで解消されうるので、必ず検証をやり直す
+      setFiles((prev) => computeIssues(prev.filter((f) => f.path !== file.path), appRegistry))
+      setIoError(null)
+    } catch (err) {
+      setIoError(
+        `ファイルを削除できませんでした: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
+
+  /** 削除は Undo で戻せないので確認を挟む（用語の削除に確認を挟まないのとは別。rev 5章） */
+  const requestDelete = (file: ProjectFile) => {
+    setConfirm({
+      title: 'ファイルを削除しますか？',
+      description: `${file.name} を OS のゴミ箱へ移動します。完全には削除しないので、ゴミ箱から戻せます。`,
+      confirmLabel: 'ゴミ箱へ移動',
+      onConfirm: () => deleteFile(file),
+    })
+  }
+
+  /**
+   * 用語集を1つ確保して開く。用語集0個は正常な状態（新規プロジェクト）で、
+   * 本来の発火点は用語のインライン登録（rev 5章。呼び出す側の他ツールが
+   * まだ無いため M4 では額縁の空状態から呼ぶ）。生成の条件と正規形は
+   * コアの ensureFileOfType が持つので、将来の発火点はそちらを呼べばよい
+   */
+  const ensureGlossary = async () => {
+    const module = appRegistry.get('glossary')
+    if (projectDir === null || module === undefined) return
+    try {
+      const { path, created } = await ensureFileOfType({
+        dir: projectDir,
+        module,
+        files: files.map((f) => ({ path: f.path, name: f.name, type: f.result.type })),
+        join: joinPath,
+        write: writeProjectFile,
+      })
+      if (created === null) {
+        // 既にあった。走査済みの一覧から引いて開くだけ
+        const existing = files.find((f) => f.path === path)
+        if (existing) await selectFile(existing)
+        return
+      }
+      await addCreatedFile(created)
+    } catch (err) {
+      setIoError(
+        `用語集を作成できませんでした: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
+
   const selected = files.find((f) => f.path === selectedPath) ?? null
   const selectedModule =
     selected && selected.result.status === 'editable'
       ? appRegistry.get(selected.result.type)
       : undefined
+  // 走査済み全ファイルの type（読めなかったファイルは null）。singleton 判定は
+  // 型でなく物理条件（type が2件以上）なので、rejected/listOnly の type も含める
+  const existingTypes = files.map((f) => f.result.type)
+  const glossaryModule = appRegistry.get('glossary')
+  // 用語集0個は正常な状態（新規プロジェクト）。押せば作れることを空状態で示す。
+  // サイドバーの新規作成ボタンと同じ canCreateFileOfType を通すことで、
+  // 「作れる」の判定を1箇所に保つ（ここだけ別ルールにすると再び矛盾を作る）
+  const canCreateGlossary =
+    glossaryModule !== undefined && canCreateFileOfType(glossaryModule, existingTypes)
 
   const runHistory = (kind: 'undo' | 'redo') => {
     const h = historyRef.current
@@ -250,7 +392,7 @@ function App() {
   // テキスト編集中もアプリの履歴に一本化する（境界規則への明示的な例外）
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const cmd = resolveCommand(toKeyEventLike(e), GLOBAL_KEY_CONTEXT)
+      const cmd = resolveCommand(toKeyEventLike(e), globalKeyContext(modalOpenRef.current))
       if (cmd !== 'undo' && cmd !== 'redo') return
       e.preventDefault()
       runHistoryRef.current(cmd)
@@ -285,44 +427,37 @@ function App() {
 
       <div className="flex min-h-0 flex-1">
         <aside className="w-64 shrink-0 border-r border-rule">
-          {files.length === 0 ? (
-            <p className="p-4 text-sm text-ink-muted">
-              プロジェクトフォルダを開くと JSON ファイルの一覧が出ます。
-            </p>
-          ) : (
-            <ul>
-              {files.map((file) => (
-                <li key={file.path}>
-                  <button
-                    type="button"
-                    className={`block w-full px-4 py-2 text-left text-sm hover:bg-surface ${
-                      file.path === selectedPath ? 'bg-surface' : ''
-                    }`}
-                    onClick={() => void selectFile(file)}
-                  >
-                    <span className="block text-ink">{file.name}</span>
-                    <span className="block text-xs text-ink-muted">
-                      {file.result.status === 'editable' && file.result.title}
-                      {file.result.status === 'rejected' && (
-                        <span className="text-warning">開けない</span>
-                      )}
-                      {file.result.status === 'listOnly' && '編集不可'}
-                      {file.issues.length > 0 && (
-                        <span className="ml-1 rounded-sm bg-warning px-1 text-xs text-warning-fg">
-                          {file.issues.length}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+          <FileList
+            files={files}
+            selectedPath={selectedPath}
+            modules={appRegistry.list()}
+            existingTypes={existingTypes}
+            projectOpen={projectDir !== null}
+            onSelect={(file) => void selectFile(file)}
+            onCreate={(module) => void createNewFile(module)}
+            onDelete={requestDelete}
+          />
         </aside>
 
         <section className="min-w-0 flex-1 overflow-auto">
           {selected === null && (
-            <p className="p-6 text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
+            <div className="p-6">
+              <p className="text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
+              {projectDir !== null && canCreateGlossary && (
+                <div className="mt-4">
+                  <p className="text-sm text-ink-muted">
+                    このプロジェクトにはまだ用語集がありません（新規プロジェクトでは正常な状態です）。
+                  </p>
+                  <button
+                    type="button"
+                    className="mt-2 rounded-sm border border-rule px-3 py-1 text-sm text-ink hover:bg-surface"
+                    onClick={() => void ensureGlossary()}
+                  >
+                    用語集を作る
+                  </button>
+                </div>
+              )}
+            </div>
           )}
           {selected && selected.result.status !== 'editable' && selected.issues.length > 0 && (
             <ul className="list-disc px-6 pt-4 pl-10 text-sm text-warning">
@@ -356,6 +491,7 @@ function App() {
                 key={selected.path}
                 data={editingData}
                 issues={selected.issues}
+                modalOpen={modalOpen}
                 onChange={(next: unknown, mergeKey?: string | null) => {
                   setHistory((h) => (h === null ? h : record(h, next, mergeKey ?? null, Date.now())))
                   applyEdit(setFiles, saverRef.current, selected.path, selectedModule, next)
@@ -364,6 +500,19 @@ function App() {
             )}
         </section>
       </div>
+
+      <ConfirmDialog
+        open={modalOpen}
+        title={confirm?.title ?? ''}
+        description={confirm?.description ?? ''}
+        confirmLabel={confirm?.confirmLabel ?? ''}
+        onConfirm={() => {
+          const pending = confirm
+          setConfirm(null)
+          void pending?.onConfirm()
+        }}
+        onCancel={() => setConfirm(null)}
+      />
     </main>
   )
 }

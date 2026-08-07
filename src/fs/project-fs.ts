@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core'
 import { join } from '@tauri-apps/api/path'
 import { open } from '@tauri-apps/plugin-dialog'
 import { readDir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
@@ -30,4 +31,18 @@ export async function readProjectFile(path: string): Promise<string> {
 
 export async function writeProjectFile(path: string, text: string): Promise<void> {
   await writeTextFile(path, text)
+}
+
+/** コアが Tauri の path API を直接触らないための薄い口 */
+export async function joinPath(dir: string, name: string): Promise<string> {
+  return join(dir, name)
+}
+
+/**
+ * ファイルを OS のゴミ箱へ移す（完全削除はしない。rev 6章）。
+ * fs プラグインにゴミ箱 API が無いため、ここだけ自前の Tauri コマンドを呼ぶ。
+ * 自前コマンドは ACL の対象外なので capabilities への追記は要らない
+ */
+export async function moveFileToTrash(path: string): Promise<void> {
+  await invoke('move_to_trash', { path })
 }

@@ -70,7 +70,12 @@ function focusCell(
   return true
 }
 
-export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossarySchemaVersion1>) {
+export function GlossaryEditor({
+  data,
+  onChange,
+  issues,
+  modalOpen,
+}: EditorProps<GlossarySchemaVersion1>) {
   const [filter, setFilter] = useState<GlossaryFilter>(EMPTY_FILTER)
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -81,11 +86,21 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
     select?: boolean
   } | null>(null)
 
+  // 用語0件になったときの移動先。行が無いのでセルの鍵では指せない
+  const addButtonRef = useRef<HTMLButtonElement>(null)
+  const [focusAddButton, setFocusAddButton] = useState(false)
+
   useEffect(() => {
     if (pendingFocus === null) return
     focusCell(containerRef.current, pendingFocus.rowKey, pendingFocus.field, pendingFocus.select)
     setPendingFocus(null)
   }, [pendingFocus])
+
+  useEffect(() => {
+    if (!focusAddButton) return
+    addButtonRef.current?.focus()
+    setFocusAddButton(false)
+  }, [focusAddButton])
 
   const rowKeys = computeRowKeys(data.terms)
   const visible = filterTermIndices(data.terms, filter)
@@ -109,7 +124,13 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
   const deleteRow = (index: number) => {
     const terms = removeAt(data.terms, index)
     onChange({ ...data, terms }, null)
-    if (terms.length === 0) return
+    if (terms.length === 0) {
+      // 0件の一覧に絞り込みを残す意味は無く、残すと導出表示扱いで
+      //「用語を追加」が出ずフォーカスの行き先が消える
+      setFilter(EMPTY_FILTER)
+      setFocusAddButton(true)
+      return
+    }
     // 削除後の配列から鍵を引く。先頭行を消したときは新しい先頭行へ移る
     // （前の行が無いからとフォーカスを放置すると body に落ちて操作不能になる）
     setPendingFocus({
@@ -189,8 +210,7 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
   ) => {
     const cmd = resolveCommand(toKeyEventLike(e), {
       platform: PLATFORM,
-      // M4 の削除確認・M5 の二択ダイアログを出すときにここへ渡す
-      modalOpen: false,
+      modalOpen,
       reorderEnabled,
       ...field,
     })
@@ -370,6 +390,7 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
                     cellId={cellId(rowKey, 'aliases')}
                     label={`${FIELD_LABELS.aliases}（${row}行目）`}
                     reorderEnabled={reorderEnabled}
+                    modalOpen={modalOpen}
                     onClosedKeyDown={(e) =>
                       onCellKeyDown(
                         e,
@@ -413,6 +434,7 @@ export function GlossaryEditor({ data, onChange, issues }: EditorProps<GlossaryS
       )}
       {data.terms.length === 0 && !derivedView && (
         <button
+          ref={addButtonRef}
           type="button"
           className="mt-3 rounded-sm border border-rule px-3 py-1 text-sm text-ink hover:bg-surface"
           onClick={() => insertRowAfter(-1)}

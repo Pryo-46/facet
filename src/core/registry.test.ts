@@ -12,6 +12,7 @@ function fakeModule(type: string, prefixes: string[]): AnyToolModule {
     checkConsistency: () => [],
     singleton: false,
     migrate: (d) => d,
+    createEmpty: () => ({}),
   }
 }
 
@@ -45,5 +46,16 @@ describe('createRegistry', () => {
   it('同一モジュール内の ID プレフィクス重複も例外', () => {
     const registry = createRegistry()
     expect(() => registry.register(fakeModule('glossary', ['term', 'term']))).toThrow(/term/)
+  })
+})
+
+describe('list', () => {
+  it('登録順に全モジュールを返す', () => {
+    const registry = createRegistry()
+    const a = fakeModule('a', ['a'])
+    const b = fakeModule('b', ['b'])
+    registry.register(a)
+    registry.register(b)
+    expect(registry.list().map((m) => m.type)).toEqual(['a', 'b'])
   })
 })

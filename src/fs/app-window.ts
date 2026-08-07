@@ -16,3 +16,13 @@ export function interceptClose(beforeClose: () => Promise<boolean>): Promise<() 
     }
   })
 }
+
+/**
+ * 保留中の編集を書き切らずにウィンドウを閉じる（保存できない状態からの脱出口）。
+ * interceptClose が false を返し続ける状況（権限・ロック等でファイルが恒久的に
+ * 書けない）でアプリを終了できなくなるのを防ぐ。destroy は onCloseRequested を
+ * 再発火させないので、横取りループには入らない
+ */
+export async function forceClose(): Promise<void> {
+  await getCurrentWindow().destroy()
+}
