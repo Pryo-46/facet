@@ -547,6 +547,21 @@ function App() {
     }
     attachSaver(path, diskText)
     applyEdit(setFiles, saverRef.current, path, module, history.present)
+    // 外部変更で rejected / listOnly に落ちたエントリは applyEdit では戻らない
+    //（あれは editable のエントリだけを差し替える）。書き込む内容をそのまま
+    // 分類し直して一覧へ戻す——さもないと、ディスクは自分の内容に直っているのに
+    //「このファイルは開けません」の表示が残り、しかも台帳が一致するので
+    // 再走査でも直らない（次にそのファイルを選び直すまで行き止まりになる）。
+    // 書いたテキストを分類し直すのは addCreatedFile と同じ考え方
+    const repaired = classifyFile(serialize(history.present, module.schema), appRegistry)
+    setFiles((prev) =>
+      computeIssues(
+        prev.map((f) =>
+          f.path === path && f.result.status !== 'editable' ? { ...f, result: repaired } : f,
+        ),
+        appRegistry,
+      ),
+    )
   }
 
   /** 未保存編集がある状態の外部変更（rev 3章。マージ UI は作らない） */
