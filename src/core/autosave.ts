@@ -7,8 +7,22 @@
  */
 export interface AutoSaver {
   update(text: string): void
-  /** 保留中の書き込みを即時実行して完了を待つ。true＝書き残しなし（成功または書くものが無い） */
+  /**
+   * 保留中の書き込みを即時実行し、**書き込みが静止するまで**待つ。
+   * true＝書き残しなし（成功または書くものが無い）。
+   * 単に「その時点の chain」を await するだけでは足りない——await 中に
+   * デバウンスタイマーが発火すると commit() が chain を再代入し、古いリンクで
+   * 解決してしまう（進行中の write を残したまま close のゲートを通る。申し送り10節）
+   */
   flush(): Promise<boolean>
+  /**
+   * 進行中の書き込みの完了だけを待つ。**保留中の内容は書かない。**
+   * 削除経路（file-ops の trashFile）が「消すファイルへ書かせずに、
+   * 既に飛んだ write の着地を待つ」ために使う
+   */
+  settle(): Promise<void>
+  /** ディスクに書けていない編集があるか（デバウンス中・in-flight・失敗して再試行待ち） */
+  hasUnsaved(): boolean
   dispose(): void
 }
 
@@ -28,6 +42,14 @@ export function createAutoSaver(opts: {
   let pending: string | null = null
   let timer: ReturnType<typeof setTimeout> | null = null
   let chain: Promise<void> = Promise.resolve()
+
+  /**
+   * flush / settle の打ち切り回数。write 失敗時は catch が pending を復元して
+   * 再試行するため、無条件に「静止するまで」回すと恒久的な書き込み不能（権限・
+   * ロック）で無限ループになる。commit() はタイマーを待たず即時に書くので、
+   * 人間の打鍵速度で5回を使い切ることは実質ない
+   */
+  const FLUSH_MAX_ROUNDS = 5
 
   const clearTimer = () => {
     if (timer !== null) {
@@ -82,9 +104,27 @@ export function createAutoSaver(opts: {
       }, opts.delayMs)
     },
     async flush() {
-      await commit()
-      // 失敗時は catch が pending に復元しているので、ここで書き残しの有無が分かる
-      return pending === null
+      for (let round = 0; round < FLUSH_MAX_ROUNDS; round++) {
+        const target = commit()
+        await target
+        // await 中にタイマーが発火していれば chain は別物に差し替わっている。
+        // write が失敗していれば catch が pending を復元している（＝再試行）
+        if (pending === null && chain === target) return true
+      }
+      // 打ち切り。書き残しの有無が確定しないので false を返す——close のゲートは
+      // 閉じない側に倒すのが安全（脱出口は App 側の「破棄して閉じる」）
+      return false
+    },
+    async settle() {
+      for (let round = 0; round < FLUSH_MAX_ROUNDS; round++) {
+        const target = chain
+        await target
+        if (chain === target) return
+      }
+    },
+    hasUnsaved() {
+      // lastSaved はディスク確定値、latest は直近に要求された内容
+      return latest !== lastSaved
     },
     dispose() {
       clearTimer()

@@ -9,6 +9,19 @@ describe('createAutoSaver', () => {
     vi.useRealTimers()
   })
 
+  /** 呼び出しごとに独立した deferred を返す write（in-flight を外から解決するため） */
+  function deferredWrites() {
+    const calls: string[] = []
+    const settlers: { resolve: () => void; reject: (err: unknown) => void }[] = []
+    const write = vi.fn((text: string) => {
+      calls.push(text)
+      return new Promise<void>((resolve, reject) => {
+        settlers.push({ resolve, reject })
+      })
+    })
+    return { write, calls, settlers }
+  }
+
   it('baseline と同じ内容は書かない（閲覧では書き戻さない）', async () => {
     const write = vi.fn(() => Promise.resolve())
     const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write })
@@ -255,10 +268,75 @@ describe('createAutoSaver', () => {
     const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write, onError, onSuccess })
     saver.update('B')
     await saver.flush()
-    expect(onError).toHaveBeenCalledTimes(1)
+    // flush() は静止するまで最大 FLUSH_MAX_ROUNDS(5) 回リトライする。write が
+    // 恒久的に失敗し続けるこのテストでは5回とも失敗し、onError も5回呼ばれる
+    // （M5 でループ化する前は1回だけ試すので1回だった）
+    expect(onError).toHaveBeenCalledTimes(5)
     expect(onSuccess).not.toHaveBeenCalled()
     write.mockImplementation(() => Promise.resolve())
     await saver.flush()
     expect(onSuccess).toHaveBeenCalledTimes(1)
+  })
+
+  it('flush は await 中にタイマー発火で積まれた write も待つ（chain の静止保証）', async () => {
+    const io = deferredWrites()
+    const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write: io.write })
+    saver.update('B')
+    await vi.advanceTimersByTimeAsync(500)
+    expect(io.calls).toEqual(['B']) // write('B') が in-flight
+
+    let flushed: boolean | null = null
+    const flushing = saver.flush().then((ok) => {
+      flushed = ok
+    })
+    // flush が write('B') を待っている間に、次の編集のデバウンスが発火する
+    saver.update('C')
+    await vi.advanceTimersByTimeAsync(500)
+    io.settlers[0].resolve() // write('B') 完了 → write('C') が飛ぶ
+    await vi.advanceTimersByTimeAsync(0)
+    expect(io.calls).toEqual(['B', 'C'])
+    // 修正前はここで true を返して終わっていた（write('C') を残したまま
+    // ウィンドウを destroy しうる経路。申し送り10節）
+    expect(flushed).toBeNull()
+
+    io.settlers[1].resolve()
+    await flushing
+    expect(flushed).toBe(true)
+  })
+
+  it('settle は進行中の write の完了を待つが、保留中の内容は書かない', async () => {
+    const io = deferredWrites()
+    const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write: io.write })
+    saver.update('B')
+    await vi.advanceTimersByTimeAsync(500)
+    saver.update('C') // pending に入る（タイマーは 500ms 後）
+    let settled = false
+    const settling = saver.settle().then(() => {
+      settled = true
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(settled).toBe(false) // write('B') が着地するまで返らない
+    io.settlers[0].resolve()
+    await settling
+    expect(settled).toBe(true)
+    expect(io.calls).toEqual(['B']) // settle は書かないので 'C' は飛んでいない
+  })
+
+  it('hasUnsaved はディスクに書けていない編集の有無を返す（外部変更の二択判定に使う）', async () => {
+    const write = vi.fn(() => Promise.resolve())
+    const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write })
+    expect(saver.hasUnsaved()).toBe(false)
+    saver.update('B')
+    expect(saver.hasUnsaved()).toBe(true) // デバウンス中
+    await vi.runAllTimersAsync()
+    expect(saver.hasUnsaved()).toBe(false) // 書けたら false
+  })
+
+  it('write が失敗している間は hasUnsaved が true のまま', async () => {
+    const write = vi.fn(() => Promise.reject(new Error('disk full')))
+    const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write })
+    saver.update('B')
+    await saver.flush()
+    expect(saver.hasUnsaved()).toBe(true)
   })
 })

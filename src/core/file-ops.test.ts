@@ -78,12 +78,11 @@ describe('trashFile', () => {
     vi.useRealTimers()
   })
 
-  it('自動保存を破棄してからゴミ箱へ移す（dispose が先なので flush は何も書かない）', async () => {
+  it('自動保存を破棄してからゴミ箱へ移す（dispose が先なので settle は何も書かない）', async () => {
     const order: string[] = []
     const saver = {
-      flush: vi.fn(async () => {
-        order.push('flush')
-        return true
+      settle: vi.fn(async () => {
+        order.push('settle')
       }),
       dispose: vi.fn(() => order.push('dispose')),
     }
@@ -91,11 +90,11 @@ describe('trashFile', () => {
       order.push('trash')
     })
     await trashFile({ path: 'C:\\proj\\用語集.json', saver, trash })
-    // dispose が先。pending を消してから flush するので「書き戻して復活」は起きない。
-    // flush は進行中の write の完了を待つためだけに呼ぶ（書くためではない）。
-    // 2度目の dispose は、失敗した write が catch で復元した pending を捨てるため
-    // ゴミ箱へ移すのは常に最後。先に移すと直後のデバウンス発火で同じことが起きる
-    expect(order).toEqual(['dispose', 'flush', 'dispose', 'trash'])
+    // dispose が先。pending を消してから待つので「書き戻して復活」は起きない。
+    // settle は進行中の write の完了を待つためだけに呼ぶ（書くためではない）。
+    // 2度目の dispose は、失敗した write が catch で復元した pending を捨てるため。
+    // ゴミ箱へ移すのは常に最後（先に移すと直後のデバウンス発火で同じことが起きる）
+    expect(order).toEqual(['dispose', 'settle', 'dispose', 'trash'])
   })
 
   it('進行中の write が着地するまでゴミ箱へ移さない（実物の AutoSaver と合成）', async () => {
@@ -141,7 +140,7 @@ describe('trashFile', () => {
     await trashing
     expect(trash).toHaveBeenCalledTimes(1)
     // autosave の catch は失敗内容を pending に復元する。trashFile 側の2度目の
-    // dispose がそれを捨てるので、後続の flush が消したファイルを書き戻さない
+    // dispose がそれを捨てるので、後続の settle が消したファイルを書き戻さない
     await expect(saver.flush()).resolves.toBe(true)
     expect(io.calls).toEqual(['B'])
   })
