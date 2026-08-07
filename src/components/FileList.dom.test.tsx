@@ -103,6 +103,28 @@ describe('新規作成ボタンの単一性ゲート', () => {
     fireEvent.click(screen.getByRole('button', { name: /用語集を新規作成/ }))
     expect(onCreate).not.toHaveBeenCalled()
   })
+
+  it('開けない（rejected）用語集だけがあっても disabled になる（existingTypes は App.tsx と同じく status を問わず file.result.type から作る）', () => {
+    // 第3引数を渡さず setup() の既定値（files.map(f => f.result.type)）に derivation させる。
+    // App.tsx の existingTypes 算出（files.map(f => f.result.type)、status で絞らない）と
+    // 同じ経路を通すことで、将来誰かが「rejected は type が定まらない開けないファイル
+    // だから除外してよいはず」と考えて App.tsx 側を editable だけに絞った場合、
+    // このテストが落ちる（ここでは第3引数で ['glossary'] を手渡ししていないので、
+    // 絞り込みの影響がそのまま反映される）
+    setup([
+      file('壊れた.json', {
+        result: {
+          status: 'rejected',
+          type: 'glossary',
+          title: null,
+          reason: 'スキーマ検証に失敗しました',
+          errors: [],
+        },
+      }),
+    ])
+    const button = screen.getByRole('button', { name: /用語集を新規作成/ })
+    expect(button.hasAttribute('disabled')).toBe(true)
+  })
 })
 
 describe('削除', () => {

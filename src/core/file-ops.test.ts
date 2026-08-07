@@ -200,15 +200,17 @@ describe('canCreateFileOfType', () => {
     expect(canCreateFileOfType(glossaryModule, ['memo', null])).toBe(true)
   })
 
-  it('singleton モジュールは同じ type が既にあれば作れない', () => {
+  it('singleton モジュールは同じ type が既にあれば作れない——rejected/listOnly な用語集も1件として数える', () => {
+    // canCreateFileOfType 自体は type の文字列しか見ない（status を受け取らない）ので、
+    // rejected/listOnly の用語集も editable の用語集も、ここでは同じ 'glossary' という
+    // 入力に潰れる——それが「単一性は status を問わない物理条件」（M2 で確定）の意味であり、
+    // 別の入力・別の分岐が無い以上、この1テストで両方を主張する（別テストに分けると
+    // 「rejected/listOnly も数える」というテスト名だけが違う実質同一テストになり、
+    // 壊れていないのに壊れているように見せかける）。
+    // 「files → existingTypes の derivation が rejected を落とさないか」という
+    // 本当に壊れうる境界は、この関数の外側（App.tsx の existingTypes 算出）にあるので、
+    // そこは src/components/FileList.dom.test.tsx の統合テストで別途固定する
     expect(canCreateFileOfType(glossaryModule, ['glossary'])).toBe(false)
-  })
-
-  it('開けない（rejected/listOnly）用語集も1件として数える——単一性は「type: glossary が2件以上」という物理条件で、壊れた用語集も対象に含まれる（M2 で確定）', () => {
-    // classifyFile は rejected/listOnly でも type を読めれば type を返す（load.ts）。
-    // 例: スキーマ検証に失敗した（rejected）用語集が1つだけある状態
-    const existingTypes: (string | null)[] = ['glossary']
-    expect(canCreateFileOfType(glossaryModule, existingTypes)).toBe(false)
   })
 
   it('type を読めなかったファイル（null）は無視する', () => {
