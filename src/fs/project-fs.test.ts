@@ -10,6 +10,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   readDir: vi.fn(),
   readTextFile: vi.fn(),
   writeTextFile: vi.fn(),
+  exists: vi.fn(),
 }))
 
 // モックの登録後に読む必要があるので動的 import にする

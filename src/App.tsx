@@ -28,6 +28,7 @@ import { computeIssues, fileName, type ProjectFile } from '@/core/project-file'
 import type { AnyToolModule } from '@/core/registry'
 import { forceClose, interceptClose } from '@/fs/app-window'
 import {
+  fileExists,
   joinPath,
   listJsonFiles,
   moveFileToTrash,
@@ -274,6 +275,7 @@ function App() {
         existingNames: files.map((f) => f.name),
         join: joinPath,
         write: writeProjectFile,
+        exists: fileExists,
       })
       await addCreatedFile(created)
     } catch (err) {
@@ -343,6 +345,7 @@ function App() {
         files: files.map((f) => ({ path: f.path, name: f.name, type: f.result.type })),
         join: joinPath,
         write: writeProjectFile,
+        exists: fileExists,
       })
       if (created === null) {
         // 既にあった。走査済みの一覧から引いて開くだけ

@@ -21,6 +21,8 @@ function nonSingletonModule(type: string): AnyToolModule {
 }
 
 const join = async (dir: string, name: string) => `${dir}\\${name}`
+/** ディスク上に存在するパスの集合から exists を作る */
+const existsIn = (paths: readonly string[]) => async (path: string) => paths.includes(path)
 
 describe('createFile', () => {
   it('正規形のテキストを衝突しないパスへ書く', async () => {
@@ -31,6 +33,7 @@ describe('createFile', () => {
       existingNames: ['用語集.json'],
       join,
       write,
+      exists: existsIn([]),
     })
     expect(created.path).toBe('C:\\proj\\用語集-2.json')
     expect(created.name).toBe('用語集-2.json')
@@ -38,10 +41,33 @@ describe('createFile', () => {
     expect(created.text.endsWith('\n')).toBe(true)
   })
 
+  it('走査後に外部で増えたファイルを上書きしない（申し送り10節のデータ喪失）', async () => {
+    const write = vi.fn().mockResolvedValue(undefined)
+    // 一覧は空（走査時点のスナップショット）だが、ディスクには Skill が書いた
+    // 用語集がある。existingNames だけで決めると、これを切り詰めて書き潰す
+    const created = await createFile({
+      dir: 'C:\\proj',
+      module: glossaryModule,
+      existingNames: [],
+      join,
+      write,
+      exists: existsIn(['C:\\proj\\用語集.json']),
+    })
+    expect(created.path).toBe('C:\\proj\\用語集-2.json')
+    expect(write).not.toHaveBeenCalledWith('C:\\proj\\用語集.json', expect.anything())
+  })
+
   it('書き込みが失敗したら例外を投げる（呼び出し側が一覧に足さないため）', async () => {
     const write = vi.fn().mockRejectedValue(new Error('書けません'))
     await expect(
-      createFile({ dir: 'C:\\proj', module: glossaryModule, existingNames: [], join, write }),
+      createFile({
+        dir: 'C:\\proj',
+        module: glossaryModule,
+        existingNames: [],
+        join,
+        write,
+        exists: existsIn([]),
+      }),
     ).rejects.toThrow('書けません')
   })
 })
@@ -167,7 +193,14 @@ describe('ensureFileOfType', () => {
 
   it('既にあれば作らずそのパスを返す（ファイル名では探さない）', async () => {
     const write = vi.fn()
-    const result = await ensureFileOfType({ dir: 'C:\\proj', module: glossaryModule, files, join, write })
+    const result = await ensureFileOfType({
+      dir: 'C:\\proj',
+      module: glossaryModule,
+      files,
+      join,
+      write,
+      exists: existsIn([]),
+    })
     expect(result).toEqual({ path: 'C:\\proj\\語彙.json', created: null })
     expect(write).not.toHaveBeenCalled()
   })
@@ -180,6 +213,7 @@ describe('ensureFileOfType', () => {
       files: [files[0]],
       join,
       write,
+      exists: existsIn([]),
     })
     expect(result.path).toBe('C:\\proj\\用語集.json')
     expect(result.created?.name).toBe('用語集.json')

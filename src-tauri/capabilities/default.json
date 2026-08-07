@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "既定の権限。fs はコマンド許可のみで、パスの scope はダイアログで選んだフォルダ（recursive）に実行時付与される。core:window:allow-destroy は close 横取り（onCloseRequested → preventDefault → flush → destroy）に必要",
+  "description": "既定の権限。fs はコマンド許可のみで、パスの scope はダイアログで選んだフォルダ（recursive）に実行時付与される。core:window:allow-destroy は close 横取り（onCloseRequested → preventDefault → flush → destroy）に必要。fs:allow-exists は新規作成の名前解決をディスクに問い合わせるため（M5）",
   "windows": [
     "main"
   ],
@@ -12,6 +12,7 @@
     "fs:allow-read-dir",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
+    "fs:allow-exists",
     "dialog:default"
   ]
 }
