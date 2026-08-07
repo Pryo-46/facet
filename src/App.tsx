@@ -1,11 +1,14 @@
 import type { Dispatch, SetStateAction } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { FileList } from '@/components/FileList'
+import { ToastStack } from '@/components/Toast'
 import { Button } from '@/components/ui/button'
 import { createAutoSaver, type AutoSaver } from '@/core/autosave'
 import { serialize } from '@/core/canonical'
+import { createCoalescer } from '@/core/coalesce'
+import { planExternalChange } from '@/core/external-change'
 import {
   canCreateFileOfType,
   createFile,
@@ -29,7 +32,8 @@ import { classifyFile } from '@/core/load'
 import { pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
 import { computeIssues, type ProjectFile } from '@/core/project-file'
 import type { AnyToolModule } from '@/core/registry'
-import { scanFolder, toProjectFile } from '@/core/scan'
+import { scanFolder, toProjectFile, type ScanResult } from '@/core/scan'
+import { dismissToast, pushToast, type ToastItem } from '@/core/toasts'
 import { forceClose, interceptClose } from '@/fs/app-window'
 import {
   fileExists,
@@ -38,6 +42,7 @@ import {
   moveFileToTrash,
   pickProjectFolder,
   readProjectFile,
+  watchFolder,
   writeProjectFile,
 } from '@/fs/project-fs'
 import { appRegistry } from '@/modules'
@@ -46,6 +51,12 @@ const AUTOSAVE_DELAY_MS = 500
 
 /** 走査に渡す I/O。フォルダを開くときと再走査（M5）で同じ経路を通す */
 const scanIo = { list: listJsonFiles, read: readProjectFile }
+
+/**
+ * 監視イベントを束ねる窓。fs プラグイン側のデバウンス（300ms）とは別に、
+ * 1回の保存が複数イベントを送ってくるのを1回の再走査にまとめる
+ */
+const WATCH_COALESCE_MS = 150
 
 /**
  * 額縁が取るグローバル層のキー文脈（rev 10章）。Undo/Redo だけを扱うため
@@ -68,8 +79,9 @@ function globalKeyContext(modalOpen: boolean): KeyContext {
 
 /**
  * 編集後の共通処理: 自動保存へ渡し、整合性検証をやり直す。
- * 編集・Undo・Redo の3経路から同じ処理を通す（外部変更の取り込みが
- * 4本目の経路になる。M5）
+ * 通る経路は編集・Undo・Redo・**外部変更の「自分の編集で上書き」**（M5）の4本。
+ * 外部変更の「取り込み」はここを通らない——ディスクを正として履歴を作り直す
+ * 操作なので selectFile 側に合流させている（M5 で確定）
  */
 function applyEdit(
   setFiles: Dispatch<SetStateAction<ProjectFile[]>>,
@@ -119,6 +131,15 @@ function App() {
    * 外部変更と誤検知する
    */
   const knownDisk = useRef(createKnownDisk())
+  // 再走査の直列化トークン（後続の再走査・フォルダ切替が始まったら先行の結果は捨てる）
+  const scanSeq = useRef(0)
+  // 判断の材料は「いま」の値でなければならない（監視イベントは任意のタイミングで来る）。
+  // 確認ダイアログを挟む操作と同じ理由・同じ形で ref に写す（M4 で確定）
+  const filesRef = useRef<ProjectFile[]>([])
+  const projectDirRef = useRef<string | null>(null)
+  const selectedModuleRef = useRef<AnyToolModule | undefined>(undefined)
+  const [toasts, setToasts] = useState<ToastItem[]>([])
+  const toastSeq = useRef(0)
 
   // モーダルの要求キュー。生産者は「ファイル削除の確認」「破棄して閉じる」
   //「外部変更の二択」の3つ（申し送り10節。スロット1つでは要求が無言で落ちる）。
@@ -132,6 +153,17 @@ function App() {
   modalOpenRef.current = modalOpen
   const showModal = (request: ModalRequest) => setModals((prev) => pushModal(prev, request))
   const closeModal = () => setModals((prev) => shiftModal(prev))
+  const showToast = (toast: Omit<ToastItem, 'id'>) =>
+    setToasts((prev) => pushToast(prev, { ...toast, id: ++toastSeq.current }))
+
+  // ToastRow の自動消去タイマーは onDismiss を依存に持つので、毎レンダで
+  // 新しい関数を渡すとタイマーが張り直されて自動で消えなくなる
+  const dismiss = useCallback((id: number) => {
+    setToasts((prev) => dismissToast(prev, id))
+  }, [])
+
+  filesRef.current = files
+  projectDirRef.current = projectDir
 
   const editingData = history === null ? null : history.present
 
@@ -228,6 +260,8 @@ function App() {
     const dir = await pickProjectFolder()
     if (dir === null) return
     const token = ++selectSeq.current
+    // 進行中の再走査の結果を捨てさせる（別フォルダの走査結果を新しい一覧へ混ぜない）
+    scanSeq.current++
     // 先に現在のファイルを閉じる（flush 後の内容で走査するため）。
     // flush が失敗したらフォルダ切替を中断する（書けていない編集を捨てない）
     if (!(await closeCurrentFile())) return
@@ -303,7 +337,10 @@ function App() {
       result: classifyFile(created.text, appRegistry),
       issues: [],
     }
-    setFiles((prev) => computeIssues([...prev, entry], appRegistry))
+    setFiles((prev) =>
+      // ダブルクリックや遅い IPC で同じパスが2回来ても1件に保つ
+      prev.some((f) => f.path === created.path) ? prev : computeIssues([...prev, entry], appRegistry),
+    )
     setIoError(null)
     await selectFile(created.path)
   }
@@ -379,22 +416,30 @@ function App() {
    * 用語集を1つ確保して開く。用語集0個は正常な状態（新規プロジェクト）で、
    * 本来の発火点は用語のインライン登録（rev 5章。呼び出す側の他ツールが
    * まだ無いため M4 では額縁の空状態から呼ぶ）。生成の条件と正規形は
-   * コアの ensureFileOfType が持つので、将来の発火点はそちらを呼べばよい
+   * コアの ensureFileOfType が持つので、将来の発火点はそちらを呼べばよい。
+   * **押下時に再走査する**（M5）——空フォルダを開いた後に外部（Skill 等）が
+   * 用語集を書いた状態で押されうるボタンなので、押下時点のスナップショットで
+   * 判断すると見落として2つ目を作る
    */
   const ensureGlossary = async () => {
     const module = appRegistry.get('glossary')
-    if (projectDir === null || module === undefined) return
+    if (projectDirRef.current === null || module === undefined) return
+    // 走査時のスナップショットで判断すると、走査後に外部で増えた用語集
+    //（Skill が書いたもの）を見落として2つ目を作る。まず再走査する
+    const scanned = (await handleExternalChange()) ?? filesRef.current
+    const dir = projectDirRef.current
+    if (dir === null) return
     try {
       const { path, created } = await ensureFileOfType({
-        dir: projectDir,
+        dir,
         module,
-        files: files.map((f) => ({ path: f.path, name: f.name, type: f.result.type })),
+        files: scanned.map((f) => ({ path: f.path, name: f.name, type: f.result.type })),
         join: joinPath,
         write: writeAndRecord,
         exists: fileExists,
       })
       if (created === null) {
-        // 既にあった。開くだけ
+        // 既にあった。開くだけ（ディスクから読み直す）
         await selectFile(path)
         return
       }
@@ -406,11 +451,184 @@ function App() {
     }
   }
 
+  /**
+   * 取り込み前の内容へ戻す（rev 3章。Undo 履歴を破棄した後に残す唯一の復元手段）。
+   * **退避しておいた生バイトをそのまま書く**——編集データを再シリアライズすると、
+   * 非正規形のまま開いていたファイルで全行 diff が出て、「変更履歴を仕様の
+   * 変更履歴として読める」（rev 5章）が壊れる。生バイトなら git diff が空に戻る。
+   * 取り込みでファイルが開けなくなった（rejected）場合もこの経路で戻せる
+   */
+  const revertImport = async (path: string, stashText: string) => {
+    try {
+      // 書き戻す前に自動保存を止める（取り込み後の内容を書きに行かせない）
+      saverRef.current?.dispose()
+      saverRef.current = null
+      await writeAndRecord(path, stashText)
+      await selectFile(path)
+      showToast({ key: `external:${path}`, message: '取り込み前の内容に戻しました' })
+    } catch (err) {
+      setIoError(
+        `取り込み前の内容に戻せませんでした: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
+
+  /**
+   * 外部変更を取り込む。ディスクを正として `selectFile` で張り直す——
+   * 「必ずディスクから読み直す」「検証をやり直す」「saver を張り直す」
+   * 「履歴を作り直す」が既存の1本道で揃う（M1 で確定した原則）。
+   * **履歴の作り直しが Undo 履歴の破棄そのもの**である——履歴の中身は
+   * 取り込み前のファイルを指しており、残すと Ctrl+Z がディスクの内容を
+   * 無言で巻き戻す（rev 3章）。
+   *
+   * 申し送り9節は「取り込みは applyEdit の4本目の経路になる」と予告していたが、
+   * applyEdit は「自動保存へ渡す」＋「履歴に record」なので取り込みには合わない
+   *（ディスクから読んだ内容を書き戻すことになり、履歴も破棄でなく追加になる）。
+   * **applyEdit を通るのは下の overwriteWithMine（上書き）側**
+   */
+  const importExternalChange = async (path: string, stashText: string | undefined) => {
+    await selectFile(path)
+    showToast({
+      key: `external:${path}`,
+      message: '外部の変更を読み込みました（元に戻す操作の履歴は破棄しました）',
+      action:
+        stashText === undefined
+          ? undefined
+          : { label: '取り込み前に戻す', run: () => revertImport(path, stashText) },
+    })
+  }
+
+  /**
+   * 自分の編集でディスクを上書きする（二択ダイアログの片側）。
+   * **baseline は検知したディスクの内容にする**——古い baseline のままだと
+   * 「同じ内容だから書かない」に落ちて、外部の内容が残ったまま画面と食い違う。
+   * ここが applyEdit の4本目の経路になる
+   */
+  const overwriteWithMine = (path: string, diskText: string) => {
+    // 確認を挟む操作なので、確定時点の状態は ref から読む（M4 で確定）。
+    // 待っている間に選択が変わっていたら何もしない
+    if (selectedPathRef.current !== path) return
+    const history = historyRef.current
+    const module = selectedModuleRef.current
+    if (history === null || module === undefined) return
+    attachSaver(path, diskText)
+    applyEdit(setFiles, saverRef.current, path, module, history.present)
+  }
+
+  /** 未保存編集がある状態の外部変更（rev 3章。マージ UI は作らない） */
+  const askExternalChange = (selected: { path: string; name: string; diskText: string }) => {
+    showModal({
+      kind: 'choice',
+      // 同じファイルの二択が積み上がらないよう、新しい要求で置き換える
+      key: `external:${selected.path}`,
+      title: '外部でファイルが変更されました',
+      description: `${selected.name} が別のプログラム（AI・エディタ・Git など）によって変更されました。保存していない編集があるため、どちらを残すか選んでください。両方を混ぜることはできません。`,
+      primaryLabel: '自分の編集で上書き',
+      secondaryLabel: '外部変更を取り込む（自分の編集は破棄）',
+      onPrimary: () => overwriteWithMine(selected.path, selected.diskText),
+      // 取り込み側に「取り込み前に戻す」は出さない——退避できるのは
+      // 取り込み前に**ディスクにあった**内容で、破棄される未保存編集ではないため
+      onSecondary: () => importExternalChange(selected.path, undefined),
+    })
+  }
+
+  /**
+   * 開いていたファイルが外部で消えたときの後始末（M4 の deleteFile と同じ形）。
+   * **flush しない**——消えたファイルへ書き戻すと、削除されたはずのファイルが
+   * 復活する（M4 の削除で踏んだ事故と同じ。申し送り10節）
+   */
+  const handleSelectedGone = (path: string, name: string) => {
+    // 進行中の selectFile / openFolder の結果を捨てさせる
+    selectSeq.current++
+    saverRef.current?.dispose()
+    saverRef.current = null
+    setSelectedPath(null)
+    setHistory(null)
+    setSaveError(null)
+    knownDisk.current.delete(path)
+    showToast({
+      key: `external:${path}`,
+      message: `開いていたファイルが外部で削除されました: ${name}`,
+    })
+  }
+
+  /**
+   * 外部変更の取り込み口（rev 3章）。監視イベントを契機にフォルダを再走査し、
+   * 「ディスクの生テキスト ≠ 台帳」だけを外部変更として扱う。
+   * **自己書き込みの除外はこの突き合わせで構造的に成立する**——アプリの
+   * 自動保存・新規作成は書いた内容を台帳へ同時記録し（writeAndRecord）、
+   * 削除は一覧と台帳の両方から落とすので、跳ね返ってきたイベントは差分ゼロになる。
+   * 戻り値は適用後の一覧（続けて使う呼び出し側のため。null＝適用しなかった）
+   */
+  const handleExternalChange = async (): Promise<ProjectFile[] | null> => {
+    const dir = projectDirRef.current
+    if (dir === null) return null
+    const token = ++scanSeq.current
+    let scan: ScanResult
+    try {
+      scan = await scanFolder(dir, scanIo, appRegistry)
+    } catch (err) {
+      setIoError(
+        `フォルダの再走査に失敗しました: ${err instanceof Error ? err.message : String(err)}`,
+      )
+      return null
+    }
+    // 後続の再走査・フォルダ切替が始まっていたら、この結果は捨てる
+    if (token !== scanSeq.current || projectDirRef.current !== dir) return null
+
+    const plan = planExternalChange({
+      prev: filesRef.current,
+      scan,
+      knownText: (path) => knownDisk.current.get(path),
+      selectedPath: selectedPathRef.current,
+      hasUnsavedEdits: saverRef.current?.hasUnsaved() ?? false,
+    })
+    // 台帳をディスクの現状へ合わせる。**plan を作った後**でなければ差分が消える。
+    // 読めなかったパスは台帳に残す（消えた扱いにしないため）
+    for (const entry of scan.entries) knownDisk.current.set(entry.path, entry.text)
+    knownDisk.current.retain([...scan.entries.map((e) => e.path), ...scan.unreadable])
+    if (!plan.hasChanges) return plan.next
+
+    // 検証は「フォルダ走査時」「ファイル選択時」「編集時」「作成時」「削除時」に続く6本目の経路
+    setFiles(computeIssues(plan.next, appRegistry))
+    for (const message of plan.notices) showToast({ message })
+
+    const selected = plan.selected
+    if (selected.kind === 'reload' || selected.kind === 'ask') {
+      // 検知した時点でこのファイルへの自動保存を止める——取り込むか上書きするかを
+      // 決める前にディスクが動くと判断の前提が壊れる。再開は確定時（取り込み＝
+      // selectFile が張り直す／上書き＝新しい baseline で張り直す）
+      saverRef.current?.dispose()
+      saverRef.current = null
+    }
+    switch (selected.kind) {
+      case 'none':
+        break
+      case 'reload':
+        await importExternalChange(selected.path, selected.stashText)
+        break
+      case 'ask':
+        askExternalChange(selected)
+        break
+      case 'gone':
+        handleSelectedGone(selected.path, selected.name)
+        break
+    }
+    return plan.next
+  }
+
+  // 監視イベントからは常に最新の handleExternalChange を呼ぶ（購読はフォルダごとに1回）
+  const handleExternalChangeRef = useRef(handleExternalChange)
+  handleExternalChangeRef.current = handleExternalChange
+
   const selected = files.find((f) => f.path === selectedPath) ?? null
   const selectedModule =
     selected && selected.result.status === 'editable'
       ? appRegistry.get(selected.result.type)
       : undefined
+  // 外部変更で result が rejected になるとモジュールを引けなくなるので、
+  // 上書き用に「変更前の」モジュールを保持する
+  selectedModuleRef.current = selectedModule
   // 走査済み全ファイルの type（読めなかったファイルは null）。singleton 判定は
   // 型でなく物理条件（type が2件以上）なので、rejected/listOnly の type も含める
   const existingTypes = files.map((f) => f.result.type)
@@ -448,6 +666,35 @@ function App() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  // フォルダ単位の監視（rev 3章。ファイル単位では外部リネームが取れない）。
+  // イベントの種類は見ず、束ねて再走査する。フォルダを切り替えたら張り替える
+  useEffect(() => {
+    if (projectDir === null) return
+    const coalescer = createCoalescer(WATCH_COALESCE_MS, () => {
+      void handleExternalChangeRef.current()
+    })
+    let unwatch: (() => void) | null = null
+    let stopped = false
+    void watchFolder(projectDir, () => coalescer.notify())
+      .then((fn) => {
+        // effect の後片付けが先に走っていたら、掴んだ監視をその場で止める
+        if (stopped) fn()
+        else unwatch = fn
+      })
+      .catch((err: unknown) => {
+        setIoError(
+          `フォルダの監視を開始できませんでした（外部の変更は自動で反映されません）: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        )
+      })
+    return () => {
+      stopped = true
+      coalescer.dispose()
+      unwatch?.()
+    }
+  }, [projectDir])
 
   return (
     <main className="flex min-h-screen flex-col bg-canvas text-ink">
@@ -549,6 +796,7 @@ function App() {
         </section>
       </div>
 
+      <ToastStack toasts={toasts} onDismiss={dismiss} />
       <ConfirmDialog
         open={head?.kind === 'confirm'}
         title={head?.kind === 'confirm' ? head.title : ''}
