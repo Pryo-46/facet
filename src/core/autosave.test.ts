@@ -268,10 +268,7 @@ describe('createAutoSaver', () => {
     const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write, onError, onSuccess })
     saver.update('B')
     await saver.flush()
-    // flush() は静止するまで最大 FLUSH_MAX_ROUNDS(5) 回リトライする。write が
-    // 恒久的に失敗し続けるこのテストでは5回とも失敗し、onError も5回呼ばれる
-    // （M5 でループ化する前は1回だけ試すので1回だった）
-    expect(onError).toHaveBeenCalledTimes(5)
+    expect(onError).toHaveBeenCalledTimes(1)
     expect(onSuccess).not.toHaveBeenCalled()
     write.mockImplementation(() => Promise.resolve())
     await saver.flush()

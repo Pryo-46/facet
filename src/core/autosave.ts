@@ -8,11 +8,13 @@
 export interface AutoSaver {
   update(text: string): void
   /**
-   * 保留中の書き込みを即時実行し、**書き込みが静止するまで**待つ。
-   * true＝書き残しなし（成功または書くものが無い）。
+   * 保留中の書き込みを即時実行し、**chain が静止するまで**繰り返し待つ。
    * 単に「その時点の chain」を await するだけでは足りない——await 中に
    * デバウンスタイマーが発火すると commit() が chain を再代入し、古いリンクで
-   * 解決してしまう（進行中の write を残したまま close のゲートを通る。申し送り10節）
+   * 解決してしまう（進行中の write を残したまま close のゲートを通る。申し送り10節）。
+   * 戻り値は静止した時点の書き残しの有無（true＝成功または書くものが無い）。
+   * write が失敗していれば false になるが、失敗した内容の再試行はこの呼び出しの
+   * 中では行わない——次の flush() またはタイマーに任せる（M4 の意味論のまま）
    */
   flush(): Promise<boolean>
   /**
@@ -44,9 +46,9 @@ export function createAutoSaver(opts: {
   let chain: Promise<void> = Promise.resolve()
 
   /**
-   * flush / settle の打ち切り回数。write 失敗時は catch が pending を復元して
-   * 再試行するため、無条件に「静止するまで」回すと恒久的な書き込み不能（権限・
-   * ロック）で無限ループになる。commit() はタイマーを待たず即時に書くので、
+   * flush / settle の打ち切り回数。await 中に新しい write が積まれ続けると
+   * （タイマー発火のたびに chain が再代入され）静止判定がいつまでも終わらない
+   * ため、回数で打ち切る。commit() はタイマーを待たず即時に書くので、
    * 人間の打鍵速度で5回を使い切ることは実質ない
    */
   const FLUSH_MAX_ROUNDS = 5
@@ -107,11 +109,13 @@ export function createAutoSaver(opts: {
       for (let round = 0; round < FLUSH_MAX_ROUNDS; round++) {
         const target = commit()
         await target
-        // await 中にタイマーが発火していれば chain は別物に差し替わっている。
-        // write が失敗していれば catch が pending を復元している（＝再試行）
-        if (pending === null && chain === target) return true
+        // await 中にタイマーが発火していれば chain は別物に差し替わっている——
+        // その write も待つ（ここが「静止」の判定）。静止していれば、
+        // 書き残しの有無は pending がそのまま答える（write 失敗時は
+        // catch が pending へ復元しており、再試行は次の flush が行う）
+        if (chain === target) return pending === null
       }
-      // 打ち切り。書き残しの有無が確定しないので false を返す——close のゲートは
+      // 打ち切り。静止を確認できていないので false を返す——close のゲートは
       // 閉じない側に倒すのが安全（脱出口は App 側の「破棄して閉じる」）
       return false
     },
