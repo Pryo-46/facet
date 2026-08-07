@@ -1,3 +1,4 @@
+import { canCreateFileOfType } from '@/core/file-ops'
 import type { ProjectFile } from '@/core/project-file'
 import type { AnyToolModule } from '@/core/registry'
 
@@ -6,6 +7,12 @@ export interface FileListProps {
   selectedPath: string | null
   /** 新規作成の選択肢。レジストリの登録順（rev 6章。ツールは増える前提） */
   modules: AnyToolModule[]
+  /**
+   * 走査済み全ファイルの type（読めなかったファイルは null）。
+   * singleton モジュールの新規作成ボタンを、既に1つあるかどうかで
+   * disabled にするために canCreateFileOfType へそのまま渡す
+   */
+  existingTypes: readonly (string | null)[]
   /** プロジェクトフォルダを開いているか。未選択なら操作を一切出さない */
   projectOpen: boolean
   onSelect: (file: ProjectFile) => void
@@ -28,16 +35,21 @@ export function FileList(props: FileListProps) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap gap-1 border-b border-rule p-2">
-        {props.modules.map((module) => (
-          <button
-            key={module.type}
-            type="button"
-            className="rounded-sm border border-rule px-2 py-1 text-xs text-ink hover:bg-surface"
-            onClick={() => props.onCreate(module)}
-          >
-            ＋ {module.displayName}を新規作成
-          </button>
-        ))}
+        {props.modules.map((module) => {
+          const creatable = canCreateFileOfType(module, props.existingTypes)
+          return (
+            <button
+              key={module.type}
+              type="button"
+              disabled={!creatable}
+              title={creatable ? undefined : `${module.displayName}はプロジェクトに1つまでです`}
+              className="rounded-sm border border-rule px-2 py-1 text-xs text-ink hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+              onClick={() => props.onCreate(module)}
+            >
+              ＋ {module.displayName}を新規作成
+            </button>
+          )
+        })}
       </div>
       {props.files.length === 0 ? (
         <p className="p-4 text-sm text-ink-muted">

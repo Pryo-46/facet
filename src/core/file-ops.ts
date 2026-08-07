@@ -78,6 +78,27 @@ export async function trashFile(opts: {
   await opts.trash(opts.path)
 }
 
+/**
+ * そのモジュールのファイルを新規作成できるか。
+ *
+ * singleton モジュール（用語集）は既に1つあれば作れない——作れてしまうと、
+ * アプリ自身が単一性違反（rev 5章）を製造する導線を持つことになる。
+ * 「問題は消せなくして見せる」は外から来た違反（Skill が2つ書いた・git マージで
+ * 増えた）を受け入れる原則であって、自分で違反を作る入口を出す理由にはならない。
+ * 検出と赤表示、削除による解消はそのまま残る。
+ *
+ * 判定は type で行い、開けないファイル（rejected / listOnly）も数える——
+ * 単一性は「type: glossary のファイルが2つ以上」という物理条件であり、
+ * 壊れた用語集も「どちらを正とするか」の判断対象に含まれる（M2 で確定）
+ */
+export function canCreateFileOfType(
+  module: AnyToolModule,
+  existingTypes: readonly (string | null)[],
+): boolean {
+  if (!module.singleton) return true
+  return !existingTypes.includes(module.type)
+}
+
 /** ensureFileOfType が見る、走査済み一覧の最小形 */
 export interface ScannedFile {
   path: string

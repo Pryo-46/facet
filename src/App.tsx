@@ -5,7 +5,13 @@ import { FileList } from '@/components/FileList'
 import { Button } from '@/components/ui/button'
 import { createAutoSaver, type AutoSaver } from '@/core/autosave'
 import { serialize } from '@/core/canonical'
-import { createFile, ensureFileOfType, trashFile, type CreatedFile } from '@/core/file-ops'
+import {
+  canCreateFileOfType,
+  createFile,
+  ensureFileOfType,
+  trashFile,
+  type CreatedFile,
+} from '@/core/file-ops'
 import {
   canRedo,
   canUndo,
@@ -357,8 +363,15 @@ function App() {
     selected && selected.result.status === 'editable'
       ? appRegistry.get(selected.result.type)
       : undefined
-  // 用語集0個は正常な状態（新規プロジェクト）。押せば作れることを空状態で示す
-  const hasGlossary = files.some((f) => f.result.type === 'glossary')
+  // 走査済み全ファイルの type（読めなかったファイルは null）。singleton 判定は
+  // 型でなく物理条件（type が2件以上）なので、rejected/listOnly の type も含める
+  const existingTypes = files.map((f) => f.result.type)
+  const glossaryModule = appRegistry.get('glossary')
+  // 用語集0個は正常な状態（新規プロジェクト）。押せば作れることを空状態で示す。
+  // サイドバーの新規作成ボタンと同じ canCreateFileOfType を通すことで、
+  // 「作れる」の判定を1箇所に保つ（ここだけ別ルールにすると再び矛盾を作る）
+  const canCreateGlossary =
+    glossaryModule !== undefined && canCreateFileOfType(glossaryModule, existingTypes)
 
   const runHistory = (kind: 'undo' | 'redo') => {
     const h = historyRef.current
@@ -418,6 +431,7 @@ function App() {
             files={files}
             selectedPath={selectedPath}
             modules={appRegistry.list()}
+            existingTypes={existingTypes}
             projectOpen={projectDir !== null}
             onSelect={(file) => void selectFile(file)}
             onCreate={(module) => void createNewFile(module)}
@@ -429,7 +443,7 @@ function App() {
           {selected === null && (
             <div className="p-6">
               <p className="text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
-              {projectDir !== null && !hasGlossary && (
+              {projectDir !== null && canCreateGlossary && (
                 <div className="mt-4">
                   <p className="text-sm text-ink-muted">
                     このプロジェクトにはまだ用語集がありません（新規プロジェクトでは正常な状態です）。

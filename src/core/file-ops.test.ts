@@ -1,7 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { AnyToolModule } from './registry'
 import { createAutoSaver } from './autosave'
-import { createFile, ensureFileOfType, trashFile } from './file-ops'
+import { canCreateFileOfType, createFile, ensureFileOfType, trashFile } from './file-ops'
 import { glossaryModule } from '@/modules/glossary/module'
+
+/** singleton でないモジュールの最小形（registry.test.ts の fakeModule 相当） */
+function nonSingletonModule(type: string): AnyToolModule {
+  return {
+    type,
+    displayName: type,
+    schemaVersion: 1,
+    schema: {},
+    idPrefixes: [],
+    Editor: () => null,
+    checkConsistency: () => [],
+    singleton: false,
+    migrate: (d) => d,
+    createEmpty: () => ({}),
+  }
+}
 
 const join = async (dir: string, name: string) => `${dir}\\${name}`
 
@@ -168,5 +185,33 @@ describe('ensureFileOfType', () => {
     expect(result.path).toBe('C:\\proj\\用語集.json')
     expect(result.created?.name).toBe('用語集.json')
     expect(write).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('canCreateFileOfType', () => {
+  it('singleton でないモジュールは既存件数によらず常に作れる', () => {
+    const module = nonSingletonModule('memo')
+    expect(canCreateFileOfType(module, [])).toBe(true)
+    expect(canCreateFileOfType(module, ['memo', 'memo'])).toBe(true)
+  })
+
+  it('singleton モジュールは同じ type が無ければ作れる', () => {
+    expect(canCreateFileOfType(glossaryModule, [])).toBe(true)
+    expect(canCreateFileOfType(glossaryModule, ['memo', null])).toBe(true)
+  })
+
+  it('singleton モジュールは同じ type が既にあれば作れない', () => {
+    expect(canCreateFileOfType(glossaryModule, ['glossary'])).toBe(false)
+  })
+
+  it('開けない（rejected/listOnly）用語集も1件として数える——単一性は「type: glossary が2件以上」という物理条件で、壊れた用語集も対象に含まれる（M2 で確定）', () => {
+    // classifyFile は rejected/listOnly でも type を読めれば type を返す（load.ts）。
+    // 例: スキーマ検証に失敗した（rejected）用語集が1つだけある状態
+    const existingTypes: (string | null)[] = ['glossary']
+    expect(canCreateFileOfType(glossaryModule, existingTypes)).toBe(false)
+  })
+
+  it('type を読めなかったファイル（null）は無視する', () => {
+    expect(canCreateFileOfType(glossaryModule, [null, null])).toBe(true)
   })
 })

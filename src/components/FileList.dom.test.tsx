@@ -17,13 +17,18 @@ function file(name: string, over: Partial<ProjectFile> = {}): ProjectFile {
   }
 }
 
-function setup(files: ProjectFile[], projectOpen = true) {
+function setup(
+  files: ProjectFile[],
+  projectOpen = true,
+  existingTypes: readonly (string | null)[] = files.map((f) => f.result.type),
+) {
   const handlers = { onSelect: vi.fn(), onCreate: vi.fn(), onDelete: vi.fn() }
   render(
     <FileList
       files={files}
       selectedPath={null}
       modules={appRegistry.list()}
+      existingTypes={existingTypes}
       projectOpen={projectOpen}
       {...handlers}
     />,
@@ -77,6 +82,26 @@ describe('FileList', () => {
       }),
     ])
     expect(screen.getByText('1')).not.toBeNull()
+  })
+})
+
+describe('新規作成ボタンの単一性ゲート', () => {
+  it('用語集が無ければ新規作成ボタンは押せる', () => {
+    setup([], true, [])
+    const button = screen.getByRole('button', { name: /用語集を新規作成/ })
+    expect(button.hasAttribute('disabled')).toBe(false)
+  })
+
+  it('用語集が既にあれば新規作成ボタンは disabled になる', () => {
+    setup([file('用語集.json')], true, ['glossary'])
+    const button = screen.getByRole('button', { name: /用語集を新規作成/ })
+    expect(button.hasAttribute('disabled')).toBe(true)
+  })
+
+  it('disabled のボタンをクリックしても onCreate は呼ばれない', () => {
+    const { onCreate } = setup([file('用語集.json')], true, ['glossary'])
+    fireEvent.click(screen.getByRole('button', { name: /用語集を新規作成/ }))
+    expect(onCreate).not.toHaveBeenCalled()
   })
 })
 
