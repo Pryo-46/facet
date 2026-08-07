@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { FileList } from '@/components/FileList'
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,7 @@ import { resolveCommand, toKeyEventLike, type KeyContext } from '@/core/keyboard
 import { currentPlatform } from '@/core/keyboard/platform'
 import { createKnownDisk } from '@/core/known-disk'
 import { classifyFile } from '@/core/load'
+import { pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
 import { computeIssues, type ProjectFile } from '@/core/project-file'
 import type { AnyToolModule } from '@/core/registry'
 import { scanFolder, toProjectFile } from '@/core/scan'
@@ -118,17 +120,18 @@ function App() {
    */
   const knownDisk = useRef(createKnownDisk())
 
-  // 確認ダイアログ。開いている間は操作言語を止める（rev 10章の境界規則）
-  const [confirm, setConfirm] = useState<{
-    title: string
-    description: string
-    confirmLabel: string
-    onConfirm: () => void | Promise<void>
-  } | null>(null)
-  const modalOpen = confirm !== null
+  // モーダルの要求キュー。生産者は「ファイル削除の確認」「破棄して閉じる」
+  //「外部変更の二択」の3つ（申し送り10節。スロット1つでは要求が無言で落ちる）。
+  // 開いている間は操作言語を止める（rev 10章の境界規則）
+  const [modals, setModals] = useState<ModalRequest[]>([])
+  const head = modals[0] ?? null
+  const modalOpen = modals.length > 0
   // window リスナーはマウント時の1回しか張らないので、最新値は ref から読む
+  //（**state 直読みに「簡潔化」しないこと**。常に初期値 false になる）
   const modalOpenRef = useRef(modalOpen)
   modalOpenRef.current = modalOpen
+  const showModal = (request: ModalRequest) => setModals((prev) => pushModal(prev, request))
+  const closeModal = () => setModals((prev) => shiftModal(prev))
 
   const editingData = history === null ? null : history.present
 
@@ -154,7 +157,10 @@ function App() {
       const saver = saverRef.current
       if (saver === null) return true
       if (await saver.flush()) return true
-      setConfirm({
+      showModal({
+        kind: 'confirm',
+        // 閉じる操作を繰り返しても要求が積み上がらないように置き換える
+        key: 'close',
         title: '保存できないため閉じられません',
         description:
           '保存していない編集があります。もう一度閉じる操作をすると保存を再試行します。破棄して閉じると、この編集は失われます（ファイルの内容は最後に保存できた状態のままです）。',
@@ -359,7 +365,9 @@ function App() {
 
   /** 削除は Undo で戻せないので確認を挟む（用語の削除に確認を挟まないのとは別。rev 5章） */
   const requestDelete = (file: ProjectFile) => {
-    setConfirm({
+    showModal({
+      kind: 'confirm',
+      key: `delete:${file.path}`,
       title: 'ファイルを削除しますか？',
       description: `${file.name} を OS のゴミ箱へ移動します。完全には削除しないので、ゴミ箱から戻せます。`,
       confirmLabel: 'ゴミ箱へ移動',
@@ -542,16 +550,34 @@ function App() {
       </div>
 
       <ConfirmDialog
-        open={modalOpen}
-        title={confirm?.title ?? ''}
-        description={confirm?.description ?? ''}
-        confirmLabel={confirm?.confirmLabel ?? ''}
+        open={head?.kind === 'confirm'}
+        title={head?.kind === 'confirm' ? head.title : ''}
+        description={head?.kind === 'confirm' ? head.description : ''}
+        confirmLabel={head?.kind === 'confirm' ? head.confirmLabel : ''}
         onConfirm={() => {
-          const pending = confirm
-          setConfirm(null)
-          void pending?.onConfirm()
+          // 表示中の要求を先に片付けてから起動する（M4 で確定した形）
+          const request = head
+          closeModal()
+          if (request?.kind === 'confirm') void request.onConfirm()
         }}
-        onCancel={() => setConfirm(null)}
+        onCancel={closeModal}
+      />
+      <ChoiceDialog
+        open={head?.kind === 'choice'}
+        title={head?.kind === 'choice' ? head.title : ''}
+        description={head?.kind === 'choice' ? head.description : ''}
+        primaryLabel={head?.kind === 'choice' ? head.primaryLabel : ''}
+        secondaryLabel={head?.kind === 'choice' ? head.secondaryLabel : ''}
+        onPrimary={() => {
+          const request = head
+          closeModal()
+          if (request?.kind === 'choice') void request.onPrimary()
+        }}
+        onSecondary={() => {
+          const request = head
+          closeModal()
+          if (request?.kind === 'choice') void request.onSecondary()
+        }}
       />
     </main>
   )
