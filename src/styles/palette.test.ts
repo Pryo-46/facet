@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  composite,
   contrastRatio,
   deltaEok,
   oklchToLinear,
@@ -71,6 +72,27 @@ const REQUIREMENTS = [
  */
 const BACKGROUNDS = ['canvas', 'surface'] as const
 
+/**
+ * 半透明の重ね合わせ（M8 決定11）。**値は GlossaryEditor.tsx の
+ * errorCell / warnCell と一致していなければならない**（下の紐づき検査が見る）
+ */
+const OVERLAYS = [
+  { label: 'エラーセル', alpha: 0.2, className: 'bg-warning/20' },
+  { label: '未定義・未分類セル', alpha: 0.1, className: 'bg-warning/10' },
+] as const
+
+/**
+ * これらの面の上に置く文字。**warning は置かない**（M8 決定12）——
+ * 測ると warning/10 の面の上で 4.59:1 しか出ず、同系色が重なって読みにくい
+ */
+const OVERLAY_FOREGROUNDS = [
+  { token: 'ink', use: '本文' },
+  { token: 'ink-muted', use: 'プレースホルダ「未定義」' },
+] as const
+
+/** 閾値ちょうどを置かない（M7 の教訓）。本文 4.5:1 に3%の余裕 */
+const OVERLAY_MIN = 4.5 * 1.03
+
 function toPalette(pattern: string, label: string): Record<string, LinearRgb> {
   const block = readBlock(pattern, label)
   const out: Record<string, LinearRgb> = {}
@@ -126,6 +148,21 @@ for (const mode of MODES) {
         expect(ratio, `${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
       })
     }
+
+    for (const bg of BACKGROUNDS) {
+      for (const overlay of OVERLAYS) {
+        for (const fg of OVERLAY_FOREGROUNDS) {
+          it(`${fg.token}（${fg.use}）が ${overlay.className} を ${bg} に重ねた面の上で ${OVERLAY_MIN.toFixed(2)}:1 以上`, () => {
+            const face = composite(palette.warning, palette[bg], overlay.alpha)
+            const ratio = contrastRatio(palette[fg.token], face)
+            expect(
+              ratio,
+              `${toHex(palette[fg.token])} / ${toHex(face)} = ${ratio.toFixed(2)}:1`,
+            ).toBeGreaterThanOrEqual(OVERLAY_MIN)
+          })
+        }
+      }
+    }
   })
 }
 
@@ -177,5 +214,41 @@ describe('index.css', () => {
 
   it('.dark のブロックを持たない（モードの出し分けは palette.css の仕事）', () => {
     expect(indexCss).not.toMatch(/^\s*\.dark\s*\{/m)
+  })
+})
+
+/**
+ * TSX のコメントを落とす。**行番号を保つ必要は無いので単純に消す。**
+ *
+ * 既存の `stripComments`（このファイルの先頭）は CSS 用で `/* *​/` しか
+ * 落とさない。TSX には `//` があるうえ、下の検査が読む GlossaryEditor.tsx は
+ * コメントの中で `/25`（不採用にした濃さ）に言及している。コメントを
+ * 落とさずに走査すると、説明文が違反として検出される——M7 の Task 5 が
+ * 踏んだ「計画自身が機械検査と衝突する」形そのものである
+ */
+const stripTsComments = (source: string): string =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+
+const glossaryEditorSource = stripTsComments(
+  readFileSync(new URL('../modules/glossary/GlossaryEditor.tsx', import.meta.url), 'utf8'),
+)
+
+describe('重ね合わせの値が実装と一致している', () => {
+  // 上の検算は OVERLAYS の alpha を見ているだけなので、実装が別の濃さを
+  // 使っていても緑になる。**検算と実装を繋ぐのはこの検査である**
+  for (const overlay of OVERLAYS) {
+    it(`GlossaryEditor が ${overlay.className}（${overlay.label}）を使っている`, () => {
+      expect(glossaryEditorSource).toContain(overlay.className)
+    })
+  }
+
+  it('検算していない濃さを使っていない', () => {
+    const used = [...glossaryEditorSource.matchAll(/bg-warning\/(\d+)/g)].map((m) => Number(m[1]))
+    const known = OVERLAYS.map((o) => Math.round(o.alpha * 100))
+    expect([...new Set(used)].filter((u) => !known.includes(u))).toEqual([])
+  })
+
+  it('プレースホルダに warning 系の文字色を使っていない（M8 決定12）', () => {
+    expect(glossaryEditorSource).not.toMatch(/placeholder:text-warning/)
   })
 })

@@ -26,9 +26,16 @@ const cellInput =
 // レベル2エラー（受け入れて赤表示）と warning（undecided / 未定義）は
 // どちらも同系色の面で示し、濃さで強度を区別する。
 // 波線下線は表記ゆれの「指摘（suggestion）」用に予約されているため使わない
-// （glossary-session-notes 論点5）。濃さの値は仮置きで、確定は M7
-const errorCell = 'bg-warning/25'
+// （glossary-session-notes 論点5）。
+//
+// **濃さは M8 で確定した**（設計スペック 決定13）。合成後のコントラストは
+// src/styles/palette.test.ts が機械検査しており、値を変えるとそちらが落ちる。
+// /25 はダークの surface 上で ink-muted が 4.58:1 に落ちるため使えない
+const errorCell = 'bg-warning/20'
 const warnCell = 'bg-warning/10'
+
+/** 列の境界の縦罫。先頭列には引かない（M8 決定2） */
+const colBorder = 'border-l border-grid'
 
 /** セルの DOM 上の識別子。フォーカス移動（Task 12）が querySelector で引く */
 function cellId(rowKey: string, field: GlossaryField): string {
@@ -241,7 +248,24 @@ export function GlossaryEditor({
       marks.set(loc.entityIndex, set)
     }
   }
-  const mark = (index: number, field: string) => (marks.get(index)?.has(field) ? ` ${errorCell}` : '')
+  const hasError = (index: number, field: string): boolean =>
+    marks.get(index)?.has(field) ?? false
+
+  /**
+   * セルの面を決める。**エラーは warning より強いので優先する。**
+   * 定義セル・種別セルも `hasError` を見る——見ていないと、これらを指す
+   * 検証ルールが増えた時点で「issue 一覧には出るのにセルが赤くならない」に
+   * なる（M8 でつぶした残件2）。いまは該当ルールが無いので到達しない。
+   *
+   * **行全体が赤いときはセルを塗らない。** 同じ半透明を二重に重ねると
+   * 検証済みの濃さ（warning/20）より濃くなり、コントラストが
+   * palette.test.ts の検証範囲の外へ出る。ID 重複と名称重複が同時に
+   * 起きた行で実際に発生する組み合わせである
+   */
+  const cellFace = (index: number, field: GlossaryField, warn = false): string => {
+    if (hasError(index, 'id')) return ''
+    return hasError(index, field) ? errorCell : warn ? warnCell : ''
+  }
 
   return (
     <div ref={containerRef} className="p-4">
@@ -310,8 +334,8 @@ export function GlossaryEditor({
             const rowKey = rowKeys[index]
             const row = visiblePos + 1
             return (
-              <tr key={rowKey} className={`border-b border-rule align-top${mark(index, 'id')}`}>
-                <td className={mark(index, 'name')}>
+              <tr key={rowKey} className={`border-b border-grid align-middle${hasError(index, 'id') ? ` ${errorCell}` : ''}`}>
+                <td className={cellFace(index, 'name')}>
                   <CellInput
                     className={cellInput}
                     aria-label={`${FIELD_LABELS.name}（${row}行目）`}
@@ -332,9 +356,9 @@ export function GlossaryEditor({
                     }
                   />
                 </td>
-                <td className={term.kind === 'undecided' ? warnCell : ''}>
+                <td className={`relative ${colBorder} ${cellFace(index, 'kind', term.kind === 'undecided')}`}>
                   <select
-                    className={cellInput}
+                    className={`${cellInput} appearance-none pr-6`}
                     aria-label={`${FIELD_LABELS.kind}（${row}行目）`}
                     data-cell={cellId(rowKey, 'kind')}
                     value={term.kind}
@@ -363,10 +387,20 @@ export function GlossaryEditor({
                       </option>
                     ))}
                   </select>
+                  {/* appearance-none で消えた矢印を描き直す。**背景画像の
+                      data URI は使わない**——色値を書くことになり
+                      conventions.test.ts が弾く（M8 決定14） */}
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 12 12"
+                    className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 fill-none stroke-current stroke-2 text-ink-muted"
+                  >
+                    <path d="M3 4.5 L6 7.5 L9 4.5" />
+                  </svg>
                 </td>
-                <td className={term.definition === '' ? warnCell : ''}>
+                <td className={`${colBorder} ${cellFace(index, 'definition', term.definition === '')}`}>
                   <CellInput
-                    className={`${cellInput} placeholder:text-warning/70`}
+                    className={`${cellInput} placeholder:text-ink-muted`}
                     aria-label={`${FIELD_LABELS.definition}（${row}行目）`}
                     data-cell={cellId(rowKey, 'definition')}
                     // 空欄は「未定義」と明示する（負債を消えなくして見せる。
@@ -381,7 +415,7 @@ export function GlossaryEditor({
                     }
                   />
                 </td>
-                <td className={mark(index, 'aliases')}>
+                <td className={`${colBorder} ${cellFace(index, 'aliases')}`}>
                   <AliasCell
                     aliases={term.aliases}
                     onAliasesChange={(next, mergeKey) =>
@@ -412,7 +446,7 @@ export function GlossaryEditor({
                     onLeaveVertical={(direction) => focusVisible(visiblePos + direction, 'aliases')}
                   />
                 </td>
-                <td>
+                <td className={`${colBorder} ${cellFace(index, 'notes')}`}>
                   <CellInput
                     className={cellInput}
                     aria-label={`${FIELD_LABELS.notes}（${row}行目）`}
