@@ -84,16 +84,32 @@ function createSaverFactory(log: string[]) {
   const savers: FakeSaver[] = []
   const factory = (spec: SaverSpec): AutoSaver => {
     log.push('createSaver')
+    // 実物（src/core/autosave.ts）の hasUnsaved() は `latest !== lastSaved` で、
+    // write が成功すると lastSaved が latest に追いつき false へ戻る。この偽物は
+    // 「あるファイルへの1回目の update() で unsaved が true になったきり戻らない」
+    // という欠陥を持っていた（Task 6 の申し送りで判明）。lastSaved を持たせ、
+    // spec.write が成功するたびに追随させることで実物の意味論に合わせる——
+    // 呼び出し側（テスト）が `spec.write(...)` を直接呼んで「自動保存が書いた」を
+    // 再現する経路（自己書き込み除外のテスト）と、コントローラが saver.update() を
+    // 呼ぶ経路の両方で同じ判定になる
+    let lastSaved = spec.baseline
     const saver: FakeSaver = {
-      spec,
-      latest: null,
+      spec: {
+        ...spec,
+        write: async (text) => {
+          await spec.write(text)
+          lastSaved = text
+          saver.unsaved = saver.latest !== lastSaved
+        },
+      },
+      latest: spec.baseline,
       flushOk: true,
       unsaved: false,
       disposed: false,
       update(text) {
         log.push('update')
         saver.latest = text
-        saver.unsaved = true
+        saver.unsaved = text !== lastSaved
       },
       async flush() {
         log.push('flush')
@@ -417,5 +433,209 @@ describe('requestDelete / 削除の順序', () => {
     if (request.kind !== 'confirm') throw new Error('confirm ではない')
     await request.onConfirm()
     expect(h.banners().io).toContain('ファイルを削除できませんでした')
+  })
+})
+
+describe('externalChange（外部変更の検知）', () => {
+  async function opened(body = '') {
+    const h = createHarness({ [p('a.json')]: note('A', body), [p('b.json')]: note('B') })
+    await h.controller.openFolder(DIR)
+    return h
+  }
+
+  it('自分の書き込みは外部変更にならない（台帳との内容比較）', async () => {
+    const h = await opened()
+    await h.controller.selectFile(p('a.json'))
+    const module = h.registry.get('note')!
+    // 自動保存が書いたことにする（writeAndRecord 相当を saver 経由で再現）
+    await h.savers.current().spec.write(note('A', 'x'))
+    const from = h.log.length
+    await h.controller.externalChange()
+    expect(h.log.slice(from)).not.toContain('toast')
+    expect(module).toBeDefined()
+  })
+
+  it('未保存編集が無ければ再読込し、Undo 履歴を破棄する', async () => {
+    const h = await opened()
+    await h.controller.selectFile(p('a.json'))
+    h.disk.files.set(p('a.json'), note('A', '外部が書いた'))
+    await h.controller.externalChange()
+    expect(h.document()).toMatchObject({ body: '外部が書いた' })
+    // setDocument＝履歴の作り直し。取り込みごとに必ず1回通ること
+    expect(h.log.filter((l) => l === 'setDocument').length).toBeGreaterThan(0)
+    expect(h.toasts().at(-1)?.message).toContain('外部の変更を読み込みました')
+  })
+
+  it('取り込みは applyEdit を通らない（ディスクの内容を書き戻さない）', async () => {
+    const h = await opened()
+    await h.controller.selectFile(p('a.json'))
+    h.disk.files.set(p('a.json'), note('A', '外部が書いた'))
+    const from = h.log.length
+    await h.controller.externalChange()
+    // 取り込みの過程でディスクへ書いていないこと
+    expect(h.log.slice(from).some((l) => l.startsWith('write:'))).toBe(false)
+  })
+
+  it('検知したら、一覧を差し替える前に自動保存を止める', async () => {
+    const h = await opened()
+    await h.controller.selectFile(p('a.json'))
+    h.disk.files.set(p('a.json'), note('A', '外部が書いた'))
+    const from = h.log.length
+    await h.controller.externalChange()
+    const order = h.log.slice(from).filter((l) => l === 'dispose' || l === 'setFiles')
+    expect(order[0]).toBe('dispose')
+  })
+
+  it('「取り込み前に戻す」は生バイトをそのまま書き戻す（正規化差分を出さない）', async () => {
+    // 非正規形（インデント4）のまま開いていたファイルを外部が書き換える
+    const raw = JSON.stringify({ schemaVersion: 1, type: 'note', title: 'A', body: '' }, null, 4) + '\n'
+    const h = createHarness({ [p('a.json')]: raw })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.disk.files.set(p('a.json'), note('A', '外部が書いた'))
+    await h.controller.externalChange()
+    const action = h.toasts().at(-1)?.action
+    expect(action).toBeDefined()
+    await action!.run()
+    expect(h.disk.files.get(p('a.json'))).toBe(raw)
+  })
+
+  it('未保存編集があれば二択ダイアログを出す（自動では取り込まない）', async () => {
+    const h = await opened()
+    await h.controller.selectFile(p('a.json'))
+    h.savers.current().unsaved = true
+    h.disk.files.set(p('a.json'), note('A', '外部が書いた'))
+    await h.controller.externalChange()
+    expect(h.modals().at(-1)?.kind).toBe('choice')
+  })
+
+  it('二択を出す前に、同じファイルの古い通知を取り下げる', async () => {
+    const h = await opened()
+    await h.controller.selectFile(p('a.json'))
+    h.savers.current().unsaved = true
+    h.disk.files.set(p('a.json'), note('A', '外部が書いた'))
+    await h.controller.externalChange()
+    expect(h.log).toContain(`dismissToast:external:${p('a.json')}`)
+  })
+
+  it('回答待ちの間は、2度目の外部変更も二択に倒れる（saver を dispose しても信号が消えない）', async () => {
+    const h = await opened()
+    await h.controller.selectFile(p('a.json'))
+    h.savers.current().unsaved = true
+    h.disk.files.set(p('a.json'), note('A', '1回目'))
+    await h.controller.externalChange()
+    h.disk.files.set(p('a.json'), note('A', '2回目'))
+    await h.controller.externalChange()
+    expect(h.modals().filter((m) => m.kind === 'choice').length).toBeGreaterThan(0)
+    // 自動で取り込んで履歴を置き換えていないこと
+    expect(h.document()).not.toMatchObject({ body: '2回目' })
+  })
+
+  it('「自分の編集で上書き」は検知したディスク内容を baseline に張り直す', async () => {
+    const h = await opened()
+    await h.controller.selectFile(p('a.json'))
+    h.savers.current().unsaved = true
+    h.setDocument({ schemaVersion: 1, type: 'note', title: 'A', body: '自分の編集' })
+    const diskText = note('A', '外部が書いた')
+    h.disk.files.set(p('a.json'), diskText)
+    await h.controller.externalChange()
+    const request = h.modals().at(-1)
+    if (request?.kind !== 'choice') throw new Error('choice ではない')
+    await request.onPrimary()
+    expect(h.savers.current().spec.baseline).toBe(diskText)
+    expect(h.savers.current().latest).toBe(note('A', '自分の編集'))
+  })
+
+  it('「自分の編集で上書き」で選択が変わっていたら無音で終わらない', async () => {
+    const h = await opened()
+    await h.controller.selectFile(p('a.json'))
+    h.savers.current().unsaved = true
+    h.setDocument({ schemaVersion: 1, type: 'note', title: 'A', body: '自分の編集' })
+    h.disk.files.set(p('a.json'), note('A', '外部が書いた'))
+    await h.controller.externalChange()
+    const request = h.modals().at(-1)
+    if (request?.kind !== 'choice') throw new Error('choice ではない')
+    await h.controller.selectFile(p('b.json'))
+    await request.onPrimary()
+    expect(h.banners().io).not.toBeNull()
+  })
+
+  it('外部で消えた選択中ファイルは flush せずに後始末する（書き戻して復活させない）', async () => {
+    const h = await opened()
+    await h.controller.selectFile(p('a.json'))
+    h.disk.files.delete(p('a.json'))
+    const from = h.log.length
+    await h.controller.externalChange()
+    expect(h.log.slice(from)).toContain('dispose')
+    expect(h.log.slice(from)).not.toContain('flush')
+    expect(h.selectedPath()).toBeNull()
+    expect(h.log).toContain(`dropModal:external:${p('a.json')}`)
+    expect(h.disk.files.has(p('a.json'))).toBe(false)
+  })
+
+  it('読めなかったファイルを「消えた」と混ぜない（一時的なロックで閉じない）', async () => {
+    const h = await opened()
+    await h.controller.selectFile(p('a.json'))
+    const read = h.disk.read
+    h.disk.read = async (path: string) => {
+      if (path === p('a.json')) throw new Error('locked')
+      return read(path)
+    }
+    await h.controller.externalChange()
+    expect(h.selectedPath()).toBe(p('a.json'))
+  })
+
+  it('増えたファイルは通知して一覧へ足す', async () => {
+    const h = await opened()
+    h.disk.files.set(p('c.json'), note('C'))
+    await h.controller.externalChange()
+    expect(h.files().map((f) => f.name)).toContain('c.json')
+    expect(h.toasts().at(-1)?.message).toContain('ファイルが増えました')
+  })
+
+  it('再走査が成功したら scan バナーを消す（成功しても残らない）', async () => {
+    const h = await opened()
+    const list = h.disk.list
+    h.disk.list = async () => { throw new Error('gone') }
+    await h.controller.externalChange()
+    expect(h.banners().scan).not.toBeNull()
+    h.disk.list = list
+    await h.controller.externalChange()
+    expect(h.banners().scan).toBeNull()
+  })
+})
+
+describe('ensureFileOfType', () => {
+  it('走査後に外部が書いたファイルを再走査で拾い、2つ目を作らない', async () => {
+    const h = createHarness()
+    await h.controller.openFolder(DIR)
+    // 空フォルダを開いた後に Skill が用語集を書いた状況（申し送り10節のデータ喪失経路）
+    h.disk.files.set(p('外部が書いた.json'), note('外部'))
+    await h.controller.ensureFileOfType(h.registry.get('note')!)
+    expect(h.disk.files.size).toBe(1)
+    expect(h.selectedPath()).toBe(p('外部が書いた.json'))
+  })
+
+  it('無ければ作って開く', async () => {
+    const h = createHarness()
+    await h.controller.openFolder(DIR)
+    await h.controller.ensureFileOfType(h.registry.get('note')!)
+    expect(h.disk.files.has(p('ノート.json'))).toBe(true)
+    expect(h.selectedPath()).toBe(p('ノート.json'))
+  })
+
+  it('フォルダを開いていないときは無音で終わらない', async () => {
+    const h = createHarness()
+    await h.controller.ensureFileOfType(h.registry.get('note')!)
+    expect(h.banners().io).not.toBeNull()
+  })
+
+  it('再走査に失敗したら作らない（古いスナップショットで判断しない）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    h.disk.list = async () => { throw new Error('gone') }
+    await h.controller.ensureFileOfType(h.registry.get('note')!)
+    expect(h.disk.files.size).toBe(1)
+    expect(h.banners().scan).toContain('フォルダの再走査に失敗しました')
   })
 })
