@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dismissToast, MAX_TOASTS, pushToast, type ToastItem } from './toasts'
+import { dismissToast, dismissToastByKey, MAX_TOASTS, pushToast, type ToastItem } from './toasts'
 
 function toast(id: number, over: Partial<ToastItem> = {}): ToastItem {
   return { id, message: `通知${id}`, ...over }
@@ -59,5 +59,21 @@ describe('dismissToast', () => {
 
   it('無い id は何もしない', () => {
     expect(dismissToast([toast(1)], 9)).toHaveLength(1)
+  })
+})
+
+describe('dismissToastByKey', () => {
+  it('同じ key の通知を消す（key の無い通知は残す）', () => {
+    const list = [
+      { id: 1, message: 'a', key: 'external:X' },
+      { id: 2, message: 'b' },
+      { id: 3, message: 'c', key: 'external:Y' },
+    ]
+    expect(dismissToastByKey(list, 'external:X').map((t) => t.id)).toEqual([2, 3])
+  })
+
+  it('該当が無ければそのまま', () => {
+    const list = [{ id: 1, message: 'a', key: 'external:X' }]
+    expect(dismissToastByKey(list, 'external:Z')).toEqual(list)
   })
 })
