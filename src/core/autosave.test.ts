@@ -225,7 +225,7 @@ describe('createAutoSaver', () => {
   })
 
   it('write が失敗し続けたら flush は false を返す（pending は破棄されない）', async () => {
-    const write = vi.fn(() => Promise.reject(new Error('disk full')))
+    const write = vi.fn((): Promise<void> => Promise.reject(new Error('disk full')))
     const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write })
     saver.update('B')
     await expect(saver.flush()).resolves.toBe(false)
@@ -264,7 +264,7 @@ describe('createAutoSaver', () => {
   it('write 失敗で onError、成功で onSuccess が呼ばれる', async () => {
     const onError = vi.fn()
     const onSuccess = vi.fn()
-    const write = vi.fn(() => Promise.reject(new Error('boom')))
+    const write = vi.fn((): Promise<void> => Promise.reject(new Error('boom')))
     const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write, onError, onSuccess })
     saver.update('B')
     await saver.flush()

@@ -25,6 +25,7 @@ function makeRegistry() {
     checkConsistency: () => [],
     singleton: false,
     migrate: (d) => d,
+    createEmpty: () => ({}),
   }
   registry.register(mod)
   return registry

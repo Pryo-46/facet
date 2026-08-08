@@ -14,6 +14,7 @@ function fakeModule(type: string, singleton: boolean): AnyToolModule {
     checkConsistency: () => [],
     singleton,
     migrate: (d) => d,
+    createEmpty: () => ({}),
   }
 }
 
