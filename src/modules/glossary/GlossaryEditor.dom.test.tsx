@@ -278,6 +278,55 @@ describe('GlossaryEditor: 履歴との継ぎ目', () => {
   })
 })
 
+/** 外部変更の取り込みと同じ形の親：data を丸ごと別のオブジェクトに差し替える */
+function ImportHarness({ initial, imported }: {
+  initial: GlossarySchemaVersion1
+  imported: GlossarySchemaVersion1
+}) {
+  const [data, setData] = useState(initial)
+  return (
+    <div>
+      <button type="button" onClick={() => setData(imported)}>
+        外部変更を取り込む
+      </button>
+      {/* App は key={selected.path} なので、同じパスへの取り込みでは
+          エディタは再マウントされない（＝ローカル下書きが残る） */}
+      <GlossaryEditor data={data} issues={[]} modalOpen={false} onChange={setData} />
+    </div>
+  )
+}
+
+describe('GlossaryEditor: 外部変更の取り込みとの継ぎ目', () => {
+  it('別名パネルを開いたまま取り込みが来ても、パネルの表示がディスクの内容に追随する', () => {
+    render(
+      <ImportHarness
+        initial={glossary([term({ id: 'term_aaaaaaaaaa', name: '受注', aliases: ['オーダー'] })])}
+        imported={glossary([term({ id: 'term_aaaaaaaaaa', name: '受注', aliases: ['注文'] })])}
+      />,
+    )
+    fireEvent.focus(screen.getByLabelText('別名（1行目）'))
+    expect((screen.getByLabelText('別名1') as HTMLInputElement).value).toBe('オーダー')
+
+    fireEvent.click(screen.getByText('外部変更を取り込む'))
+    // ここが古いまま残ると、次の打鍵で取り込んだ内容が消える
+    //（参照比較の事故と同じ壊れ方。申し送り9節）
+    expect((screen.getByLabelText('別名1') as HTMLInputElement).value).toBe('注文')
+  })
+
+  it('取り込みで別名が消えた場合も表示が空になる', () => {
+    render(
+      <ImportHarness
+        initial={glossary([term({ id: 'term_aaaaaaaaaa', name: '受注', aliases: ['オーダー'] })])}
+        imported={glossary([term({ id: 'term_aaaaaaaaaa', name: '受注', aliases: [] })])}
+      />,
+    )
+    fireEvent.focus(screen.getByLabelText('別名（1行目）'))
+    fireEvent.click(screen.getByText('外部変更を取り込む'))
+    const inputs = screen.getAllByLabelText(/^別名\d/) as HTMLInputElement[]
+    expect(inputs.map((el) => el.value)).toEqual([''])
+  })
+})
+
 describe('用語0件の空状態', () => {
   it('最後の1行を消したら「用語を追加」ボタンへフォーカスが移る', async () => {
     renderEditor(glossary([term({ id: 'term_AAAAAAAAAA', name: '受注' })]))
