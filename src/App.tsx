@@ -202,6 +202,10 @@ function App() {
   const canCreateGlossary =
     glossaryModule !== undefined && canCreateFileOfType(glossaryModule, existingTypes)
 
+  // 出力できるのは「開けているファイルを選んでいて、編集中データが揃っている」とき。
+  // コントローラ側でも同じ条件を確認しているが、UI はそれを押せる／押せないの形で見せる
+  const canExport = selectedModule !== undefined && editingData !== null
+
   const runHistory = (kind: 'undo' | 'redo') => {
     const h = historyRef.current
     if (h === null || selectedPath === null || selectedModule === undefined) return
@@ -289,6 +293,12 @@ function App() {
         </Button>
         <Button disabled={history === null || !canRedo(history)} onClick={() => runHistory('redo')}>
           やり直す
+        </Button>
+        <Button disabled={!canExport} onClick={() => void controller.copyMarkdown()}>
+          Markdown をコピー
+        </Button>
+        <Button disabled={!canExport} onClick={() => void controller.exportMarkdown()}>
+          Markdown を書き出す
         </Button>
         {projectDir && <span className="text-sm text-ink-muted">{projectDir}</span>}
         <button
