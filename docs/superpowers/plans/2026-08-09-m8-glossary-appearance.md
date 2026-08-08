@@ -70,7 +70,7 @@
 
 - [ ] **Step 1: 失敗するテストを書く**
 
-`src/styles/contrast.test.ts` の末尾に追記する（既存の `describe` は消さない）。ファイル先頭の `import` に `composite`, `decodeSrgb`, `encodeSrgb` を足すこと。
+`src/styles/contrast.test.ts` の末尾に追記する（既存の `describe` は消さない）。ファイル先頭の `import` に `composite`, `decodeSrgb`, `encodeSrgb` と、型 `LinearRgb` を足すこと。
 
 ```ts
 describe('アルファ合成', () => {
@@ -82,10 +82,15 @@ describe('アルファ合成', () => {
     expect(composite(BLACK, WHITE, 0)).toEqual(WHITE)
   })
 
-  it('黒を50%で白に重ねると中間灰（#808080）になる', () => {
-    // ブラウザの合成はガンマ補正済み sRGB 上で行われる。線形空間で
-    // 混ぜると #bcbcbc 相当になり、実際の見え方とずれる
-    expect(toHex(composite(BLACK, WHITE, 0.5))).toBe('#808080')
+  it('合成はガンマ補正済み sRGB 上で行う（線形空間で混ぜない）', () => {
+    // ガンマ空間で 0.5 に混ざった結果を線形へ戻すと 0.2140。
+    // 線形空間で混ぜていたら 0.5 になる——この差がこのテストの主張である。
+    // **toHex を経由しない**：黒と白の中点は 127.5 と丸めの境界に乗るため、
+    // 期待値が処理系の丸めに依存する（閾値ちょうどの値を置かない）
+    const [r, g, b] = composite(BLACK, WHITE, 0.5)
+    expect(r).toBeCloseTo(0.214, 4)
+    expect(g).toBeCloseTo(0.214, 4)
+    expect(b).toBeCloseTo(0.214, 4)
   })
 
   it('sRGB の伝達関数が往復する', () => {
