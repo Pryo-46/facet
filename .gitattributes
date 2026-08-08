@@ -2,3 +2,10 @@
 # これがないと autocrlf 環境でチェックアウト時に CRLF 化し、
 # LF で書き戻すたびに全行 diff になって決定的シリアライズの目的が無効化される。
 *.json text eol=lf
+
+# 上と同じ理由をリポジトリ全体へ広げる。autocrlf=true の環境では、
+# eol 指定の無いファイルがチェックアウト時に CRLF 化する一方、ツール
+#（cargo・エディタ・Claude）は LF で書き戻すため、内容を変えていないのに
+# git status に modified が出る（M6 の後片付けで Cargo.toml が実際にそうなった）。
+# index は元から全ファイル LF なので、この指定で内容の差分は出ない。
+* text=auto eol=lf
