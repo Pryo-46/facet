@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { canCreateFileOfType } from '@/core/file-ops'
 import type { ProjectFile } from '@/core/project-file'
 import type { AnyToolModule } from '@/core/registry'
@@ -18,6 +19,58 @@ export interface FileListProps {
   onSelect: (file: ProjectFile) => void
   onCreate: (module: AnyToolModule) => void
   onDelete: (file: ProjectFile) => void
+}
+
+/**
+ * ファイル1行。**`useId` を使うために切り出している**——
+ * `aria-describedby` は id で結ぶ必要があり、map の中では id を作れない
+ */
+function FileRow(props: {
+  file: ProjectFile
+  selected: boolean
+  onSelect: () => void
+  onDelete: () => void
+}) {
+  const { file } = props
+  const descId = useId()
+  return (
+    // items-stretch で削除ボタンが行の高さいっぱいになる（要望8）。
+    // 行の区切りは grid（薄い装飾の罫。要望9）
+    <li className="flex items-stretch border-b border-grid">
+      <button
+        type="button"
+        aria-label={`${file.name} を開く`}
+        aria-describedby={descId}
+        className={`min-w-0 flex-1 border-l-2 px-4 py-2 text-left text-sm ${
+          props.selected ? 'border-ink bg-canvas' : 'border-transparent hover:bg-canvas'
+        }`}
+        onClick={props.onSelect}
+      >
+        <span className="block truncate text-ink">{file.name}</span>
+        <span id={descId} className="block text-xs text-ink-muted">
+          {file.result.status === 'editable' && file.result.title}
+          {file.result.status === 'rejected' && <span className="text-warning">開けない</span>}
+          {file.result.status === 'listOnly' && '編集不可'}
+          {file.issues.length > 0 && (
+            <span className="ml-1 rounded-sm bg-warning px-1 text-xs text-warning-fg">
+              {file.issues.length}
+            </span>
+          )}
+        </span>
+      </button>
+      {/* 開けない・編集不可のファイルにも削除を出す——単一性違反の解消には
+          「壊れている方の用語集を消す」が必要で、そこを塞ぐと外部エディタを
+          強いることになる（rev 5章「拒否は最小限に」のファイル操作への適用） */}
+      <button
+        type="button"
+        aria-label={`${file.name} を削除`}
+        className="flex shrink-0 items-center px-2 text-xs text-ink-muted hover:bg-canvas hover:text-warning"
+        onClick={props.onDelete}
+      >
+        削除
+      </button>
+    </li>
+  )
 }
 
 /**
@@ -43,7 +96,7 @@ export function FileList(props: FileListProps) {
               type="button"
               disabled={!creatable}
               title={creatable ? undefined : `${module.displayName}はプロジェクトに1つまでです`}
-              className="rounded-sm border border-rule px-2 py-1 text-xs text-ink hover:bg-surface disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+              className="rounded-sm border border-rule px-2 py-1 text-xs text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
               onClick={() => props.onCreate(module)}
             >
               ＋ {module.displayName}を新規作成
@@ -58,39 +111,13 @@ export function FileList(props: FileListProps) {
       ) : (
         <ul>
           {props.files.map((file) => (
-            <li key={file.path} className="flex items-start">
-              <button
-                type="button"
-                aria-label={`${file.name} を開く`}
-                className={`min-w-0 flex-1 px-4 py-2 text-left text-sm hover:bg-surface ${
-                  file.path === props.selectedPath ? 'bg-surface' : ''
-                }`}
-                onClick={() => props.onSelect(file)}
-              >
-                <span className="block truncate text-ink">{file.name}</span>
-                <span className="block text-xs text-ink-muted">
-                  {file.result.status === 'editable' && file.result.title}
-                  {file.result.status === 'rejected' && <span className="text-warning">開けない</span>}
-                  {file.result.status === 'listOnly' && '編集不可'}
-                  {file.issues.length > 0 && (
-                    <span className="ml-1 rounded-sm bg-warning px-1 text-xs text-warning-fg">
-                      {file.issues.length}
-                    </span>
-                  )}
-                </span>
-              </button>
-              {/* 開けない・編集不可のファイルにも削除を出す——単一性違反の解消には
-                  「壊れている方の用語集を消す」が必要で、そこを塞ぐと外部エディタを
-                  強いることになる（rev 5章「拒否は最小限に」のファイル操作への適用） */}
-              <button
-                type="button"
-                aria-label={`${file.name} を削除`}
-                className="shrink-0 px-2 py-2 text-xs text-ink-muted hover:bg-surface hover:text-warning"
-                onClick={() => props.onDelete(file)}
-              >
-                削除
-              </button>
-            </li>
+            <FileRow
+              key={file.path}
+              file={file}
+              selected={file.path === props.selectedPath}
+              onSelect={() => props.onSelect(file)}
+              onDelete={() => props.onDelete(file)}
+            />
           ))}
         </ul>
       )}
