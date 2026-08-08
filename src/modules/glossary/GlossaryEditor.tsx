@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { CellInput, type FieldState } from '@/components/CellInput'
+import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
   toKeyEventLike,
@@ -15,7 +16,13 @@ import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
 import glossarySchema from '../../../schemas/glossary.schema.json'
 import { AliasCell } from './AliasCell'
 import { buildErrorMarks, cellFace, hasError } from './cell-face'
-import { COLUMNS, DEFAULT_WIDTHS, WIDTH_INDEX } from './columns'
+import {
+  DEFINITION_MIN_WIDTH,
+  glossaryColumnWidths,
+  MIN_COLUMN_WIDTH,
+  RESIZE_STEP,
+} from './column-widths'
+import { COLUMNS, WIDTH_INDEX } from './columns'
 import { FIELD_LABELS, stepField, type GlossaryField } from './fields'
 import { kindLabel } from './kind-labels'
 import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } from './search'
@@ -110,6 +117,16 @@ export function GlossaryEditor({
     addButtonRef.current?.focus()
     setFocusAddButton(false)
   }, [focusAddButton])
+
+  // 幅を測る対象はテーブルを包む div（M8 決定9）
+  const tableRef = useRef<HTMLDivElement>(null)
+  const { widths, getHandleProps } = useColumnResize({
+    store: glossaryColumnWidths,
+    minWidth: MIN_COLUMN_WIDTH,
+    flexMinWidth: DEFINITION_MIN_WIDTH,
+    step: RESIZE_STEP,
+    containerRef: tableRef,
+  })
 
   const rowKeys = computeRowKeys(data.terms)
   const visible = filterTermIndices(data.terms, filter)
@@ -304,7 +321,7 @@ export function GlossaryEditor({
           grid（装飾）に落とす——M7 が rule と grid を2トークンに分けた理由が
           そのまま効く階層である（M8 決定2）。
           overflow-hidden は border-collapse のまま角丸を切るために要る */}
-      <div className="overflow-hidden rounded-md border border-rule bg-surface">
+      <div ref={tableRef} className="overflow-hidden rounded-md border border-rule bg-surface">
         <table className="w-full table-fixed border-collapse text-sm">
           <colgroup>
             {COLUMNS.map((col, i) => {
@@ -312,21 +329,34 @@ export function GlossaryEditor({
               return (
                 <col
                   key={col.field}
-                  style={w === null ? undefined : { width: DEFAULT_WIDTHS[w] }}
+                  style={w === null ? undefined : { width: widths[w] }}
                 />
               )
             })}
           </colgroup>
           <thead>
             <tr className="border-b border-rule bg-canvas text-left text-ink">
-              {COLUMNS.map((col, i) => (
-                <th
-                  key={col.field}
-                  className={`px-2 py-1 font-bold${i === 0 ? '' : ` ${colBorder}`}`}
-                >
-                  {FIELD_LABELS[col.field]}
-                </th>
-              ))}
+              {COLUMNS.map((col, i) => {
+                const w = WIDTH_INDEX[i]
+                return (
+                  <th
+                    key={col.field}
+                    className={`relative px-2 py-1 font-bold${i === 0 ? '' : ` ${colBorder}`}`}
+                  >
+                    {FIELD_LABELS[col.field]}
+                    {/* 幅を持たない定義列にはハンドルを出さない（残りを埋める列なので、
+                        他の列を狭めることで広がる）。掴み代が見えるように
+                        列の境界へ grid の縦罫を引いてある（M8 決定2） */}
+                    {w !== null && (
+                      <span
+                        {...getHandleProps(w)}
+                        aria-label={`${FIELD_LABELS[col.field]}の列幅を変更`}
+                        className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-rule"
+                      />
+                    )}
+                  </th>
+                )
+              })}
             </tr>
           </thead>
           <tbody>
