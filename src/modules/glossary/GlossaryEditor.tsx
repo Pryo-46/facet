@@ -230,7 +230,7 @@ export function GlossaryEditor({
 
   // locations を「配列位置 → 赤表示するフィールド集合」に引き直す。
   // entityId ではなく位置で引く——ID 重複時に同じ ID を持つ全行へ
-  // マークが波及しないようにするため（M2 申し送り）。
+  // マークが波及しないようにするため（M2 の申し送り）。
   // field 'id' は ID 列が UI に無いため行全体の赤表示として扱う
   const marks = new Map<number, Set<string>>()
   for (const issue of issues) {

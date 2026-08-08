@@ -4,7 +4,7 @@ import type { AnyToolModule } from './registry'
 export interface NewFile {
   /** 拡張子込みのファイル名（プロジェクトフォルダ直下） */
   name: string
-  /** 書き込むテキスト。必ず正規形（スコープ定義書3節） */
+  /** 書き込むテキスト。必ず正規形（docs/glossary/scope.md の2節） */
   text: string
   /** text と同じ内容のデータ。一覧へ即反映するために返す */
   data: unknown

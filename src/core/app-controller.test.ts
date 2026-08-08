@@ -786,7 +786,7 @@ describe('ensureFileOfType', () => {
   it('走査後に外部が書いたファイルを再走査で拾い、2つ目を作らない', async () => {
     const h = createHarness()
     await h.controller.openFolder(DIR)
-    // 空フォルダを開いた後に Skill が用語集を書いた状況（申し送り10節のデータ喪失経路）
+    // 空フォルダを開いた後に Skill が用語集を書いた状況（M4 の申し送りのデータ喪失経路）
     h.disk.files.set(p('外部が書いた.json'), note('外部'))
     await h.controller.ensureFileOfType(h.registry.get('note')!)
     expect(h.disk.files.size).toBe(1)

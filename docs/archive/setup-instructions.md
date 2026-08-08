@@ -2,7 +2,7 @@
 
 対象: Claude Code
 位置づけ: **実装計画（writing-plans）に入る前の足場作り。** 計画フレームワークは「リポジトリが存在し、テストがグリーンで通る状態」を出発点に想定するため、ここを先に済ませる。
-関連: `impl-scope-glossary.md`（実装スコープ）/ `overview-rev.md`（設計方針）/ `glossary.schema.json`（スキーマ）
+関連: `../glossary/scope.md`（実装スコープ）/ `../overview-rev.md`（設計方針）/ `glossary.schema.json`（スキーマ）
 
 **このタスクではアプリの機能を一切実装しません。** 用語集の画面もエディタもまだ作らない。「空の Tauri アプリが起動し、テストが通り、スキーマから型が生成される」ところまでが範囲です。
 

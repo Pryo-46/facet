@@ -1,6 +1,6 @@
 # 引き継ぎ: 用語登録Skill作成セッション
 
-作成日: 2026-07-23 ／ 前提: overview-rev.md（handoff-04 の反映後）＋ glossary-session-notes.md ＋ glossary.schema.json
+作成日: 2026-07-23 ／ 前提: overview-rev.md（handoff-04 の反映後）＋ glossary/session-notes.md ＋ glossary.schema.json
 ※ ファイル名を handoff-05 としないのは、rev が過去文書として handoff-05 を参照しており番号が衝突するため。
 
 ## 目的（handoff-04 からの継承）
@@ -39,4 +39,4 @@ AI連携の全ラウンドトリップを最小構成で通す検証。
 
 ## 蒸し返さないこと（handoff-04 セッションで決定済み）
 
-MCP的な書き込みツールは作らない（Skill＋同梱スクリプト方式で確定）／スキーマ・enum・ID規約の内容（glossary-session-notes.md 参照）／正規化の保証はアプリの受け口
+MCP的な書き込みツールは作らない（Skill＋同梱スクリプト方式で確定）／スキーマ・enum・ID規約の内容（glossary/session-notes.md 参照）／正規化の保証はアプリの受け口

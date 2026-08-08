@@ -42,7 +42,7 @@ describe('createFile', () => {
     expect(created.text.endsWith('\n')).toBe(true)
   })
 
-  it('走査後に外部で増えたファイルを上書きしない（申し送り10節のデータ喪失）', async () => {
+  it('走査後に外部で増えたファイルを上書きしない（M4 の申し送りのデータ喪失）', async () => {
     const write = vi.fn().mockResolvedValue(undefined)
     // 一覧は空（走査時点のスナップショット）だが、ディスクには Skill が書いた
     // 用語集がある。existingNames だけで決めると、これを切り詰めて書き潰す

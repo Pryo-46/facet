@@ -26,11 +26,26 @@
 
 worktree の実体は `node_modules` と `src-tauri/target` で数 GB になる。削除時に「Device or resource busy」が出たら、`npm run tauri dev` やエクスプローラがまだ掴んでいる。残骸は `.claude/worktrees/` に溜まるので、たまに `rm -rf .claude/worktrees/*` でまとめて消してよい（git の登録は `git worktree list` で確認できる）。
 
-## ドキュメントの地図
+## ドキュメント
 
-- `docs/overview-rev.md` — 全体方針。**設計の「正」**。実装で確定した設計判断はここへ反映する
-- `docs/impl-scope-glossary.md` — 実装スコープとマイルストーンごとの申し送り。**過去の障害と残件の唯一の恒久的な記録**（レビューの記録は作業ワークスペースと一緒に消えるため）。次のマイルストーンの計画を書く前に、直近の「◯ で扱うもの」節を必ず読む
-- `docs/glossary-session-notes.md` — 用語集の全論点の決定と理由
-- `docs/superpowers/plans/` — 各マイルストーンの実装計画
+**入口は [`docs/README.md`](docs/README.md)**（どこに何があるかの地図）。文書は寿命で3つに分かれている:
 
-**rev への反映は当該マイルストーンの完了コミットで済ませ、申し送りに TODO として残さない。** 次の計画者は rev を「正」として読むため、反映漏れは設計と実装の食い違いとして伝播する（M4 の教訓）。
+| 寿命 | 文書 | 扱い |
+| --- | --- | --- |
+| **正**（規範） | `docs/overview-rev.md`（全体方針）／`docs/glossary/`（ツール別）／`docs/project-setup.md`（技術前提） | 実装で確定した設計判断は**ここへ反映する** |
+| **現在の状態**（可変） | `docs/open-issues.md` | 解消したら**消す** |
+| **記録**（不変） | `docs/history/mN-*.md`（マイルストーンの申し送り）／`docs/lessons-for-planning.md`（計画の教訓） | 後から書き換えない |
+
+`docs/history/` に書かれた残件を「今も開いているか」の判断に使わないこと。それは `open-issues.md` の仕事。
+
+**実装計画を書く前に読むもの**: `docs/lessons-for-planning.md`、`docs/open-issues.md`、直近1〜2本の `docs/history/`、対象ツールの `docs/<tool>/scope.md`。
+
+## マイルストーン完了時に触る3箇所
+
+1. **`docs/history/mN-<機能>-<主題>.md` を新規作成** — そのとき何が起きたか（実装で確定した事項・見つかった欠陥・実機確認の結果）。以後変えない
+2. **`docs/open-issues.md` を編集** — 解消したものを消し、新たに見つけたものを足す。**消し忘れると残件が幽霊として残り、足し忘れると静かに消える**
+3. **`docs/overview-rev.md` へ反映**（設計判断が確定したなら）＋ 教訓があれば `docs/lessons-for-planning.md` に追記
+
+**rev への反映は完了コミットで済ませ、TODO として申し送りに残さない。** 次の計画者は rev を「正」として読むため、反映漏れは設計と実装の食い違いとして伝播する（M4 の教訓）。
+
+`rev N章` は 249 箇所から参照されている通称。**`overview-rev.md` のファイル名と章番号は動かさない。**

@@ -293,7 +293,7 @@ describe('createAutoSaver', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(io.calls).toEqual(['B', 'C'])
     // 修正前はここで true を返して終わっていた（write('C') を残したまま
-    // ウィンドウを destroy しうる経路。申し送り10節）
+    // ウィンドウを destroy しうる経路。M4 の申し送り）
     expect(flushed).toBeNull()
 
     io.settlers[1].resolve()

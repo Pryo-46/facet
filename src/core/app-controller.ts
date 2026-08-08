@@ -29,7 +29,7 @@ import type { ToastItem } from './toasts'
 /**
  * バナー（**いま続いている状態**を出す場所。起きた出来事はトースト）の種別。
  * 単一スロットだと「監視を開始できません」（継続する状態）が次の操作の
- * 成功で消え、逆に再走査の失敗は成功しても残った（申し送り11節）
+ * 成功で消え、逆に再走査の失敗は成功しても残った（M5 の申し送り）
  */
 export type BannerKind =
   /** 直近の操作（読み込み・作成・削除・書き出し）の失敗。次の成功で消える */
@@ -331,7 +331,7 @@ export function createAppController(
    *
    * **切り離しは trash の前に行う。** `trashFile` が write の着地を待つ間、
    * エディタが同じ saver を掴んだままだと、その間の打鍵で再武装したタイマーが
-   * 生きた write を残せる（申し送り10節の残余の窓）。選択と saver を先に落として
+   * 生きた write を残せる（M4 の申し送りの残余の窓）。選択と saver を先に落として
    * エディタを畳めば、この窓は構造的に消える。
    * `closeCurrentFile` を通さないのも要点——あれは保留編集を書き切る経路で、
    * 消したファイルを書き戻して復活させる
@@ -424,7 +424,7 @@ export function createAppController(
    * 取り込み前のファイルを指しており、残すと Ctrl+Z がディスクの内容を
    * 無言で巻き戻す（rev 3章）。
    *
-   * 申し送り9節は「取り込みは applyEdit の4本目の経路になる」と予告していたが、
+   * M3 の申し送りは「取り込みは applyEdit の4本目の経路になる」と予告していたが、
    * applyEdit は「自動保存へ渡す」＋「履歴に record」なので取り込みには合わない
    *（ディスクから読んだ内容を書き戻すことになり、履歴も破棄でなく追加になる）。
    * **applyEdit を通るのは下の overwriteWithMine（上書き）側**
@@ -518,7 +518,7 @@ export function createAppController(
   /**
    * 開いていたファイルが外部で消えたときの後始末（M4 の deleteFile と同じ形）。
    * **flush しない**——消えたファイルへ書き戻すと、削除されたはずのファイルが
-   * 復活する（M4 の削除で踏んだ事故と同じ。申し送り10節）
+   * 復活する（M4 の削除で踏んだ事故と同じ。M4 の申し送り）
    */
   const handleSelectedGone = (path: string, name: string): void => {
     // 進行中の selectFile / openFolder の結果を捨てさせる
@@ -596,7 +596,7 @@ export function createAppController(
 
     const selected = plan.selected
     // **一覧を差し替える前に自動保存を止める。** 取り込むか上書きするかを決める前に
-    // ディスクが動くと判断の前提が壊れる（申し送り11節。App では setFiles → dispose の
+    // ディスクが動くと判断の前提が壊れる（M5 の申し送り。App では setFiles → dispose の
     // 順だったが、React の再レンダ待ちにより実質「dispose が先」だった。同期の
     // コントローラでは順序が可視になるので、意図どおり dispose を先に置く）。
     // 再開は確定時（取り込み＝selectFile が張り直す／上書き＝新しい baseline で張り直す）
@@ -632,7 +632,7 @@ export function createAppController(
    * そちらで書き直さないため）。
    * **押下時に再走査する**——空フォルダを開いた後に外部（Skill 等）が用語集を
    * 書いた状態で押されうるボタンなので、走査時のスナップショットで判断すると
-   * 見落として2つ目を作る（申し送り10節）
+   * 見落として2つ目を作る（M4 の申し送り）
    */
   const ensureFileOfType = async (module: AnyToolModule): Promise<void> => {
     if (projectDir === null) {
@@ -646,7 +646,7 @@ export function createAppController(
     // 外部で増えたファイルを見落として単一性違反を自分で作る
     if (outcome.kind === 'failed') return // バナーは rescan が出している
     if (outcome.kind === 'skipped') {
-      // **無音にしない**（申し送り11節）——従来バナーが出るのは走査の失敗だけだったが、
+      // **無音にしない**（M5 の申し送り）——従来バナーが出るのは走査の失敗だけだったが、
       // フォルダ切替中・未選択・後続走査の割り込みも「作らなかった」という結果は同じ
       host.setBanner(
         'io',
@@ -705,7 +705,7 @@ export function createAppController(
       onConfirm: async () => {
         saver?.dispose()
         // 破棄済みの saver を掴んだままにしない（forceClose が失敗した場合に
-        // アプリが開き続ける。申し送り11節の残件）
+        // アプリが開き続ける。M5 の申し送りの残件）
         saver = null
         try {
           await io.forceClose()

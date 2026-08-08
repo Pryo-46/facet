@@ -309,7 +309,7 @@ describe('GlossaryEditor: 外部変更の取り込みとの継ぎ目', () => {
 
     fireEvent.click(screen.getByText('外部変更を取り込む'))
     // ここが古いまま残ると、次の打鍵で取り込んだ内容が消える
-    //（参照比較の事故と同じ壊れ方。申し送り9節）
+    //（参照比較の事故と同じ壊れ方。M3 の申し送り）
     expect((screen.getByLabelText('別名1') as HTMLInputElement).value).toBe('注文')
   })
 
