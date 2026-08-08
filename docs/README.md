@@ -40,7 +40,8 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [M4](history/m4-core-file-operations.md) | ファイル一覧の額縁とファイル操作 | コア |
 | [M5](history/m5-core-external-change-detection.md) | 外部変更検知 | コア |
 | [M6](history/m6-glossary-core-markdown-and-app-controller.md) | Markdown 出力と App の副作用切り出し | 用語集・コア |
-| M7（未着手） | デザイントークン整備 | コア |
+| [M7](history/m7-core-design-tokens.md) | デザイントークン確定 | コア |
+| M8（未着手） | 用語集エディタの見た目と操作性 | 用語集 |
 
 ## ツールが増えたとき
 
