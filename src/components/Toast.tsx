@@ -1,8 +1,4 @@
-import { useEffect } from 'react'
 import type { ToastItem } from '@/core/toasts'
-
-/** 操作の付かない通知が自動で消えるまで */
-export const TOAST_AUTO_DISMISS_MS = 6000
 
 export interface ToastStackProps {
   toasts: readonly ToastItem[]
@@ -11,6 +7,15 @@ export interface ToastStackProps {
 
 /**
  * 非モーダル通知（rev 3章。外部変更を読み込んだことを知らせる）。
+ *
+ * **時間では消えない。閉じるまで残す。** 当初は操作の付かない通知だけ6秒で
+ * 自動消去していたが、実機確認で「外部変更のトーストを見逃したのか、
+ * そもそも出ていないのか」が区別できず、検証の妨げになった。会議中に画面から
+ * 目を離していれば6秒は確実に見逃す時間であり、「外部が仕様ファイルを
+ * 書き換えた」は見逃してよい出来事ではない——**問題は消せなくして見せる**
+ * （rev 5章）という思想を、通知にも適用する。溜まり過ぎは `MAX_TOASTS` の
+ * 上限と、同じファイルの通知を `key` で置き換える仕組みで抑える。
+ *
  * shadcn の sonner は使わない——生成物が next-themes を import するため、
  * 「生成物は手で整形しない」というリポジトリの規約と衝突する（M5 で確定）。
  * 見た目は既存の役割トークンの流用で仮置き。確定は M7
@@ -29,14 +34,6 @@ export function ToastStack(props: ToastStackProps) {
 function ToastRow(props: { toast: ToastItem; onDismiss: (id: number) => void }) {
   const { toast, onDismiss } = props
   const action = toast.action
-  // 操作付きは自動で消さない（rev 3章。退避の復元手段を時間切れで失わない）
-  const autoDismiss = action === undefined
-  useEffect(() => {
-    if (!autoDismiss) return
-    const timer = setTimeout(() => onDismiss(toast.id), TOAST_AUTO_DISMISS_MS)
-    return () => clearTimeout(timer)
-  }, [autoDismiss, onDismiss, toast.id])
-
   return (
     <div
       role="status"

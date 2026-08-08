@@ -36,6 +36,20 @@ describe('pushToast', () => {
     expect(list).toHaveLength(MAX_TOASTS)
     expect(list.some((t) => t.id === 1)).toBe(true)
   })
+
+  it('押し込んだ通知は落とさない（操作付きが上限まで溜まっていても表示する）', () => {
+    const withAction = (id: number) =>
+      toast(id, { action: { label: '取り込み前に戻す', run: () => {} } })
+    let list: ToastItem[] = []
+    for (let id = 1; id <= MAX_TOASTS; id++) list = pushToast(list, withAction(id))
+    // 操作付きばかりで埋まっている状態へ、操作の無い通知を押し込む
+    const next = pushToast(list, toast(99))
+    expect(next).toHaveLength(MAX_TOASTS)
+    // 新しい通知は必ず残る（落とすと「出来事を知らせる」役目を果たせないまま消える）
+    expect(next[next.length - 1].id).toBe(99)
+    // 追い出されるのは最古の1件
+    expect(next.some((t) => t.id === 1)).toBe(false)
+  })
 })
 
 describe('dismissToast', () => {

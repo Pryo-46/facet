@@ -21,20 +21,25 @@ export interface ToastItem {
   key?: string
 }
 
-/** 同時に出す上限。超えたら古い方から落とす */
+/**
+ * 同時に出す上限。**トーストは時間では消えない**（閉じるまで残る。理由は
+ * `src/components/Toast.tsx`）ので、消える経路は「閉じるを押す」「同じ key の
+ * 新しい通知に置き換わる」「この上限を超えて追い出される」の3つだけ
+ */
 export const MAX_TOASTS = 3
 
 export function pushToast(list: readonly ToastItem[], toast: ToastItem): ToastItem[] {
   const at = toast.key === undefined ? -1 : list.findIndex((t) => t.key === toast.key)
-  const next = at >= 0 ? list.map((t, i) => (i === at ? toast : t)) : [...list, toast]
+  // 置き換えは件数が増えないので上限の判定に入らない
+  if (at >= 0) return list.map((t, i) => (i === at ? toast : t))
+  const next = [...list, toast]
   if (next.length <= MAX_TOASTS) return next
-  // 上限を超えたら古い方から落とすが、操作付きは残す——操作付きトーストは
-  // Undo 履歴を破棄した後の唯一の復元手段で、自動消去からも除外している。
-  // 追い出しで消えると同じ手段が失われる（操作付きばかりなら仕方なく古い方を落とす）
-  const victim = next.findIndex((t) => t.action === undefined)
-  return victim === -1
-    ? next.slice(next.length - MAX_TOASTS)
-    : [...next.slice(0, victim), ...next.slice(victim + 1)]
+  // 追い出す相手を選ぶ。**押し込んだ通知（末尾）は絶対に落とさない**——
+  // 落とすと「出来事を知らせる」という役目をその通知が果たせないまま消える。
+  // 操作付きも残す: 取り込み前に戻す等は Undo 履歴を破棄した後の唯一の復元手段で、
+  // 追い出しで消えると同じ手段が失われる（操作付きばかりなら最古を落とす）
+  const victim = next.findIndex((t, i) => i < next.length - 1 && t.action === undefined)
+  return victim >= 0 ? [...next.slice(0, victim), ...next.slice(victim + 1)] : next.slice(1)
 }
 
 export function dismissToast(list: readonly ToastItem[], id: number): ToastItem[] {

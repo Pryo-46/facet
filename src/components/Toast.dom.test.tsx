@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ToastItem } from '@/core/toasts'
-import { ToastStack, TOAST_AUTO_DISMISS_MS } from './Toast'
+import { ToastStack } from './Toast'
 
 afterEach(() => {
   cleanup()
@@ -39,19 +39,16 @@ describe('ToastStack', () => {
     expect(onDismiss).toHaveBeenCalledWith(7)
   })
 
-  it('操作の無い通知は一定時間で自動的に消える', () => {
+  it('時間が経っても消えない（閉じるまで残る）', () => {
     vi.useFakeTimers()
-    const { onDismiss } = setup([{ id: 7, message: '増えました' }])
-    vi.advanceTimersByTime(TOAST_AUTO_DISMISS_MS)
-    expect(onDismiss).toHaveBeenCalledWith(7)
-  })
-
-  it('操作付きの通知は自動では消えない（退避の復元手段を時間切れで失わない）', () => {
-    vi.useFakeTimers()
+    // 操作の有無を問わず時間では消えない。6秒の自動消去を入れていたときは、
+    // 実機確認で「見逃したのか出ていないのか」が区別できず検証を妨げた
     const { onDismiss } = setup([
-      { id: 7, message: '取り込みました', action: { label: '取り込み前に戻す', run: vi.fn() } },
+      { id: 7, message: '増えました' },
+      { id: 8, message: '取り込みました', action: { label: '取り込み前に戻す', run: vi.fn() } },
     ])
-    vi.advanceTimersByTime(TOAST_AUTO_DISMISS_MS * 3)
+    vi.advanceTimersByTime(60_000)
     expect(onDismiss).not.toHaveBeenCalled()
+    expect(screen.queryAllByRole('status')).toHaveLength(2)
   })
 })
