@@ -102,4 +102,33 @@ describe('glossaryToMarkdown', () => {
     const md = glossaryToMarkdown(glossary([]))
     expect(md).toBe('## テスト用語集\n')
   })
+
+  it('バックスラッシュ単体がセルを壊さない（Windows パス等）', () => {
+    const md = glossaryToMarkdown(
+      glossary([term({ kind: 'actor', definition: 'C:\\Users\\bin' })]),
+    )
+    // 出力に正しくエスケープされたバックスラッシュが含まれることを確認
+    expect(md).toContain('C:\\\\Users\\\\bin')
+    // 定義部分を含む行を抽出
+    const rows = md.split('\n').filter((l) => l.includes('C:\\\\Users\\\\bin'))
+    expect(rows.length).toBe(1)
+    // 行が5つのセルを持つことを確認（名称、種別、定義、別名、備考）
+    // セルは `|` で区切られているが、バックスラッシュの前の `|` はエスケープされているはず
+    const row = rows[0]
+    expect(row).toMatch(/^\| 用語 \| アクター \| C:\\\\Users\\\\bin \| {1,2}\| {1,2}\|$/)
+  })
+
+  it('バックスラッシュとパイプが隣接する場合、両方正しくエスケープされ表が壊れない', () => {
+    const md = glossaryToMarkdown(
+      glossary([term({ kind: 'actor', definition: 'a\\|b' })]),
+    )
+    // 生の定義 `a\|b` は出力で `a\\\|b` になるはず（リテラル `\` ＋ エスケープされた `|`）
+    expect(md).toContain('a\\\\\\|b')
+    // 定義部分を含む行を抽出
+    const rows = md.split('\n').filter((l) => l.includes('a\\\\\\|b'))
+    expect(rows.length).toBe(1)
+    // 行が5つのセルを持つことを確認（`\|` はセル内容なので、列区切りは非エスケープ `|` のみ）
+    const row = rows[0]
+    expect(row).toMatch(/^\| 用語 \| アクター \| a\\\\\\\|b \| {1,2}\| {1,2}\|$/)
+  })
 })

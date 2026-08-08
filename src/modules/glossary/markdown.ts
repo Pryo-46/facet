@@ -24,10 +24,14 @@ const UNDEFINED_DEFINITION = '（未定義）'
 /**
  * 表のセルに収める。`|` は列区切りと衝突するのでエスケープし、改行は `<br>` にする。
  * UI の入力欄は1行だが、外部（Skill・エディタ）が複数行の定義を書きうる——
- * そのまま出すと表が途中で割れて、貼った先で1件まるごと読めなくなる
+ * そのまま出すと表が途中で割れて、貼った先で1件まるごと読めなくなる。
+ * バックスラッシュを先に処理する理由：順序を逆にすると、`|` エスケープで入れた `\` まで二重エスケープされる
  */
 function cell(text: string): string {
-  return text.replace(/\|/g, '\\|').replace(/\r\n|\r|\n/g, '<br>')
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\r\n|\r|\n/g, '<br>')
 }
 
 function row(cells: readonly string[]): string {
