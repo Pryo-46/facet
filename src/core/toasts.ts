@@ -27,7 +27,14 @@ export const MAX_TOASTS = 3
 export function pushToast(list: readonly ToastItem[], toast: ToastItem): ToastItem[] {
   const at = toast.key === undefined ? -1 : list.findIndex((t) => t.key === toast.key)
   const next = at >= 0 ? list.map((t, i) => (i === at ? toast : t)) : [...list, toast]
-  return next.length <= MAX_TOASTS ? next : next.slice(next.length - MAX_TOASTS)
+  if (next.length <= MAX_TOASTS) return next
+  // 上限を超えたら古い方から落とすが、操作付きは残す——操作付きトーストは
+  // Undo 履歴を破棄した後の唯一の復元手段で、自動消去からも除外している。
+  // 追い出しで消えると同じ手段が失われる（操作付きばかりなら仕方なく古い方を落とす）
+  const victim = next.findIndex((t) => t.action === undefined)
+  return victim === -1
+    ? next.slice(next.length - MAX_TOASTS)
+    : [...next.slice(0, victim), ...next.slice(victim + 1)]
 }
 
 export function dismissToast(list: readonly ToastItem[], id: number): ToastItem[] {

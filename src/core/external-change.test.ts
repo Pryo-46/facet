@@ -98,7 +98,9 @@ describe('planExternalChange', () => {
       hasUnsavedEdits: false,
     })
     expect(plan.selected).toEqual({ kind: 'none' })
-    expect(plan.notices).toEqual(['外部の変更を読み込みました: メモ.json'])
+    expect(plan.notices).toEqual([
+      { key: `external:${B.path}`, message: '外部の変更を読み込みました: メモ.json' },
+    ])
     expect(plan.next[1].result).toEqual(B2.result)
   })
 
@@ -111,7 +113,9 @@ describe('planExternalChange', () => {
       hasUnsavedEdits: false,
     })
     expect(plan.next.map((f) => f.name)).toEqual(['用語集.json', 'メモ.json'])
-    expect(plan.notices).toEqual(['ファイルが増えました: メモ.json'])
+    expect(plan.notices).toEqual([
+      { key: `external:${B.path}`, message: 'ファイルが増えました: メモ.json' },
+    ])
   })
 
   it('選択中ファイルが消えたら gone', () => {
@@ -122,6 +126,9 @@ describe('planExternalChange', () => {
       selectedPath: A.path,
       hasUnsavedEdits: false,
     })
+    // 削除のみのケースでも hasChanges は true——false だと App が早期 return して
+    // 削除が一覧に反映されない（gone の後始末も走らない）
+    expect(plan.hasChanges).toBe(true)
     expect(plan.selected).toEqual({ kind: 'gone', path: A.path, name: '用語集.json' })
     expect(plan.next.map((f) => f.name)).toEqual(['メモ.json'])
     expect(plan.notices).toEqual([])
@@ -135,9 +142,14 @@ describe('planExternalChange', () => {
       selectedPath: A.path,
       hasUnsavedEdits: false,
     })
+    // 削除のみのケースでも hasChanges は true——false だと App が早期 return して
+    // 削除が一覧に反映されない
+    expect(plan.hasChanges).toBe(true)
     expect(plan.selected).toEqual({ kind: 'none' })
     expect(plan.next.map((f) => f.name)).toEqual(['用語集.json'])
-    expect(plan.notices).toEqual(['ファイルが外部で削除されました: メモ.json'])
+    expect(plan.notices).toEqual([
+      { key: `external:${B.path}`, message: 'ファイルが外部で削除されました: メモ.json' },
+    ])
   })
 
   it('読めなかったファイルは消えた扱いにしない（一時的なロックで閉じない）', () => {
@@ -163,6 +175,8 @@ describe('planExternalChange', () => {
       hasUnsavedEdits: false,
     })
     expect(plan.hasChanges).toBe(true)
-    expect(plan.notices).toEqual(['外部の変更を読み込みました: 用語集.json'])
+    expect(plan.notices).toEqual([
+      { key: `external:${A.path}`, message: '外部の変更を読み込みました: 用語集.json' },
+    ])
   })
 })

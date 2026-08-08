@@ -20,8 +20,11 @@ export interface ExternalChangePlan {
   /** 適用後の一覧。既存の並びを保ち、増えた分を末尾に足す */
   next: ProjectFile[]
   selected: SelectedAction
-  /** 非モーダル通知に流す文（選択中ファイル以外の増減・変更） */
-  notices: string[]
+  /** 非モーダル通知に流す内容（選択中ファイル以外の増減・変更）。
+   *  key を持つのは、同じファイルの古い通知——特に「取り込み前に戻す」を
+   *  載せた操作付きトースト——を新しい検知で必ず置き換えるため。
+   *  残っていると、古い退避テキストで新しい外部変更を無言で潰せてしまう */
+  notices: { key: string; message: string }[]
 }
 
 /**
@@ -86,11 +89,14 @@ export function planExternalChange(args: {
   const notices = [
     ...changed
       .filter((e) => e.path !== args.selectedPath)
-      .map((e) => `外部の変更を読み込みました: ${e.name}`),
-    ...added.map((e) => `ファイルが増えました: ${e.name}`),
+      .map((e) => ({ key: `external:${e.path}`, message: `外部の変更を読み込みました: ${e.name}` })),
+    ...added.map((e) => ({ key: `external:${e.path}`, message: `ファイルが増えました: ${e.name}` })),
     ...removed
       .filter((f) => f.path !== args.selectedPath)
-      .map((f) => `ファイルが外部で削除されました: ${f.name}`),
+      .map((f) => ({
+        key: `external:${f.path}`,
+        message: `ファイルが外部で削除されました: ${f.name}`,
+      })),
   ]
 
   return {

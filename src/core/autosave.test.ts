@@ -329,6 +329,18 @@ describe('createAutoSaver', () => {
     expect(saver.hasUnsaved()).toBe(false) // 書けたら false
   })
 
+  it('in-flight の write 中も hasUnsaved は true（外部変更の reload/ask 分岐の載荷点）', async () => {
+    const io = deferredWrites()
+    const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write: io.write })
+    saver.update('B')
+    await vi.advanceTimersByTimeAsync(500)
+    expect(io.calls).toEqual(['B']) // write は飛んだが着地していない
+    expect(saver.hasUnsaved()).toBe(true)
+    io.settlers[0].resolve()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(saver.hasUnsaved()).toBe(false)
+  })
+
   it('write が失敗している間は hasUnsaved が true のまま', async () => {
     const write = vi.fn(() => Promise.reject(new Error('disk full')))
     const saver = createAutoSaver({ delayMs: 500, baseline: 'A', write })

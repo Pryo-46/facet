@@ -29,6 +29,13 @@ describe('pushToast', () => {
     expect(list).toHaveLength(MAX_TOASTS)
     expect(list[0].id).toBe(3)
   })
+
+  it('上限を超えても操作付きの通知は残る（退避の復元手段を追い出しで失わない）', () => {
+    let list: ToastItem[] = [toast(1, { action: { label: '取り込み前に戻す', run: () => {} } })]
+    for (let id = 2; id <= MAX_TOASTS + 2; id++) list = pushToast(list, toast(id))
+    expect(list).toHaveLength(MAX_TOASTS)
+    expect(list.some((t) => t.id === 1)).toBe(true)
+  })
 })
 
 describe('dismissToast', () => {
