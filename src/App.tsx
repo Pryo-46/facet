@@ -141,11 +141,11 @@ function App() {
   // 一覧を古いフォルダの内容で上書きしうる）。scanSeq は「その瞬間に進行中の
   // 再走査」しか無効化できないので、切替中に始まる再走査はこちらで止める
   const switchingFolderRef = useRef(false)
-  // 二択ダイアログの回答待ちのパス。ask の分岐で saver を dispose して null に
-  // するので、hasUnsaved() だけでは「未保存編集あり」の信号が消える——
-  // 回答前に2度目の外部変更が来ると reload に落ちて、ユーザーの編集を持つ
-  // 履歴が黙って置き換わる
-  const pendingAskRef = useRef<string | null>(null)
+  // 二択ダイアログの回答待ち。ask の分岐で saver を dispose して null にするので、
+  // hasUnsaved() だけでは「未保存編集あり」の信号が消える。モジュールも一緒に
+  // 持つ——2度目の検知では filesRef が既に1度目の適用後（rejected になって
+  // いるかもしれない）を指すので、再導出すると undefined になる
+  const pendingAskRef = useRef<{ path: string; module: AnyToolModule | undefined } | null>(null)
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const toastSeq = useRef(0)
 
@@ -198,6 +198,16 @@ function App() {
   // 黙って捨てないが、閉じられなくなる状態も作らない
   useEffect(() => {
     const unlisten = interceptClose(async () => {
+      // 外部変更の二択に回答待ちの間は、未保存編集が history にしか無い
+      //（検知時点で saver を dispose している）。saver が null なので
+      // そのまま通すと、二択で守るはずの編集を黙って捨てて閉じることになる
+      if (pendingAskRef.current !== null) {
+        showToast({
+          key: 'close-blocked',
+          message: '外部変更の扱いを選ぶまで閉じられません（ダイアログで選んでください）',
+        })
+        return false
+      }
       const saver = saverRef.current
       if (saver === null) return true
       if (await saver.flush()) return true
@@ -498,10 +508,27 @@ function App() {
    * 取り込みでファイルが開けなくなった（rejected）場合もこの経路で戻せる
    */
   const revertImport = async (path: string, stashText: string) => {
-    try {
-      // 書き戻す前に自動保存を止める（取り込み後の内容を書きに行かせない）
+    // このトーストは action 付きなので自動では消えない（rev 3章。退避の復元手段を
+    // 時間切れで失わないため）。つまり別のファイルを開いて編集した後や、
+    // フォルダを切り替えた後に押されうる
+    if (!filesRef.current.some((f) => f.path === path)) {
+      // 別フォルダのファイルへ書き戻して選択を移すと、一覧に無いファイルを
+      // 選択した行き止まり（エディタが描画されないまま saver が張られる）になる
+      showToast({
+        message: '取り込み前の内容に戻せませんでした（このファイルは今のプロジェクトにありません）',
+      })
+      return
+    }
+    if (selectedPathRef.current === path) {
+      // 取り込み後の内容を書きに行かせない（この経路の本来の意図）
       saverRef.current?.dispose()
       saverRef.current = null
+    } else if (!(await closeCurrentFile())) {
+      // 別のファイルを開いていて、その編集を書き切れないなら中断する——
+      // 無条件に dispose すると、そのファイルの未保存編集を黙って捨てる
+      return
+    }
+    try {
       await writeAndRecord(path, stashText)
       await selectFile(path)
       showToast({ key: `external:${path}`, message: '取り込み前の内容に戻しました' })
@@ -656,19 +683,26 @@ function App() {
       selectedPath: selectedPathRef.current,
       hasUnsavedEdits:
         (saverRef.current?.hasUnsaved() ?? false) ||
-        (pendingAskRef.current !== null && pendingAskRef.current === selectedPathRef.current),
+        (pendingAskRef.current !== null &&
+          pendingAskRef.current.path === selectedPathRef.current),
     })
     // 上書きに使うモジュールは「変更前の」一覧から引く——外部変更でスキーマ違反に
     // なったファイルは result が rejected になって type からモジュールを引けず、
     // type が別のツールに書き換えられた場合は別のモジュールを引いてしまう
     //（古いデータを新しいスキーマでシリアライズすると壊れたファイルを書く）。
     // レンダごとに代入される ref では「変更前」を保持できない——setFiles は
-    // ダイアログの回答を待たずに反映されるため
+    // ダイアログの回答を待たずに反映されるため。
+    // 回答待ちの二択があるなら、そのとき捕まえたモジュールを使い続ける——
+    // 2度目の検知では filesRef が既に1度目の適用後（rejected になっているかも
+    // しれない）を指すので、ここで再導出すると undefined になってしまう
+    const pendingAsk = pendingAskRef.current
     const before = filesRef.current.find((f) => f.path === selectedPathRef.current)
     const moduleBeforeChange =
-      before !== undefined && before.result.status === 'editable'
-        ? appRegistry.get(before.result.type)
-        : undefined
+      pendingAsk !== null && pendingAsk.path === selectedPathRef.current
+        ? pendingAsk.module
+        : before !== undefined && before.result.status === 'editable'
+          ? appRegistry.get(before.result.type)
+          : undefined
     // 台帳をディスクの現状へ合わせる。**plan を作った後**でなければ差分が消える。
     // 読めなかったパスは台帳に残す（消えた扱いにしないため）
     for (const entry of scan.entries) knownDisk.current.set(entry.path, entry.text)
@@ -677,7 +711,7 @@ function App() {
 
     // 検証は「フォルダ走査時」「ファイル選択時」「編集時」「作成時」「削除時」に続く6本目の経路
     setFiles(computeIssues(plan.next, appRegistry))
-    for (const message of plan.notices) showToast({ message })
+    for (const notice of plan.notices) showToast(notice)
 
     const selected = plan.selected
     if (selected.kind === 'reload' || selected.kind === 'ask') {
@@ -694,7 +728,7 @@ function App() {
         await importExternalChange(selected.path, selected.stashText)
         break
       case 'ask':
-        pendingAskRef.current = selected.path
+        pendingAskRef.current = { path: selected.path, module: moduleBeforeChange }
         askExternalChange(selected, moduleBeforeChange)
         break
       case 'gone':
