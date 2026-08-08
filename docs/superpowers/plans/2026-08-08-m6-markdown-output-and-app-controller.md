@@ -826,8 +826,7 @@ Expected: FAIL（`dismissToastByKey is not a function` など）
  * 二択の前提（ディスクは検知した内容のまま）が崩れる
  */
 export function dismissToastByKey(list: readonly ToastItem[], key: string): ToastItem[] {
-  const next = list.filter((t) => t.key !== key)
-  return next.length === list.length ? [...list] : next
+  return list.filter((t) => t.key !== key)
 }
 ```
 
@@ -1098,14 +1097,6 @@ describe('openFolder', () => {
     await h.controller.openFolder(DIR)
     expect(h.log).toContain('clearModals')
   })
-
-  it('監視のバナー（継続する状態）は消さない', async () => {
-    const h = createHarness({ [p('a.json')]: note('A') })
-    // App の監視 effect が立てるバナーを模す
-    h.controller.applyEdit // （参照するだけ。型のため）
-    await h.controller.openFolder(DIR)
-    expect(h.banners().watch).toBeNull()
-  })
 })
 
 describe('selectFile', () => {
@@ -1169,8 +1160,6 @@ describe('dispose', () => {
   })
 })
 ```
-
-> `openFolder` の「監視のバナーは消さない」テストにある `h.controller.applyEdit`（参照するだけ）の行は不要なら削ってよい——`banners().watch` を controller の外（App）が立てる以上、このテストが確かめられるのは「`openFolder` が `watch` を触らない」ことだけである。**テストとして意味が薄いと判断したら削り、その判断を報告すること**（同義のテストを残さないのは M4 レビューで確立した方針）。
 
 - [ ] **Step 6: 落ちることを確認する**
 
@@ -1462,20 +1451,22 @@ git commit -m "M6: 額縁の副作用をコントローラへ切り出す（骨�
 
 ---
 
-## Task 5: ファイルの作成・確保・削除
+## Task 5: ファイルの作成と削除
+
+> **`ensureFileOfType`（用語集0個からの自動生成）はこのタスクに含めない。** あれは押下時の再走査（`rescan`）を前提とする機能で、`rescan` は外部変更の判断（`planExternalChange`）と一体である。ここに入れると Task 6 が即座に置き換えるスタブを置くことになり、**分割線そのものが間違っている**（M4 の教訓2）。Task 6 で `rescan` と同時に実装する。
 
 **Files:**
 - Modify: `src/core/app-controller.ts`
 - Modify: `src/core/app-controller.test.ts`
 
 **Interfaces:**
-- Consumes: `createFile` / `ensureFileOfType` / `trashFile` / `CreatedFile`（`src/core/file-ops.ts`）
-- Produces: `AppController.createNewFile(module)` / `.ensureFileOfType(module)` / `.requestDelete(file)`
+- Consumes: `createFile` / `trashFile` / `CreatedFile`（`src/core/file-ops.ts`）
+- Produces: `AppController.createNewFile(module)` / `.requestDelete(file)`、内部関数 `addCreatedFile(created)`（Task 6 の `ensureFileOfType` が再利用する）
 
 **振る舞いの変更（意図的なもの）:**
 
 1. **削除は「入力を切る」を `trash` の前に置く**（M4 の申し送り10節が挙げた2つの直し方のうち①）。`selectedPath` と saver の切り離しを `trashFile` の**前**に済ませれば、write の着地を待つ間にユーザーが打ち続けても生きた write を残せない。App も既にこの順序になっているので**移動のみ**だが、**この順序をテストが固定するのは今回が初めて**である。
-2. **`ensureFileOfType` の早期 return を無音にしない**（申し送り11節）。フォルダ未選択・再走査の空振りで何も起きないのを塞ぐ。
+2. **`createNewFile` の早期 return を無音にしない**（申し送り11節の `ensureGlossary` と同根）。フォルダ未選択で何も起きないのを塞ぐ。
 3. **削除したファイル宛ての二択要求を取り下げる**（`host.dropModal('external:<path>')`）。
 
 - [ ] **Step 1: 失敗するテストを書く**
@@ -1518,40 +1509,11 @@ describe('createNewFile', () => {
     const paths = h.files().map((f) => f.path)
     expect(new Set(paths).size).toBe(paths.length)
   })
-})
-
-describe('ensureFileOfType', () => {
-  it('既にあるなら作らずに開く（再走査してから判断する）', async () => {
-    const h = createHarness()
-    await h.controller.openFolder(DIR)
-    // 走査後に外部（Skill 等）が書いた用語集を見落とさないこと
-    h.disk.files.set(p('外部が書いた.json'), note('外部'))
-    await h.controller.ensureFileOfType(h.registry.get('note')!)
-    expect(h.disk.files.size).toBe(1)
-    expect(h.selectedPath()).toBe(p('外部が書いた.json'))
-  })
-
-  it('無ければ作って開く', async () => {
-    const h = createHarness()
-    await h.controller.openFolder(DIR)
-    await h.controller.ensureFileOfType(h.registry.get('note')!)
-    expect(h.disk.files.has(p('ノート.json'))).toBe(true)
-    expect(h.selectedPath()).toBe(p('ノート.json'))
-  })
 
   it('フォルダを開いていないときは無音で終わらない', async () => {
     const h = createHarness()
-    await h.controller.ensureFileOfType(h.registry.get('note')!)
+    await h.controller.createNewFile(h.registry.get('note')!)
     expect(h.banners().io).not.toBeNull()
-  })
-
-  it('再走査に失敗したら作らない（古いスナップショットで2つ目を作らない）', async () => {
-    const h = createHarness({ [p('a.json')]: note('A') })
-    await h.controller.openFolder(DIR)
-    h.disk.list = async () => { throw new Error('gone') }
-    await h.controller.ensureFileOfType(h.registry.get('note')!)
-    expect(h.disk.files.size).toBe(1)
-    expect(h.banners().scan).toContain('フォルダの再走査に失敗しました')
   })
 })
 
@@ -1656,8 +1618,6 @@ import { createFile, ensureFileOfType as ensureFileOnDisk, trashFile, type Creat
 ```ts
   /** 新規作成（額縁のファイル操作。rev 6章）。作ったファイルはそのまま開く */
   createNewFile(module: AnyToolModule): Promise<void>
-  /** singleton モジュールのファイルを1つ確保して開く（用語集0個からの自動生成） */
-  ensureFileOfType(module: AnyToolModule): Promise<void>
   /** 削除の確認ダイアログを出す（確定時の処理はコントローラが持つ） */
   requestDelete(file: ProjectFile): void
 ```
@@ -1701,51 +1661,6 @@ import { createFile, ensureFileOfType as ensureFileOnDisk, trashFile, type Creat
       await addCreatedFile(created)
     } catch (err) {
       host.setBanner('io', `ファイルを作成できませんでした: ${describeError(err)}`)
-    }
-  }
-
-  /**
-   * singleton モジュールのファイルを1つ確保して開く（rev 5章。用語集0個は
-   * 新規プロジェクトの正常な状態で、初めて用語登録が発生した時点で自動生成する）。
-   * **押下時に再走査する**——空フォルダを開いた後に外部（Skill 等）が用語集を
-   * 書いた状態で押されうるボタンなので、走査時のスナップショットで判断すると
-   * 見落として2つ目を作る
-   */
-  const ensureFileOfType = async (module: AnyToolModule): Promise<void> => {
-    if (projectDir === null) {
-      host.setBanner('io', `プロジェクトフォルダを開いてから${module.displayName}を作成してください。`)
-      return
-    }
-    const outcome = await rescan()
-    // 再走査できなかったときは作らない——古いスナップショットで判断すると、
-    // 外部で増えたファイルを見落として単一性違反を自分で作る
-    if (outcome.kind === 'failed') return // バナーは rescan が出している
-    if (outcome.kind === 'skipped') {
-      host.setBanner(
-        'io',
-        `フォルダの状態を確認できなかったため、${module.displayName}を作成しませんでした（フォルダの切り替え中です。もう一度お試しください）。`,
-      )
-      return
-    }
-    const dir = projectDir
-    if (dir === null) return
-    try {
-      const { path, created } = await ensureFileOnDisk({
-        dir,
-        module,
-        files: outcome.files.map((f) => ({ path: f.path, name: f.name, type: f.result.type })),
-        join: io.join,
-        write: writeAndRecord,
-        exists: io.exists,
-      })
-      if (created === null) {
-        // 既にあった。開くだけ（ディスクから読み直す）
-        await selectFile(path)
-        return
-      }
-      await addCreatedFile(created)
-    } catch (err) {
-      host.setBanner('io', `${module.displayName}を作成できませんでした: ${describeError(err)}`)
     }
   }
 
@@ -1800,40 +1715,13 @@ import { createFile, ensureFileOfType as ensureFileOnDisk, trashFile, type Creat
   }
 ```
 
-戻り値のオブジェクトに `createNewFile, ensureFileOfType, requestDelete,` を足す。
+戻り値のオブジェクトに `createNewFile, requestDelete,` を足す。
 
-> **`rescan()` はまだ存在しない。** Task 6 で実装するが、`ensureFileOfType` がそれに依存するため、このタスクでは**先に `rescan` の外殻だけ**を置く（Task 6 で中身を差し替える）。次を `addCreatedFile` の前に置くこと:
+import 行の `ensureFileOfType as ensureFileOnDisk` は Task 6 まで使わないので、このタスクでは**まだ import しない**（`noUnusedLocals` でビルドエラーになる）。このタスクの import 追加は次の1行だけ:
 
 ```ts
-  /** 再走査の結果。呼び出し側が「作ってよいか」を判断するために3値を返す */
-  type RescanOutcome =
-    | { kind: 'applied'; files: ProjectFile[] }
-    /** フォルダ切替中・フォルダ未選択・後続の走査が始まった（バナーは出さない） */
-    | { kind: 'skipped' }
-    /** 走査に失敗（バナーは出済み） */
-    | { kind: 'failed' }
-
-  const rescan = async (): Promise<RescanOutcome> => {
-    if (switchingFolder > 0) return { kind: 'skipped' }
-    const dir = projectDir
-    if (dir === null) return { kind: 'skipped' }
-    let scan: ScanResult
-    try {
-      scan = await io.scan(dir)
-    } catch (err) {
-      host.setBanner('scan', `フォルダの再走査に失敗しました: ${describeError(err)}`)
-      return { kind: 'failed' }
-    }
-    host.setBanner('scan', null)
-    for (const entry of scan.entries) knownDisk.set(entry.path, entry.text)
-    knownDisk.retain([...scan.entries.map((e) => e.path), ...scan.unreadable])
-    const next = scan.entries.map(toProjectFile)
-    applyFiles(next)
-    return { kind: 'applied', files: files }
-  }
+import { createFile, trashFile, type CreatedFile } from './file-ops'
 ```
-
-> **この暫定 `rescan` は外部変更の判断（`planExternalChange`）を持たないので、この段階では「一覧を走査結果で置き換えるだけ」である。Task 6 で丸ごと差し替える。** `type RescanOutcome` を関数内に置くと `erasableSyntaxOnly` に触れないか確認し、触れるならファイルトップレベルへ出すこと（触れないはず——type エイリアスは消去可能）。
 
 - [ ] **Step 4: テストが通ることを確認する**
 
@@ -1854,18 +1742,21 @@ git commit -m "M6: コントローラにファイルの作成・確保・削除�
 
 ---
 
-## Task 6: 外部変更の検知・取り込み・二択・消滅
+## Task 6: 外部変更の検知・取り込み・二択・消滅 ＋ 用語集の自動生成
+
+`ensureFileOfType`（用語集0個からの自動生成）をここに含めるのは、押下時の再走査が**外部変更の判断と同じ `rescan` を通る**ため——空フォルダを開いた後に外部（Skill 等）が用語集を書いた状態で押されうるボタンなので、走査時のスナップショットで判断すると見落として2つ目を作る（申し送り10節が「データ喪失」として指定した経路の残り半分）。
 
 **Files:**
 - Modify: `src/core/app-controller.ts`
 - Modify: `src/core/app-controller.test.ts`
 
 **Interfaces:**
-- Consumes: `planExternalChange`（`src/core/external-change.ts`）
-- Produces: `AppController.externalChange(): Promise<void>`
+- Consumes: `planExternalChange`（`src/core/external-change.ts`）、`ensureFileOfType`（`src/core/file-ops.ts`。名前が衝突するので `ensureFileOnDisk` として import する）
+- Produces: `AppController.externalChange(): Promise<void>` / `.ensureFileOfType(module): Promise<void>`
 
 **振る舞いの変更（意図的なもの）:**
 
+0. **`ensureFileOfType` の早期 return を無音にしない**（申し送り11節）。`handleExternalChange()` が `null` を返す4つの原因のうち、従来バナーが出るのは走査の失敗だけだった。
 1. **一覧を差し替える前に saver を dispose する。** App は `setFiles` → `dispose` の順だったが、React では `setFiles` が再レンダリングを待つため実質「dispose が先」だった。同期のコントローラでは順序が可視になるので、**意図（取り込むか上書きするかを決める前にディスクを動かさない）どおり dispose を先に置く**。申し送り11節が「テストで固定すべき順序」として最初に挙げた項目。
 2. **二択を出す前に、同じファイルの古いトーストを消す**（申し送り11節）。前回の取り込みで出した「取り込み前に戻す」が残っていると、二択に答えた後にそれを押せてしまう。
 3. **`overwriteWithMine` の無音 return を塞ぐ**（申し送り11節）。選択が変わっていた場合にバナーを出す。
@@ -2045,6 +1936,41 @@ describe('externalChange（外部変更の検知）', () => {
     expect(h.banners().scan).toBeNull()
   })
 })
+
+describe('ensureFileOfType', () => {
+  it('走査後に外部が書いたファイルを再走査で拾い、2つ目を作らない', async () => {
+    const h = createHarness()
+    await h.controller.openFolder(DIR)
+    // 空フォルダを開いた後に Skill が用語集を書いた状況（申し送り10節のデータ喪失経路）
+    h.disk.files.set(p('外部が書いた.json'), note('外部'))
+    await h.controller.ensureFileOfType(h.registry.get('note')!)
+    expect(h.disk.files.size).toBe(1)
+    expect(h.selectedPath()).toBe(p('外部が書いた.json'))
+  })
+
+  it('無ければ作って開く', async () => {
+    const h = createHarness()
+    await h.controller.openFolder(DIR)
+    await h.controller.ensureFileOfType(h.registry.get('note')!)
+    expect(h.disk.files.has(p('ノート.json'))).toBe(true)
+    expect(h.selectedPath()).toBe(p('ノート.json'))
+  })
+
+  it('フォルダを開いていないときは無音で終わらない', async () => {
+    const h = createHarness()
+    await h.controller.ensureFileOfType(h.registry.get('note')!)
+    expect(h.banners().io).not.toBeNull()
+  })
+
+  it('再走査に失敗したら作らない（古いスナップショットで判断しない）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    h.disk.list = async () => { throw new Error('gone') }
+    await h.controller.ensureFileOfType(h.registry.get('note')!)
+    expect(h.disk.files.size).toBe(1)
+    expect(h.banners().scan).toContain('フォルダの再走査に失敗しました')
+  })
+})
 ```
 
 - [ ] **Step 2: 落ちることを確認する**
@@ -2057,10 +1983,11 @@ Expected: FAIL（`controller.externalChange is not a function` など）
 
 - [ ] **Step 3: 実装する**
 
-import に追加:
+import に追加（`ensureFileOfType` はコントローラのメソッド名と衝突するので別名にする）:
 
 ```ts
 import { planExternalChange } from './external-change'
+import { createFile, ensureFileOfType as ensureFileOnDisk, trashFile, type CreatedFile } from './file-ops'
 ```
 
 `AppController` インターフェースに追加:
@@ -2068,9 +1995,23 @@ import { planExternalChange } from './external-change'
 ```ts
   /** 監視イベントを契機に再走査し、外部変更を取り込む（rev 3章） */
   externalChange(): Promise<void>
+  /** singleton モジュールのファイルを1つ確保して開く（用語集0個からの自動生成） */
+  ensureFileOfType(module: AnyToolModule): Promise<void>
 ```
 
-Task 5 で置いた暫定 `rescan` を**丸ごと**次に差し替え、`pendingAsk` の宣言を状態の並びに足す:
+`RescanOutcome` 型をファイルのトップレベル（`createAppController` の外）に置く:
+
+```ts
+/** 再走査の結果。呼び出し側が「作ってよいか」を判断するために3値を返す */
+type RescanOutcome =
+  | { kind: 'applied'; files: ProjectFile[] }
+  /** フォルダ切替中・フォルダ未選択・後続の走査が始まった（バナーは出さない） */
+  | { kind: 'skipped' }
+  /** 走査に失敗（バナーは出済み） */
+  | { kind: 'failed' }
+```
+
+`pendingAsk` の宣言を状態の並びに足す:
 
 ```ts
   /**
@@ -2315,12 +2256,62 @@ Task 5 で置いた暫定 `rescan` を**丸ごと**次に差し替え、`pending
 
 `openFolder` の成功パス（`host.clearModals()` の隣）に `pendingAsk = null` を足す。
 
+`rescan` の下に `ensureFileOfType` を実装する:
+
+```ts
+  /**
+   * singleton モジュールのファイルを1つ確保して開く（rev 5章。用語集0個は
+   * 新規プロジェクトの正常な状態で、初めて用語登録が発生した時点で自動生成する）。
+   * **押下時に再走査する**——空フォルダを開いた後に外部（Skill 等）が用語集を
+   * 書いた状態で押されうるボタンなので、走査時のスナップショットで判断すると
+   * 見落として2つ目を作る（申し送り10節）
+   */
+  const ensureFileOfType = async (module: AnyToolModule): Promise<void> => {
+    if (projectDir === null) {
+      host.setBanner('io', `プロジェクトフォルダを開いてから${module.displayName}を作成してください。`)
+      return
+    }
+    const outcome = await rescan()
+    // 再走査できなかったときは作らない——古いスナップショットで判断すると、
+    // 外部で増えたファイルを見落として単一性違反を自分で作る
+    if (outcome.kind === 'failed') return // バナーは rescan が出している
+    if (outcome.kind === 'skipped') {
+      host.setBanner(
+        'io',
+        `フォルダの状態を確認できなかったため、${module.displayName}を作成しませんでした（フォルダの切り替え中です。もう一度お試しください）。`,
+      )
+      return
+    }
+    const dir = projectDir
+    if (dir === null) return
+    try {
+      const { path, created } = await ensureFileOnDisk({
+        dir,
+        module,
+        files: outcome.files.map((f) => ({ path: f.path, name: f.name, type: f.result.type })),
+        join: io.join,
+        write: writeAndRecord,
+        exists: io.exists,
+      })
+      if (created === null) {
+        // 既にあった。開くだけ（ディスクから読み直す）
+        await selectFile(path)
+        return
+      }
+      await addCreatedFile(created)
+    } catch (err) {
+      host.setBanner('io', `${module.displayName}を作成できませんでした: ${describeError(err)}`)
+    }
+  }
+```
+
 戻り値のオブジェクトに追加:
 
 ```ts
     async externalChange() {
       await rescan()
     },
+    ensureFileOfType,
 ```
 
 - [ ] **Step 4: テストが通ることを確認する**
@@ -3284,7 +3275,7 @@ npm run tauri dev
 | 9節「種別の日本語ラベルは `kind-labels.ts` を使い回す」 | Task 2 Step 3（`kindLabel`） |
 | 11節「モーダルキューに `dropModal` / `clearModals` を足す」 | Task 4 Step 3、Task 5・6 で使用 |
 | 11節「`ioError` の単一スロットの意味論」 | Task 4「振る舞いの変更1」（`BannerKind` 4種） |
-| 11節「`ensureGlossary` の早期 return が無言」 | Task 5「振る舞いの変更2」 |
+| 11節「`ensureGlossary` の早期 return が無言」 | Task 6「振る舞いの変更0」 |
 | 11節「`overwriteWithMine` の不一致時が無音 return」 | Task 6「振る舞いの変更3」 |
 | 11節「`askExternalChange` が古い `external:<path>` トーストを消さない」 | Task 6「振る舞いの変更2」 |
 | 11節「`overwriteWithMine` が `saveError` をクリアしない」 | Task 6「振る舞いの変更4」 |
