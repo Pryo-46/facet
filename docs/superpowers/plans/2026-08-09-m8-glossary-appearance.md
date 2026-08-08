@@ -243,9 +243,20 @@ const OVERLAY_MIN = 4.5 * 1.03
 さらにファイル末尾へ、実装との紐づき検査を足す。
 
 ```ts
-const glossaryEditorSource = readFileSync(
-  new URL('../modules/glossary/GlossaryEditor.tsx', import.meta.url),
-  'utf8',
+/**
+ * TSX のコメントを落とす。**行番号を保つ必要は無いので単純に消す。**
+ *
+ * 既存の `stripComments`（このファイルの先頭）は CSS 用で `/* *​/` しか
+ * 落とさない。TSX には `//` があるうえ、下の検査が読む GlossaryEditor.tsx は
+ * コメントの中で `/25`（不採用にした濃さ）に言及している。コメントを
+ * 落とさずに走査すると、説明文が違反として検出される——M7 の Task 5 が
+ * 踏んだ「計画自身が機械検査と衝突する」形そのものである
+ */
+const stripTsComments = (source: string): string =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+
+const glossaryEditorSource = stripTsComments(
+  readFileSync(new URL('../modules/glossary/GlossaryEditor.tsx', import.meta.url), 'utf8'),
 )
 
 describe('重ね合わせの値が実装と一致している', () => {
