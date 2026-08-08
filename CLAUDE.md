@@ -20,11 +20,52 @@
 
 主チェックアウトに計画の未追跡コピーが残ってしまったら、`git show origin/main:<path>` と突き合わせて古い方を消すこと。中身が違うなら、消すべきは未追跡のコピーの方である。
 
-## worktree の後片付け
+## マージ後の後片付け（この順で行う）
 
-マージ後に worktree を消すとき、`ExitWorktree` が「N コミットを失う」と警告することがある。**主チェックアウトの `main` が古いだけ**のことが多いので、消す前に `git branch -r --contains <ブランチの先頭コミット>` で `origin/main` に入っていることを確認する。入っていれば失われるものは無い。
+**1. 実機確認の痕跡を捨てる**（worktree の中で）
 
-worktree の実体は `node_modules` と `src-tauri/target` で数 GB になる。削除時に「Device or resource busy」が出たら、`npm run tauri dev` やエクスプローラがまだ掴んでいる。残骸は `.claude/worktrees/` に溜まるので、たまに `rm -rf .claude/worktrees/*` でまとめて消してよい（git の登録は `git worktree list` で確認できる）。
+`sample-project/` は動作確認の遊び場なので、実機確認で編集した用語集や書き出した `.md` が残る。**コミットしない。**
+
+```
+git checkout -- sample-project/ && git clean -fd sample-project/
+git status --short          # 空になること
+```
+
+**2. マージする**（PR 経由でも `git merge` でも）
+
+**3. 主チェックアウトを最新にする**
+
+```
+cd <主チェックアウト>
+git pull
+npm install                 # ← 省略しない
+```
+
+**`npm install` を飛ばさないこと。** マージが依存を増やしていることがあり（M6 では `@tauri-apps/plugin-clipboard-manager`）、古い `node_modules` のままだと `tsc -b` が「モジュールが見つからない」で落ちる。**このエラーは直前に触った変更のせいに見えるので、原因を誤診する。** 実際 M6 の後に一度踏んだ。
+
+```
+npm test && npx tsc -b && npm run lint   # ここで緑を確認してから次へ
+```
+
+**4. worktree を消す**
+
+`ExitWorktree`（`action: "remove"`）が「N コミットを失う」と警告することがあるが、**主チェックアウトの `main` が古いだけ**のことが多い。消す前に確認する:
+
+```
+git branch -r --contains <ブランチの先頭コミット>   # origin/main が出れば失うものは無い
+```
+
+**5. 残骸を掃除する**
+
+worktree の実体は `node_modules` と `src-tauri/target` で数 GB になる。`ExitWorktree` がディレクトリを消しきれないことがあり、`.claude/worktrees/` に空の殻が溜まる。
+
+```
+rm -rf .claude/worktrees/*
+git worktree prune          # 登録だけ残った幽霊を消す
+git worktree list           # 主チェックアウトだけになること
+```
+
+削除時の「Device or resource busy」は、`npm run tauri dev` かエクスプローラがまだ掴んでいる。閉じてから再実行すれば消える。
 
 ## ドキュメント
 
