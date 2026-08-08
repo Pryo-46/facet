@@ -99,6 +99,12 @@ export interface AppController {
   externalChange(): Promise<void>
   /** singleton モジュールのファイルを1つ確保して開く（用語集0個からの自動生成） */
   ensureFileOfType(module: AnyToolModule): Promise<void>
+  /** ウィンドウ close のゲート。true＝閉じてよい */
+  requestClose(): Promise<boolean>
+  /** 選択中ファイルの Markdown をクリップボードへ（rev 8章） */
+  copyMarkdown(): Promise<void>
+  /** 選択中ファイルの Markdown を .md として書き出す（rev 8章） */
+  exportMarkdown(): Promise<void>
   /** アンマウント時。**flush しない**（失敗で復元された pending を捨てないため） */
   dispose(): void
 }
@@ -667,6 +673,90 @@ export function createAppController(
     }
   }
 
+  /**
+   * ウィンドウ close のゲート（App.tsx の `interceptClose` からの移動）。
+   * flush が失敗したら閉じず、代わりに脱出口を出す——書けていない編集を
+   * 黙って捨てないが、閉じられなくなる状態も作らない
+   */
+  const requestClose = async (): Promise<boolean> => {
+    // 回答待ちの間は未保存編集が額縁の履歴にしか無い（検知時点で saver を
+    // dispose している）。saver が null だからと通すと、二択で守るはずの
+    // 編集を黙って捨てて閉じることになる
+    if (pendingAsk !== null) {
+      host.showToast({
+        key: 'close-blocked',
+        message: '外部変更の扱いを選ぶまで閉じられません（ダイアログで選んでください）',
+      })
+      return false
+    }
+    if (saver === null) return true
+    if (await saver.flush()) return true
+    host.showModal({
+      kind: 'confirm',
+      // 閉じる操作を繰り返しても要求が積み上がらないように置き換える
+      key: 'close',
+      title: '保存できないため閉じられません',
+      description:
+        '保存していない編集があります。もう一度閉じる操作をすると保存を再試行します。破棄して閉じると、この編集は失われます（ファイルの内容は最後に保存できた状態のままです）。',
+      confirmLabel: '破棄して閉じる',
+      onConfirm: async () => {
+        saver?.dispose()
+        // 破棄済みの saver を掴んだままにしない（forceClose が失敗した場合に
+        // アプリが開き続ける。申し送り11節の残件）
+        saver = null
+        try {
+          await io.forceClose()
+        } catch (err) {
+          // ここが無音だと「押したのに何も起きない（編集は失われている）」に見える
+          host.setBanner('io', `ウィンドウを閉じられませんでした: ${describeError(err)}`)
+        }
+      },
+    })
+    return false
+  }
+
+  /** 出力の対象。editable な選択中ファイルと、額縁が持つ編集中データが揃ったときだけ */
+  const currentDocument = (): { path: string; module: AnyToolModule; data: unknown } | null => {
+    if (selectedPath === null) return null
+    const entry = files.find((f) => f.path === selectedPath)
+    if (entry === undefined || entry.result.status !== 'editable') return null
+    const module = registry.get(entry.result.type)
+    if (module === undefined) return null
+    const data = host.getEditingData()
+    if (data === null) return null
+    return { path: selectedPath, module, data }
+  }
+
+  const copyMarkdown = async (): Promise<void> => {
+    const doc = currentDocument()
+    if (doc === null) return
+    try {
+      await io.copyText(doc.module.toMarkdown(doc.data))
+      host.setBanner('io', null)
+      host.showToast({ key: 'export', message: 'Markdown をクリップボードにコピーしました' })
+    } catch (err) {
+      host.setBanner('io', `クリップボードにコピーできませんでした: ${describeError(err)}`)
+    }
+  }
+
+  const exportMarkdown = async (): Promise<void> => {
+    const doc = currentDocument()
+    if (doc === null) return
+    try {
+      const target = await io.askSavePath(doc.path.replace(/\.json$/i, '.md'))
+      // キャンセルは失敗ではない。バナーを出さず黙って戻る
+      if (target === null) return
+      // **台帳へ記録しない**（writeAndRecord を通さない）——走査対象は .json だけなので、
+      // 記録しても次の再走査の retain で落ちる死に記録になる。同じ理由で、
+      // プロジェクトフォルダ内へ書き出しても監視の再走査は差分ゼロになる
+      await io.write(target, doc.module.toMarkdown(doc.data))
+      host.setBanner('io', null)
+      host.showToast({ key: 'export', message: `Markdown を書き出しました: ${target}` })
+    } catch (err) {
+      host.setBanner('io', `Markdown を書き出せませんでした: ${describeError(err)}`)
+    }
+  }
+
   return {
     openFolder,
     selectFile,
@@ -677,6 +767,9 @@ export function createAppController(
       await rescan()
     },
     ensureFileOfType,
+    requestClose,
+    copyMarkdown,
+    exportMarkdown,
     dispose() {
       // **flush しない**——失敗で復元された pending を捨てる経路になる。
       // 実際のウィンドウ close は requestClose を通る

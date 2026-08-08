@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createAppController, type AppController, type AppHost, type AppIo, type BannerKind, type SaverSpec } from './app-controller'
 import type { AutoSaver } from './autosave'
 import { serialize, type JsonSchema } from './canonical'
@@ -602,6 +602,122 @@ describe('externalChange（外部変更の検知）', () => {
     h.disk.list = list
     await h.controller.externalChange()
     expect(h.banners().scan).toBeNull()
+  })
+})
+
+describe('requestClose（ウィンドウ close のゲート）', () => {
+  it('開いているファイルが無ければ閉じてよい', async () => {
+    const h = createHarness()
+    await expect(h.controller.requestClose()).resolves.toBe(true)
+  })
+
+  it('保留編集を書き切れたら閉じてよい', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    await expect(h.controller.requestClose()).resolves.toBe(true)
+  })
+
+  it('flush に失敗したら閉じず、脱出口を出す', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.savers.current().flushOk = false
+    await expect(h.controller.requestClose()).resolves.toBe(false)
+    const request = h.modals().at(-1)
+    expect(request?.kind).toBe('confirm')
+    expect(request?.key).toBe('close')
+  })
+
+  it('脱出口は destroy を呼び、saver の参照も捨てる', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.savers.current().flushOk = false
+    await h.controller.requestClose()
+    const request = h.modals().at(-1)
+    if (request?.kind !== 'confirm') throw new Error('confirm ではない')
+    await request.onConfirm()
+    expect(h.log).toContain('forceClose')
+    // 参照を捨てているので、次の close は「開いているファイルが無い」で通る
+    await expect(h.controller.requestClose()).resolves.toBe(true)
+  })
+
+  it('脱出口の失敗は無音にしない', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') }, { forceClose: () => Promise.reject(new Error('busy')) })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.savers.current().flushOk = false
+    await h.controller.requestClose()
+    const request = h.modals().at(-1)
+    if (request?.kind !== 'confirm') throw new Error('confirm ではない')
+    await request.onConfirm()
+    expect(h.banners().io).toContain('ウィンドウを閉じられませんでした')
+  })
+
+  it('二択の回答待ちの間は閉じない（守るはずの編集を黙って捨てない）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.savers.current().unsaved = true
+    h.disk.files.set(p('a.json'), note('A', '外部が書いた'))
+    await h.controller.externalChange()
+    await expect(h.controller.requestClose()).resolves.toBe(false)
+    expect(h.toasts().at(-1)?.message).toContain('選ぶまで閉じられません')
+  })
+})
+
+describe('Markdown 出力', () => {
+  it('コピーはモジュールの toMarkdown を編集中データに適用する', async () => {
+    const copyText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+    const h = createHarness({ [p('a.json')]: note('A', '本文') }, { copyText })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.setDocument({ schemaVersion: 1, type: 'note', title: 'A', body: '編集後' })
+    await h.controller.copyMarkdown()
+    expect(copyText).toHaveBeenCalledWith('## A\n\n編集後\n')
+    expect(h.toasts().at(-1)?.message).toContain('クリップボードにコピーしました')
+  })
+
+  it('コピーの失敗はバナーに出す', async () => {
+    const h = createHarness(
+      { [p('a.json')]: note('A') },
+      { copyText: () => Promise.reject(new Error('denied')) },
+    )
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    await h.controller.copyMarkdown()
+    expect(h.banners().io).toContain('クリップボードにコピーできませんでした')
+  })
+
+  it('書き出しは .json を .md に替えた既定パスを提示し、選ばれた先へ書く', async () => {
+    const askSavePath = vi.fn<(defaultPath: string) => Promise<string | null>>()
+      .mockResolvedValue('C:\\out\\a.md')
+    const h = createHarness({ [p('a.json')]: note('A', '本文') }, { askSavePath })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    await h.controller.exportMarkdown()
+    expect(askSavePath).toHaveBeenCalledWith(`${DIR}\\a.md`)
+    expect(h.disk.files.get('C:\\out\\a.md')).toBe('## A\n\n本文\n')
+  })
+
+  it('キャンセルは失敗ではない（何も書かず、バナーも出さない）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') }, { askSavePath: async () => null })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    const from = h.log.length
+    await h.controller.exportMarkdown()
+    expect(h.log.slice(from).some((l) => l.startsWith('write:'))).toBe(false)
+    expect(h.banners().io).toBeNull()
+  })
+
+  it('開けないファイルを選んでいるときは何もしない', async () => {
+    const copyText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+    const h = createHarness({ [p('broken.json')]: '{ not json' }, { copyText })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('broken.json'))
+    await h.controller.copyMarkdown()
+    expect(copyText).not.toHaveBeenCalled()
   })
 })
 
