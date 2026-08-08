@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invoke = vi.fn()
 const watch = vi.fn()
+const save = vi.fn()
 // project-fs が読む @tauri-apps/* は全部モックする。テストは node 環境で走り、
 // 実物は Tauri の webview を前提にしているため
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }))
 vi.mock('@tauri-apps/api/path', () => ({ join: async (...parts: string[]) => parts.join('\\') }))
-vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
+vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn(), save: (...args: unknown[]) => save(...args) }))
 vi.mock('@tauri-apps/plugin-fs', () => ({
   exists: vi.fn(),
   readDir: vi.fn(),
@@ -16,12 +17,13 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 }))
 
 // モックの登録後に読む必要があるので動的 import にする
-const { moveFileToTrash, watchFolder, WATCH_DEBOUNCE_MS } = await import('./project-fs')
+const { askSaveMarkdownPath, moveFileToTrash, watchFolder, WATCH_DEBOUNCE_MS } = await import('./project-fs')
 
 beforeEach(() => {
   invoke.mockReset()
   invoke.mockResolvedValue(undefined)
   watch.mockReset()
+  save.mockReset()
 })
 
 describe('moveFileToTrash', () => {
@@ -56,5 +58,21 @@ describe('watchFolder', () => {
 
     stop()
     expect(unwatch).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('askSaveMarkdownPath', () => {
+  it('Markdown のフィルタと既定パスを渡し、選ばれたパスを返す', async () => {
+    save.mockResolvedValue('C:\\out\\用語集.md')
+    await expect(askSaveMarkdownPath('C:\\proj\\用語集.md')).resolves.toBe('C:\\out\\用語集.md')
+    expect(save).toHaveBeenCalledWith({
+      defaultPath: 'C:\\proj\\用語集.md',
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    })
+  })
+
+  it('キャンセルは null（失敗ではない）', async () => {
+    save.mockResolvedValue(null)
+    await expect(askSaveMarkdownPath('C:\\proj\\用語集.md')).resolves.toBeNull()
   })
 })
