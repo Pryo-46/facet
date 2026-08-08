@@ -149,6 +149,29 @@ describe('GlossaryEditor: 行の操作言語', () => {
     expect(names).toHaveLength(1)
     expect(document.activeElement).toBe(names[0])
   })
+
+  it('定義セルの Enter は行追加として消費される（改行にしない）', () => {
+    renderEditor(twoTerms)
+    const cell = screen.getByLabelText('定義（1行目）')
+    // fireEvent は preventDefault されると false を返す
+    expect(fireEvent.keyDown(cell, { key: 'Enter' })).toBe(false)
+    expect(screen.getAllByLabelText(/^名称/)).toHaveLength(3)
+  })
+
+  it('定義セルの Shift+Enter は既定動作に委ねる（セル内改行。M8 決定6）', () => {
+    renderEditor(twoTerms)
+    const cell = screen.getByLabelText('定義（1行目）')
+    // 止めない＝ブラウザが改行を入れる。行は増えない
+    expect(fireEvent.keyDown(cell, { key: 'Enter', shiftKey: true })).toBe(true)
+    expect(screen.getAllByLabelText(/^名称/)).toHaveLength(2)
+  })
+
+  it('定義セルの Alt+Enter も既定動作に委ねる（Excel のセル内改行の手癖）', () => {
+    renderEditor(twoTerms)
+    const cell = screen.getByLabelText('定義（1行目）')
+    expect(fireEvent.keyDown(cell, { key: 'Enter', altKey: true })).toBe(true)
+    expect(screen.getAllByLabelText(/^名称/)).toHaveLength(2)
+  })
 })
 
 describe('GlossaryEditor: 表示', () => {

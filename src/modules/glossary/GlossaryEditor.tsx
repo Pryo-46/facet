@@ -24,7 +24,7 @@ import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } f
 const KIND_OPTIONS = glossarySchema.$defs.term.properties.kind.enum
 
 const cellInput =
-  'w-full bg-transparent px-2 py-1 text-ink outline-none focus:bg-surface rounded-sm'
+  'w-full resize-none bg-transparent px-2 py-1 text-ink outline-none focus:bg-surface rounded-sm'
 // レベル2エラー（受け入れて赤表示）と warning（undecided / 未定義）は
 // どちらも同系色の面で示し、濃さで強度を区別する。
 // 波線下線は表記ゆれの「指摘（suggestion）」用に予約されているため使わない
@@ -75,7 +75,7 @@ function focusCell(
   const el = container?.querySelector<HTMLElement>(`[data-cell="${cellId(rowKey, field)}"]`)
   if (!el) return false
   el.focus()
-  if (select && el instanceof HTMLInputElement) el.select()
+  if (select && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) el.select()
   return true
 }
 
@@ -401,6 +401,7 @@ export function GlossaryEditor({
                   </td>
                   <td className={`${colBorder} ${cellClass(index, 'definition', term.definition === '')}`}>
                     <CellInput
+                      multiline
                       className={`${cellInput} placeholder:text-ink-muted`}
                       aria-label={`${FIELD_LABELS.definition}（${row}行目）`}
                       data-cell={cellId(rowKey, 'definition')}
@@ -449,6 +450,7 @@ export function GlossaryEditor({
                   </td>
                   <td className={`${colBorder} ${cellClass(index, 'notes')}`}>
                     <CellInput
+                      multiline
                       className={cellInput}
                       aria-label={`${FIELD_LABELS.notes}（${row}行目）`}
                       data-cell={cellId(rowKey, 'notes')}
