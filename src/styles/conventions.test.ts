@@ -86,13 +86,30 @@ describe('色値の直書き禁止（rev 9章）', () => {
       `色値は palette.css だけが持つ。役割名（text-ink / bg-warning …）を使うこと:\n${offenders.join('\n')}`,
     ).toEqual([])
   })
+
+  it('Tailwind 標準パレットのユーティリティを使っていない', () => {
+    // #rrggbb や oklch(...) の直書きより、こちらの方が起きやすい違反。
+    // bg-red-500 のような Tailwind 標準パレットのクラスは色値の直書きと
+    // 検査パターンが違うため上のテストをすり抜ける。役割名（bg-warning …）
+    // を経由しない色は、配色をpalette.cssで差し替えても追従しないので弾く
+    const TAILWIND_PALETTE =
+      /\b(bg|text|border|ring|fill|stroke|decoration|outline|from|via|to)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(50|[1-9]00|950)\b/
+    const offenders = offendingLines(TAILWIND_PALETTE)
+    expect(
+      offenders,
+      `Tailwind 標準パレットは配色差し替えに追従しない。役割名（text-ink / bg-warning …）を使うこと:\n${offenders.join('\n')}`,
+    ).toEqual([])
+  })
 })
 
 describe('フォントサイズの段階（M7 決定6）', () => {
   it('text-xs / text-sm / text-base / text-lg 以外を使っていない', () => {
     // 「許可外」を直接探す。text-ink のような色のユーティリティと区別する
-    // 必要があるので、許可リストとの照合ではなく xl 以上と任意値を弾く
-    const offenders = offendingLines(/\btext-(xl|[2-9]xl|\[[^\]]*\])\b/)
+    // 必要があるので、許可リストとの照合ではなく xl 以上と任意値を弾く。
+    //
+    // 任意値側は末尾に \b を付けない——`]` の直後は語構成文字ではないため
+    // \b が成立せず、`text-[13px]` のような検出が一度も発火しなかった
+    const offenders = offendingLines(/\btext-(xl|[2-9]xl)\b|\btext-\[[^\]]*\]/)
     expect(
       offenders,
       `使ってよいのは text-xs / text-sm / text-base / text-lg の4段:\n${offenders.join('\n')}`,

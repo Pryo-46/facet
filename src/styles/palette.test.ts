@@ -46,6 +46,8 @@ const MODES = [
   { label: 'ダーク', pattern: '\\.dark' },
 ] as const
 
+const VISIONS = ['normal', 'protan', 'deutan'] as const satisfies readonly Vision[]
+
 /**
  * 背景に対して満たすべきコントラスト。
  *
@@ -131,10 +133,10 @@ describe('warning と ok の識別（記録のみ。失敗させない）', () =
   for (const mode of MODES) {
     it(`${mode.label}の ΔE を標準色覚・P型・D型で出力する`, () => {
       const palette = toPalette(mode.pattern, mode.label)
-      const measured = (['normal', 'protan', 'deutan'] as Vision[]).map((vision) => {
-        const d = deltaEok(simulate(palette.warning, vision), simulate(palette.ok, vision))
-        return `${vision}=${d.toFixed(3)}`
-      })
+      const values = VISIONS.map((vision) =>
+        deltaEok(simulate(palette.warning, vision), simulate(palette.ok, vision)),
+      )
+      const measured = VISIONS.map((vision, i) => `${vision}=${values[i].toFixed(3)}`)
 
       // ★ この値では失敗させない（設計スペック 決定4）。
       //
@@ -142,9 +144,12 @@ describe('warning と ok の識別（記録のみ。失敗させない）', () =
       //   選んでおり、ここで失敗にすると配色を差し替えるたびに人間の判断を
       //   要求する門番になる。**このテストが守るものは無い。見せるだけである。**
       //   閾値を足して「守るもの」に変えるなら、それは設計判断の変更なので
-      //   設計スペックの側を先に直すこと
+      //   設計スペックの側を先に直すこと。
+      //   ただし「見せる数字が数字であること」だけは保証する——計算が壊れて
+      //   NaN になっても、この形のアサーションは気づかずに緑を返すため
       console.info(`[palette] ${mode.label} warning/ok ΔE — ${measured.join(' / ')}`)
       expect(measured).toHaveLength(3)
+      expect(values.every(Number.isFinite)).toBe(true)
     })
   }
 })

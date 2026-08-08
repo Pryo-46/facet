@@ -10,6 +10,11 @@
  *   src/styles/conventions.test.ts が直書きを機械的に弾く。
  *
  * 配色を差し替えるときは **このファイルだけ** を書き換える。
+ * 値は `oklch(L C H)` の形で書く。**L は 0..1 の小数（`%` 表記は不可）、
+ * アルファ（`/ 0.5` 等）も不可。** palette.test.ts が弾く。
+ * Morphos や shadcn が配布する CSS は `oklch(92.1% 0.012 96.4)` のような
+ * パーセント表記を使うことがあるので、そのまま貼ると落ちる。
+ *
  * 結果は src/styles/palette.test.ts が検証する:
  *   - ink / ink-muted / warning / ok が canvas と surface の両方に対し 4.5:1 以上
  *   - rule が両方に対し 3:1 以上

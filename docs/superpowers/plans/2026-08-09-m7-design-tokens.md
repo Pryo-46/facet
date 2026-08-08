@@ -4,7 +4,7 @@
 
 **Goal:** rev 9章が「仮置き」として空けていた色値とフォント指定を確定させ、`src/index.css` に二層で並存している shadcn 標準トークンと facet 役割トークンを一本化した上で、**配色を1ファイルの差し替えで変えられる構造**と、**差し替えた結果が壊れていないことを検証するテスト**を用意する。
 
-**Architecture:** 色値は `src/styles/palette.css` ただ1つに隔離する（AI に配色変更を頼むとき、書き換え対象がこのファイルだけになる）。`src/index.css` は役割名の定義と shadcn 30トークンの導出だけを持ち、色値を一切持たない。検証は `src/styles/contrast.ts`（oklch → 線形 sRGB → 相対輝度の純関数。依存を足さない）を土台に、`palette.test.ts` が CSS をテキストとして読んでコントラスト要件を検査し、`conventions.test.ts` がソースを走査して色値の直書きと許可外のフォントサイズを弾く。
+**Architecture:** 色値は `src/styles/palette.css` ただ1つに隔離する（AI に配色変更を頼むとき、書き換え対象がこのファイルだけになる）。`src/index.css` は役割名の定義と shadcn 31トークンの導出だけを持ち、色値を一切持たない。検証は `src/styles/contrast.ts`（oklch → 線形 sRGB → 相対輝度の純関数。依存を足さない）を土台に、`palette.test.ts` が CSS をテキストとして読んでコントラスト要件を検査し、`conventions.test.ts` がソースを走査して色値の直書きと許可外のフォントサイズを弾く。
 
 **Tech Stack:** TypeScript / React 19 / Vite 8 / Vitest 4（環境は既定 `node`）／Tailwind CSS v4（`@theme` / `@theme inline`）＋ shadcn/ui。**新しい依存は追加しない。**
 
@@ -45,7 +45,7 @@
 | `src/styles/palette.css` | **新規。** 色値だけ。ライト（`:root`）とダーク（`.dark`）の2ブロック |
 | `src/styles/palette.test.ts` | **新規。** `palette.css` と `index.css` を読んでコントラスト要件・`destructive` の紐づきを検査 |
 | `src/styles/conventions.test.ts` | **新規。** `src/` を走査して色値の直書きと許可外のフォントサイズを弾く |
-| `src/index.css` | **修正。** 色値を `palette.css` へ移し、shadcn 30トークンを役割トークンから導出。フォントと行間を確定 |
+| `src/index.css` | **修正。** 色値を `palette.css` へ移し、shadcn 31トークンを役割トークンから導出。フォントと行間を確定 |
 | `docs/overview-rev.md` | **修正。** 9章に確定内容を反映（Task 7） |
 | `docs/open-issues.md` | **修正。** 残件の増減（Task 7） |
 | `docs/history/m7-core-design-tokens.md` | **新規。** 申し送り（Task 7） |
@@ -643,7 +643,7 @@ warning と ok の色差は出力するが失敗させない。採用した配�
 
 **振る舞いの変更（意図的なもの。ここに無い差分は計画外）:**
 
-1. shadcn の30トークンが無彩色のグレーから役割トークン由来の色になる。**モーダル・ドロップダウン・ボタンの色が変わる**
+1. shadcn の31トークンが無彩色のグレーから役割トークン由来の色になる。**モーダル・ドロップダウン・ボタンの色が変わる**
 2. `--destructive` が `warning` になる（従来は shadcn 既定の赤 `oklch(0.577 0.245 27.325)`）
 3. `.dark` の shadcn ブロックが消える。ライト／ダークの出し分けは `palette.css` が一手に持つ
 4. `--border` / `--input` がダークで半透明（`oklch(1 0 0 / 10%)`）ではなく不透明な `rule` になる
@@ -729,7 +729,7 @@ warning と ok の色差は出力するが失敗させない。採用した配�
 }
 
 /* =========================================================================
- * shadcn の30トークン。**すべて役割トークンから導出する。**
+ * shadcn の31トークン。**すべて役割トークンから導出する。**
  *
  * ライト／ダークの出し分けは palette.css の :root / .dark が持つので、
  * ここは1ブロックで足りる（var(--canvas) が両モードで解決される）。
@@ -854,7 +854,7 @@ Expected: 警告なし
 git add src/index.css src/styles/palette.test.ts
 git commit -m "shadcn のトークンを役割トークンから導出して一本化する
 
-これまで shadcn 標準の無彩色グレー30個と facet の役割トークンが無関係に
+これまで shadcn 標準の無彩色グレー31個と facet の役割トークンが無関係に
 並存しており、shadcn 由来のモーダル・ドロップダウン・ボタンだけが facet の
 色を纏っていなかった。
 
