@@ -143,13 +143,8 @@ export function composite(fg: LinearRgb, bg: LinearRgb, alpha: number): LinearRg
 
 /** テストの出力に人が読める色を出すため。判定には使わない */
 export function toHex(rgb: LinearRgb): string {
-  // v=1 のとき `1.055 * 1**(1/2.4) - 0.055` は浮動小数点の丸めにより
-  // 1 未満（0.9999999999999999）になる。composite で黒と白を alpha 0.5 で
-  // 混ぜると 255 の丁度半分（127.5）を狙う値になり、この誤差だけで
-  // 127 に丸まってしまう（本来 128 になるべき）。1e-9 は他のどんな
-  // 実色にも影響しない大きさなので、ここでだけ吸収する
   const channel = (v: number): string =>
-    Math.round(clamp01(encodeSrgb(v)) * 255 + 1e-9)
+    Math.round(clamp01(encodeSrgb(v)) * 255)
       .toString(16)
       .padStart(2, '0')
   return `#${channel(rgb[0])}${channel(rgb[1])}${channel(rgb[2])}`
