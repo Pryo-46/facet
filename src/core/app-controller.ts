@@ -1,5 +1,6 @@
 import type { AutoSaver } from './autosave'
 import { serialize } from './canonical'
+import { createFile, trashFile, type CreatedFile } from './file-ops'
 import { createKnownDisk } from './known-disk'
 import { classifyFile } from './load'
 import type { ModalRequest } from './modal-queue'
@@ -89,6 +90,10 @@ export interface AppController {
   selectFile(path: string): Promise<void>
   /** 編集・Undo・Redo の共通後処理（自動保存へ渡し、整合性検証をやり直す） */
   applyEdit(path: string, module: AnyToolModule, next: unknown): void
+  /** 新規作成（額縁のファイル操作。rev 6章）。作ったファイルはそのまま開く */
+  createNewFile(module: AnyToolModule): Promise<void>
+  /** 削除の確認ダイアログを出す（確定時の処理はコントローラが持つ） */
+  requestDelete(file: ProjectFile): void
   /** アンマウント時。**flush しない**（失敗で復元された pending を捨てないため） */
   dispose(): void
 }
@@ -103,13 +108,16 @@ export function createAppController(
   registry: ModuleRegistry,
 ): AppController {
   // ---- 状態（すべてクロージャ変数。共有マップは計画書の「状態変数の共有マップ」） ----
-  // projectDir / selectedPath のローカルミラーは Task 5〜7（createNewFile が projectDir を、
-  // requestDelete / externalChange が selectedPath を読む）で要る。この段階のメソッド
-  // （openFolder/selectFile/applyEdit/dispose）はどちらも読まないので、いま置くと
-  // noUnusedLocals に落ちる。host への通知（setProjectDir/setSelectedPath）はそのまま
-  // 行い、ローカル変数は必要になる Task 5 で足す
+  // projectDir / selectedPath はここが所有する状態そのもの。host への通知
+  //（setProjectDir/setSelectedPath）は表示の複製にすぎず、判断には使わない——
+  // AppHost に getter を足して host 側の値を読み返す形にはしない。それは M5 で
+  // 実際に障害を起こした構造（表示用の値を判断材料にすると、React の反映を待つ
+  // 隙に判断が狂う）への逆戻りである。createNewFile が projectDir を、
+  // requestDelete が selectedPath を読む（Task 6〜7 の externalChange も同様に読む）
   let files: ProjectFile[] = []
   let saver: AutoSaver | null = null
+  let projectDir: string | null = null
+  let selectedPath: string | null = null
   /** ディスクの既知内容の台帳。自己書き込み除外の要（rev 3章） */
   const knownDisk = createKnownDisk()
   /** selectFile / openFolder の直列化トークン。後続が始まったら先行の結果を捨てる */
@@ -117,9 +125,10 @@ export function createAppController(
   /**
    * フォルダ切替中の再走査を止める。**カウンタであること**——boolean だと
    * openFolder が2重に走ったとき、先の finally が後の切替中にフラグを消す。
-   * 読むのは Task 5 の externalChange（`_switchingFolder > 0` なら再走査を捨てる）で、
-   * この段階では増減だけなので `_` を付ける（oxlint の no-unused-vars 対策。
-   * Task 5 で読み出しが増えたら外す）
+   * 読むのは Task 6〜7 の externalChange（`_switchingFolder > 0` なら再走査を捨てる）で、
+   * この段階（Task 5 も createNewFile/requestDelete が読むのは projectDir/selectedPath
+   * であってこれではない）では増減だけなので `_` を付ける（oxlint の no-unused-vars 対策。
+   * 読み出しが増えたら外す）
    */
   let _switchingFolder = 0
 
@@ -129,6 +138,7 @@ export function createAppController(
   }
 
   const setSelected = (path: string | null): void => {
+    selectedPath = path
     host.setSelectedPath(path)
   }
 
@@ -192,6 +202,7 @@ export function createAppController(
       }
       // 前のフォルダへのモーダル要求（二択・削除確認）は新しい一覧に対して意味を失う
       host.clearModals()
+      projectDir = dir
       host.setProjectDir(dir)
       applyFiles(scan.entries.map(toProjectFile))
       // 台帳は別フォルダの分を持ち越さない
@@ -244,10 +255,101 @@ export function createAppController(
     )
   }
 
+  /**
+   * 作成したファイルを一覧へ登録して開く。新規作成と自動生成が同じ後処理を通る
+   * ための単一経路。書いたテキストをそのまま分類し直すのは、editable にならないなら
+   * 雛形かシリアライザが壊れている証拠だから——一覧に出す前に気付ける
+   */
+  const addCreatedFile = async (created: CreatedFile): Promise<void> => {
+    const entry: ProjectFile = {
+      path: created.path,
+      name: created.name,
+      result: classifyFile(created.text, registry),
+      issues: [],
+    }
+    // ダブルクリックや遅い IPC で同じパスが2回来ても1件に保つ
+    if (!files.some((f) => f.path === created.path)) applyFiles([...files, entry])
+    host.setBanner('io', null)
+    await selectFile(created.path)
+  }
+
+  const createNewFile = async (module: AnyToolModule): Promise<void> => {
+    const dir = projectDir
+    if (dir === null) {
+      host.setBanner('io', 'プロジェクトフォルダを開いてから作成してください。')
+      return
+    }
+    try {
+      const created = await createFile({
+        dir,
+        module,
+        existingNames: files.map((f) => f.name),
+        join: io.join,
+        write: writeAndRecord,
+        exists: io.exists,
+      })
+      await addCreatedFile(created)
+    } catch (err) {
+      host.setBanner('io', `ファイルを作成できませんでした: ${describeError(err)}`)
+    }
+  }
+
+  /**
+   * ファイルを OS のゴミ箱へ移す（rev 6章。完全削除はしない）。
+   *
+   * **切り離しは trash の前に行う。** `trashFile` が write の着地を待つ間、
+   * エディタが同じ saver を掴んだままだと、その間の打鍵で再武装したタイマーが
+   * 生きた write を残せる（申し送り10節の残余の窓）。選択と saver を先に落として
+   * エディタを畳めば、この窓は構造的に消える。
+   * `closeCurrentFile` を通さないのも要点——あれは保留編集を書き切る経路で、
+   * 消したファイルを書き戻して復活させる
+   */
+  const deleteFile = async (file: ProjectFile): Promise<void> => {
+    // 確認ダイアログを挟むので、選択状態は「押された時点」を読む
+    //（クロージャ変数なので自動的に確定時点の値になる）
+    const wasSelected = file.path === selectedPath
+    const target = wasSelected ? saver : null
+    if (wasSelected) {
+      // 進行中の selectFile / openFolder があれば、その結果を捨てさせる
+      selectSeq++
+      saver = null
+      setSelected(null)
+      host.setDocument(null)
+      host.setBanner('save', null)
+    }
+    try {
+      await trashFile({ path: file.path, saver: target, trash: io.trash })
+      knownDisk.delete(file.path)
+      // このファイル宛ての二択要求が残っていても、押せば no-op か読み込みエラーになる
+      host.dropModal(`external:${file.path}`)
+      // 単一性違反はここで解消されうるので、必ず検証をやり直す
+      applyFiles(files.filter((f) => f.path !== file.path))
+      host.setBanner('io', null)
+    } catch (err) {
+      // ゴミ箱への移動が失敗した場合、ファイルは残るが選択は外れている
+      //（保留編集は trashFile が捨てている。「消す」と決めた操作の副作用として許容）
+      host.setBanner('io', `ファイルを削除できませんでした: ${describeError(err)}`)
+    }
+  }
+
+  /** 削除は Undo で戻せないので確認を挟む（用語の削除に確認を挟まないのとは別。rev 5章） */
+  const requestDelete = (file: ProjectFile): void => {
+    host.showModal({
+      kind: 'confirm',
+      key: `delete:${file.path}`,
+      title: 'ファイルを削除しますか？',
+      description: `${file.name} を OS のゴミ箱へ移動します。完全には削除しないので、ゴミ箱から戻せます。`,
+      confirmLabel: 'ゴミ箱へ移動',
+      onConfirm: () => deleteFile(file),
+    })
+  }
+
   return {
     openFolder,
     selectFile,
     applyEdit,
+    createNewFile,
+    requestDelete,
     dispose() {
       // **flush しない**——失敗で復元された pending を捨てる経路になる。
       // 実際のウィンドウ close は requestClose を通る

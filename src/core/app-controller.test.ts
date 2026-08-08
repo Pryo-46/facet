@@ -297,3 +297,125 @@ describe('dispose', () => {
     expect(h.log.slice(before)).toEqual(['dispose'])
   })
 })
+
+describe('createNewFile', () => {
+  it('衝突しない名前をディスクに問い合わせて決め、作ったファイルを開く', async () => {
+    const h = createHarness({ [p('ノート.json')]: note('既存') })
+    await h.controller.openFolder(DIR)
+    const module = h.registry.get('note')!
+    await h.controller.createNewFile(module)
+    expect(h.log.some((l) => l.startsWith('exists:'))).toBe(true)
+    expect(h.disk.files.has(p('ノート-2.json'))).toBe(true)
+    expect(h.selectedPath()).toBe(p('ノート-2.json'))
+  })
+
+  it('新規ファイルは正規形で書く（作った直後の1文字編集で全行 diff にしない）', async () => {
+    const h = createHarness()
+    await h.controller.openFolder(DIR)
+    await h.controller.createNewFile(h.registry.get('note')!)
+    const text = h.disk.files.get(p('ノート.json'))!
+    expect(text).toBe(serialize(JSON.parse(text), noteSchema))
+  })
+
+  it('書き込みに失敗したら一覧へ足さずバナーを出す', async () => {
+    const h = createHarness({}, { write: () => Promise.reject(new Error('read-only')) })
+    await h.controller.openFolder(DIR)
+    await h.controller.createNewFile(h.registry.get('note')!)
+    expect(h.files()).toEqual([])
+    expect(h.banners().io).toContain('ファイルを作成できませんでした')
+  })
+
+  it('同じパスが二重に一覧へ入らない（ダブルクリック・遅い IPC）', async () => {
+    const h = createHarness()
+    await h.controller.openFolder(DIR)
+    const module = h.registry.get('note')!
+    await Promise.all([h.controller.createNewFile(module), h.controller.createNewFile(module)])
+    const paths = h.files().map((f) => f.path)
+    expect(new Set(paths).size).toBe(paths.length)
+  })
+
+  it('フォルダを開いていないときは無音で終わらない', async () => {
+    const h = createHarness()
+    await h.controller.createNewFile(h.registry.get('note')!)
+    expect(h.banners().io).not.toBeNull()
+  })
+})
+
+describe('requestDelete / 削除の順序', () => {
+  async function openAndSelect() {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    return h
+  }
+
+  it('確認ダイアログを挟む（ゴミ箱への移動はアプリの履歴では戻せない）', async () => {
+    const h = await openAndSelect()
+    h.controller.requestDelete(h.files()[0])
+    expect(h.modals().length).toBe(1)
+    expect(h.disk.files.has(p('a.json'))).toBe(true)
+  })
+
+  it('入力を切る → 進行中の write を待つ → ゴミ箱へ移す、の順で進む', async () => {
+    const h = await openAndSelect()
+    h.controller.requestDelete(h.files()[0])
+    const request = h.modals()[0]
+    if (request.kind !== 'confirm') throw new Error('confirm ではない')
+    const from = h.log.length
+    await request.onConfirm()
+    const order = h.log.slice(from).filter((l) =>
+      l.startsWith('setSelectedPath') || l === 'dispose' || l === 'settle' || l.startsWith('trash:'),
+    )
+    expect(order).toEqual([
+      'setSelectedPath:null', // ①入力を切る（エディタを畳んでから待つ）
+      'dispose',              // ②書かせない
+      'settle',               // ③既に飛んだ write の着地を待つ（flush ではない）
+      'dispose',              // ④失敗した write が復元した pending を捨てる
+      `trash:${p('a.json')}`, // ⑤ゴミ箱へ
+    ])
+  })
+
+  it('削除経路では flush しない（消したファイルを書き戻して復活させない）', async () => {
+    const h = await openAndSelect()
+    h.controller.requestDelete(h.files()[0])
+    const request = h.modals()[0]
+    if (request.kind !== 'confirm') throw new Error('confirm ではない')
+    const from = h.log.length
+    await request.onConfirm()
+    expect(h.log.slice(from)).not.toContain('flush')
+  })
+
+  it('選択していないファイルの削除では saver に触らない', async () => {
+    const h = createHarness({ [p('a.json')]: note('A'), [p('b.json')]: note('B') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    const target = h.files().find((f) => f.path === p('b.json'))!
+    h.controller.requestDelete(target)
+    const request = h.modals()[0]
+    if (request.kind !== 'confirm') throw new Error('confirm ではない')
+    const from = h.log.length
+    await request.onConfirm()
+    expect(h.log.slice(from)).not.toContain('dispose')
+    expect(h.selectedPath()).toBe(p('a.json'))
+  })
+
+  it('削除後は台帳と一覧から落ち、検証をやり直す', async () => {
+    const h = await openAndSelect()
+    h.controller.requestDelete(h.files()[0])
+    const request = h.modals()[0]
+    if (request.kind !== 'confirm') throw new Error('confirm ではない')
+    await request.onConfirm()
+    expect(h.files()).toEqual([])
+    expect(h.log).toContain(`dropModal:external:${p('a.json')}`)
+  })
+
+  it('ゴミ箱への移動に失敗したらバナーを出す', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') }, { trash: () => Promise.reject(new Error('locked')) })
+    await h.controller.openFolder(DIR)
+    h.controller.requestDelete(h.files()[0])
+    const request = h.modals()[0]
+    if (request.kind !== 'confirm') throw new Error('confirm ではない')
+    await request.onConfirm()
+    expect(h.banners().io).toContain('ファイルを削除できませんでした')
+  })
+})
