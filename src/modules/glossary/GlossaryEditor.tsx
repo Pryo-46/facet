@@ -14,6 +14,7 @@ import { computeRowKeys } from '@/core/row-keys'
 import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
 import glossarySchema from '../../../schemas/glossary.schema.json'
 import { AliasCell } from './AliasCell'
+import { buildErrorMarks, cellFace, hasError } from './cell-face'
 import { FIELD_LABELS, stepField, type GlossaryField } from './fields'
 import { kindLabel } from './kind-labels'
 import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } from './search'
@@ -235,36 +236,16 @@ export function GlossaryEditor({
     arrowsOwnedByField: false,
   })
 
-  // locations を「配列位置 → 赤表示するフィールド集合」に引き直す。
-  // entityId ではなく位置で引く——ID 重複時に同じ ID を持つ全行へ
-  // マークが波及しないようにするため（M2 の申し送り）。
-  // field 'id' は ID 列が UI に無いため行全体の赤表示として扱う
-  const marks = new Map<number, Set<string>>()
-  for (const issue of issues) {
-    for (const loc of issue.locations) {
-      if (loc.entityIndex === null) continue
-      const set = marks.get(loc.entityIndex) ?? new Set<string>()
-      if (loc.field !== null) set.add(loc.field)
-      marks.set(loc.entityIndex, set)
-    }
-  }
-  const hasError = (index: number, field: string): boolean =>
-    marks.get(index)?.has(field) ?? false
+  // locations を「配列位置 → 赤表示するフィールド集合」に引き直す。判定
+  // ロジック（優先順位・二重塗り防止）とあわせて cell-face.ts の純関数へ
+  // 切り出してある。DOM テストは role・アクセシブル名で引きクラス名を見ないため、
+  // この振る舞いを固定する場所が別に要る（M8 でつぶした残件2の裏付け）
+  const marks = buildErrorMarks(issues)
 
-  /**
-   * セルの面を決める。**エラーは warning より強いので優先する。**
-   * 定義セル・種別セルも `hasError` を見る——見ていないと、これらを指す
-   * 検証ルールが増えた時点で「issue 一覧には出るのにセルが赤くならない」に
-   * なる（M8 でつぶした残件2）。いまは該当ルールが無いので到達しない。
-   *
-   * **行全体が赤いときはセルを塗らない。** 同じ半透明を二重に重ねると
-   * 検証済みの濃さ（warning/20）より濃くなり、コントラストが
-   * palette.test.ts の検証範囲の外へ出る。ID 重複と名称重複が同時に
-   * 起きた行で実際に発生する組み合わせである
-   */
-  const cellFace = (index: number, field: GlossaryField, warn = false): string => {
-    if (hasError(index, 'id')) return ''
-    return hasError(index, field) ? errorCell : warn ? warnCell : ''
+  /** セルの面のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ */
+  const cellClass = (index: number, field: GlossaryField, warn = false): string => {
+    const face = cellFace(marks, index, field, warn)
+    return face === 'error' ? errorCell : face === 'warn' ? warnCell : ''
   }
 
   return (
@@ -334,8 +315,8 @@ export function GlossaryEditor({
             const rowKey = rowKeys[index]
             const row = visiblePos + 1
             return (
-              <tr key={rowKey} className={`border-b border-grid align-middle${hasError(index, 'id') ? ` ${errorCell}` : ''}`}>
-                <td className={cellFace(index, 'name')}>
+              <tr key={rowKey} className={`border-b border-grid align-middle${hasError(marks, index, 'id') ? ` ${errorCell}` : ''}`}>
+                <td className={cellClass(index, 'name')}>
                   <CellInput
                     className={cellInput}
                     aria-label={`${FIELD_LABELS.name}（${row}行目）`}
@@ -356,7 +337,7 @@ export function GlossaryEditor({
                     }
                   />
                 </td>
-                <td className={`relative ${colBorder} ${cellFace(index, 'kind', term.kind === 'undecided')}`}>
+                <td className={`relative ${colBorder} ${cellClass(index, 'kind', term.kind === 'undecided')}`}>
                   <select
                     className={`${cellInput} appearance-none pr-6`}
                     aria-label={`${FIELD_LABELS.kind}（${row}行目）`}
@@ -398,7 +379,7 @@ export function GlossaryEditor({
                     <path d="M3 4.5 L6 7.5 L9 4.5" />
                   </svg>
                 </td>
-                <td className={`${colBorder} ${cellFace(index, 'definition', term.definition === '')}`}>
+                <td className={`${colBorder} ${cellClass(index, 'definition', term.definition === '')}`}>
                   <CellInput
                     className={`${cellInput} placeholder:text-ink-muted`}
                     aria-label={`${FIELD_LABELS.definition}（${row}行目）`}
@@ -415,7 +396,7 @@ export function GlossaryEditor({
                     }
                   />
                 </td>
-                <td className={`${colBorder} ${cellFace(index, 'aliases')}`}>
+                <td className={`${colBorder} ${cellClass(index, 'aliases')}`}>
                   <AliasCell
                     aliases={term.aliases}
                     onAliasesChange={(next, mergeKey) =>
@@ -446,7 +427,7 @@ export function GlossaryEditor({
                     onLeaveVertical={(direction) => focusVisible(visiblePos + direction, 'aliases')}
                   />
                 </td>
-                <td className={`${colBorder} ${cellFace(index, 'notes')}`}>
+                <td className={`${colBorder} ${cellClass(index, 'notes')}`}>
                   <CellInput
                     className={cellInput}
                     aria-label={`${FIELD_LABELS.notes}（${row}行目）`}

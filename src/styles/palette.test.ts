@@ -236,11 +236,15 @@ const glossaryEditorSource = stripTsComments(
 describe('重ね合わせの値が実装と一致している', () => {
   // 上の検算は OVERLAYS の alpha を見ているだけなので、実装が別の濃さを
   // 使っていても緑になる。**検算と実装を繋ぐのはこの検査である**
-  for (const overlay of OVERLAYS) {
-    it(`GlossaryEditor が ${overlay.className}（${overlay.label}）を使っている`, () => {
-      expect(glossaryEditorSource).toContain(overlay.className)
-    })
-  }
+  //
+  // 「その文字列がどこかにある」だけでは弱い——errorCell と warnCell の
+  // 値を入れ替えても、両方の文字列は存在し続けるので緑のまま通ってしまう。
+  // それでは「エラーが警告より濃い」という関係が壊れても検知できない。
+  // 変数名と値を直接結びつけることで、入れ替えを検出できるようにする
+  it('errorCell と warnCell がそれぞれ検算した濃さに紐づいている', () => {
+    expect(glossaryEditorSource).toMatch(/const errorCell = 'bg-warning\/20'/)
+    expect(glossaryEditorSource).toMatch(/const warnCell = 'bg-warning\/10'/)
+  })
 
   it('検算していない濃さを使っていない', () => {
     const used = [...glossaryEditorSource.matchAll(/bg-warning\/(\d+)/g)].map((m) => Number(m[1]))
