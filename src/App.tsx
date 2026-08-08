@@ -211,7 +211,16 @@ function App() {
         confirmLabel: '破棄して閉じる',
         onConfirm: async () => {
           saverRef.current?.dispose()
-          await forceClose()
+          try {
+            await forceClose()
+          } catch (err) {
+            // ここが無音だと「押したのに何も起きない（編集は失われている）」に見える
+            setIoError(
+              `ウィンドウを閉じられませんでした: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            )
+          }
         },
       })
       return false
@@ -265,6 +274,10 @@ function App() {
     }
     setSelectedPath(null)
     setHistory(null)
+    // 「このファイルが書けていない」というバナーは、そのファイルを離れたら消す
+    //（onSuccess でしかクリアされないと、書き込みが起きないままファイルを
+    //  切り替えたときに前のファイルのバナーが残る。申し送り8節）
+    setSaveError(null)
     return true
   }
 
@@ -387,31 +400,35 @@ function App() {
    * ファイルを OS のゴミ箱へ移す（rev 6章。完全削除はしない）。
    * 開いているファイルなら closeCurrentFile を通さない——あれは保留編集を書き切る
    * 経路で、消したファイルを書き戻して復活させる。代わりに trashFile が
-   *「書かせない（dispose）」と「進行中の write を待つ（空 flush）」を担う
+   *「書かせない（dispose）」と「進行中の write を待つ（settle）」を担う。
+   *
+   * **切り離しは trash の前に行う。** trashFile が write の着地を待つ間、
+   * エディタが同じ saver を掴んだままだと、その間の打鍵で再武装したタイマーが
+   * 生きた write を残せる（申し送り10節の残余の窓）。選択と saver を先に
+   * 落としてエディタを畳めば、この窓は構造的に消える
    */
   const deleteFile = async (file: ProjectFile) => {
     // 確認ダイアログを挟むので、選択状態は「押された時点」を ref から読む
     //（このクロージャが作られた時点の selectedPath は既に古いことがある）
     const wasSelected = file.path === selectedPathRef.current
-    try {
+    const saver = wasSelected ? saverRef.current : null
+    if (wasSelected) {
       // 進行中の selectFile / openFolder があれば、その結果を捨てさせる
-      if (wasSelected) selectSeq.current++
-      await trashFile({
-        path: file.path,
-        saver: wasSelected ? saverRef.current : null,
-        trash: moveFileToTrash,
-      })
-      if (wasSelected) {
-        saverRef.current = null
-        setSelectedPath(null)
-        setHistory(null)
-        setSaveError(null)
-      }
+      selectSeq.current++
+      saverRef.current = null
+      setSelectedPath(null)
+      setHistory(null)
+      setSaveError(null)
+    }
+    try {
+      await trashFile({ path: file.path, saver, trash: moveFileToTrash })
       knownDisk.current.delete(file.path)
       // 単一性違反はここで解消されうるので、必ず検証をやり直す
       setFiles((prev) => computeIssues(prev.filter((f) => f.path !== file.path), appRegistry))
       setIoError(null)
     } catch (err) {
+      // ゴミ箱への移動が失敗した場合、ファイルは残るが選択は外れている
+      //（保留編集は trashFile が捨てている。「消す」と決めた操作の副作用として許容）
       setIoError(
         `ファイルを削除できませんでした: ${err instanceof Error ? err.message : String(err)}`,
       )
