@@ -631,6 +631,9 @@ describe('externalChange（外部変更の検知）', () => {
     expect(h.log.slice(from)).not.toContain('flush')
     expect(h.selectedPath()).toBeNull()
     expect(h.log).toContain(`dropModal:external:${p('a.json')}`)
+    // 消えたファイル宛ての削除確認も取り下げる。残すと、確定したときに
+    // trashFile が「もう無いファイル」を消しに行って失敗する（deleteFile 側と同じ失敗モード）
+    expect(h.log).toContain(`dropModal:delete:${p('a.json')}`)
     expect(h.disk.files.has(p('a.json'))).toBe(false)
   })
 
