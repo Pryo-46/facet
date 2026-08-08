@@ -148,3 +148,29 @@ describe('warning と ok の識別（記録のみ。失敗させない）', () =
     })
   }
 })
+
+const indexCss = stripComments(readFileSync(new URL('../index.css', import.meta.url), 'utf8'))
+
+describe('index.css', () => {
+  it('destructive が warning に紐づいている', () => {
+    // Morphos の theme.css は light.destructive が Primary で上書きされる
+    // 生成ミスがあり、Basalt では「削除」が緑になっていた。
+    // 配色を差し替えるたびに人の目で確かめなくて済むよう機械で見る
+    expect(indexCss).toMatch(/--destructive:\s*var\(--warning\)\s*;/)
+  })
+
+  it('色値を直接持たない（palette.css が唯一の出所）', () => {
+    expect(indexCss).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(indexCss).not.toMatch(/\boklch\(/)
+    expect(indexCss).not.toMatch(/\brgba?\(/)
+    expect(indexCss).not.toMatch(/\bhsla?\(/)
+  })
+
+  it('palette.css を読み込んでいる', () => {
+    expect(indexCss).toMatch(/@import\s+"\.\/styles\/palette\.css"/)
+  })
+
+  it('.dark のブロックを持たない（モードの出し分けは palette.css の仕事）', () => {
+    expect(indexCss).not.toMatch(/^\s*\.dark\s*\{/m)
+  })
+})

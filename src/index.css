@@ -2,12 +2,35 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "./styles/palette.css";
 
 @custom-variant dark (&:is(.dark *));
 
+/* =========================================================================
+ * 役割トークン（rev 9章）を Tailwind のユーティリティに生やす。
+ * text-ink / bg-canvas / border-rule / bg-warning … がここから来る。
+ *
+ * ★ 色値はここに書かない。src/styles/palette.css が唯一の出所。★
+ * ========================================================================= */
 @theme inline {
+    /* Task 4 で値を確定する。ここでは現状のまま残す——
+       shadcn の alert-dialog.tsx が font-heading を使っており、
+       --font-heading を落とすとユーティリティごと消えてビルドが壊れる */
     --font-heading: var(--font-sans);
     --font-sans: 'Geist Variable', sans-serif;
+
+    --color-ink: var(--ink);
+    --color-ink-muted: var(--ink-muted);
+    --color-warning: var(--warning);
+    --color-warning-fg: var(--warning-fg);
+    --color-ok: var(--ok);
+    --color-ok-fg: var(--ok-fg);
+    --color-canvas: var(--canvas);
+    --color-surface: var(--surface);
+    --color-rule: var(--rule);
+    --color-grid: var(--grid);
+
+    /* shadcn の生成物が参照するトークン */
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,6 +62,7 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
@@ -48,73 +72,62 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* =========================================================================
+ * shadcn の30トークン。**すべて役割トークンから導出する。**
+ *
+ * ライト／ダークの出し分けは palette.css の :root / .dark が持つので、
+ * ここは1ブロックで足りる（var(--canvas) が両モードで解決される）。
+ * .dark 用のブロックを作らないこと——作ると色の出所が2箇所になる。
+ * ========================================================================= */
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
-}
+    --background: var(--canvas);
+    --foreground: var(--ink);
+    --card: var(--surface);
+    --card-foreground: var(--ink);
+    --popover: var(--surface);
+    --popover-foreground: var(--ink);
 
-.dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    /* ボタン・選択状態。**Lichen Green を primary に流さない**——
+       ボタンが緑になると ok（確定）と意味が衝突する */
+    --primary: var(--ink);
+    --primary-foreground: var(--surface);
+    --secondary: var(--canvas);
+    --secondary-foreground: var(--ink);
+    --muted: var(--canvas);
+    --muted-foreground: var(--ink-muted);
+    --accent: var(--canvas);
+    --accent-foreground: var(--ink);
+
+    /* 破壊的アクション。Morphos の theme.css はここが Primary で上書き
+       される生成ミスがあり、Basalt では緑になっていた。
+       palette.test.ts が紐づきを検査する */
+    --destructive: var(--warning);
+
+    --border: var(--rule);
+    --input: var(--rule);
+    /* フォーカスリング。**ok を当てない**——「いまフォーカスがある」と
+       「確定した」は別の意味であり、同じ色にすると型区別が薄まる */
+    --ring: var(--ink);
+
+    /* facet では未使用。無彩色のまま残すと、shadcn のコンポーネントを
+       後から足したときにそこだけ浮くので役割トークンから導出しておく */
+    --chart-1: var(--ink);
+    --chart-2: var(--ink-muted);
+    --chart-3: var(--rule);
+    --chart-4: var(--warning);
+    --chart-5: var(--ok);
+
+    --sidebar: var(--surface);
+    --sidebar-foreground: var(--ink);
+    --sidebar-primary: var(--ink);
+    --sidebar-primary-foreground: var(--surface);
+    --sidebar-accent: var(--canvas);
+    --sidebar-accent-foreground: var(--ink);
+    --sidebar-border: var(--rule);
+    --sidebar-ring: var(--ink);
+
+    /* 色ではない */
+    --radius: 0.625rem;
 }
 
 @layer base {
@@ -127,68 +140,4 @@
   html {
     @apply font-sans;
     }
-}
-
-/* =========================================================================
- * 役割トークン（facet）
- *
- * ★ 色値は仮置き。ドッグフーディング後に確定する。★
- *
- * コンポーネントに色値を直書きしないこと。必ずここで定義した役割名
- * （text-ink / bg-warning / border-rule ...）を経由する。役割で書いておけば、
- * 値の確定はこのファイルの差し替えだけで済む。
- *
- * 役割の割り当て:
- *   ink      文字・線・ヘッダ（既定の前景）
- *   warning  警告・削除・未定義（kind=undecided / definition="" の可視化）
- *   ok       応答・結果・確定
- *   canvas / surface / rule / ink-muted  無彩色系（背景・面・罫線・抑えた文字）
- *
- * ライトとダークは別パレットを持つ。反転による自動生成はしない
- * （反転すると warning が背景に沈み、警告として機能しなくなる）。
- * ダーク側の値もライトから機械的に導いたものではなく、独立に置いた仮値。
- * ========================================================================= */
-
-@theme inline {
-    --color-ink: var(--ink);
-    --color-ink-muted: var(--ink-muted);
-    --color-warning: var(--warning);
-    --color-warning-fg: var(--warning-fg);
-    --color-ok: var(--ok);
-    --color-ok-fg: var(--ok-fg);
-    --color-canvas: var(--canvas);
-    --color-surface: var(--surface);
-    --color-rule: var(--rule);
-}
-
-:root {
-    /* ライト（指示書で指定された仮値） */
-    --ink: #22303c;
-    --warning: #c73e3a;
-    --ok: #2c7a6e;
-
-    /* warning / ok を面として使うときに載せる文字色 */
-    --warning-fg: #ffffff;
-    --ok-fg: #ffffff;
-
-    /* 無彩色系（仮置き） */
-    --canvas: #ffffff;
-    --surface: #f6f7f8;
-    --rule: #dde2e6;
-    --ink-muted: #64757f;
-}
-
-.dark {
-    /* ダーク（仮置き。ライトの反転ではなく独立に置いた値） */
-    --ink: #e6edf3;
-    --warning: #e8736e;
-    --ok: #5fbfae;
-
-    --warning-fg: #1a1010;
-    --ok-fg: #101a18;
-
-    --canvas: #141a1f;
-    --surface: #1c242b;
-    --rule: #2e3a44;
-    --ink-muted: #8a9aa6;
 }
