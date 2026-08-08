@@ -110,13 +110,47 @@ export function simulate(rgb: LinearRgb, vision: Vision): LinearRgb {
   ]
 }
 
+/**
+ * 線形 sRGB → ガンマ補正済み sRGB（0..1）。CSS Color 4 の伝達関数。
+ * `toHex` が内側に持っていた式をここへ出した（合成でも同じ式が要るため）
+ */
+export function encodeSrgb(v: number): number {
+  return v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055
+}
+
+/** ガンマ補正済み sRGB（0..1）→ 線形 sRGB。`encodeSrgb` の逆 */
+export function decodeSrgb(v: number): number {
+  return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+}
+
+/**
+ * 半透明の前景を背景に重ねた「見える色」を返す（M8 決定11）。
+ *
+ * **合成はガンマ補正済み sRGB の上で行う。** ブラウザが画面へ塗るときの
+ * 空間がそこだからで、線形空間で混ぜると実際より明るい色が出る。
+ *
+ * Tailwind v4 の `bg-warning/25` は
+ * `color-mix(in oklab, var(--color-warning) 25%, transparent)` を生成する。
+ * `transparent` との混合は premultiplied で行われるため、結果は
+ * 「元の色にアルファ 25% が付いたもの」と厳密に等価であり、そのあと
+ * ブラウザがこの関数と同じ合成を行う。だから alpha をそのまま渡してよい
+ */
+export function composite(fg: LinearRgb, bg: LinearRgb, alpha: number): LinearRgb {
+  const mix = (i: 0 | 1 | 2): number =>
+    decodeSrgb(clamp01(encodeSrgb(fg[i]) * alpha + encodeSrgb(bg[i]) * (1 - alpha)))
+  return [mix(0), mix(1), mix(2)]
+}
+
 /** テストの出力に人が読める色を出すため。判定には使わない */
 export function toHex(rgb: LinearRgb): string {
-  const channel = (v: number): string => {
-    const srgb = v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055
-    return Math.round(clamp01(srgb) * 255)
+  // v=1 のとき `1.055 * 1**(1/2.4) - 0.055` は浮動小数点の丸めにより
+  // 1 未満（0.9999999999999999）になる。composite で黒と白を alpha 0.5 で
+  // 混ぜると 255 の丁度半分（127.5）を狙う値になり、この誤差だけで
+  // 127 に丸まってしまう（本来 128 になるべき）。1e-9 は他のどんな
+  // 実色にも影響しない大きさなので、ここでだけ吸収する
+  const channel = (v: number): string =>
+    Math.round(clamp01(encodeSrgb(v)) * 255 + 1e-9)
       .toString(16)
       .padStart(2, '0')
-  }
   return `#${channel(rgb[0])}${channel(rgb[1])}${channel(rgb[2])}`
 }
