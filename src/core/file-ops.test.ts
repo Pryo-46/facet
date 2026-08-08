@@ -21,6 +21,8 @@ function nonSingletonModule(type: string): AnyToolModule {
 }
 
 const join = async (dir: string, name: string) => `${dir}\\${name}`
+/** ディスク上に存在するパスの集合から exists を作る */
+const existsIn = (paths: readonly string[]) => async (path: string) => paths.includes(path)
 
 describe('createFile', () => {
   it('正規形のテキストを衝突しないパスへ書く', async () => {
@@ -31,6 +33,7 @@ describe('createFile', () => {
       existingNames: ['用語集.json'],
       join,
       write,
+      exists: existsIn([]),
     })
     expect(created.path).toBe('C:\\proj\\用語集-2.json')
     expect(created.name).toBe('用語集-2.json')
@@ -38,10 +41,33 @@ describe('createFile', () => {
     expect(created.text.endsWith('\n')).toBe(true)
   })
 
+  it('走査後に外部で増えたファイルを上書きしない（申し送り10節のデータ喪失）', async () => {
+    const write = vi.fn().mockResolvedValue(undefined)
+    // 一覧は空（走査時点のスナップショット）だが、ディスクには Skill が書いた
+    // 用語集がある。existingNames だけで決めると、これを切り詰めて書き潰す
+    const created = await createFile({
+      dir: 'C:\\proj',
+      module: glossaryModule,
+      existingNames: [],
+      join,
+      write,
+      exists: existsIn(['C:\\proj\\用語集.json']),
+    })
+    expect(created.path).toBe('C:\\proj\\用語集-2.json')
+    expect(write).not.toHaveBeenCalledWith('C:\\proj\\用語集.json', expect.anything())
+  })
+
   it('書き込みが失敗したら例外を投げる（呼び出し側が一覧に足さないため）', async () => {
     const write = vi.fn().mockRejectedValue(new Error('書けません'))
     await expect(
-      createFile({ dir: 'C:\\proj', module: glossaryModule, existingNames: [], join, write }),
+      createFile({
+        dir: 'C:\\proj',
+        module: glossaryModule,
+        existingNames: [],
+        join,
+        write,
+        exists: existsIn([]),
+      }),
     ).rejects.toThrow('書けません')
   })
 })
@@ -78,12 +104,11 @@ describe('trashFile', () => {
     vi.useRealTimers()
   })
 
-  it('自動保存を破棄してからゴミ箱へ移す（dispose が先なので flush は何も書かない）', async () => {
+  it('自動保存を破棄してからゴミ箱へ移す（dispose が先なので settle は何も書かない）', async () => {
     const order: string[] = []
     const saver = {
-      flush: vi.fn(async () => {
-        order.push('flush')
-        return true
+      settle: vi.fn(async () => {
+        order.push('settle')
       }),
       dispose: vi.fn(() => order.push('dispose')),
     }
@@ -91,11 +116,11 @@ describe('trashFile', () => {
       order.push('trash')
     })
     await trashFile({ path: 'C:\\proj\\用語集.json', saver, trash })
-    // dispose が先。pending を消してから flush するので「書き戻して復活」は起きない。
-    // flush は進行中の write の完了を待つためだけに呼ぶ（書くためではない）。
-    // 2度目の dispose は、失敗した write が catch で復元した pending を捨てるため
-    // ゴミ箱へ移すのは常に最後。先に移すと直後のデバウンス発火で同じことが起きる
-    expect(order).toEqual(['dispose', 'flush', 'dispose', 'trash'])
+    // dispose が先。pending を消してから待つので「書き戻して復活」は起きない。
+    // settle は進行中の write の完了を待つためだけに呼ぶ（書くためではない）。
+    // 2度目の dispose は、失敗した write が catch で復元した pending を捨てるため。
+    // ゴミ箱へ移すのは常に最後（先に移すと直後のデバウンス発火で同じことが起きる）
+    expect(order).toEqual(['dispose', 'settle', 'dispose', 'trash'])
   })
 
   it('進行中の write が着地するまでゴミ箱へ移さない（実物の AutoSaver と合成）', async () => {
@@ -141,7 +166,7 @@ describe('trashFile', () => {
     await trashing
     expect(trash).toHaveBeenCalledTimes(1)
     // autosave の catch は失敗内容を pending に復元する。trashFile 側の2度目の
-    // dispose がそれを捨てるので、後続の flush が消したファイルを書き戻さない
+    // dispose がそれを捨てるので、後続の settle が消したファイルを書き戻さない
     await expect(saver.flush()).resolves.toBe(true)
     expect(io.calls).toEqual(['B'])
   })
@@ -168,7 +193,14 @@ describe('ensureFileOfType', () => {
 
   it('既にあれば作らずそのパスを返す（ファイル名では探さない）', async () => {
     const write = vi.fn()
-    const result = await ensureFileOfType({ dir: 'C:\\proj', module: glossaryModule, files, join, write })
+    const result = await ensureFileOfType({
+      dir: 'C:\\proj',
+      module: glossaryModule,
+      files,
+      join,
+      write,
+      exists: existsIn([]),
+    })
     expect(result).toEqual({ path: 'C:\\proj\\語彙.json', created: null })
     expect(write).not.toHaveBeenCalled()
   })
@@ -181,6 +213,7 @@ describe('ensureFileOfType', () => {
       files: [files[0]],
       join,
       write,
+      exists: existsIn([]),
     })
     expect(result.path).toBe('C:\\proj\\用語集.json')
     expect(result.created?.name).toBe('用語集.json')

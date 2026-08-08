@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { join } from '@tauri-apps/api/path'
 import { open } from '@tauri-apps/plugin-dialog'
-import { readDir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
+import { exists, readDir, readTextFile, watch, writeTextFile } from '@tauri-apps/plugin-fs'
 
 /**
  * Tauri のファイルアクセスをここに隔離する（コアは Tauri を知らない）。
@@ -39,10 +39,46 @@ export async function joinPath(dir: string, name: string): Promise<string> {
 }
 
 /**
+ * そのパスにファイル（またはフォルダ）があるか。
+ * 新規作成の名前解決をディスクに問い合わせるために使う（コアの FileIo.exists）。
+ * `fs:default` に `exists` は入っていないので capabilities に
+ * `fs:allow-exists` の追記が要る
+ */
+export async function fileExists(path: string): Promise<boolean> {
+  return exists(path)
+}
+
+/**
  * ファイルを OS のゴミ箱へ移す（完全削除はしない。rev 6章）。
  * fs プラグインにゴミ箱 API が無いため、ここだけ自前の Tauri コマンドを呼ぶ。
  * 自前コマンドは ACL の対象外なので capabilities への追記は要らない
  */
 export async function moveFileToTrash(path: string): Promise<void> {
   await invoke('move_to_trash', { path })
+}
+
+/**
+ * 監視イベントの送出間隔（fs プラグイン側のデバウンス）。
+ * 既定は 2000ms で体感が鈍いため短くする。0 にはしない——
+ * 1回の保存で大量のイベントが来る
+ */
+export const WATCH_DEBOUNCE_MS = 300
+
+/**
+ * プロジェクトフォルダを監視する。**ファイル単位ではなくフォルダ単位**
+ *（rev 3章。外部リネームはファイル監視では取れないため）。
+ *
+ * **イベントの種類もパスも見ない。** notify のイベント表現は OS ごとに違い、
+ * リネームは2イベントに割れる。「何か起きた」だけを呼び出し側へ伝え、
+ * 何が変わったかは再走査と台帳の突き合わせが決める（自己書き込みの構造的除外）。
+ *
+ * `recursive: false`——走査（listJsonFiles）も直下だけなので範囲を合わせる。
+ * 戻り値は監視を止める関数。
+ *
+ * **`watch` は fs プラグインの Cargo feature `watch` と `fs:allow-watch` の
+ * 両方が要る**（片方でも欠けると実行時に失敗する。M2 の
+ * `core:window:allow-destroy` と同じ罠）
+ */
+export async function watchFolder(dir: string, onEvent: () => void): Promise<() => void> {
+  return watch(dir, () => onEvent(), { recursive: false, delayMs: WATCH_DEBOUNCE_MS })
 }

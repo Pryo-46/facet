@@ -1,3 +1,4 @@
+import { resolveAvailableFileName } from './file-naming'
 import { buildNewFile, type NewFile } from './new-file'
 import type { AnyToolModule } from './registry'
 
@@ -5,6 +6,12 @@ import type { AnyToolModule } from './registry'
 export interface FileIo {
   join: (dir: string, name: string) => Promise<string>
   write: (path: string, text: string) => Promise<void>
+  /**
+   * そのパスにファイルがあるか。**名前解決をディスクに問い合わせるために要る**——
+   * 走査時のスナップショットだけで決めると、走査後に外部で増えたファイルを
+   * 黙って上書きする（申し送り10節のデータ喪失）
+   */
+  exists: (path: string) => Promise<boolean>
 }
 
 export interface CreatedFile extends NewFile {
@@ -15,18 +22,28 @@ export interface CreatedFile extends NewFile {
 /**
  * 新規ファイルを作る（額縁の新規作成。rev 6章）。
  * 失敗は投げる——呼び出し側が「一覧に足す」前に止まる必要があるため
- *（書けていないファイルを一覧に出すと、選んだ瞬間に読み込み失敗になる）
+ *（書けていないファイルを一覧に出すと、選んだ瞬間に読み込み失敗になる）。
+ *
+ * 名前は**走査スナップショットとディスクの両方**に問い合わせて決める。
+ * スナップショット（existingNames）だけでは走査後に外部で増えたファイルを
+ * 上書きし、ディスクだけでは「一覧にあるが読めなかったファイル」を見落とす
  */
 export async function createFile(
   opts: FileIo & {
     dir: string
     module: AnyToolModule
-    /** フォルダ直下の既存ファイル名。衝突回避にだけ使う */
+    /** フォルダ直下の既存ファイル名（走査時点）。衝突回避にだけ使う */
     existingNames: readonly string[]
   },
 ): Promise<CreatedFile> {
-  const file = buildNewFile(opts.module, opts.existingNames)
-  const path = await opts.join(opts.dir, file.name)
+  // Windows のファイル名は大文字小文字を区別しないので、比較も区別しない
+  const taken = new Set(opts.existingNames.map((n) => n.toLowerCase()))
+  const name = await resolveAvailableFileName(opts.module.displayName, async (candidate) => {
+    if (taken.has(candidate.toLowerCase())) return true
+    return opts.exists(await opts.join(opts.dir, candidate))
+  })
+  const file = buildNewFile(opts.module, name)
+  const path = await opts.join(opts.dir, name)
   await opts.write(path, file.text)
   return { ...file, path }
 }
@@ -35,20 +52,21 @@ export async function createFile(
  * ファイルを OS のゴミ箱へ移す。
  *
  * 開いているファイルなら、自動保存を止めてからゴミ箱へ移す。手順は
- * `dispose()` → `await flush()` → `dispose()` → `await trash()` で、3つの
+ * `dispose()` → `await settle()` → `dispose()` → `await trash()` で、3つの
  * 事故をこの順序でしか塞げない。
  *
  * 1. **書き戻しによる復活を防ぐ**: 先に `dispose()` して `pending` を空にする。
- *    以降の `flush()` は「書くもの」を持たないので、消したはずのファイルを
- *    書き戻せない。**この `flush()` を「削除経路で flush してはいけない」と読んで
- *    消さないこと**——書かせないのは `dispose()` の役目で、`flush()` は次の役目を持つ。
+ *    以降このファイルへ書くものは存在しない。
  * 2. **着地済みの write を待つ**: `dispose()` はタイマーと `pending` しか消さず、
  *    既に飛んだ write（autosave 内部の `chain`）には触れない。デバウンスは 500ms で、
  *    確認ダイアログを開いて押す人間の所要時間はそれより長いので、削除確定時は
  *    **ほぼ常に write が in-flight**。待たずに `trash()` すると、ゴミ箱移動の後に
  *    write が着地してファイルを作り直す——UI の一覧からは消えているので、
- *    次のフォルダ走査まで見えない孤児になる。`pending` が空の `flush()` は
- *    進行中の chain の完了を待つだけの操作になり、これがその待ちになる。
+ *    次のフォルダ走査まで見えない孤児になる。`settle()` がその待ちで、
+ *    **書かずに待つ**のが要点。M4 までは「pending を空にした flush()」で
+ *    同じことをしていたが、M5 で flush() が「静止するまで繰り返す」意味論に
+ *    なったため、失敗して復元された pending を書き直してしまう。
+ *    **ここを flush() に戻さないこと。**
  * 3. **失敗した write の復元を捨てる**: in-flight の write が失敗すると autosave の
  *    catch が内容を `pending` へ戻す（再試行のための仕組み）。消すファイルには
  *    不要なので `dispose()` をもう一度呼んで捨てる。呼び出し側（`App.tsx`）は
@@ -64,14 +82,14 @@ export async function createFile(
 export async function trashFile(opts: {
   path: string
   /** 対象が現在開いているファイルのときだけ渡す（実体は AutoSaver） */
-  saver: { dispose(): void; flush(): Promise<boolean> } | null
+  saver: { dispose(): void; settle(): Promise<void> } | null
   trash: (path: string) => Promise<void>
 }): Promise<void> {
   const saver = opts.saver
   if (saver !== null) {
     saver.dispose()
-    // 書くものが無い状態での flush ＝ 進行中の write の完了待ち
-    await saver.flush()
+    // 進行中の write の完了待ち（書かずに待つ）
+    await saver.settle()
     // 失敗した write が復元した pending を捨てる
     saver.dispose()
   }
@@ -116,7 +134,12 @@ export interface ScannedFile {
  *
  * 探索は必ず type で行い、ファイル名では探さない（rev 5章。人間が
  * リネームしても壊れないこと）。2つ以上あるのは単一性違反で、
- * その検出と表示は checkProjectConsistency の担当なのでここでは作らない
+ * その検出と表示は checkProjectConsistency の担当なのでここでは作らない。
+ *
+ * **呼び出し側は「再走査した直後の一覧」を渡すこと**（M5 の handleExternalChange）。
+ * 古いスナップショットを渡すと、外部で増えた用語集を見落として2つ目を作る
+ *（データ喪失にはならない——名前解決はディスクを見るので上書きはしない——が、
+ *   単一性違反を1件増やす）
  */
 export async function ensureFileOfType(
   opts: FileIo & {
@@ -133,6 +156,7 @@ export async function ensureFileOfType(
     existingNames: opts.files.map((f) => f.name),
     join: opts.join,
     write: opts.write,
+    exists: opts.exists,
   })
   return { path: created.path, created }
 }

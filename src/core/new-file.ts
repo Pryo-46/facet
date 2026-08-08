@@ -1,5 +1,4 @@
 import { serialize } from './canonical'
-import { resolveNewFileName } from './file-naming'
 import type { AnyToolModule } from './registry'
 
 export interface NewFile {
@@ -13,11 +12,12 @@ export interface NewFile {
 
 /**
  * 新規ファイルの中身を組み立てる（コア・純関数。ファイルには触らない）。
+ * 名前は**解決済みのものを受け取る**——空いている名前の判定はディスクへの
+ * 問い合わせを含む非同期処理（file-ops の createFile）に移した。
  * 正規形での書き出しは新規作成にも例外なく適用する——非正規形で作ると、
  * 作った直後の最初の1文字の編集で全行 diff が出る
  */
-export function buildNewFile(module: AnyToolModule, existingNames: readonly string[]): NewFile {
-  const name = resolveNewFileName(module.displayName, existingNames)
+export function buildNewFile(module: AnyToolModule, name: string): NewFile {
   const title = name.replace(/\.json$/i, '')
   const data = module.createEmpty(title)
   return { name, text: serialize(data, module.schema), data }
