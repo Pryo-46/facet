@@ -15,6 +15,7 @@ import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
 import glossarySchema from '../../../schemas/glossary.schema.json'
 import { AliasCell } from './AliasCell'
 import { buildErrorMarks, cellFace, hasError } from './cell-face'
+import { COLUMNS, DEFAULT_WIDTHS, WIDTH_INDEX } from './columns'
 import { FIELD_LABELS, stepField, type GlossaryField } from './fields'
 import { kindLabel } from './kind-labels'
 import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } from './search'
@@ -299,151 +300,171 @@ export function GlossaryEditor({
           ))}
         </ul>
       )}
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-rule text-left text-ink-muted">
-            <th className="w-40 px-2 py-1 font-normal">{FIELD_LABELS.name}</th>
-            <th className="w-32 px-2 py-1 font-normal">{FIELD_LABELS.kind}</th>
-            <th className="px-2 py-1 font-normal">{FIELD_LABELS.definition}</th>
-            <th className="w-44 px-2 py-1 font-normal">{FIELD_LABELS.aliases}</th>
-            <th className="w-44 px-2 py-1 font-normal">{FIELD_LABELS.notes}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visible.map((index, visiblePos) => {
-            const term = data.terms[index]
-            const rowKey = rowKeys[index]
-            const row = visiblePos + 1
-            return (
-              <tr key={rowKey} className={`border-b border-grid align-middle${hasError(marks, index, 'id') ? ` ${errorCell}` : ''}`}>
-                <td className={cellClass(index, 'name')}>
-                  <CellInput
-                    className={cellInput}
-                    aria-label={`${FIELD_LABELS.name}（${row}行目）`}
-                    data-cell={cellId(rowKey, 'name')}
-                    value={term.name}
-                    // 空の名称はスキーマ違反（minLength 1）なのでデータに載せない。
-                    // 空欄の間の表示は CellInput のドラフトが持ち、セルを抜けると戻る
-                    sanitize={(raw) => (raw.trim() === '' ? null : raw)}
-                    onValueChange={(v) => updateTerm(index, { name: v }, `${rowKey}:name`)}
-                    onFieldKeyDown={(e, s) =>
-                      onCellKeyDown(
-                        e,
-                        { index, visiblePos, field: 'name' },
-                        // 名称セルだけが空欄 Backspace で行を消せる。定義セルは
-                        // 空（未定義 warning）が常態なので、そこで消えると事故になる
-                        textFieldContext(s, true),
-                      )
-                    }
-                  />
-                </td>
-                <td className={`relative ${colBorder} ${cellClass(index, 'kind', term.kind === 'undecided')}`}>
-                  <select
-                    className={`${cellInput} appearance-none pr-6`}
-                    aria-label={`${FIELD_LABELS.kind}（${row}行目）`}
-                    data-cell={cellId(rowKey, 'kind')}
-                    value={term.kind}
-                    onChange={(e) =>
-                      updateTerm(index, { kind: e.target.value as Term['kind'] }, null)
-                    }
-                    onKeyDown={(e) =>
-                      onCellKeyDown(
-                        e,
-                        { index, visiblePos, field: 'kind' },
-                        {
-                          editing: false,
-                          fieldEmpty: false,
-                          deletableField: false,
-                          caretAtStart: true,
-                          caretAtEnd: true,
-                          // 素の↑↓は select の選択肢切り替えに使う（Alt+↑↓ は有効）
-                          arrowsOwnedByField: true,
-                        },
-                      )
-                    }
-                  >
-                    {KIND_OPTIONS.map((kind) => (
-                      <option key={kind} value={kind}>
-                        {kindLabel(kind)}
-                      </option>
-                    ))}
-                  </select>
-                  {/* appearance-none で消えた矢印を描き直す。**背景画像の
-                      data URI は使わない**——色値を書くことになり
-                      conventions.test.ts が弾く（M8 決定14） */}
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 12 12"
-                    className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 fill-none stroke-current stroke-2 text-ink-muted"
-                  >
-                    <path d="M3 4.5 L6 7.5 L9 4.5" />
-                  </svg>
-                </td>
-                <td className={`${colBorder} ${cellClass(index, 'definition', term.definition === '')}`}>
-                  <CellInput
-                    className={`${cellInput} placeholder:text-ink-muted`}
-                    aria-label={`${FIELD_LABELS.definition}（${row}行目）`}
-                    data-cell={cellId(rowKey, 'definition')}
-                    // 空欄は「未定義」と明示する（負債を消えなくして見せる。
-                    // M6 の Markdown 出力が空定義を「（未定義）」と書く仕様と揃える）
-                    placeholder="未定義"
-                    value={term.definition}
-                    onValueChange={(v) =>
-                      updateTerm(index, { definition: v }, `${rowKey}:definition`)
-                    }
-                    onFieldKeyDown={(e, s) =>
-                      onCellKeyDown(e, { index, visiblePos, field: 'definition' }, textFieldContext(s, false))
-                    }
-                  />
-                </td>
-                <td className={`${colBorder} ${cellClass(index, 'aliases')}`}>
-                  <AliasCell
-                    aliases={term.aliases}
-                    onAliasesChange={(next, mergeKey) =>
-                      updateTerm(index, { aliases: next }, mergeKey ?? null)
-                    }
-                    cellId={cellId(rowKey, 'aliases')}
-                    label={`${FIELD_LABELS.aliases}（${row}行目）`}
-                    reorderEnabled={reorderEnabled}
-                    modalOpen={modalOpen}
-                    onClosedKeyDown={(e) =>
-                      onCellKeyDown(
-                        e,
-                        { index, visiblePos, field: 'aliases' },
-                        {
-                          editing: false,
-                          fieldEmpty: false,
-                          deletableField: false,
-                          caretAtStart: true,
-                          caretAtEnd: true,
-                          arrowsOwnedByField: false,
-                        },
-                      )
-                    }
-                    onLeave={(direction) => {
-                      const step = stepField('aliases', direction)
-                      focusVisible(visiblePos + step.rowDelta, step.field)
-                    }}
-                    onLeaveVertical={(direction) => focusVisible(visiblePos + direction, 'aliases')}
-                  />
-                </td>
-                <td className={`${colBorder} ${cellClass(index, 'notes')}`}>
-                  <CellInput
-                    className={cellInput}
-                    aria-label={`${FIELD_LABELS.notes}（${row}行目）`}
-                    data-cell={cellId(rowKey, 'notes')}
-                    value={term.notes}
-                    onValueChange={(v) => updateTerm(index, { notes: v }, `${rowKey}:notes`)}
-                    onFieldKeyDown={(e, s) =>
-                      onCellKeyDown(e, { index, visiblePos, field: 'notes' }, textFieldContext(s, false))
-                    }
-                  />
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+      {/* テーブルは surface の面に載せ、外枠だけ rule で締める。内側の罫は
+          grid（装飾）に落とす——M7 が rule と grid を2トークンに分けた理由が
+          そのまま効く階層である（M8 決定2）。
+          overflow-hidden は border-collapse のまま角丸を切るために要る */}
+      <div className="overflow-hidden rounded-md border border-rule bg-surface">
+        <table className="w-full table-fixed border-collapse text-sm">
+          <colgroup>
+            {COLUMNS.map((col, i) => {
+              const w = WIDTH_INDEX[i]
+              return (
+                <col
+                  key={col.field}
+                  style={w === null ? undefined : { width: DEFAULT_WIDTHS[w] }}
+                />
+              )
+            })}
+          </colgroup>
+          <thead>
+            <tr className="border-b border-rule bg-canvas text-left text-ink">
+              {COLUMNS.map((col, i) => (
+                <th
+                  key={col.field}
+                  className={`px-2 py-1 font-bold${i === 0 ? '' : ` ${colBorder}`}`}
+                >
+                  {FIELD_LABELS[col.field]}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((index, visiblePos) => {
+              const term = data.terms[index]
+              const rowKey = rowKeys[index]
+              const row = visiblePos + 1
+              return (
+                <tr key={rowKey} className={`border-b border-grid align-middle${hasError(marks, index, 'id') ? ` ${errorCell}` : ''}`}>
+                  <td className={cellClass(index, 'name')}>
+                    <CellInput
+                      className={cellInput}
+                      aria-label={`${FIELD_LABELS.name}（${row}行目）`}
+                      data-cell={cellId(rowKey, 'name')}
+                      value={term.name}
+                      // 空の名称はスキーマ違反（minLength 1）なのでデータに載せない。
+                      // 空欄の間の表示は CellInput のドラフトが持ち、セルを抜けると戻る
+                      sanitize={(raw) => (raw.trim() === '' ? null : raw)}
+                      onValueChange={(v) => updateTerm(index, { name: v }, `${rowKey}:name`)}
+                      onFieldKeyDown={(e, s) =>
+                        onCellKeyDown(
+                          e,
+                          { index, visiblePos, field: 'name' },
+                          // 名称セルだけが空欄 Backspace で行を消せる。定義セルは
+                          // 空（未定義 warning）が常態なので、そこで消えると事故になる
+                          textFieldContext(s, true),
+                        )
+                      }
+                    />
+                  </td>
+                  <td className={`relative ${colBorder} ${cellClass(index, 'kind', term.kind === 'undecided')}`}>
+                    <select
+                      className={`${cellInput} appearance-none pr-6`}
+                      aria-label={`${FIELD_LABELS.kind}（${row}行目）`}
+                      data-cell={cellId(rowKey, 'kind')}
+                      value={term.kind}
+                      onChange={(e) =>
+                        updateTerm(index, { kind: e.target.value as Term['kind'] }, null)
+                      }
+                      onKeyDown={(e) =>
+                        onCellKeyDown(
+                          e,
+                          { index, visiblePos, field: 'kind' },
+                          {
+                            editing: false,
+                            fieldEmpty: false,
+                            deletableField: false,
+                            caretAtStart: true,
+                            caretAtEnd: true,
+                            // 素の↑↓は select の選択肢切り替えに使う（Alt+↑↓ は有効）
+                            arrowsOwnedByField: true,
+                          },
+                        )
+                      }
+                    >
+                      {KIND_OPTIONS.map((kind) => (
+                        <option key={kind} value={kind}>
+                          {kindLabel(kind)}
+                        </option>
+                      ))}
+                    </select>
+                    {/* appearance-none で消えた矢印を描き直す。**背景画像の
+                        data URI は使わない**——色値を書くことになり
+                        conventions.test.ts が弾く（M8 決定14） */}
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 12 12"
+                      className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 fill-none stroke-current stroke-2 text-ink-muted"
+                    >
+                      <path d="M3 4.5 L6 7.5 L9 4.5" />
+                    </svg>
+                  </td>
+                  <td className={`${colBorder} ${cellClass(index, 'definition', term.definition === '')}`}>
+                    <CellInput
+                      className={`${cellInput} placeholder:text-ink-muted`}
+                      aria-label={`${FIELD_LABELS.definition}（${row}行目）`}
+                      data-cell={cellId(rowKey, 'definition')}
+                      // 空欄は「未定義」と明示する（負債を消えなくして見せる。
+                      // M6 の Markdown 出力が空定義を「（未定義）」と書く仕様と揃える）
+                      placeholder="未定義"
+                      value={term.definition}
+                      onValueChange={(v) =>
+                        updateTerm(index, { definition: v }, `${rowKey}:definition`)
+                      }
+                      onFieldKeyDown={(e, s) =>
+                        onCellKeyDown(e, { index, visiblePos, field: 'definition' }, textFieldContext(s, false))
+                      }
+                    />
+                  </td>
+                  <td className={`${colBorder} ${cellClass(index, 'aliases')}`}>
+                    <AliasCell
+                      aliases={term.aliases}
+                      onAliasesChange={(next, mergeKey) =>
+                        updateTerm(index, { aliases: next }, mergeKey ?? null)
+                      }
+                      cellId={cellId(rowKey, 'aliases')}
+                      label={`${FIELD_LABELS.aliases}（${row}行目）`}
+                      reorderEnabled={reorderEnabled}
+                      modalOpen={modalOpen}
+                      onClosedKeyDown={(e) =>
+                        onCellKeyDown(
+                          e,
+                          { index, visiblePos, field: 'aliases' },
+                          {
+                            editing: false,
+                            fieldEmpty: false,
+                            deletableField: false,
+                            caretAtStart: true,
+                            caretAtEnd: true,
+                            arrowsOwnedByField: false,
+                          },
+                        )
+                      }
+                      onLeave={(direction) => {
+                        const step = stepField('aliases', direction)
+                        focusVisible(visiblePos + step.rowDelta, step.field)
+                      }}
+                      onLeaveVertical={(direction) => focusVisible(visiblePos + direction, 'aliases')}
+                    />
+                  </td>
+                  <td className={`${colBorder} ${cellClass(index, 'notes')}`}>
+                    <CellInput
+                      className={cellInput}
+                      aria-label={`${FIELD_LABELS.notes}（${row}行目）`}
+                      data-cell={cellId(rowKey, 'notes')}
+                      value={term.notes}
+                      onValueChange={(v) => updateTerm(index, { notes: v }, `${rowKey}:notes`)}
+                      onFieldKeyDown={(e, s) =>
+                        onCellKeyDown(e, { index, visiblePos, field: 'notes' }, textFieldContext(s, false))
+                      }
+                    />
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
       {data.terms.length > 0 && visible.length === 0 && (
         <p className="mt-3 text-sm text-ink-muted">該当する用語がありません。</p>
       )}
