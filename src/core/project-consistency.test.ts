@@ -12,8 +12,10 @@ function fakeModule(type: string, singleton: boolean): AnyToolModule {
     idPrefixes: [type],
     Editor: () => null,
     checkConsistency: () => [],
+    toMarkdown: () => '',
     singleton,
     migrate: (d) => d,
+    createEmpty: () => ({}),
   }
 }
 

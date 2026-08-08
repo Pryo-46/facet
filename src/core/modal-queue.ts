@@ -38,3 +38,11 @@ export function pushModal(
 export function shiftModal(queue: readonly ModalRequest[]): ModalRequest[] {
   return queue.slice(1)
 }
+
+/**
+ * 同じ key の要求を取り下げる。前提が消えた要求——外部で消えた・削除済みファイルへの
+ * 二択（`external:<path>`）——を残すと、押しても no-op か読み込みエラーに退化する
+ */
+export function dropModal(queue: readonly ModalRequest[], key: string): ModalRequest[] {
+  return queue.filter((r) => r.key !== key)
+}

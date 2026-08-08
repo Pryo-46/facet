@@ -9,7 +9,7 @@ const glossarySchema = JSON.parse(
 ) as JsonSchema
 
 const sampleRaw = readFileSync(
-  new URL('../../sample-project/glossary.json', import.meta.url),
+  new URL('./__fixtures__/glossary.canonical.json', import.meta.url),
   'utf8',
 )
 
@@ -23,8 +23,10 @@ function makeRegistry() {
     idPrefixes: ['term'],
     Editor: () => null,
     checkConsistency: () => [],
+    toMarkdown: () => '',
     singleton: false,
     migrate: (d) => d,
+    createEmpty: () => ({}),
   }
   registry.register(mod)
   return registry

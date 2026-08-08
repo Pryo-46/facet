@@ -9,8 +9,9 @@ const schema = JSON.parse(
 
 const validate = createSchemaValidator(schema)
 
+// fixture は動作確認の遊び場ではなく、回帰テストに必須のファイル
 const validData = JSON.parse(
-  readFileSync(new URL('../../sample-project/glossary.json', import.meta.url), 'utf8'),
+  readFileSync(new URL('./__fixtures__/glossary.canonical.json', import.meta.url), 'utf8'),
 ) as Record<string, unknown>
 
 function withTermPatch(patch: Record<string, unknown>, remove?: string) {

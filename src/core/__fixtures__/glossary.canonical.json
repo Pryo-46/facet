@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "type": "glossary",
+  "title": "facet 動作確認用サンプル 用語集",
+  "terms": [
+    {
+      "id": "term_EvGqImywui",
+      "name": "用語集",
+      "kind": "data",
+      "definition": "プロジェクトフォルダにつき1ファイル置く type=glossary の JSON。他ツールが ID で参照するハブになる。",
+      "aliases": [
+        "glossary"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "term_AinuVWGMbR",
+      "name": "正規形",
+      "kind": "undecided",
+      "definition": "キー順・インデント・改行コードを固定した書き出し形式。決定的にシリアライズすることで、Git の差分を仕様の変更履歴として読めるようにする。",
+      "aliases": [],
+      "notes": "定義は overview-rev.md からの転記。種別はどれに当たるか未決のため undecided。"
+    },
+    {
+      "id": "term_4gfuI8FPjr",
+      "name": "未定義",
+      "kind": "state",
+      "definition": "definition が空文字の状態。warning として可視化される。",
+      "aliases": [],
+      "notes": ""
+    },
+    {
+      "id": "term_ko4Map6kra",
+      "name": "役割トークン",
+      "kind": "undecided",
+      "definition": "",
+      "aliases": [],
+      "notes": "M0 で枠だけ作った色の抽象。値も定義も未確定（ドッグフーディング後に決める）。未記入が warning として出ることの確認用に、あえて空のまま登録している。"
+    },
+    {
+      "id": "term_Bpem3zjT86",
+      "name": "応募者",
+      "kind": "undecided",
+      "definition": "",
+      "aliases": [],
+      "notes": "種別・定義は未ヒアリング（登録の指示だけがあった）。応募者が誰を指すか（求職者本人／エージェント経由の候補者を含むか等）が決まっていないため空のまま登録している。"
+    }
+  ]
+}

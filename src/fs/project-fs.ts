@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { join } from '@tauri-apps/api/path'
-import { open } from '@tauri-apps/plugin-dialog'
+import { open, save } from '@tauri-apps/plugin-dialog'
 import { exists, readDir, readTextFile, watch, writeTextFile } from '@tauri-apps/plugin-fs'
 
 /**
@@ -81,4 +81,19 @@ export const WATCH_DEBOUNCE_MS = 300
  */
 export async function watchFolder(dir: string, onEvent: () => void): Promise<() => void> {
   return watch(dir, () => onEvent(), { recursive: false, delayMs: WATCH_DEBOUNCE_MS })
+}
+
+/**
+ * Markdown の書き出し先を尋ねる。null＝キャンセル（失敗ではない）。
+ *
+ * `dialog:default` に `allow-save` が含まれるので capabilities への追記は要らない。
+ * **選ばれたパスは dialog プラグインが fs の実行時 scope へ許可を入れる**ので、
+ * プロジェクトフォルダの外を選んでも `writeProjectFile` が通る
+ */
+export async function askSaveMarkdownPath(defaultPath: string): Promise<string | null> {
+  const selected = await save({
+    defaultPath,
+    filters: [{ name: 'Markdown', extensions: ['md'] }],
+  })
+  return typeof selected === 'string' ? selected : null
 }

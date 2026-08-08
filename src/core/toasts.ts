@@ -45,3 +45,13 @@ export function pushToast(list: readonly ToastItem[], toast: ToastItem): ToastIt
 export function dismissToast(list: readonly ToastItem[], id: number): ToastItem[] {
   return list.filter((t) => t.id !== id)
 }
+
+/**
+ * 同じ key の通知を消す。**古い操作付きトーストを取り下げるために要る**——
+ * 例えば二択ダイアログを出す前に、そのファイルの前回の「取り込み前に戻す」を消す。
+ * トーストは時間で消えないので、残すと二択に答えた後に押せてしまい、
+ * 二択の前提（ディスクは検知した内容のまま）が崩れる
+ */
+export function dismissToastByKey(list: readonly ToastItem[], key: string): ToastItem[] {
+  return list.filter((t) => t.key !== key)
+}

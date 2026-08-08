@@ -27,6 +27,10 @@ tauri-plugin-log = "2"
 # （notify / notify-debouncer-full がその後ろにある）
 tauri-plugin-fs = { version = "2", features = ["watch"] }
 tauri-plugin-dialog = "2"
+# クリップボードへの書き込み（M6 の Markdown 出力）。
+# navigator.clipboard は環境依存で「黙って動かない」経路になりうるので、
+# 権限を capabilities に明示できるプラグイン側へ寄せる
+tauri-plugin-clipboard-manager = "2"
 # OS のゴミ箱への移動。Tauri の fs プラグインは完全削除しか持たないため、
 # rev 6章「完全削除はしない」を満たすにはこのクレートが要る
 trash = "5"

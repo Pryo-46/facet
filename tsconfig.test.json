@@ -6,5 +6,7 @@
     "noEmit": true,
     "composite": true
   },
+  "//": "app 側の exclude（テストファイル）を継承すると include が全部落ちるので打ち消す",
+  "exclude": [],
   "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "src"]
 }
