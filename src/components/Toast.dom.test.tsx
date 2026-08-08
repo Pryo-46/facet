@@ -9,9 +9,9 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function setup(toasts: ToastItem[]) {
+function setup(toasts: ToastItem[], modalOpen = false) {
   const onDismiss = vi.fn()
-  render(<ToastStack toasts={toasts} onDismiss={onDismiss} />)
+  render(<ToastStack toasts={toasts} onDismiss={onDismiss} modalOpen={modalOpen} />)
   return { onDismiss }
 }
 
@@ -37,6 +37,23 @@ describe('ToastStack', () => {
     const { onDismiss } = setup([{ id: 7, message: '増えました' }])
     fireEvent.click(screen.getByRole('button', { name: '通知を閉じる' }))
     expect(onDismiss).toHaveBeenCalledWith(7)
+  })
+
+  it('モーダル中は表示だけで、操作を受け付けない', () => {
+    // トーストはモーダルより前面に出す（閉じられない理由を伝える唯一の手段が
+    // オーバーレイの下に隠れるため）。そのぶん、回答待ちの二択の裏で
+    // 古い「取り込み前に戻す」を押せないようにする必要がある
+    const run = vi.fn()
+    const { onDismiss } = setup(
+      [{ id: 7, message: '取り込みました', action: { label: '取り込み前に戻す', run } }],
+      true,
+    )
+    // メッセージは読めなければ意味がないので、表示は続ける
+    expect(screen.getByRole('status').textContent).toContain('取り込みました')
+    fireEvent.click(screen.getByRole('button', { name: '取り込み前に戻す' }))
+    fireEvent.click(screen.getByRole('button', { name: '通知を閉じる' }))
+    expect(run).not.toHaveBeenCalled()
+    expect(onDismiss).not.toHaveBeenCalled()
   })
 
   it('時間が経っても消えない（閉じるまで残る）', () => {

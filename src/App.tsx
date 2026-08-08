@@ -918,7 +918,7 @@ function App() {
         </section>
       </div>
 
-      <ToastStack toasts={toasts} onDismiss={dismiss} />
+      <ToastStack toasts={toasts} onDismiss={dismiss} modalOpen={modalOpen} />
       <ConfirmDialog
         open={head?.kind === 'confirm'}
         title={head?.kind === 'confirm' ? head.title : ''}
