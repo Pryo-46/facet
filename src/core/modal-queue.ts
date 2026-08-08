@@ -40,14 +40,9 @@ export function shiftModal(queue: readonly ModalRequest[]): ModalRequest[] {
 }
 
 /**
- * 同じ key の要求を取り下げる。前提が消えた要求——外部で消えたファイルの二択、
- * 削除済みファイルの削除確認——を残すと、押しても no-op か読み込みエラーに退化する
+ * 同じ key の要求を取り下げる。前提が消えた要求——外部で消えた・削除済みファイルへの
+ * 二択（`external:<path>`）——を残すと、押しても no-op か読み込みエラーに退化する
  */
 export function dropModal(queue: readonly ModalRequest[], key: string): ModalRequest[] {
   return queue.filter((r) => r.key !== key)
-}
-
-/** 全部取り下げる（フォルダを切り替えたとき。前のフォルダへの要求は意味を失う） */
-export function clearModals(): ModalRequest[] {
-  return []
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { clearModals, dropModal, pushModal, shiftModal, type ModalRequest } from './modal-queue'
+import { dropModal, pushModal, shiftModal, type ModalRequest } from './modal-queue'
 
 function confirmReq(title: string, key?: string): ModalRequest {
   return {
@@ -46,11 +46,5 @@ describe('dropModal', () => {
     const b: ModalRequest = { kind: 'confirm', key: 'close', title: 't', description: 'd', confirmLabel: 'ok', onConfirm: () => {} }
     expect(dropModal([a, b], 'delete:X')).toEqual([b])
     expect(dropModal([a, b], 'nope')).toEqual([a, b])
-  })
-})
-
-describe('clearModals', () => {
-  it('全部取り下げる（フォルダを切り替えたら前のフォルダの要求は意味を失う）', () => {
-    expect(clearModals()).toEqual([])
   })
 })

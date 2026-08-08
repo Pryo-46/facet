@@ -25,7 +25,7 @@ import {
 } from '@/core/history'
 import { resolveCommand, toKeyEventLike, type KeyContext } from '@/core/keyboard/keymap'
 import { currentPlatform } from '@/core/keyboard/platform'
-import { clearModals, dropModal, pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
+import { dropModal, pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
 import type { ProjectFile } from '@/core/project-file'
 import { scanFolder } from '@/core/scan'
 import { dismissToast, dismissToastByKey, pushToast, type ToastItem } from '@/core/toasts'
@@ -151,7 +151,7 @@ function App() {
       dismissToast: (key) => setToasts((prev) => dismissToastByKey(prev, key)),
       showModal: (request) => setModals((prev) => pushModal(prev, request)),
       dropModal: (key) => setModals((prev) => dropModal(prev, key)),
-      clearModals: () => setModals(clearModals()),
+      clearModals: () => setModals([]),
       getEditingData: () => historyRef.current?.present ?? null,
     }
     controllerRef.current = createAppController(appIo, host, appRegistry)

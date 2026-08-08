@@ -38,6 +38,18 @@ function row(cells: readonly string[]): string {
   return `| ${cells.join(' | ')} |`
 }
 
+/**
+ * 見出しに収める。`title` はスキーマ上ただの `string`（enum でも pattern でもない）ので、
+ * Skill や外部エディタが改行入りの title を書いてもスキーマ検証は通る。そのまま
+ * `## ` の直後に改行を出すと Markdown 上で新しい見出し（最悪 `# ` から始まる h1）が
+ * 混入しうる——「h1 は使わない」（NotePM のページタイトルと階層が衝突する）が崩れる
+ * 経路になるので、改行は空白へ潰す。`cell()` は `|` をエスケープする表専用の関数
+ * なので、表を持たない見出しには使えない
+ */
+function heading(text: string): string {
+  return text.replace(/\r\n|\r|\n/g, ' ')
+}
+
 function termRow(term: Term): string {
   return row([
     cell(term.name),
@@ -62,7 +74,7 @@ export function glossaryToMarkdown(data: GlossarySchemaVersion1): string {
 
   const header = row(FIELD_ORDER.map((field) => FIELD_LABELS[field]))
   const divider = row(FIELD_ORDER.map(() => '---'))
-  const blocks: string[] = [`## ${data.title}`]
+  const blocks: string[] = [`## ${heading(data.title)}`]
   for (const [kind, terms] of groups) {
     if (terms.length === 0) continue
     blocks.push(`### ${kindLabel(kind)}`)

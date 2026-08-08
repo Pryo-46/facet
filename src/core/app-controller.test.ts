@@ -251,6 +251,19 @@ describe('openFolder', () => {
     await h.controller.openFolder(DIR)
     expect(h.log).toContain('clearModals')
   })
+
+  it('前のフォルダの二択回答待ちを持ち越さない（さもないと以後ずっと閉じられなくなる）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.savers.current().unsaved = true
+    h.disk.files.set(p('a.json'), note('A', '外部が書いた'))
+    await h.controller.externalChange()
+    expect(h.modals().some((m) => m.kind === 'choice')).toBe(true)
+    // 回答する前に別フォルダを開く
+    await h.controller.openFolder('C:\\proj2')
+    await expect(h.controller.requestClose()).resolves.toBe(true)
+  })
 })
 
 describe('selectFile', () => {
@@ -434,6 +447,27 @@ describe('requestDelete / 削除の順序', () => {
     await request.onConfirm()
     expect(h.banners().io).toContain('ファイルを削除できませんでした')
   })
+
+  it('回答待ちの二択があるファイルを削除しても、閉じられなくならない（I-1 回帰）', async () => {
+    const h = await openAndSelect()
+    // ①未保存編集がある状態にする
+    h.savers.current().unsaved = true
+    // ②削除確認ダイアログを出す（キュー＝[delete:a.json]）
+    h.controller.requestDelete(h.files()[0])
+    const deleteRequest = h.modals()[0]
+    if (deleteRequest.kind !== 'confirm') throw new Error('confirm ではない')
+    // ③その間に外部が同じファイルを書き換える → ask へ倒れ、pendingAsk が立つ
+    //   （二択は削除確認より後ろに積まれるので画面には出ない）
+    h.disk.files.set(p('a.json'), note('A', '外部が書いた'))
+    await h.controller.externalChange()
+    expect(h.modals().some((m) => m.kind === 'choice')).toBe(true)
+    // ④削除を確定する → deleteFile が external:a.json の二択ダイアログを drop する
+    await deleteRequest.onConfirm()
+    expect(h.log).toContain(`dropModal:external:${p('a.json')}`)
+    // ⑤ダイアログごと取り下げたので、回答待ちの信号（pendingAsk）も一緒に落ちていること。
+    //   さもないと requestClose は「もう存在しないダイアログ」を待って永久に false を返す
+    await expect(h.controller.requestClose()).resolves.toBe(true)
+  })
 })
 
 describe('externalChange（外部変更の検知）', () => {
@@ -446,13 +480,19 @@ describe('externalChange（外部変更の検知）', () => {
   it('自分の書き込みは外部変更にならない（台帳との内容比較）', async () => {
     const h = await opened()
     await h.controller.selectFile(p('a.json'))
-    const module = h.registry.get('note')!
     // 自動保存が書いたことにする（writeAndRecord 相当を saver 経由で再現）
     await h.savers.current().spec.write(note('A', 'x'))
     const from = h.log.length
     await h.controller.externalChange()
     expect(h.log.slice(from)).not.toContain('toast')
-    expect(module).toBeDefined()
+    // 自己書き込み除外が壊れると、検知時点で saver.hasUnsaved() が true になっており
+    // planExternalChange は必ず ask（二択）に倒れる——このときトーストは1件も出ない。
+    // つまり上の toast 検査だけでは「壊れた状態」と区別できない。二択・履歴の作り直し・
+    // saver の停止のいずれも起きていないことまで見て、初めて「本当に何も起きなかった」
+    // と言える
+    expect(h.log.slice(from)).not.toContain('showModal')
+    expect(h.log.slice(from)).not.toContain('setDocument')
+    expect(h.log.slice(from)).not.toContain('dispose')
   })
 
   it('未保存編集が無ければ再読込し、Undo 履歴を破棄する', async () => {
@@ -544,6 +584,27 @@ describe('externalChange（外部変更の検知）', () => {
     await request.onPrimary()
     expect(h.savers.current().spec.baseline).toBe(diskText)
     expect(h.savers.current().latest).toBe(note('A', '自分の編集'))
+  })
+
+  it('「自分の編集で上書き」は、外部変更で壊れた表示（rejected）を editable へ戻す', async () => {
+    // 前マイルストーンのレビューで見つかった行き止まり：ディスクは自分の内容に
+    // 直っているのに「このファイルは開けません」の表示が残り、しかも台帳が一致する
+    // ので再走査でも直らない。overwriteWithMine の repaired 再分類がこれを塞ぐ
+    const h = await opened()
+    await h.controller.selectFile(p('a.json'))
+    h.savers.current().unsaved = true
+    h.setDocument({ schemaVersion: 1, type: 'note', title: 'A', body: '自分の編集' })
+    // 外部変更でスキーマ違反にする（body が無い）
+    h.disk.files.set(p('a.json'), JSON.stringify({ schemaVersion: 1, type: 'note', title: 'A' }))
+    await h.controller.externalChange()
+    // 検知直後は一覧の表示が rejected に落ちている
+    expect(h.files().find((f) => f.path === p('a.json'))?.result.status).not.toBe('editable')
+    const request = h.modals().at(-1)
+    if (request?.kind !== 'choice') throw new Error('choice ではない')
+    await request.onPrimary()
+    // 自分の編集で上書きした後は editable へ戻っていること（行き止まりにしない）
+    const entry = h.files().find((f) => f.path === p('a.json'))
+    expect(entry?.result.status).toBe('editable')
   })
 
   it('「自分の編集で上書き」で選択が変わっていたら無音で終わらない', async () => {

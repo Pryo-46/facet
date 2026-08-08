@@ -98,6 +98,12 @@ describe('glossaryToMarkdown', () => {
     expect(md).toContain('| 未知種別の用語 |')
   })
 
+  it('title に改行が入っていても h1 が混入しない（title はスキーマ上ただの string）', () => {
+    const md = glossaryToMarkdown(glossary([], '用語集\n# 見出しのつもり'))
+    expect(md.split('\n').some((line) => /^# /.test(line))).toBe(false)
+    expect(md).toBe('## 用語集 # 見出しのつもり\n')
+  })
+
   it('用語0件なら見出しだけ。末尾は改行1つ', () => {
     const md = glossaryToMarkdown(glossary([]))
     expect(md).toBe('## テスト用語集\n')
