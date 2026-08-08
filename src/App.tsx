@@ -284,20 +284,28 @@ function App() {
   }, [projectDir, controller, setBanner])
 
   return (
-    <main className="flex min-h-screen flex-col bg-canvas text-ink">
-      <header className="flex items-center gap-4 border-b border-rule px-6 py-3">
+    <main className="flex min-h-screen flex-col bg-canvas bg-grid-paper text-ink">
+      <header className="flex items-center gap-4 border-b border-rule bg-surface px-6 py-3">
         <h1 className="text-lg font-bold text-ink">facet</h1>
         <Button onClick={() => void openFolder()}>フォルダを開く</Button>
-        <Button disabled={history === null || !canUndo(history)} onClick={() => runHistory('undo')}>
+        <Button
+          variant="outline"
+          disabled={history === null || !canUndo(history)}
+          onClick={() => runHistory('undo')}
+        >
           元に戻す
         </Button>
-        <Button disabled={history === null || !canRedo(history)} onClick={() => runHistory('redo')}>
+        <Button
+          variant="outline"
+          disabled={history === null || !canRedo(history)}
+          onClick={() => runHistory('redo')}
+        >
           やり直す
         </Button>
-        <Button disabled={!canExport} onClick={() => void controller.copyMarkdown()}>
+        <Button variant="outline" disabled={!canExport} onClick={() => void controller.copyMarkdown()}>
           Markdown をコピー
         </Button>
-        <Button disabled={!canExport} onClick={() => void controller.exportMarkdown()}>
+        <Button variant="outline" disabled={!canExport} onClick={() => void controller.exportMarkdown()}>
           Markdown を書き出す
         </Button>
         {projectDir && <span className="text-sm text-ink-muted">{projectDir}</span>}
@@ -319,7 +327,7 @@ function App() {
       )}
 
       <div className="flex min-h-0 flex-1">
-        <aside className="w-64 shrink-0 border-r border-rule">
+        <aside className="w-64 shrink-0 border-r border-rule bg-surface">
           <FileList
             files={files}
             selectedPath={selectedPath}

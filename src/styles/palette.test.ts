@@ -215,6 +215,16 @@ describe('index.css', () => {
   it('.dark のブロックを持たない（モードの出し分けは palette.css の仕事）', () => {
     expect(indexCss).not.toMatch(/^\s*\.dark\s*\{/m)
   })
+
+  it('方眼紙のユーティリティが grid トークンから色を取る（M8 決定15）', () => {
+    expect(indexCss).toMatch(/@utility\s+bg-grid-paper/)
+    // 色は必ず役割トークン経由。直書きは同じ describe の別の it が弾く
+    expect(indexCss).toMatch(/bg-grid-paper[\s\S]*var\(--grid\)/)
+  })
+
+  it('マス目のサイズを持つ', () => {
+    expect(indexCss).toMatch(/--grid-size:\s*\d+px/)
+  })
 })
 
 /**

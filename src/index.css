@@ -147,6 +147,11 @@
 
     /* 色ではない */
     --radius: 0.625rem;
+
+    /* 方眼紙のマス目。色ではないので palette.css には置かない
+       （palette.css は色値だけを持つ）。text-sm の行高（14px × 1.65 ＝ 23.1px）
+       とほぼ一致させ、方眼と文字行が揃って見えるようにしている */
+    --grid-size: 24px;
 }
 
 @layer base {
@@ -159,4 +164,20 @@
   html {
     @apply font-sans;
     }
+}
+
+/* =========================================================================
+ * 方眼紙の地（rev 9章の確定要素。M8 決定15 で実装）。
+ *
+ * 「地は方眼、作業する面は無地」という関係を作り、canvas と surface を
+ * 明度差ではなく模様の有無で見分けられるようにする——ライトでは
+ * 両者の L 差が 0.04（1.13:1）しかなく、罫線でしか分かれて見えなかった。
+ *
+ * ★ 色値を書かない。★ var(--grid) から取る。
+ *   palette.test.ts が index.css の色値直書きを弾く
+ * ========================================================================= */
+@utility bg-grid-paper {
+    background-image:
+        repeating-linear-gradient(to right, var(--grid) 0 1px, transparent 1px var(--grid-size)),
+        repeating-linear-gradient(to bottom, var(--grid) 0 1px, transparent 1px var(--grid-size));
 }
