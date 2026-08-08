@@ -168,8 +168,9 @@ function App() {
     setToasts((prev) => pushToast(prev, { ...toast, id }))
   }
 
-  // ToastRow の自動消去タイマーは onDismiss を依存に持つので、毎レンダで
-  // 新しい関数を渡すとタイマーが張り直されて自動で消えなくなる
+  // 参照を安定させる（トーストは閉じるまで残るので、毎レンダで新しい関数を
+  // 渡しても実害は無いが、ToastRow に副作用を足したときに毎レンダで
+  // 張り直される罠を作らないため）
   const dismiss = useCallback((id: number) => {
     setToasts((prev) => dismissToast(prev, id))
   }, [])
