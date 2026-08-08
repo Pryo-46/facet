@@ -357,6 +357,10 @@ export function createAppController(
       if (pendingAsk !== null && pendingAsk.path === file.path) pendingAsk = null
       // このファイル宛ての二択要求が残っていても、押せば no-op か読み込みエラーになる
       host.dropModal(`external:${file.path}`)
+      // 削除確認そのものも取り下げる。**同じファイルの確認が積まれている**
+      // 状態（連打・外部削除との競合）で残すと、確定したときに trashFile が
+      // 失敗して「ファイルを削除できませんでした」が出る
+      host.dropModal(`delete:${file.path}`)
       // 単一性違反はここで解消されうるので、必ず検証をやり直す
       applyFiles(files.filter((f) => f.path !== file.path))
       host.setBanner('io', null)
@@ -533,6 +537,8 @@ export function createAppController(
     knownDisk.delete(path)
     // 消えたファイルの二択要求は、どちらを押しても no-op か読み込みエラーに退化する
     host.dropModal(`external:${path}`)
+    // 外部で消えた後に古い削除確認を確定すると、trashFile が失敗する
+    host.dropModal(`delete:${path}`)
     host.showToast({ key: `external:${path}`, message: `開いていたファイルが外部で削除されました: ${name}` })
   }
 
@@ -749,6 +755,17 @@ export function createAppController(
       const target = await io.askSavePath(doc.path.replace(/\.json$/i, '.md'))
       // キャンセルは失敗ではない。バナーを出さず黙って戻る
       if (target === null) return
+      // **ダイアログを出す前のスナップショットで書かない。** ネイティブ
+      // ダイアログが開いている数秒〜数分の間に外部変更の取り込みが走ると、
+      // doc.data は取り込み前の内容を指す。ここで引き直す
+      const fresh = currentDocument()
+      if (fresh === null || fresh.path !== doc.path) {
+        host.showToast({
+          key: 'export',
+          message: 'Markdown を書き出しませんでした（保存先を選んでいる間に対象が変わりました）',
+        })
+        return
+      }
       // **台帳へ記録しない**（writeAndRecord を通さない）——走査対象は .json だけなので、
       // 通常は記録しても次の再走査の retain で落ちる死に記録になる。ただし
       // 保存ダイアログはユーザーが拡張子を書き換えられる（ここで .json 強制はしない）
@@ -756,7 +773,7 @@ export function createAppController(
       // 成り立つ想定にすぎない。仮に .json のまま書かれても、台帳に無い記録は
       // 次の外部変更として検知されるだけで、自己書き込み除外を誤って発動させる
       // 側の事故（本来検知すべき変更を見逃す）にはならない
-      await io.write(target, doc.module.toMarkdown(doc.data))
+      await io.write(target, fresh.module.toMarkdown(fresh.data))
       host.setBanner('io', null)
       host.showToast({ key: 'export', message: `Markdown を書き出しました: ${target}` })
     } catch (err) {

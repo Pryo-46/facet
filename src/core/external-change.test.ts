@@ -180,3 +180,33 @@ describe('planExternalChange', () => {
     ])
   })
 })
+
+/** 同じパスが外部の変更でスキーマ違反に落ちた状態 */
+const ABroken = entry('用語集.json', '{ 壊れた')
+
+describe('選択中でないファイルの通知', () => {
+  it('外部の変更で開けなくなったら「読み込みました」と言わない', () => {
+    // 赤バッジは出るが、メッセージが成功時と同じでは何が起きたか伝わらない
+    const plan = planExternalChange({
+      prev: [listed(A)],
+      scan: scan([ABroken]),
+      knownText: ledger({ [A.path]: A.text }),
+      selectedPath: null,
+      hasUnsavedEdits: false,
+    })
+    expect(plan.notices.map((n) => n.message)).toEqual([
+      '外部の変更でこのファイルを開けなくなりました: 用語集.json',
+    ])
+  })
+
+  it('開ける内容のままなら従来どおりのメッセージ', () => {
+    const plan = planExternalChange({
+      prev: [listed(A)],
+      scan: scan([A2]),
+      knownText: ledger({ [A.path]: A.text }),
+      selectedPath: null,
+      hasUnsavedEdits: false,
+    })
+    expect(plan.notices.map((n) => n.message)).toEqual(['外部の変更を読み込みました: 用語集.json'])
+  })
+})
