@@ -4,6 +4,7 @@ import type { GlossarySchemaVersion1 } from '@/types/glossary'
 import glossarySchema from '../../../schemas/glossary.schema.json'
 import { checkGlossaryConsistency } from './consistency'
 import { GlossaryEditor } from './GlossaryEditor'
+import { glossaryToMarkdown } from './markdown'
 import { migrateGlossary } from './migrate'
 
 export const glossaryModule: ToolModule<GlossarySchemaVersion1> = {
@@ -14,6 +15,8 @@ export const glossaryModule: ToolModule<GlossarySchemaVersion1> = {
   idPrefixes: ['term'],
   Editor: GlossaryEditor,
   checkConsistency: checkGlossaryConsistency,
+  // 規約5: NotePM 向け Markdown（session-notes 論点7）。Mermaid は無い
+  toMarkdown: glossaryToMarkdown,
   // 用語集はハブなのでプロジェクトにつき1つ（rev 5章の単一性）
   singleton: true,
   migrate: migrateGlossary,

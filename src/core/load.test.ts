@@ -23,6 +23,7 @@ function makeRegistry() {
     idPrefixes: ['term'],
     Editor: () => null,
     checkConsistency: () => [],
+    toMarkdown: () => '',
     singleton: false,
     migrate: (d) => d,
     createEmpty: () => ({}),

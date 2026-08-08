@@ -21,8 +21,8 @@ export interface EditorProps<TData> {
 }
 
 /**
- * ツールモジュール規約（rev 6章）の M1 時点の枠。
- * 整合性検証ルール（M2）と出力ロジック（M6）は該当マイルストーンでスロットを追加する。
+ * ツールモジュール規約（rev 6章）。M6 の出力ロジック追加で6点セットが埋まった。
+ * `createEmpty` は6点セットには無い7つ目のスロット（額縁の新規作成が使う雛形）。
  */
 export interface ToolModule<TData = unknown> {
   /** 規約1: type 識別子 */
@@ -39,6 +39,13 @@ export interface ToolModule<TData = unknown> {
   Editor: ComponentType<EditorProps<TData>>
   /** 規約4: 整合性検証ルール（モジュール内検証。レベル2＝受け入れて赤表示） */
   checkConsistency: (data: TData) => ConsistencyIssue[]
+  /**
+   * 規約5: 出力ロジック（rev 6章・8章）。NotePM 向けの Markdown を返す。
+   * 額縁がクリップボードへのコピーと `.md` 書き出しの両方に使うので、
+   * **副作用を持たない純関数**であること（ファイルにもクリップボードにも触らない）。
+   * Mermaid を含むツールも戻り値はこの1本の文字列に収める
+   */
+  toMarkdown: (data: TData) => string
   /** プロジェクト内に同 type のファイルを1つしか許さないか（コア横断検証が使う） */
   singleton: boolean
   /** 規約6: マイグレータ（旧 schemaVersion → 現行版。初版は恒等） */

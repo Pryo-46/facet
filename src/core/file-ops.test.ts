@@ -14,6 +14,7 @@ function nonSingletonModule(type: string): AnyToolModule {
     idPrefixes: [],
     Editor: () => null,
     checkConsistency: () => [],
+    toMarkdown: () => '',
     singleton: false,
     migrate: (d) => d,
     createEmpty: () => ({}),
