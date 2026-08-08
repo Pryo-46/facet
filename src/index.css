@@ -13,11 +13,30 @@
  * ★ 色値はここに書かない。src/styles/palette.css が唯一の出所。★
  * ========================================================================= */
 @theme inline {
-    /* Task 4 で値を確定する。ここでは現状のまま残す——
-       shadcn の alert-dialog.tsx が font-heading を使っており、
-       --font-heading を落とすとユーティリティごと消えてビルドが壊れる */
+    /* タイポグラフィ（M7 決定6）。
+     *
+     * サイズは Tailwind の既定のまま（xs 12 / sm 14 / base 16 / lg 18px）。
+     * 再定義しない——既存コードは sm と xs でほぼ回っており、shadcn の
+     * 生成物も text-sm を既定にしている。ここで語彙を作り直しても得るものがない。
+     *
+     * **使ってよいのは xs / sm / base / lg の4段だけ。**
+     * xl 以上と任意値 text-[...] は src/styles/conventions.test.ts が弾く。
+     *
+     * 行間だけ日本語向けに上書きする。Tailwind の既定は英文基準で、
+     * text-sm は 1.43。用語集の定義・備考は自由記述の複数行が入る欄なので、
+     * ここが読みにくさに直結する。
+     *
+     * Geist は日本語グリフを持たない。和文のフォールバックを明示しないと
+     * 環境依存で MS UI Gothic に落ちる。和文フォントは同梱しない——
+     * rev 7章が配布形態を Windows のデスクトップアプリと定めており、
+     * Yu Gothic UI は Windows 8.1 以降の標準搭載なので事実上固定される */
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', sans-serif;
+    --font-sans: 'Geist Variable', 'Yu Gothic UI', 'Hiragino Sans', sans-serif;
+    --font-mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    --text-xs--line-height: 1.5;
+    --text-sm--line-height: 1.65;
+    --text-base--line-height: 1.5;
+    --text-lg--line-height: 1.4;
 
     --color-ink: var(--ink);
     --color-ink-muted: var(--ink-muted);
