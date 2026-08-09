@@ -77,9 +77,15 @@ export function CellInput(props: CellInputProps) {
    *
    * **jsdom はレイアウトを持たない**（scrollHeight が常に 0、lineHeight は
    * 空文字）。そこで抜けないと rows={NaN} を React へ渡すことになるため、
-   * 測れないときは何もしない。5行上限が効いているかの確認は実機で行う
+   * 測れないときは何もしない。5行上限が効いているかの確認は実機で行う。
+   *
+   * 関数として括り出してあるのは、内容が変わったとき（値の変化）だけでなく
+   * **幅が変わったとき**にも呼び直す必要があるため（下の ResizeObserver）。
+   * 列幅ドラッグや窓リサイズで折り返しに必要な行数が変わっても元の実装は
+   * 依存配列に幅を持たず再計算しなかった。既定の overflow: auto で
+   * はみ出た行が隠れ、「入れたはずの行が消えた」ように見えていた
    */
-  useLayoutEffect(() => {
+  const measure = () => {
     const el = areaRef.current
     if (el === null) return
     const style = getComputedStyle(el)
@@ -96,7 +102,37 @@ export function CellInput(props: CellInputProps) {
     const next = Math.min(needed, MAX_ROWS)
     el.rows = next
     setRows((prev) => (prev === next ? prev : next))
+  }
+
+  useLayoutEffect(() => {
+    measure()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- measure は毎レンダー再生成される安定した処理。値と幅の変化だけを見る
   }, [draft, value, multiline])
+
+  /**
+   * 幅の変化に反応する。列幅ドラッグ（M8 決定8〜10）で定義・備考列が
+   * 狭まったとき、あるいは窓リサイズで定義列が縮んで吸収したとき
+   * （M8 決定9）、textarea 自身の幅が変わる。ResizeObserver で
+   * それを直接検知する——値の変化を見る上の effect では幅の変化は拾えない
+   *
+   * **multiline のときだけ張る。** 単一行の <input> は折り返さないので
+   * 幅の変化と行数は無関係であり、キー入力のたびに ResizeObserver の
+   * 生成・破棄を繰り返す理由が無い
+   *
+   * **jsdom には ResizeObserver が無い。** テスト環境では張らずに抜ける
+   * ——上の measure() が「測れないときは何もしない」形になっているのと
+   * 同じ考え方で、無ければ動作をスキップするだけにしてテストを壊さない
+   */
+  useLayoutEffect(() => {
+    if (!multiline) return
+    const el = areaRef.current
+    if (el === null) return
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => measure())
+    observer.observe(el)
+    return () => observer.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- measure は毎レンダー再生成される安定した処理。observer の張り替えは multiline の変化だけで駆動する
+  }, [multiline])
 
   const shared = {
     className,

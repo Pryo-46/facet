@@ -30,8 +30,14 @@ import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } f
 // 種別の選択肢はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂時に静かにずれる）
 const KIND_OPTIONS = glossarySchema.$defs.term.properties.kind.enum
 
+// フォーカスは面の塗り替えではなくリングで示す（M8 修正3）。テーブルの面が
+// bg-surface になった今、focus:bg-surface はコントラスト比 1.00:1 で見えない。
+// エラー・未定義セルは bg-warning/20・/10 の面を警告として持っているので、
+// フォーカスで背景を塗り替えるとその警告表示が消えてしまう——リングなら
+// 面の色を潰さずに重ねられる。色は役割トークンの --ring から取る（既に
+// --ink に紐づいている。palette.css は変更していない）
 const cellInput =
-  'w-full resize-none bg-transparent px-2 py-1 text-ink outline-none focus:bg-surface rounded-sm'
+  'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm focus:ring-2 focus:ring-inset focus:ring-ring'
 // レベル2エラー（受け入れて赤表示）と warning（undecided / 未定義）は
 // どちらも同系色の面で示し、濃さで強度を区別する。
 // 波線下線は表記ゆれの「指摘（suggestion）」用に予約されているため使わない
@@ -320,8 +326,15 @@ export function GlossaryEditor({
       {/* テーブルは surface の面に載せ、外枠だけ rule で締める。内側の罫は
           grid（装飾）に落とす——M7 が rule と grid を2トークンに分けた理由が
           そのまま効く階層である（M8 決定2）。
-          overflow-hidden は border-collapse のまま角丸を切るために要る */}
-      <div ref={tableRef} className="overflow-hidden rounded-md border border-rule bg-surface">
+          **角丸のための overflow-hidden はあえて置かない。** 別名セル
+          （AliasCell）のパネルはこの div を包含ブロックとする absolute 配置で、
+          パネルの高さ（別名の行＋操作ヒントで60px強）は行の高さ（約31px）を
+          必ず上回る。overflow-hidden を掛けると最終行で開いたパネルが
+          下端で切れて到達不能になる（横方向も同様——別名列と備考列を両方
+          最小幅まで狭めると w-56 が右端を越える）。角丸は装飾だが別名パネルは
+          機能なので、角丸をあきらめて直角にする。外枠と面（border-rule /
+          bg-surface）はそのまま残す */}
+      <div ref={tableRef} className="border border-rule bg-surface">
         <table className="w-full table-fixed border-collapse text-sm">
           <colgroup>
             {COLUMNS.map((col, i) => {

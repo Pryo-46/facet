@@ -218,8 +218,16 @@ describe('index.css', () => {
 
   it('方眼紙のユーティリティが grid トークンから色を取る（M8 決定15）', () => {
     expect(indexCss).toMatch(/@utility\s+bg-grid-paper/)
-    // 色は必ず役割トークン経由。直書きは同じ describe の別の it が弾く
-    expect(indexCss).toMatch(/bg-grid-paper[\s\S]*var\(--grid\)/)
+    // 色は必ず役割トークン経由。直書きは同じ describe の別の it が弾く。
+    //
+    // **検査は @utility ブロックの中に絞る。** 以前は
+    // `bg-grid-paper[\s\S]*var(--grid)` で「bg-grid-paper の後、ファイル末尾
+    // までのどこかに var(--grid) がある」ことしか見ておらず、@utility が
+    // index.css の最後にあるから緑になっていただけだった。後ろに
+    // var(--grid) を使う定義を1つ足した瞬間に空洞化する——「症状を
+    // 取り違えたテストは、無いテストより危険」（lessons-for-planning.md）
+    // の型に当たるため、ブロックの範囲にスコープを絞る
+    expect(indexCss).toMatch(/@utility\s+bg-grid-paper\s*\{[^}]*var\(--grid\)/)
   })
 
   it('マス目のサイズを持つ', () => {
