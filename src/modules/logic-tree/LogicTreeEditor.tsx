@@ -1,0 +1,192 @@
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { buttonBase } from '@/components/button-styles'
+import type { EditorProps } from '@/core/registry'
+import { computeRowKeys } from '@/core/row-keys'
+import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
+import { addRoot, setText } from './commands'
+import { layoutTree, type Size } from './layout'
+import { wrapText, type MeasureWidth, type WrappedText } from './measure'
+import {
+  createNodeMeasurer,
+  FALLBACK_NODE_FONT,
+  readNodeFont,
+  sameFont,
+  type NodeFont,
+} from './node-font'
+import { NodeBox } from './NodeBox'
+import { buildTree } from './tree'
+import { TreeEdges } from './TreeEdges'
+import { cssTransform, INITIAL_TRANSFORM, type Transform } from './viewport'
+
+/** 測定結果のキャッシュ。会議1回分の打鍵で無限に増えないよう頭を押さえる */
+const MEASURE_CACHE_LIMIT = 2000
+
+/** ノードの文言に当たるクラスのうち、フォントを決めている部分。見本要素と共有する */
+const NODE_FONT_CLASS = 'text-sm'
+
+export function LogicTreeEditor({
+  data,
+  onChange,
+  issues,
+}: EditorProps<LogicTreeSchemaVersion1>) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const probeRef = useRef<HTMLSpanElement>(null)
+  const [font, setFont] = useState<NodeFont>(FALLBACK_NODE_FONT)
+  // Task 11 でビューポートのフックが差し替える。M1 の描画はこの値に従うだけ
+  const [transform] = useState<Transform>(INITIAL_TRANSFORM)
+
+  // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
+  const [pendingFocus, setPendingFocus] = useState<string | null>(null)
+
+  const readFont = (): void => {
+    setFont((prev) => {
+      const next = readNodeFont(probeRef.current)
+      return sameFont(prev, next) ? prev : next
+    })
+  }
+
+  useLayoutEffect(readFont, [])
+
+  // **Web フォントの読み込み前に測るとフォールバック書体の幅になる。**
+  // Geist は日本語グリフを持たず和文はフォールバックに落ちるが、
+  // 欧文の幅は読み込みの前後で変わる。読み込み完了で測り直す
+  useEffect(() => {
+    if (typeof document === 'undefined' || !('fonts' in document)) return
+    let alive = true
+    void document.fonts.ready.then(() => {
+      if (alive) readFont()
+    })
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFont は毎レンダー再生成される安定した処理。購読はマウント時の1回でよい
+  }, [])
+
+  useEffect(() => {
+    if (pendingFocus === null) return
+    const el = containerRef.current?.querySelector<HTMLElement>(`[data-cell="${pendingFocus}"]`)
+    el?.focus()
+    setPendingFocus(null)
+  }, [pendingFocus])
+
+  // 測定器はフォントが変わったときだけ作り直す。**キャッシュはフォントに
+  // 紐づく**ので、同じ入れ物の中で持つ（別々に持つと片方だけ古くなる）
+  const measurerRef = useRef<{
+    font: string
+    measure: MeasureWidth
+    cache: Map<string, WrappedText>
+  } | null>(null)
+  if (measurerRef.current === null || measurerRef.current.font !== font.font) {
+    measurerRef.current = { font: font.font, measure: createNodeMeasurer(font), cache: new Map() }
+  }
+  const measurer = measurerRef.current
+
+  const nodeKeys = computeRowKeys(data.nodes)
+  const sizes = new Map<string, Size>()
+  data.nodes.forEach((node, index) => {
+    let wrapped = measurer.cache.get(node.text)
+    if (wrapped === undefined) {
+      wrapped = wrapText(node.text, measurer.measure, font.lineHeight)
+      if (measurer.cache.size >= MEASURE_CACHE_LIMIT) measurer.cache.clear()
+      measurer.cache.set(node.text, wrapped)
+    }
+    sizes.set(nodeKeys[index], { width: wrapped.width, height: wrapped.height })
+  })
+
+  const built = buildTree(data.nodes)
+  const { positions } = layoutTree(built.roots, sizes)
+
+  // 赤表示の対象。issues の locations が指す配列位置を集める
+  const invalid = new Set<number>()
+  for (const issue of issues) {
+    for (const location of issue.locations) {
+      if (location.entityIndex !== null) invalid.add(location.entityIndex)
+    }
+  }
+
+  const createRoot = (): void => {
+    const result = addRoot(data)
+    onChange(result.data, null)
+    if (result.focusIndex !== null) {
+      setPendingFocus(computeRowKeys(result.data.nodes)[result.focusIndex])
+    }
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative h-full w-full overflow-hidden bg-canvas bg-grid-paper"
+    >
+      {/* 測定用の見本。**描画されるノードと同じフォントのクラスを持たせる**
+          ことで、測定と描画が同一の情報源を見る（rev 9章）。
+          opacity-0 で見せないだけにするのは、display:none だと
+          getComputedStyle がフォントを返さない環境があるため */}
+      <span
+        ref={probeRef}
+        aria-hidden="true"
+        className={`${NODE_FONT_CLASS} pointer-events-none absolute left-0 top-0 select-none opacity-0`}
+      >
+        あ
+      </span>
+
+      {issues.length > 0 && (
+        <ul className="absolute left-0 right-0 top-0 z-10 list-disc bg-surface px-6 py-2 pl-10 text-sm text-warning">
+          {issues.map((issue, i) => (
+            <li key={`${issue.rule}-${i}`}>{issue.message}</li>
+          ))}
+        </ul>
+      )}
+
+      {data.nodes.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <button
+            type="button"
+            className={`${buttonBase} border border-rule bg-surface px-4 py-2 text-sm text-ink hover:bg-canvas`}
+            onClick={createRoot}
+          >
+            クリックして開始
+          </button>
+        </div>
+      )}
+
+      {/* 背景レイヤ（M1 は空。シーケンスの失敗ゾーンのために枠だけ確保する） */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 origin-top-left"
+        style={{ transform: cssTransform(transform) }}
+        data-layer="background"
+      />
+
+      <TreeEdges roots={built.roots} positions={positions} sizes={sizes} transform={transform} />
+
+      <div
+        className="absolute inset-0 origin-top-left"
+        style={{ transform: cssTransform(transform) }}
+        data-layer="nodes"
+      >
+        {data.nodes.map((node, index) => {
+          const key = nodeKeys[index]
+          const point = positions.get(key)
+          const size = sizes.get(key)
+          // 循環して根から到達できないノードは図に位置を持たない
+          //（存在は整合性検証の指摘として画面上部に出ている）
+          if (point === undefined || size === undefined) return null
+          return (
+            <NodeBox
+              key={key}
+              nodeKey={key}
+              label={`ノード${index + 1}`}
+              text={node.text}
+              x={point.x}
+              y={point.y}
+              width={size.width}
+              height={size.height}
+              invalid={invalid.has(index)}
+              onTextChange={(next) => onChange(setText(data, index, next), `${key}:text`)}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}

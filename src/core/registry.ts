@@ -65,7 +65,13 @@ export interface ToolModule<TData = unknown> {
   Editor: ComponentType<EditorProps<TData>>
   /** 規約4: 整合性検証ルール（モジュール内検証。レベル2＝受け入れて赤表示） */
   checkConsistency: (data: TData) => ConsistencyIssue[]
-  /** 規約5: 出力プロファイル（rev 6章・8章）。1つ以上 */
+  /**
+   * 規約5: 出力プロファイル（rev 6章・8章）。
+   *
+   * **0本は「出力を作っていないツール」の状態として正しい。** 額縁の
+   * `ExportMenu` はプロファイルが無いとき出力ボタンを押せなくする——
+   * 「押せるが壊れた文字列が出るボタン」を作らないため
+   */
   outputs: readonly OutputProfile<TData>[]
   /** プロジェクト内に同 type のファイルを1つしか許さないか（コア横断検証が使う） */
   singleton: boolean

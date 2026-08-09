@@ -280,23 +280,27 @@ const glossaryEditorSource = stripTsComments(
 )
 
 /**
- * 列を持つエディタコンポーネントを走査する。**決め打ちのパスを列挙しない。**
+ * モジュール配下の画面コンポーネントを走査する。**決め打ちのパスを列挙しない。**
  *
  * M10 で ErrorCatalogEditor.tsx が加わり、同じ半透明の濃さ（errorCell /
  * warnCell）を GlossaryEditor.tsx から独立に宣言した。パスを列挙する形だと
  * 3本目・4本目が増えたときに登録し忘れが構造的に起きるので、
- * conventions.test.ts の sourceFiles() と同じ「readdirSync で歩く」形に揃える
+ * conventions.test.ts の sourceFiles() と同じ「readdirSync で歩く」形に揃える。
+ *
+ * **`*Editor.tsx` に絞らない。** ロジックツリーは赤表示の面をエディタ本体
+ * ではなく NodeBox.tsx（ノード1つ分の部品）が当てており、エディタだけを
+ * 読む形では検算していない濃さがそこを素通りしていた
  */
 const MODULES_DIR = fileURLToPath(new URL('../modules/', import.meta.url))
 
-function editorSourceFiles(): string[] {
+function componentSourceFiles(): string[] {
   const found: string[] = []
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name)
       if (entry.isDirectory()) {
         walk(full)
-      } else if (/Editor\.tsx$/.test(entry.name)) {
+      } else if (/\.tsx$/.test(entry.name) && !/\.(test|spec)\.tsx$/.test(entry.name)) {
         found.push(full)
       }
     }
@@ -305,16 +309,16 @@ function editorSourceFiles(): string[] {
   return found
 }
 
-const editorSources = editorSourceFiles().map((file) => ({
+const componentSources = componentSourceFiles().map((file) => ({
   file: path.relative(MODULES_DIR, file).split(path.sep).join('/'),
   source: stripTsComments(readFileSync(file, 'utf8')),
 }))
 
 describe('重ね合わせの値が実装と一致している', () => {
-  it('走査でエディタのソースを1つ以上見つけている', () => {
+  it('走査でコンポーネントのソースを1つ以上見つけている', () => {
     // 除外条件の書き間違いや対象の取り違えで0件になり、何も検査しないまま
     // 緑になるのを防ぐ（conventions.test.ts「ソースを1つ以上見つけている」と同じ理由）
-    expect(editorSources.length).toBeGreaterThan(0)
+    expect(componentSources.length).toBeGreaterThan(0)
   })
 
   // 上の検算は OVERLAYS の alpha を見ているだけなので、実装が別の濃さを
@@ -325,17 +329,28 @@ describe('重ね合わせの値が実装と一致している', () => {
   // それでは「エラーが警告より濃い」という関係が壊れても検知できない。
   // 変数名と値を直接結びつけることで、入れ替えを検出できるようにする。
   //
-  // **列を持つエディタ全部を見る。** 決め打ちで1本だけ読むと、2本目以降が
-  // 独立に別の濃さを宣言しても検知できない（M10 で実際に起きた）
+  // **宣言している側を全部見る。** 決め打ちで1本だけ読むと、2本目以降が
+  // 独立に別の濃さを宣言しても検知できない（M10 で実際に起きた）。
+  //
+  // 「全コンポーネントがこの2本を宣言している」ことは要求しない——
+  // 表を持たないエディタ（ロジックツリー）はセルという単位を持たず、
+  // 使いもしない定数を検査のためだけに置かせるのは本末転倒である。
+  // **濃さの側は下の「検算していない濃さを使っていない」が全件を見る**ので、
+  // 検算を通っていない面が入り込む口はそちらで塞がっている
   it('errorCell と warnCell がそれぞれ検算した濃さに紐づいている', () => {
-    for (const { file, source } of editorSources) {
+    const declaring = componentSources.filter(({ source }) =>
+      /const\s+(errorCell|warnCell)\s*=/.test(source),
+    )
+    // 宣言が1本も無くなったら、この検査は何も守っていない
+    expect(declaring.length).toBeGreaterThan(0)
+    for (const { file, source } of declaring) {
       expect(source, file).toMatch(/const errorCell = 'bg-warning\/20'/)
       expect(source, file).toMatch(/const warnCell = 'bg-warning\/10'/)
     }
   })
 
   it('検算していない濃さを使っていない', () => {
-    for (const { file, source } of editorSources) {
+    for (const { file, source } of componentSources) {
       const used = [...source.matchAll(/bg-warning\/(\d+)/g)].map((m) => Number(m[1]))
       const known = OVERLAYS.map((o) => Math.round(o.alpha * 100))
       expect([...new Set(used)].filter((u) => !known.includes(u)), file).toEqual([])
