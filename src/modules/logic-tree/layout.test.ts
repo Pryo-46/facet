@@ -98,6 +98,15 @@ describe('layoutTree', () => {
     expect((r.positions.get(KEY(1))?.y ?? 0) + 15).toBeCloseTo((first + last) / 2)
   })
 
+  it('親は全子の平均ではなく、最初の子と最後の子の中心に来る', () => {
+    // 子の高さが偏っていると、平均と「最初と最後の中心」がずれる。
+    // 平均に退行すると約 70.33 になる
+    const nodes = flat([[1, null], [2, 1], [3, 1], [4, 1]])
+    const sizes = uniformSizes(nodes)
+    sizes.set(KEY(4), { width: 100, height: 200 })
+    expect(run(nodes, sizes).positions.get(KEY(1))?.y).toBeCloseTo(84.5)
+  })
+
   it('孫を持つ兄弟部分木どうしが重ならない', () => {
     // 輪郭を持たない素朴な実装がここで必ず壊れる
     const nodes = flat([
@@ -106,7 +115,9 @@ describe('layoutTree', () => {
       [3, 1], [7, 3], [8, 3], [9, 3],
     ])
     const sizes = uniformSizes(nodes)
-    expectNoOverlap(run(nodes, sizes), sizes)
+    const r = run(nodes, sizes)
+    expect(r.positions.size).toBe(9)
+    expectNoOverlap(r, sizes)
   })
 
   it('高さがばらばらでも重ならない', () => {
@@ -118,13 +129,17 @@ describe('layoutTree', () => {
     const sizes = uniformSizes(nodes)
     sizes.set(KEY(4), { width: 100, height: 120 })
     sizes.set(KEY(3), { width: 100, height: 90 })
-    expectNoOverlap(run(nodes, sizes), sizes)
+    const r = run(nodes, sizes)
+    expect(r.positions.size).toBe(7)
+    expectNoOverlap(r, sizes)
   })
 
   it('ルートが複数あっても縦に積んで重ならない', () => {
     const nodes = flat([[1, null], [2, 1], [3, null], [4, 3]])
     const sizes = uniformSizes(nodes)
-    expectNoOverlap(run(nodes, sizes), sizes)
+    const r = run(nodes, sizes)
+    expect(r.positions.size).toBe(4)
+    expectNoOverlap(r, sizes)
   })
 
   it('すべての座標が 0 以上に正規化される', () => {
@@ -142,6 +157,7 @@ describe('layoutTree', () => {
     const nodes = flat([[1, null], [2, 1], [3, 1]])
     const sizes = uniformSizes(nodes)
     const r = run(nodes, sizes)
+    expect(r.positions.size).toBe(3)
     for (const [key, p] of r.positions) {
       expect(p.x + (sizes.get(key)?.width ?? 0)).toBeLessThanOrEqual(r.width)
       expect(p.y + (sizes.get(key)?.height ?? 0)).toBeLessThanOrEqual(r.height)
@@ -151,7 +167,13 @@ describe('layoutTree', () => {
   it('同じ入力からは同じ出力が出る（純関数）', () => {
     const nodes = flat([[1, null], [2, 1], [3, 1], [4, 2]])
     const sizes = uniformSizes(nodes)
-    expect([...run(nodes, sizes).positions]).toEqual([...run(nodes, sizes).positions])
+    const other = flat([[1, null], [2, 1], [3, 2], [4, 3]])
+    const otherSizes = uniformSizes(other)
+    // **別の入力を間に挟む。** 2回続けて呼ぶだけだと、前回の結果を
+    // 使い回す実装（メモ化・前回位置の保持）がそのまま通ってしまう
+    const first = [...run(nodes, sizes).positions]
+    run(other, otherSizes)
+    expect([...run(nodes, sizes).positions]).toEqual(first)
   })
 
   it('サイズ表に無いノードでも落ちない', () => {
