@@ -204,7 +204,10 @@ describe('LogicTreeEditor（キーボード操作）', () => {
   it('Enter で直後に兄弟を追加し、その入力欄にフォーカスが移る', () => {
     const onChange = vi.fn()
     render(<Harness initial={file([[1, null, '親'], [2, 1, '子']])} onChange={onChange} />)
-    fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'Enter' })
+    // **既定動作を止めること。** fireEvent は preventDefault されると false を返す
+    //（GlossaryEditor.dom.test.tsx と同じ作法）。ノードは multiline の textarea
+    // なので、止め損なうと「ノードが増えたうえに改行も入る」になる
+    expect(fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'Enter' })).toBe(false)
     const added = screen.getByLabelText('ノード3')
     expect((added as HTMLTextAreaElement).value).toBe('')
     expect(document.activeElement).toBe(added)
@@ -218,6 +221,18 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     const el = screen.getByLabelText('ノード2')
     fireEvent.compositionStart(el)
     fireEvent.keyDown(el, { key: 'Enter', isComposing: true })
+    expect(screen.queryByLabelText('ノード3')).toBe(null)
+  })
+
+  it('Shift+Enter / Alt+Enter はノード内の改行として既定動作に委ねる', () => {
+    // 誰も消費しない＝ブラウザが改行を入れる（CellInput が約束している挙動）。
+    // ノードの文言は複数行になり得るので、この経路が塞がると改行が打てなくなる
+    render(<Harness initial={file([[1, null, '親'], [2, 1, '子']])} />)
+    const el = screen.getByLabelText('ノード2')
+    expect(fireEvent.keyDown(el, { key: 'Enter', shiftKey: true })).toBe(true)
+    expect(screen.queryByLabelText('ノード3')).toBe(null)
+    // Excel のセル内改行の手癖（Alt+Enter）も同じく既定動作に委ねる
+    expect(fireEvent.keyDown(el, { key: 'Enter', altKey: true })).toBe(true)
     expect(screen.queryByLabelText('ノード3')).toBe(null)
   })
 
@@ -237,7 +252,8 @@ describe('LogicTreeEditor（キーボード操作）', () => {
   it('Tab で子を追加する', () => {
     const onChange = vi.fn()
     render(<Harness initial={file([[1, null, '親'], [2, 1, '子']])} onChange={onChange} />)
-    fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'Tab' })
+    // 止め損なうと、新しいノードに移した直後に既定の Tab 送りでフォーカスが逃げる
+    expect(fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'Tab' })).toBe(false)
     expect(document.activeElement).toBe(screen.getByLabelText('ノード3'))
     // 追加されたのは「押した節の子」であること（Enter の兄弟追加と区別する）
     expect(onChange.mock.calls[0][0].nodes[2].parentId).toBe(ID(2))
@@ -245,7 +261,7 @@ describe('LogicTreeEditor（キーボード操作）', () => {
 
   it('空欄で Backspace すると部分木ごと消える', () => {
     render(<Harness initial={file([[1, null, '親'], [2, 1, ''], [3, 2, '孫']])} />)
-    fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'Backspace' })
+    expect(fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'Backspace' })).toBe(false)
     expect(screen.queryByLabelText('ノード2')).toBe(null)
     expect(screen.getByLabelText('ノード1')).toBeDefined()
   })
@@ -261,6 +277,41 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     fireEvent.keyDown(screen.getByLabelText('ノード3'), { key: 'ArrowUp', altKey: true })
     expect((screen.getByLabelText('ノード2') as HTMLTextAreaElement).value).toBe('B')
     expect((screen.getByLabelText('ノード3') as HTMLTextAreaElement).value).toBe('A')
+  })
+
+  it('Alt+↓ で兄弟の順が入れ替わる', () => {
+    // ↑ と向きが対称なだけに見えるが、**delta の符号は別々に写像している**ので
+    // 片方だけでは反転を検出できない
+    render(<Harness initial={file([[1, null, '親'], [2, 1, 'A'], [3, 1, 'B']])} />)
+    fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'ArrowDown', altKey: true })
+    expect((screen.getByLabelText('ノード2') as HTMLTextAreaElement).value).toBe('B')
+    expect((screen.getByLabelText('ノード3') as HTMLTextAreaElement).value).toBe('A')
+  })
+
+  it('端の兄弟を外へ動かそうとしても履歴を積まない（Undo の空振りを作らない）', () => {
+    // 動かなかった編集は同じ参照を返す（commands.ts の契約）。それを
+    // apply が早期 return で落とさないと、内容が同一のコミットが mergeKey: null で
+    // 履歴に積まれ、**Undo が1回空振りする**
+    const onChange = vi.fn()
+    render(
+      <Harness initial={file([[1, null, '親'], [2, 1, 'A'], [3, 1, 'B']])} onChange={onChange} />,
+    )
+    fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'ArrowUp', altKey: true })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('↑ で前の兄弟へフォーカスが移る（先頭にいるときだけ）', () => {
+    render(<Harness initial={file([[1, null, '親'], [2, 1, 'A'], [3, 1, 'B']])} />)
+    const from = screen.getByLabelText('ノード3') as HTMLTextAreaElement
+    from.focus()
+    // 文中では欄の中の行移動なので、兄弟へは移らない
+    from.setSelectionRange(1, 1)
+    fireEvent.keyDown(from, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(from)
+
+    from.setSelectionRange(0, 0)
+    fireEvent.keyDown(from, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(screen.getByLabelText('ノード2'))
   })
 
   it('↓ で次の兄弟へフォーカスが移る（末尾にいるときだけ）', () => {
@@ -280,10 +331,16 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('ノード3'))
   })
 
-  it('← で親へ、→ で最初の子へ移る', () => {
+  it('← で親へ、→ で最初の子へ移る（キャレットが端にあるときだけ）', () => {
     render(<Harness initial={file([[1, null, '親'], [2, 1, 'A']])} />)
     const child = screen.getByLabelText('ノード2') as HTMLTextAreaElement
     child.focus()
+    // **文中の ← は文字を戻るためのキー。** ここで親へ飛ぶと、
+    // ノードの文言をカーソルで編集する手段が無くなる
+    child.setSelectionRange(1, 1)
+    fireEvent.keyDown(child, { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(child)
+
     child.setSelectionRange(0, 0)
     fireEvent.keyDown(child, { key: 'ArrowLeft' })
     const parent = screen.getByLabelText('ノード1') as HTMLTextAreaElement
@@ -297,7 +354,7 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     render(<Harness initial={file([[1, null, '親']])} />)
     const el = screen.getByLabelText('ノード1')
     el.focus()
-    fireEvent.keyDown(el, { key: 'Escape' })
+    expect(fireEvent.keyDown(el, { key: 'Escape' })).toBe(false)
     expect(document.activeElement).not.toBe(el)
   })
 
