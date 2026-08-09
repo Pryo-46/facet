@@ -31,7 +31,14 @@ function noteModule(over: Partial<AnyToolModule> = {}): AnyToolModule {
     idPrefixes: ['note'],
     Editor: () => null,
     checkConsistency: () => [],
-    toMarkdown: (d: { title: string; body: string }) => `## ${d.title}\n\n${d.body}\n`,
+    outputs: [
+      {
+        id: 'default',
+        label: 'Markdown',
+        fileSuffix: '',
+        toMarkdown: (d: { title: string; body: string }) => `## ${d.title}\n\n${d.body}\n`,
+      },
+    ],
     singleton: true,
     migrate: (d) => d,
     createEmpty: (title) => ({ schemaVersion: 1, type: 'note', title, body: '' }),
@@ -731,6 +738,11 @@ describe('requestClose（ウィンドウ close のゲート）', () => {
   })
 })
 
+/** 額縁が module.outputs から選んで渡す想定。テストでは先頭を使う */
+function firstOutput(h: { registry: ModuleRegistry }) {
+  return h.registry.get('note')!.outputs[0]
+}
+
 describe('Markdown 出力', () => {
   it('コピーはモジュールの toMarkdown を編集中データに適用する', async () => {
     const copyText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
@@ -738,7 +750,7 @@ describe('Markdown 出力', () => {
     await h.controller.openFolder(DIR)
     await h.controller.selectFile(p('a.json'))
     h.setDocument({ schemaVersion: 1, type: 'note', title: 'A', body: '編集後' })
-    await h.controller.copyMarkdown()
+    await h.controller.copyMarkdown(firstOutput(h))
     expect(copyText).toHaveBeenCalledWith('## A\n\n編集後\n')
     expect(h.toasts().at(-1)?.message).toContain('クリップボードにコピーしました')
   })
@@ -750,7 +762,7 @@ describe('Markdown 出力', () => {
     )
     await h.controller.openFolder(DIR)
     await h.controller.selectFile(p('a.json'))
-    await h.controller.copyMarkdown()
+    await h.controller.copyMarkdown(firstOutput(h))
     expect(h.banners().io).toContain('クリップボードにコピーできませんでした')
   })
 
@@ -760,7 +772,7 @@ describe('Markdown 出力', () => {
     const h = createHarness({ [p('a.json')]: note('A', '本文') }, { askSavePath })
     await h.controller.openFolder(DIR)
     await h.controller.selectFile(p('a.json'))
-    await h.controller.exportMarkdown()
+    await h.controller.exportMarkdown(firstOutput(h))
     expect(askSavePath).toHaveBeenCalledWith(`${DIR}\\a.md`)
     expect(h.disk.files.get('C:\\out\\a.md')).toBe('## A\n\n本文\n')
   })
@@ -770,7 +782,7 @@ describe('Markdown 出力', () => {
     await h.controller.openFolder(DIR)
     await h.controller.selectFile(p('a.json'))
     const from = h.log.length
-    await h.controller.exportMarkdown()
+    await h.controller.exportMarkdown(firstOutput(h))
     expect(h.log.slice(from).some((l) => l.startsWith('write:'))).toBe(false)
     expect(h.banners().io).toBeNull()
   })
@@ -780,8 +792,41 @@ describe('Markdown 出力', () => {
     const h = createHarness({ [p('broken.json')]: '{ not json' }, { copyText })
     await h.controller.openFolder(DIR)
     await h.controller.selectFile(p('broken.json'))
-    await h.controller.copyMarkdown()
+    await h.controller.copyMarkdown(firstOutput(h))
     expect(copyText).not.toHaveBeenCalled()
+  })
+
+  it('選択中モジュールのものでないプロファイルでは書き出さない', async () => {
+    const askSavePath = vi.fn<(defaultPath: string) => Promise<string | null>>()
+      .mockResolvedValue('C:\\out\\a.md')
+    const h = createHarness({ [p('a.json')]: note('A') }, { askSavePath })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    // 別ツールのプロファイル。型の違うデータを食わせると事故になる
+    await h.controller.exportMarkdown({
+      id: 'alien',
+      label: 'よそ者',
+      fileSuffix: '',
+      toMarkdown: () => 'よそ者の出力',
+    })
+    expect(h.disk.files.has('C:\\out\\a.md')).toBe(false)
+    expect(h.toasts().at(-1)?.message).toMatch(/書き出しませんでした/)
+  })
+
+  it('fileSuffix を既定ファイル名に足す', async () => {
+    // 保存先を選ばずキャンセルするので、確かめるのは提示された既定名だけ
+    const askSavePath = vi.fn<(defaultPath: string) => Promise<string | null>>()
+      .mockResolvedValue(null)
+    const h = createHarness({ [p('a.json')]: note('A') }, { askSavePath })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    await h.controller.exportMarkdown({
+      id: 'support',
+      label: 'サポート向け',
+      fileSuffix: '-サポート向け',
+      toMarkdown: () => '',
+    })
+    expect(askSavePath).toHaveBeenCalledWith(`${DIR}\\a-サポート向け.md`)
   })
 })
 
@@ -835,7 +880,7 @@ describe('exportMarkdown: 保存ダイアログを開いている間の変化', 
     const h = createHarness({ [p('a.json')]: note('A', '古い本文') }, { askSavePath })
     await h.controller.openFolder(DIR)
     await h.controller.selectFile(p('a.json'))
-    const done = h.controller.exportMarkdown()
+    const done = h.controller.exportMarkdown(firstOutput(h))
     // ダイアログが開いている数秒〜数分の間に外部変更の取り込みが走った状況
     h.setDocument({ schemaVersion: 1, type: 'note', title: 'A', body: '新しい本文' })
     release('C:\\out\\a.md')
@@ -851,7 +896,7 @@ describe('exportMarkdown: 保存ダイアログを開いている間の変化', 
     )
     await h.controller.openFolder(DIR)
     await h.controller.selectFile(p('a.json'))
-    const done = h.controller.exportMarkdown()
+    const done = h.controller.exportMarkdown(firstOutput(h))
     await h.controller.selectFile(p('b.json'))
     release('C:\\out\\a.md')
     await done

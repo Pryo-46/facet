@@ -10,7 +10,7 @@ function fakeModule(type: string, prefixes: string[]): AnyToolModule {
     idPrefixes: prefixes,
     Editor: () => null,
     checkConsistency: () => [],
-    toMarkdown: () => '',
+    outputs: [{ id: 'default', label: 'Markdown', fileSuffix: '', toMarkdown: () => '' }],
     singleton: false,
     migrate: (d) => d,
     createEmpty: () => ({}),

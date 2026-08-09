@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { ExportMenu } from '@/components/ExportMenu'
 import { buttonBase } from '@/components/button-styles'
 import { FileList } from '@/components/FileList'
 import { ToastStack } from '@/components/Toast'
@@ -303,12 +304,12 @@ function App() {
         >
           やり直す
         </Button>
-        <Button variant="outline" disabled={!canExport} onClick={() => void controller.copyMarkdown()}>
-          Markdown をコピー
-        </Button>
-        <Button variant="outline" disabled={!canExport} onClick={() => void controller.exportMarkdown()}>
-          Markdown を書き出す
-        </Button>
+        <ExportMenu
+          outputs={selectedModule?.outputs ?? []}
+          disabled={!canExport}
+          onCopy={(profile) => void controller.copyMarkdown(profile)}
+          onExport={(profile) => void controller.exportMarkdown(profile)}
+        />
         {projectDir && <span className="text-sm text-ink-muted">{projectDir}</span>}
         <button
           type="button"

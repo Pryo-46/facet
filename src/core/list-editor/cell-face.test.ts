@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ConsistencyIssue, ConsistencyLocation } from '@/core/consistency'
+import type { ConsistencyIssue, ConsistencyLocation } from '../consistency'
 import { buildErrorMarks, cellFace, hasError } from './cell-face'
 
 const loc = (entityId: string, entityIndex: number | null, field: string | null): ConsistencyLocation => ({

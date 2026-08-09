@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { CellInput, type FieldState } from '@/components/CellInput'
 import { buttonBase } from '@/components/button-styles'
 import { useColumnResize } from '@/core/column-resize'
@@ -9,14 +9,13 @@ import {
   type KeyContext,
 } from '@/core/keyboard/keymap'
 import { altModifierLabel, currentPlatform } from '@/core/keyboard/platform'
-import { insertAt, moveItem, removeAt } from '@/core/list-ops'
+import { buildErrorMarks, cellFace, hasError } from '@/core/list-editor/cell-face'
+import { cellId, useListRows } from '@/core/list-editor/use-list-rows'
 import { newId } from '@/core/new-id'
 import type { EditorProps } from '@/core/registry'
-import { computeRowKeys } from '@/core/row-keys'
 import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
 import glossarySchema from '../../../schemas/glossary.schema.json'
 import { AliasCell } from './AliasCell'
-import { buildErrorMarks, cellFace, hasError } from './cell-face'
 import {
   DEFINITION_MIN_WIDTH,
   glossaryColumnWidths,
@@ -53,11 +52,6 @@ const warnCell = 'bg-warning/10'
 /** 列の境界の縦罫。先頭列には引かない（M8 決定2） */
 const colBorder = 'border-l border-grid'
 
-/** セルの DOM 上の識別子。フォーカス移動（Task 12）が querySelector で引く */
-function cellId(rowKey: string, field: GlossaryField): string {
-  return `${rowKey}:${field}`
-}
-
 const PLATFORM = currentPlatform()
 
 /**
@@ -79,20 +73,6 @@ function newTerm(): Term {
   }
 }
 
-/** セルにフォーカスを移す。data-cell 属性で引く。select＝既定値を打ち替えられるよう全選択する */
-function focusCell(
-  container: HTMLElement | null,
-  rowKey: string,
-  field: GlossaryField,
-  select = false,
-): boolean {
-  const el = container?.querySelector<HTMLElement>(`[data-cell="${cellId(rowKey, field)}"]`)
-  if (!el) return false
-  el.focus()
-  if (select && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) el.select()
-  return true
-}
-
 export function GlossaryEditor({
   data,
   onChange,
@@ -101,29 +81,16 @@ export function GlossaryEditor({
 }: EditorProps<GlossarySchemaVersion1>) {
   const [filter, setFilter] = useState<GlossaryFilter>(EMPTY_FILTER)
 
-  const containerRef = useRef<HTMLDivElement>(null)
-  // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
-  const [pendingFocus, setPendingFocus] = useState<{
-    rowKey: string
-    field: GlossaryField
-    select?: boolean
-  } | null>(null)
-
-  // 用語0件になったときの移動先。行が無いのでセルの鍵では指せない
-  const addButtonRef = useRef<HTMLButtonElement>(null)
-  const [focusAddButton, setFocusAddButton] = useState(false)
-
-  useEffect(() => {
-    if (pendingFocus === null) return
-    focusCell(containerRef.current, pendingFocus.rowKey, pendingFocus.field, pendingFocus.select)
-    setPendingFocus(null)
-  }, [pendingFocus])
-
-  useEffect(() => {
-    if (!focusAddButton) return
-    addButtonRef.current?.focus()
-    setFocusAddButton(false)
-  }, [focusAddButton])
+  const rows = useListRows<Term>({
+    items: data.terms,
+    onItemsChange: (terms, mergeKey) => onChange({ ...data, terms }, mergeKey),
+    makeItem: newTerm,
+    firstField: 'name',
+    // 0件の一覧に絞り込みを残す意味は無く、残すと導出表示扱いで
+    //「用語を追加」が出ずフォーカスの行き先が消える
+    onEmptied: () => setFilter(EMPTY_FILTER),
+  })
+  const { rowKeys } = rows
 
   // 幅を測る対象はテーブルを包む div（M8 決定9）
   const tableRef = useRef<HTMLDivElement>(null)
@@ -135,7 +102,6 @@ export function GlossaryEditor({
     containerRef: tableRef,
   })
 
-  const rowKeys = computeRowKeys(data.terms)
   const visible = filterTermIndices(data.terms, filter)
 
   const updateTerm = (index: number, patch: Partial<Term>, mergeKey: string | null) => {
@@ -147,46 +113,11 @@ export function GlossaryEditor({
   const derivedView = isDerivedView(filter)
   const reorderEnabled = !derivedView
 
-  const insertRowAfter = (index: number) => {
-    const term = newTerm()
-    onChange({ ...data, terms: insertAt(data.terms, index + 1, term) }, null)
-    // 採番したての ID は重複しないので出現順は 0
-    setPendingFocus({ rowKey: `${term.id}#0`, field: 'name', select: true })
-  }
-
-  const deleteRow = (index: number) => {
-    const terms = removeAt(data.terms, index)
-    onChange({ ...data, terms }, null)
-    if (terms.length === 0) {
-      // 0件の一覧に絞り込みを残す意味は無く、残すと導出表示扱いで
-      //「用語を追加」が出ずフォーカスの行き先が消える
-      setFilter(EMPTY_FILTER)
-      setFocusAddButton(true)
-      return
-    }
-    // 削除後の配列から鍵を引く。先頭行を消したときは新しい先頭行へ移る
-    // （前の行が無いからとフォーカスを放置すると body に落ちて操作不能になる）
-    setPendingFocus({
-      rowKey: computeRowKeys(terms)[Math.min(index, terms.length - 1)],
-      field: 'name',
-    })
-  }
-
-  const moveRow = (index: number, delta: -1 | 1, field: GlossaryField) => {
-    const to = index + delta
-    if (to < 0 || to >= data.terms.length) return
-    const terms = moveItem(data.terms, index, to)
-    onChange({ ...data, terms }, null)
-    // 移動後の配列から鍵を引く。ID が重複していると入れ替えで出現順が変わり、
-    // 移動前の rowKeys[index] は別の行を指しうる
-    setPendingFocus({ rowKey: computeRowKeys(terms)[to], field })
-  }
-
   /** 表示中の並びで n 番目の行の指定セルへフォーカスする */
   const focusVisible = (visiblePos: number, field: GlossaryField): boolean => {
     const index = visible[visiblePos]
     if (index === undefined) return false
-    return focusCell(containerRef.current, rowKeys[index], field)
+    return rows.focusCell(rowKeys[index], field)
   }
 
   /** コマンドを用語集の構造へ写像する。戻り値 true＝消費した（既定動作を止める） */
@@ -199,16 +130,16 @@ export function GlossaryEditor({
         // 導出表示中に挿入すると、絞り込みに掛からない行が見えないまま増える
         // （並び替えを止めるのと同じ理由）。キーは消費して何もしない
         if (derivedView) return true
-        insertRowAfter(at.index)
+        rows.insertAfter(at.index)
         return true
       case 'delete-item':
-        deleteRow(at.index)
+        rows.deleteAt(at.index)
         return true
       case 'move-item-up':
-        moveRow(at.index, -1, at.field)
+        rows.moveBy(at.index, -1, at.field)
         return true
       case 'move-item-down':
-        moveRow(at.index, 1, at.field)
+        rows.moveBy(at.index, 1, at.field)
         return true
       case 'focus-prev':
         return focusVisible(at.visiblePos - 1, at.field)
@@ -274,7 +205,7 @@ export function GlossaryEditor({
   }
 
   return (
-    <div ref={containerRef} className="p-4">
+    <div ref={rows.containerRef} className="p-4">
       <h2 className="mb-3 text-base font-bold text-ink">{data.title}</h2>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input
@@ -530,10 +461,10 @@ export function GlossaryEditor({
         // 自然さ」）。導出表示中に出さないのは、挿入した行が絞り込みに
         // 掛からず見えないまま増えるため（Enter を止めているのと同じ理由）
         <button
-          ref={addButtonRef}
+          ref={rows.addButtonRef}
           type="button"
           className={`${buttonBase} mt-3 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
-          onClick={() => insertRowAfter(data.terms.length - 1)}
+          onClick={() => rows.insertAfter(data.terms.length - 1)}
         >
           用語を追加
         </button>
