@@ -411,6 +411,14 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     expect(root.className).not.toContain('cursor-grab')
   })
 
+  it('空状態の「クリックして開始」は Space で押せる（キャンバスの中のボタン）', () => {
+    // このボタンは containerRef の**内側**にある。Space を「キャンバスの外か」で
+    // 判定すると、**ロジックツリーを開いて最初に出会う画面**でボタンが死ぬ
+    render(<Harness initial={file([])} />)
+    screen.getByRole('button', { name: 'クリックして開始' }).focus()
+    expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(true)
+  })
+
   it('モーダルが開いている間はキャンバスの Space も止まる', () => {
     // 額縁のモーダルにフォーカスが渡っている間、window に張った Space の監視が
     // 生きていると**モーダルの中のボタンが Space で押せなくなる**（rev 10章）
@@ -419,6 +427,20 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     )
     expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(true)
     expect((container.firstElementChild as HTMLElement).className).not.toContain('cursor-grab')
+  })
+
+  it('新しいノードへのフォーカスでコンテナをスクロールさせない', () => {
+    // 根の div は overflow-hidden（＝プログラム的にはスクロールできる）。
+    // 画面外の要素に focus すると**ブラウザが祖先の scrollLeft/scrollTop を
+    // 動かす**が、位置は transform で持っており panIntoView はスクロール量を
+    // 見ていないので、追従と二重に動いて以後ずれ続ける。
+    // **jsdom はスクロールを持たないので、渡した引数までしか見られない**
+    //（実際にずれないことは実機確認で見る）
+    const focus = vi.spyOn(HTMLTextAreaElement.prototype, 'focus')
+    render(<Harness initial={file([[1, null, '親']])} />)
+    fireEvent.keyDown(screen.getByLabelText('ノード1'), { key: 'Tab' })
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+    focus.mockRestore()
   })
 
   it('キーボードで足したノードが画面の外なら、見えるところまで視点が動く', () => {

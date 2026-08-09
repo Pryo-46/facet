@@ -87,6 +87,15 @@ describe('useViewport（Space の押下監視）', () => {
     expect(canvas().dataset.space).toBe('false')
   })
 
+  it('キャンバスの中のボタンにフォーカスがあるときも Space は奪わない', () => {
+    // **位置ではなく役割で判定する。** 空状態の「クリックして開始」は
+    // キャンバスの内側にあるので、「外か」で判定すると最初の画面で潰れる
+    render(<Harness />)
+    screen.getByRole('button', { name: '追従' }).focus()
+    expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(true)
+    expect(canvas().dataset.space).toBe('false')
+  })
+
   it('どこにもフォーカスが無いとき（body）は取る', () => {
     // キャンバスの空きをクリックした直後がこの状態。ここまで弾くとパンできない
     render(<Harness />)
@@ -109,6 +118,27 @@ describe('useViewport（Space の押下監視）', () => {
     expect(canvas().dataset.space).toBe('true')
     rerender(<Harness enabled={false} />)
     expect(canvas().dataset.space).toBe('false')
+  })
+
+  it('モーダルを開いて閉じても視点（ズーム・パン）が保たれる', () => {
+    // **d3 の配線は `enabled` で張り直さないこと。** 張り直すと初期値の
+    // 流し込みが走り、モーダルを開閉するたびに視点が初期位置へ戻る
+    //（気づきにくい形の退行なので、ここで固定しておく）
+    const { rerender } = render(<Harness />)
+    fireEvent.wheel(canvas(), { deltaY: -100, ctrlKey: true })
+    const zoomed = read()
+    expect(zoomed).not.toEqual(INITIAL_TRANSFORM)
+
+    rerender(<Harness enabled={false} />)
+    rerender(<Harness enabled />)
+    expect(read()).toEqual(zoomed)
+  })
+
+  it('モーダルを閉じると Space の監視が戻る', () => {
+    const { rerender } = render(<Harness enabled={false} />)
+    rerender(<Harness enabled />)
+    expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(false)
+    expect(canvas().dataset.space).toBe('true')
   })
 
   it('Space を離すと押下が解ける', () => {
@@ -157,6 +187,16 @@ describe('useViewport（ズーム）', () => {
     render(<Harness />)
     fireEvent.wheel(canvas(), { deltaY: -100 })
     expect(read()).toEqual(INITIAL_TRANSFORM)
+  })
+
+  it('外したあとはキャンバスのホイールも取らない', () => {
+    // d3 が要素に張った wheel は自分では外れない。**握ったままだと、
+    // 外したはずのエディタが既定動作を止め続ける**（d3 は取ったホイールに
+    // preventDefault を掛けるので、ここは jsdom からでも見える）
+    const view = render(<Harness />)
+    const el = canvas()
+    view.unmount()
+    expect(fireEvent.wheel(el, { deltaY: -100, ctrlKey: true })).toBe(true)
   })
 
   it('倍率に下限と上限がある', () => {

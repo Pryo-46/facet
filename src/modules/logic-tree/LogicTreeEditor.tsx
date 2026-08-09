@@ -94,7 +94,10 @@ export function LogicTreeEditor({
   useEffect(() => {
     if (pendingFocus === null) return
     const el = containerRef.current?.querySelector<HTMLElement>(`[data-cell="${pendingFocus}"]`)
-    el?.focus()
+    // **スクロールはさせない。** 画面外の要素にフォーカスするとブラウザが
+    // 祖先の scrollLeft/scrollTop を動かすが、位置は transform で持っており
+    // panIntoView はスクロール量を勘定に入れていない（二重に動いて狂う）
+    el?.focus({ preventScroll: true })
     const point = positions.get(pendingFocus)
     const size = sizes.get(pendingFocus)
     // 打った直後のノードが画面外だと、何を打っているか見えない

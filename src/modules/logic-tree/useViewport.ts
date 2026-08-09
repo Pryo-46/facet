@@ -120,7 +120,10 @@ export function useViewport(
       const active = document.activeElement
       // ノードの入力欄は常に textarea。ここを抜くと文字（空白）が打てなくなる
       if (isTextEntry(active)) return
-      // キャンバスの外のボタン・リンクにとって Space は活性化のキー。奪わない
+      // ボタン・リンクの Space は活性化のキー。**位置ではなく役割で判定する**
+      //（空状態の「クリックして開始」はキャンバスの内側にある）
+      if (active instanceof HTMLButtonElement || active instanceof HTMLAnchorElement) return
+      // 額縁のツールバーなど、キャンバスの外の物にも渡さない
       if (focusIsOutsideCanvas(ref.current, active)) return
       spaceHeldRef.current = true
       setSpaceHeld(true)
