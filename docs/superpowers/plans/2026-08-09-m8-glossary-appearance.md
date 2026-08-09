@@ -2574,6 +2574,94 @@ git commit -m "実機確認の指摘を直す（固定表示・最小幅・定�
 
 ---
 
+## Task 16: 「用語を追加」を常に出す
+
+**Files:**
+- Modify: `src/modules/glossary/GlossaryEditor.tsx`
+- Test: `src/modules/glossary/GlossaryEditor.dom.test.tsx`
+
+実機確認2周目で出た要望。現状「用語を追加」ボタンは `data.terms.length === 0` の空状態にしか出ない。**行を増やす手段が Enter キーしか無く、マウスだけで操作する人には追加できない**（rev 10章「マウス＝構造を操作する自然さ」に反する）。
+
+- [ ] **Step 1: 失敗するテストを書く**
+
+`GlossaryEditor.dom.test.tsx` の `describe('用語0件の空状態')` の後に追記する。
+
+```ts
+describe('用語を追加ボタン', () => {
+  it('用語があるときも表示される', () => {
+    renderEditor(twoTerms)
+    expect(screen.getByRole('button', { name: '用語を追加' })).not.toBeNull()
+  })
+
+  it('押すと末尾に行が増える', () => {
+    const { latest } = renderEditor(twoTerms)
+    fireEvent.click(screen.getByRole('button', { name: '用語を追加' }))
+    const terms = latest()?.terms
+    expect(terms).toHaveLength(3)
+    // **末尾に足す**（先頭でも選択行の後でもない）。一覧の一番下に
+    // ボタンがあるので、そこから生える位置が直感に合う
+    expect(terms?.[2].name).toBe('新しい用語')
+    expect(terms?.[0].name).toBe('受注')
+  })
+
+  it('検索・フィルタ中は出さない（行の追加が無効な状態と揃える）', () => {
+    renderEditor(twoTerms)
+    fireEvent.change(screen.getByLabelText('用語を検索'), { target: { value: '受注' } })
+    expect(screen.queryByRole('button', { name: '用語を追加' })).toBeNull()
+  })
+})
+```
+
+- [ ] **Step 2: テストが落ちることを確認する**
+
+```
+npx vitest run src/modules/glossary/GlossaryEditor.dom.test.tsx
+```
+
+期待: 「用語があるときも表示される」「押すと末尾に行が増える」が FAIL（ボタンが無い）。「検索・フィルタ中は出さない」は現状でも通る。
+
+- [ ] **Step 3: 条件を緩める**
+
+`GlossaryEditor.tsx` の末尾のボタンの条件から `data.terms.length === 0` を外す。
+
+```tsx
+      {!derivedView && (
+        // **0件のときだけでなく常に出す。** 行の追加が Enter だけだと、
+        // マウスで操作する人に手段が無い（rev 10章「マウス＝構造を操作する
+        // 自然さ」）。導出表示中に出さないのは、挿入した行が絞り込みに
+        // 掛からず見えないまま増えるため（Enter を止めているのと同じ理由）
+        <button
+          ref={addButtonRef}
+          type="button"
+          className={`${buttonBase} mt-3 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
+          onClick={() => insertRowAfter(data.terms.length - 1)}
+        >
+          用語を追加
+        </button>
+      )}
+```
+
+**`insertRowAfter(-1)` から `insertRowAfter(data.terms.length - 1)` へ変えるのが要点。** 0件のときは `-1` になるので従来と同じ挙動（先頭に挿入）で、1件以上なら末尾に足される。**`addButtonRef` と `focusAddButton` の仕組みはそのまま**——最後の行を消したときにフォーカスが行く先として引き続き機能する。
+
+**クラスは既存の記述に `buttonBase` を敷いた形にする**（Task 14 で他のボタンに敷いたのと揃える。`rounded-sm` は `buttonBase` が持つので消す）。
+
+- [ ] **Step 4: 検証してコミットする**
+
+```
+npm test
+npx tsc -b
+npm run lint
+```
+
+期待: すべて緑。**既存の「用語0件の空状態」2件（最後の1行を消したらボタンへフォーカスが移る／検索中に最後の1行を消しても絞り込みが解けてボタンが出る）が通り続けること。**
+
+```bash
+git add src/modules/glossary/GlossaryEditor.tsx src/modules/glossary/GlossaryEditor.dom.test.tsx
+git commit -m "「用語を追加」を常に出す（マウスだけで行を増やせるようにする）"
+```
+
+---
+
 ## Task 12: ドキュメントの更新
 
 **Files:**
