@@ -38,12 +38,14 @@ describe('buildTree', () => {
     expect(t.roots).toEqual([])
     expect(t.unreachable).toEqual([0, 1])
     expect(t.depths).toEqual([-1, -1])
+    expect(t.parents).toEqual([null, null])
   })
 
   it('自分自身を親にしているノードも到達不能になる', () => {
     const t = buildTree([n(ID.a, null), n(ID.b, ID.b)])
     expect(t.roots.map((r) => r.id)).toEqual([ID.a])
     expect(t.unreachable).toEqual([1])
+    expect(t.parents).toEqual([null, null])
   })
 
   it('parentId が実在しないノードはルートとして扱い、位置を記録する', () => {

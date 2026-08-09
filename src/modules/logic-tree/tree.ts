@@ -83,7 +83,12 @@ export function buildTree(nodes: readonly TreeNode[]): BuiltTree {
 
   const unreachable: number[] = []
   depths.forEach((d, i) => {
-    if (d === -1) unreachable.push(i)
+    if (d === -1) {
+      unreachable.push(i)
+      // 到達不能＝循環の中にいる。parents を残すと「親を遡る」コードが
+      // そこで無限ループする（この関数が全域である意味が消える）
+      parents[i] = null
+    }
   })
 
   return { roots, depths, parents, children, unreachable, missingParent }
