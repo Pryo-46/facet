@@ -163,6 +163,14 @@ describe('moveSibling', () => {
     expect(at(r.data, r.focusIndex ?? -1).id).toBe(ID(3))
   })
 
+  it('上へ動かすとき、相手の部分木の手前に着地する', () => {
+    // 1 -(2 -(4), 3)。3 を上へ ⇒ 2 の部分木ごと飛び越えて手前に来る。
+    // 下方向と同じ補正を掛けると 2 の部分木の内側に潜り込み、行きがけ順が壊れる
+    const r = moveSibling(file([[1, null], [2, 1], [4, 2], [3, 1]]), 3, -1)
+    expect(r.data.nodes.map((n) => n.id)).toEqual([ID(1), ID(3), ID(2), ID(4)])
+    expect(r.focusIndex).toBe(1)
+  })
+
   it('下へ動かす', () => {
     const r = moveSibling(file([[1, null], [2, 1], [3, 1]]), 1, 1)
     expect(r.data.nodes.map((n) => n.id)).toEqual([ID(1), ID(3), ID(2)])
@@ -192,6 +200,18 @@ describe('moveSibling', () => {
     // 1 -(2 -(3))。3 は一人っ子なので上にも下にも動かない
     const before = file([[1, null], [2, 1], [3, 2]])
     expect(moveSibling(before, 2, -1).data).toBe(before)
+  })
+
+  it('兄弟が3つ以上でも隣とだけ入れ替わる（上）', () => {
+    const r = moveSibling(file([[1, null], [2, 1], [3, 1], [4, 1]]), 3, -1)
+    expect(r.data.nodes.map((n) => n.id)).toEqual([ID(1), ID(2), ID(4), ID(3)])
+    expect(r.focusIndex).toBe(2)
+  })
+
+  it('兄弟が3つ以上でも隣とだけ入れ替わる（下）', () => {
+    const r = moveSibling(file([[1, null], [2, 1], [3, 1], [4, 1]]), 1, 1)
+    expect(r.data.nodes.map((n) => n.id)).toEqual([ID(1), ID(3), ID(2), ID(4)])
+    expect(r.focusIndex).toBe(2)
   })
 })
 
