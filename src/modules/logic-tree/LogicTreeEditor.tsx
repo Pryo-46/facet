@@ -1,9 +1,25 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { FieldState } from '@/components/CellInput'
 import { buttonBase } from '@/components/button-styles'
+import {
+  resolveCommand,
+  toKeyEventLike,
+  type Command,
+  type KeyContext,
+} from '@/core/keyboard/keymap'
+import { currentPlatform } from '@/core/keyboard/platform'
 import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
 import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
-import { addRoot, setText } from './commands'
+import {
+  addChild,
+  addRoot,
+  addSiblingAfter,
+  deleteSubtree,
+  moveSibling,
+  setText,
+  type EditResult,
+} from './commands'
 import { layoutTree, type Size } from './layout'
 import { wrapText, type MeasureWidth, type WrappedText } from './measure'
 import {
@@ -24,10 +40,13 @@ const MEASURE_CACHE_LIMIT = 2000
 /** ノードの文言に当たるクラスのうち、フォントを決めている部分。見本要素と共有する */
 const NODE_FONT_CLASS = 'text-sm'
 
+const PLATFORM = currentPlatform()
+
 export function LogicTreeEditor({
   data,
   onChange,
   issues,
+  modalOpen,
 }: EditorProps<LogicTreeSchemaVersion1>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
@@ -127,6 +146,93 @@ export function LogicTreeEditor({
     }
   }
 
+  /** 編集結果を額縁へ渡し、次に編集させたいノードへフォーカスを予約する */
+  const apply = (result: EditResult): void => {
+    if (result.data === data) return
+    // 構造操作は mergeKey に null を渡す（1操作1コミット。rev 10章）
+    onChange(result.data, null)
+    setPendingFocus(
+      result.focusIndex === null ? null : computeRowKeys(result.data.nodes)[result.focusIndex],
+    )
+  }
+
+  const focusNodeAt = (index: number | null | undefined): boolean => {
+    if (index === null || index === undefined) return false
+    const key = nodeKeys[index]
+    if (key === undefined) return false
+    const el = containerRef.current?.querySelector<HTMLElement>(`[data-cell="${key}"]`)
+    if (!el) return false
+    el.focus()
+    return true
+  }
+
+  /** 兄弟の並びの中で delta だけ動いた位置のノードへ移る */
+  const focusSibling = (index: number, delta: -1 | 1): boolean => {
+    const parent = built.parents[index]
+    const siblings = parent === null ? built.roots.map((r) => r.index) : built.children[parent]
+    const pos = siblings.indexOf(index)
+    if (pos < 0) return false
+    return focusNodeAt(siblings[pos + delta])
+  }
+
+  /** コマンドをツリーの構造へ写像する。戻り値 true＝消費した（既定動作を止める） */
+  const runCommand = (cmd: Command, index: number): boolean => {
+    switch (cmd) {
+      case 'insert-item-after':
+        apply(addSiblingAfter(data, index))
+        return true
+      case 'insert-child':
+        apply(addChild(data, index))
+        return true
+      case 'delete-item':
+        apply(deleteSubtree(data, index))
+        return true
+      case 'move-item-up':
+        apply(moveSibling(data, index, -1))
+        return true
+      case 'move-item-down':
+        apply(moveSibling(data, index, 1))
+        return true
+      case 'focus-prev':
+        return focusSibling(index, -1)
+      case 'focus-next':
+        return focusSibling(index, 1)
+      case 'focus-parent':
+        return focusNodeAt(built.parents[index])
+      case 'focus-child':
+        return focusNodeAt(built.children[index]?.[0])
+      case 'cancel':
+        // 編集の打ち切り。フォーカスを外すと CellInput が確定値に戻す
+        ;(document.activeElement as HTMLElement | null)?.blur()
+        return true
+      default:
+        // undo / redo は額縁（App）のグローバル層が取る。ここでは消費しない
+        return false
+    }
+  }
+
+  /** ノードのキー入力。キーの判定はコアの resolveCommand に委ねる（rev 10章） */
+  const onNodeKeyDown = (e: React.KeyboardEvent, index: number, state: FieldState): void => {
+    const context: KeyContext = {
+      platform: PLATFORM,
+      modalOpen,
+      editing: true,
+      fieldEmpty: state.empty,
+      // ノードの文言は1つしかないので、空欄 Backspace の削除を認める欄でもある
+      deletableField: true,
+      caretAtStart: state.caretAtStart,
+      caretAtEnd: state.caretAtEnd,
+      arrowsOwnedByField: false,
+      // M1 には導出表示（検索・フィルタ）が無いので並び替えは常に有効
+      reorderEnabled: true,
+      // 子を持てる構造。Tab＝子追加、←→＝親子移動になる
+      hierarchical: true,
+    }
+    const cmd = resolveCommand(toKeyEventLike(e), context)
+    if (cmd === null) return
+    if (runCommand(cmd, index)) e.preventDefault()
+  }
+
   return (
     <div
       ref={containerRef}
@@ -204,6 +310,7 @@ export function LogicTreeEditor({
               height={size.height}
               invalid={invalid.has(index)}
               onTextChange={(next) => onChange(setText(data, index, next), `${key}:text`)}
+              onFieldKeyDown={(e, state) => onNodeKeyDown(e, index, state)}
             />
           )
         })}

@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { createHistory, record, undo as undoHistory } from '@/core/history'
 import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
 import { LogicTreeEditor } from './LogicTreeEditor'
 
@@ -20,10 +21,30 @@ const file = (spec: [number, number | null, string][]): LogicTreeSchemaVersion1 
   })),
 })
 
-/** 額縁と同じく、onChange を state に反映する殻を被せる */
-function Harness({ initial }: { initial: LogicTreeSchemaVersion1 }) {
+/**
+ * 額縁と同じく、onChange を state に反映する殻を被せる。
+ * `onChange` を渡すと、反映しつつ覗ける（構造の検査に使う——
+ * 画面に出るラベルは配列位置なので、親子の付け替えを取り違えても同じに見える）
+ */
+function Harness({
+  initial,
+  onChange,
+}: {
+  initial: LogicTreeSchemaVersion1
+  onChange?: (next: LogicTreeSchemaVersion1, mergeKey?: string | null) => void
+}) {
   const [data, setData] = useState(initial)
-  return <LogicTreeEditor data={data} onChange={setData} issues={[]} modalOpen={false} />
+  return (
+    <LogicTreeEditor
+      data={data}
+      onChange={(next, mergeKey) => {
+        onChange?.(next, mergeKey)
+        setData(next)
+      }}
+      issues={[]}
+      modalOpen={false}
+    />
+  )
 }
 
 describe('LogicTreeEditor（描画）', () => {
@@ -175,6 +196,161 @@ describe('LogicTreeEditor（描画）', () => {
       />,
     )
     expect(screen.getByLabelText('ノード1')).toBeDefined()
+    expect(screen.queryByLabelText('ノード2')).toBe(null)
+  })
+})
+
+describe('LogicTreeEditor（キーボード操作）', () => {
+  it('Enter で直後に兄弟を追加し、その入力欄にフォーカスが移る', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={file([[1, null, '親'], [2, 1, '子']])} onChange={onChange} />)
+    fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'Enter' })
+    const added = screen.getByLabelText('ノード3')
+    expect((added as HTMLTextAreaElement).value).toBe('')
+    expect(document.activeElement).toBe(added)
+    // **親を見る。** 葉の直後に足す限り、兄弟でも子でも配列位置は同じになるので、
+    // ラベルと値だけでは Tab（子追加）との取り違えを検出できない
+    expect(onChange.mock.calls[0][0].nodes[2].parentId).toBe(ID(1))
+  })
+
+  it('IME 変換中の Enter ではノードが増えない（M1 の最重要要件）', () => {
+    render(<Harness initial={file([[1, null, '親'], [2, 1, '']])} />)
+    const el = screen.getByLabelText('ノード2')
+    fireEvent.compositionStart(el)
+    fireEvent.keyDown(el, { key: 'Enter', isComposing: true })
+    expect(screen.queryByLabelText('ノード3')).toBe(null)
+  })
+
+  it('ルートの上の Enter は子を作る（多重ルートを作らない）', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={file([[1, null, '親']])} onChange={onChange} />)
+    fireEvent.keyDown(screen.getByLabelText('ノード1'), { key: 'Enter' })
+    expect(screen.getByLabelText('ノード2')).toBeDefined()
+    expect(screen.queryByLabelText('ノード3')).toBe(null)
+    // **ルートが増えていないことは親で見る。** 兄弟として足しても
+    // ノードは2つのままなので、ラベルの数では区別が付かない
+    const nodes = onChange.mock.calls[0][0].nodes
+    expect(nodes[1].parentId).toBe(ID(1))
+    expect(nodes.filter((n: { parentId: string | null }) => n.parentId === null)).toHaveLength(1)
+  })
+
+  it('Tab で子を追加する', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={file([[1, null, '親'], [2, 1, '子']])} onChange={onChange} />)
+    fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'Tab' })
+    expect(document.activeElement).toBe(screen.getByLabelText('ノード3'))
+    // 追加されたのは「押した節の子」であること（Enter の兄弟追加と区別する）
+    expect(onChange.mock.calls[0][0].nodes[2].parentId).toBe(ID(2))
+  })
+
+  it('空欄で Backspace すると部分木ごと消える', () => {
+    render(<Harness initial={file([[1, null, '親'], [2, 1, ''], [3, 2, '孫']])} />)
+    fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'Backspace' })
+    expect(screen.queryByLabelText('ノード2')).toBe(null)
+    expect(screen.getByLabelText('ノード1')).toBeDefined()
+  })
+
+  it('文言が残っているノードは Backspace で消えない', () => {
+    render(<Harness initial={file([[1, null, '親'], [2, 1, '子']])} />)
+    fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'Backspace' })
+    expect(screen.getByLabelText('ノード2')).toBeDefined()
+  })
+
+  it('Alt+↑ で兄弟の順が入れ替わる', () => {
+    render(<Harness initial={file([[1, null, '親'], [2, 1, 'A'], [3, 1, 'B']])} />)
+    fireEvent.keyDown(screen.getByLabelText('ノード3'), { key: 'ArrowUp', altKey: true })
+    expect((screen.getByLabelText('ノード2') as HTMLTextAreaElement).value).toBe('B')
+    expect((screen.getByLabelText('ノード3') as HTMLTextAreaElement).value).toBe('A')
+  })
+
+  it('↓ で次の兄弟へフォーカスが移る（末尾にいるときだけ）', () => {
+    // **キャレットは明示的に置く。** jsdom は初期選択位置を 0 にし、React は
+    // 同じ値の再代入では動かさないので、文言があっても既定は先頭になる
+    //（GlossaryEditor.dom.test.tsx と同じ作法）
+    render(<Harness initial={file([[1, null, '親'], [2, 1, 'A'], [3, 1, 'B']])} />)
+    const from = screen.getByLabelText('ノード2') as HTMLTextAreaElement
+    from.focus()
+    // 途中では欄の中の行移動なので、兄弟へは移らない
+    from.setSelectionRange(0, 0)
+    fireEvent.keyDown(from, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(from)
+
+    from.setSelectionRange(1, 1)
+    fireEvent.keyDown(from, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByLabelText('ノード3'))
+  })
+
+  it('← で親へ、→ で最初の子へ移る', () => {
+    render(<Harness initial={file([[1, null, '親'], [2, 1, 'A']])} />)
+    const child = screen.getByLabelText('ノード2') as HTMLTextAreaElement
+    child.focus()
+    child.setSelectionRange(0, 0)
+    fireEvent.keyDown(child, { key: 'ArrowLeft' })
+    const parent = screen.getByLabelText('ノード1') as HTMLTextAreaElement
+    expect(document.activeElement).toBe(parent)
+    parent.setSelectionRange(parent.value.length, parent.value.length)
+    fireEvent.keyDown(parent, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(screen.getByLabelText('ノード2'))
+  })
+
+  it('Esc でフォーカスが外れる', () => {
+    render(<Harness initial={file([[1, null, '親']])} />)
+    const el = screen.getByLabelText('ノード1')
+    el.focus()
+    fireEvent.keyDown(el, { key: 'Escape' })
+    expect(document.activeElement).not.toBe(el)
+  })
+
+  it('モーダルが開いている間は操作言語が止まる', () => {
+    const onChange = vi.fn()
+    render(
+      <LogicTreeEditor
+        data={file([[1, null, '親'], [2, 1, '子']])}
+        onChange={onChange}
+        issues={[]}
+        modalOpen
+      />,
+    )
+    fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'Enter' })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('構造の変更は履歴をまとめない（1操作1コミット）', () => {
+    const onChange = vi.fn()
+    render(
+      <LogicTreeEditor
+        data={file([[1, null, '親'], [2, 1, '子']])}
+        onChange={onChange}
+        issues={[]}
+        modalOpen={false}
+      />,
+    )
+    fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'Enter' })
+    expect(onChange.mock.calls[0][1]).toBe(null)
+  })
+
+  it('Undo で戻した内容が表示に反映される', () => {
+    // 額縁と同じ経路（履歴の present を data に流す）を張る
+    function UndoHarness() {
+      const [history, setHistory] = useState(() => createHistory(file([[1, null, '親']])))
+      return (
+        <div>
+          <button type="button" onClick={() => setHistory((h) => undoHistory(h))}>
+            元に戻す
+          </button>
+          <LogicTreeEditor
+            data={history.present}
+            onChange={(next) => setHistory((h) => record(h, next, null, Date.now()))}
+            issues={[]}
+            modalOpen={false}
+          />
+        </div>
+      )
+    }
+    render(<UndoHarness />)
+    fireEvent.keyDown(screen.getByLabelText('ノード1'), { key: 'Tab' })
+    expect(screen.getByLabelText('ノード2')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: '元に戻す' }))
     expect(screen.queryByLabelText('ノード2')).toBe(null)
   })
 })
