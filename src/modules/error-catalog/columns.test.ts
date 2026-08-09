@@ -22,19 +22,23 @@ describe('PROFILE_COLUMNS', () => {
   })
 
   it('widthIndex は幅を持つ列に 0 からの連番、持たない列に null を返す', () => {
-    const support = PROFILE_COLUMNS.support
-    const assigned = support.widthIndex.filter((w): w is number => w !== null)
-    expect(assigned).toEqual(assigned.map((_, i) => i))
-    expect(support.defaultWidths).toHaveLength(assigned.length)
+    for (const profile of PROFILES) {
+      const cols = PROFILE_COLUMNS[profile.id]
+      const assigned = cols.widthIndex.filter((w): w is number => w !== null)
+      expect(assigned, profile.id).toEqual(assigned.map((_, i) => i))
+      expect(cols.defaultWidths, profile.id).toHaveLength(assigned.length)
+    }
   })
 
   it('causeForSupport の位置から nextWidthIndex を引くと右隣の列の幅添字が返る', () => {
-    const support = PROFILE_COLUMNS.support
-    const i = support.columns.findIndex((c) => c.field === 'causeForSupport')
-    const next = support.nextWidthIndex(i)
-    expect(next).not.toBeNull()
-    // 右隣（サポート向けでは userAction）の幅添字であること
-    expect(next).toBe(support.widthIndex[i + 1])
+    for (const profile of PROFILES) {
+      const cols = PROFILE_COLUMNS[profile.id]
+      const i = cols.columns.findIndex((c) => c.field === 'causeForSupport')
+      const next = cols.nextWidthIndex(i)
+      expect(next, profile.id).not.toBeNull()
+      // 右隣（サポート向けでは userAction）の幅添字であること
+      expect(next, profile.id).toBe(cols.widthIndex[i + 1])
+    }
   })
 
   it('既定幅の合計は、実効幅から吸収列の最小幅を引いた残りに収まる（横スクロールを出さない）', () => {
