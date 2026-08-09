@@ -197,6 +197,8 @@ export function ErrorCatalogEditor({
       platform: PLATFORM,
       modalOpen,
       reorderEnabled,
+      // エラーカタログはフラットなリストで「子」が存在しない（rev 10章の適用例）
+      hierarchical: false,
       ...field,
     })
     if (cmd === null) return

@@ -17,6 +17,7 @@ function ctx(over: Partial<KeyContext> = {}): KeyContext {
     caretAtEnd: false,
     arrowsOwnedByField: false,
     reorderEnabled: true,
+    hierarchical: false,
     ...over,
   }
 }
@@ -136,6 +137,87 @@ describe('resolveCommand: 矢印の境界規則', () => {
   it('割り当ての無いキーは null', () => {
     expect(resolveCommand(key({ key: 'a' }), ctx())).toBeNull()
     expect(resolveCommand(key({ key: ' ' }), ctx())).toBeNull()
+  })
+})
+
+describe('階層構造（hierarchical: true）', () => {
+  it('Tab で子を追加する（rev 10章 階層・リスト系の標準）', () => {
+    expect(
+      resolveCommand(key({ key: 'Tab' }), ctx({ hierarchical: true })),
+    ).toBe('insert-child')
+  })
+
+  it('Shift+Tab には意味を与えない（キャンバスから抜ける経路として残す）', () => {
+    expect(
+      resolveCommand(key({ key: 'Tab', shiftKey: true }), ctx({ hierarchical: true })),
+    ).toBe(null)
+  })
+
+  it('← はキャレットが先頭にあるとき親へ移る', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft' }),
+        ctx({ hierarchical: true, editing: true, caretAtStart: true }),
+      ),
+    ).toBe('focus-parent')
+  })
+
+  it('← は文中では何もしない（キャレット移動が生きる）', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft' }),
+        ctx({ hierarchical: true, editing: true, caretAtStart: false }),
+      ),
+    ).toBe(null)
+  })
+
+  it('→ はキャレットが末尾にあるとき子へ移る', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight' }),
+        ctx({ hierarchical: true, editing: true, caretAtEnd: true }),
+      ),
+    ).toBe('focus-child')
+  })
+
+  it('Enter は階層でも「直後に追加」のまま', () => {
+    expect(resolveCommand(key({ key: 'Enter' }), ctx({ hierarchical: true }))).toBe(
+      'insert-item-after',
+    )
+  })
+
+  it('Ctrl+C / Ctrl+V は階層でも奪わない（複製を後から入れるため）', () => {
+    expect(resolveCommand(key({ key: 'c', ctrlKey: true }), ctx({ hierarchical: true }))).toBe(null)
+    expect(resolveCommand(key({ key: 'v', ctrlKey: true }), ctx({ hierarchical: true }))).toBe(null)
+  })
+
+  it('IME 変換中は階層でも何も起こさない', () => {
+    expect(
+      resolveCommand(key({ key: 'Tab', isComposing: true }), ctx({ hierarchical: true })),
+    ).toBe(null)
+  })
+})
+
+describe('階層でない構造（hierarchical: false）は挙動が変わらない', () => {
+  it('Tab は欄の移動のまま', () => {
+    expect(resolveCommand(key({ key: 'Tab' }), ctx({ hierarchical: false }))).toBe(
+      'focus-next-field',
+    )
+  })
+
+  it('← / → には意味を与えない', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft' }),
+        ctx({ hierarchical: false, editing: true, caretAtStart: true }),
+      ),
+    ).toBe(null)
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight' }),
+        ctx({ hierarchical: false, editing: true, caretAtEnd: true }),
+      ),
+    ).toBe(null)
   })
 })
 
