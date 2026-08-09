@@ -36,7 +36,7 @@ for (let i = 0; i < argv.length; i++) {
   else die(2, `不明な引数: ${a}`);
 }
 if (opt.check && (opt.in || opt.out)) die(2, "--check は --in/--out と併用できません。");
-if (!opt.check && (!opt.in || !opt.out)) die(2, "--in <draft.json> --out <glossary.json> か --check <file> を指定してください。");
+if (!opt.check && (!opt.in || !opt.out)) die(2, "--in <draft.json> --out <エラーカタログ.json> か --check <file> を指定してください。");
 
 const sourcePath = path.resolve(opt.check ?? opt.in);
 const targetPath = opt.check ? null : path.resolve(opt.out);
