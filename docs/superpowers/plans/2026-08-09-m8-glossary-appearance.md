@@ -2402,10 +2402,12 @@ describe('見出しの面（surface-accent）', () => {
        縦メトリクスの非対称によりラベルが上へ寄る（M8 の実機確認で判明）。
 
        **`line-height` を直接書いてはいけない。** Tailwind の text-* は
-       utilities レイヤーで `line-height: var(--tw-leading, <既定>)` を生成し、
-       クラスセレクタが要素セレクタに勝つため、base レイヤーの line-height は
-       text-sm / text-xs を持つボタン（＝ほぼ全部）に届かない。
-       **--tw-leading を設定すれば右辺の変数として拾われる**ので競合しない。
+       utilities レイヤーで `line-height: var(--tw-leading, <既定>)` を生成する。
+       **cascade layers では後に宣言されたレイヤーが特異性に関係なく勝つ**ので、
+       base レイヤーに書いた line-height は text-sm / text-xs を持つボタン
+       （＝ほぼ全部）に届かない。
+       **--tw-leading は utilities 側が普段は設定しない変数**なので、そこへ
+       逃がせば衝突自体が起きず、右辺の変数として拾われる。
        leading-* を明示したボタンは utilities 側が同じ変数を上書きするので、
        個別に変えたいときは従来どおり効く */
     --tw-leading: 1.2;
@@ -2541,13 +2543,21 @@ export interface HandleOptions {
 
 **テストを追加する**: `column-resize.test.ts` に「`invert` で delta の符号が反転する」、`GlossaryEditor.dom.test.tsx` に「定義列のハンドルを → で操作すると別名列が狭まる」。
 
-- [ ] **Step 4: 定義・備考のセルの縦位置を揃える**
+- [ ] **Step 4: Task 14 が残したコメントの不正確さを直す**
+
+Task 14 のレビューが2点指摘した。**どちらもコメントだけの修正で、挙動は変えない。**
+
+**(a) `src/index.css` の `button { --tw-leading }` の説明が技術的に不正確。** 「クラスセレクタが要素セレクタに勝つため」と書いてあるが、**cascade layers では異なるレイヤー間は特異性より先にレイヤー順序で決まる**（後に宣言された `utilities` が `base` に勝つ）。この修正が効いている本当の理由は「`--tw-leading` という utilities 側が普段設定しない変数へ逃がしたので、衝突自体が起きない」ことである。**説明が間違っていると次の人が誤った理解のまま触る**ので直す。
+
+**(b) `src/components/button-styles.ts` の JSDoc に古い表現が残っている。** 冒頭で `--tw-leading` の仕組みを説明し直したのに、「自前のレイアウトを持つボタンは対象外」の段落末尾に「ラベルの縦位置は `@layer base` が要素セレクタで全ボタンに当てているので、土台を敷かなくても揃う」という簡略形が更新されずに残っている。嘘ではないが同趣旨の重複なので、冒頭の説明を参照する形に整理する。
+
+- [ ] **Step 5: 定義・備考のセルの縦位置を揃える**
 
 実機確認で「定義、備考のテキストボックスが上寄せ」と指摘された。`<td>` には `align-middle` が効いているが、`<textarea>` は置換要素で `vertical-align: baseline` が既定のため、行の高さが他のセルより高いときに上へずれる。
 
 `cellInput`（`GlossaryEditor.tsx:40`）に `align-middle` を足す。`<input>` と `<select>` にも同じクラスが当たるので、5列すべての縦位置が揃う。
 
-- [ ] **Step 5: 検証してコミットする**
+- [ ] **Step 6: 検証してコミットする**
 
 ```
 npm test
