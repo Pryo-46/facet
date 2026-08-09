@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { buttonBase } from '@/components/button-styles'
 import { FileList } from '@/components/FileList'
 import { ToastStack } from '@/components/Toast'
 import { Button } from '@/components/ui/button'
@@ -311,7 +312,7 @@ function App() {
         {projectDir && <span className="text-sm text-ink-muted">{projectDir}</span>}
         <button
           type="button"
-          className="ml-auto text-sm text-ink-muted underline"
+          className={`${buttonBase} ml-auto text-sm text-ink-muted underline`}
           onClick={toggleTheme}
         >
           {dark ? 'ライト' : 'ダーク'}
@@ -351,7 +352,7 @@ function App() {
                   </p>
                   <button
                     type="button"
-                    className="mt-2 rounded-sm border border-rule px-3 py-1 text-sm text-ink hover:bg-surface"
+                    className={`${buttonBase} mt-2 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
                     onClick={() => void controller.ensureFileOfType(glossaryModule)}
                   >
                     用語集を作る

@@ -46,6 +46,7 @@
     --color-ok-fg: var(--ok-fg);
     --color-canvas: var(--canvas);
     --color-surface: var(--surface);
+    --color-surface-accent: var(--surface-accent);
     --color-rule: var(--rule);
     --color-grid: var(--grid);
 
@@ -163,6 +164,14 @@
     }
   html {
     @apply font-sans;
+    }
+  button {
+    /* ラベルは1行なので行間を詰める。--text-sm--line-height: 1.65 は
+       本文（複数行の定義文）向けの値で、ボタンに効くと和文フォントの
+       縦メトリクスの非対称によりラベルが上へ寄る（M8 の実機確認で判明）。
+       **要素セレクタで当てるのは意図的**：新しいボタンを作っても自動的に
+       揃うようにして、同じ指摘が繰り返されるのを構造的に止める */
+    line-height: 1.2;
     }
 }
 

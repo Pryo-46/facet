@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { CellInput, type FieldState } from '@/components/CellInput'
+import { buttonBase } from '@/components/button-styles'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -291,8 +292,8 @@ export function GlossaryEditor({
               key={kind}
               type="button"
               aria-pressed={active}
-              className={`rounded-sm border border-rule px-2 py-1 text-xs ${
-                active ? 'bg-ink text-canvas' : 'text-ink-muted hover:bg-surface'
+              className={`${buttonBase} border border-rule px-2 py-1 text-xs ${
+                active ? 'bg-ink text-canvas' : 'bg-canvas text-ink hover:bg-surface'
               }`}
               onClick={() =>
                 setFilter((f) => ({
@@ -348,7 +349,7 @@ export function GlossaryEditor({
             })}
           </colgroup>
           <thead>
-            <tr className="border-b border-rule bg-canvas text-left text-ink">
+            <tr className="border-b border-rule bg-surface-accent text-left text-ink">
               {COLUMNS.map((col, i) => {
                 const w = WIDTH_INDEX[i]
                 return (
@@ -517,7 +518,7 @@ export function GlossaryEditor({
         <button
           ref={addButtonRef}
           type="button"
-          className="mt-3 rounded-sm border border-rule px-3 py-1 text-sm text-ink hover:bg-surface"
+          className={`${buttonBase} mt-3 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
           onClick={() => insertRowAfter(-1)}
         >
           用語を追加

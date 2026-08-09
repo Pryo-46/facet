@@ -1,3 +1,4 @@
+import { buttonBase } from '@/components/button-styles'
 import type { ToastItem } from '@/core/toasts'
 
 export interface ToastStackProps {
@@ -69,7 +70,7 @@ function ToastRow(props: {
           <button
             type="button"
             disabled={inert}
-            className="text-xs text-ink underline disabled:cursor-not-allowed disabled:opacity-50"
+            className={`${buttonBase} text-xs text-ink underline`}
             onClick={() => void action.run()}
           >
             {action.label}
@@ -79,7 +80,7 @@ function ToastRow(props: {
           type="button"
           aria-label="通知を閉じる"
           disabled={inert}
-          className="ml-auto text-xs text-ink-muted hover:text-ink disabled:cursor-not-allowed disabled:opacity-50"
+          className={`${buttonBase} ml-auto text-xs text-ink-muted hover:text-ink`}
           onClick={() => onDismiss(toast.id)}
         >
           閉じる

@@ -32,6 +32,7 @@ function readBlock(selectorPattern: string, label: string): Record<string, strin
 const TOKENS = [
   'canvas',
   'surface',
+  'surface-accent',
   'ink',
   'ink-muted',
   'rule',
@@ -70,7 +71,7 @@ const REQUIREMENTS = [
  * 満たしても足りない（実際、ダークの rule を canvas だけ見て決めたとき
  * surface 上で 2.997:1 と 3:1 を割った）
  */
-const BACKGROUNDS = ['canvas', 'surface'] as const
+const BACKGROUNDS = ['canvas', 'surface', 'surface-accent'] as const
 
 /**
  * 半透明の重ね合わせ（M8 決定11）。**値は GlossaryEditor.tsx の

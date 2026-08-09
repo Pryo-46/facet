@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { buttonBase } from '@/components/button-styles'
 import { canCreateFileOfType } from '@/core/file-ops'
 import type { ProjectFile } from '@/core/project-file'
 import type { AnyToolModule } from '@/core/registry'
@@ -64,7 +65,7 @@ function FileRow(props: {
       <button
         type="button"
         aria-label={`${file.name} を削除`}
-        className="flex shrink-0 items-center px-2 text-xs text-ink-muted hover:bg-canvas hover:text-warning"
+        className={`${buttonBase} shrink-0 px-2 text-xs text-ink-muted hover:bg-canvas hover:text-warning`}
         onClick={props.onDelete}
       >
         削除
@@ -96,7 +97,7 @@ export function FileList(props: FileListProps) {
               type="button"
               disabled={!creatable}
               title={creatable ? undefined : `${module.displayName}はプロジェクトに1つまでです`}
-              className="rounded-sm border border-rule px-2 py-1 text-xs text-ink hover:bg-canvas disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+              className={`${buttonBase} border border-rule px-2 py-1 text-xs text-ink hover:bg-canvas disabled:hover:bg-transparent`}
               onClick={() => props.onCreate(module)}
             >
               ＋ {module.displayName}を新規作成
