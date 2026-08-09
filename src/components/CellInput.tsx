@@ -43,6 +43,14 @@ export interface CellInputProps {
   className?: string
   'aria-label': string
   'data-cell'?: string
+  /**
+   * 内容から行数を測って高さを決めるか（既定 true）。
+   *
+   * **false にするのは、呼び出し側が既に高さを知っているときだけ。**
+   * ロジックツリーのノードは測定層が幅と行数を確定させており（1パスで
+   * 描くための前提）、ここで再計測すると 5行上限に切り詰められる
+   */
+  autoSize?: boolean
 }
 
 /**
@@ -58,8 +66,16 @@ export interface CellInputProps {
  *   Shift+Enter / Alt+Enter は誰も消費しないのでブラウザが改行を入れる
  */
 export function CellInput(props: CellInputProps) {
-  const { value, onValueChange, sanitize, onFieldKeyDown, multiline, placeholder, className } =
-    props
+  const {
+    value,
+    onValueChange,
+    sanitize,
+    onFieldKeyDown,
+    multiline,
+    placeholder,
+    className,
+    autoSize = true,
+  } = props
   // 未反映の生入力。null＝表示は親の value をそのまま使う
   const [draft, setDraft] = useState<string | null>(null)
   // 直近に見た親の value。変わったらドラフトを捨てる
@@ -112,9 +128,10 @@ export function CellInput(props: CellInputProps) {
   }
 
   useLayoutEffect(() => {
+    if (!autoSize) return
     measure()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- measure は毎レンダー再生成される安定した処理。値と幅の変化だけを見る
-  }, [draft, value, multiline])
+  }, [draft, value, multiline, autoSize])
 
   /**
    * 幅の変化に反応する。列幅ドラッグ（M8 決定8〜10）で定義・備考列が
@@ -131,6 +148,7 @@ export function CellInput(props: CellInputProps) {
    * 同じ考え方で、無ければ動作をスキップするだけにしてテストを壊さない
    */
   useLayoutEffect(() => {
+    if (!autoSize) return
     if (!multiline) return
     const el = areaRef.current
     if (el === null) return
@@ -138,8 +156,8 @@ export function CellInput(props: CellInputProps) {
     const observer = new ResizeObserver(() => measure())
     observer.observe(el)
     return () => observer.disconnect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- measure は毎レンダー再生成される安定した処理。observer の張り替えは multiline の変化だけで駆動する
-  }, [multiline])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- measure は毎レンダー再生成される安定した処理。observer の張り替えは multiline と autoSize の変化だけで駆動する
+  }, [multiline, autoSize])
 
   const shared = {
     className,
