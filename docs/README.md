@@ -43,15 +43,19 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [M7](history/m7-core-design-tokens.md) | デザイントークン確定 | コア |
 | [M8](history/m8-glossary-editor-appearance.md) | 用語集エディタの見た目と操作性 | 用語集 |
 | [M9](history/m9-core-list-editor-and-output-profiles.md) | リストエディタのコア化と出力プロファイル | コア |
+| [M10](history/m10-error-catalog-editor.md) | エラーカタログエディタ | エラーカタログ |
 
 ## ツールが増えたとき
 
 ```
-docs/glossary/     scope.md  session-notes.md
-docs/logic-tree/   scope.md  session-notes.md      ← 2本目はこう並ぶ
-docs/history/      m7-....md  m8-....md            ← 時系列1本のまま
-docs/open-issues.md                                ← ツール横断で1本
+docs/glossary/        scope.md  session-notes.md
+docs/logic-tree/      logic-tree-m1-scope.md  logic-tree-canvas-tech-notes.md
+docs/error-catalog/   error-catalog-session-notes.md   ← M10 で実際に増えた3本目
+docs/history/         m9-....md  m10-....md            ← 時系列1本のまま
+docs/open-issues.md                                    ← ツール横断で1本
 ```
+
+ファイル名は `scope.md` / `session-notes.md` に固定していない。ツールごとに1フォルダを切ることだけが規約で、中身のファイル名・本数はツールセッションの都合に合わせてよい（`logic-tree/` と `error-catalog/` の実例を参照）。
 
 ## リポジトリ内の他の「正」
 
