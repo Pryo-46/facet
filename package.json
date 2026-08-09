@@ -10,7 +10,7 @@
     "prebuild": "npm run gen:types",
     "test": "vitest run",
     "pretest": "npm run gen:types",
-    "gen:types": "json2ts --input schemas/glossary.schema.json --output src/types/glossary.ts --bannerComment \"/* schemas/glossary.schema.json から自動生成。手で編集しないこと（npm run gen:types で再生成される）。 */\" --additionalProperties false",
+    "gen:types": "node scripts/gen-types.mjs",
     "prepare": "npm run gen:types",
     "tauri": "tauri",
     "lint": "oxlint",

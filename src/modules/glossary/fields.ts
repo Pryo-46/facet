@@ -1,3 +1,5 @@
+import { stepField as stepFieldOf, type FieldStep } from '@/core/list-editor/field-step'
+
 /**
  * 用語集エディタの列（session-notes 論点6）。
  * 名称／種別／定義／別名／備考の5列。ID は列に出さない
@@ -15,20 +17,10 @@ export const FIELD_LABELS: Record<GlossaryField, string> = {
   notes: '備考',
 }
 
-export interface FieldStep {
-  field: GlossaryField
-  /** 行の移動量。1＝次の行の先頭列へ、-1＝前の行の末尾列へ */
-  rowDelta: -1 | 0 | 1
-}
-
 /**
- * Tab / Shift+Tab の移動先。行端では隣の行へ折り返す。
- * 移動先の行が無い場合は呼び出し側が何もしない（既定の Tab 動作を止めない）
+ * Tab / Shift+Tab の移動先。実装は `@/core/list-editor/field-step`（M9 で引き上げ）。
+ * ここは用語集の列順を束ねるだけ——呼び出し側が毎回 FIELD_ORDER を渡さずに済む
  */
-export function stepField(field: GlossaryField, direction: 1 | -1): FieldStep {
-  const index = FIELD_ORDER.indexOf(field)
-  const next = index + direction
-  if (next < 0) return { field: FIELD_ORDER[FIELD_ORDER.length - 1], rowDelta: -1 }
-  if (next >= FIELD_ORDER.length) return { field: FIELD_ORDER[0], rowDelta: 1 }
-  return { field: FIELD_ORDER[next], rowDelta: 0 }
+export function stepField(field: GlossaryField, direction: 1 | -1): FieldStep<GlossaryField> {
+  return stepFieldOf(FIELD_ORDER, field, direction)
 }

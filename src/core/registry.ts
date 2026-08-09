@@ -21,8 +21,34 @@ export interface EditorProps<TData> {
 }
 
 /**
+ * 出力プロファイル（規約5。rev 6章・8章）。**同じデータでも読み手によって
+ * 出すべき列が違う**ため、モジュールは1つ以上のプロファイルを宣言する。
+ * 読み手ごとにファイルを分けると二重管理が発生し、文章仕様書の問題が
+ * 再生産される——だから1つのデータから出し分ける
+ */
+export interface OutputProfile<TData> {
+  /** 安定識別子。UI の選択状態・テストが参照する */
+  id: string
+  /** ドロップダウンに出す表示名 */
+  label: string
+  /**
+   * 書き出しの既定ファイル名に足す接尾辞（単一プロファイルなら ''）。
+   * **`label` から導出しない。** 表示名は画面の都合でいつでも変えたくなるが、
+   * 書き出したファイル名は Git に成果物として残る側なので別の軸として持つ
+   */
+  fileSuffix: string
+  /**
+   * NotePM 等へ貼る Markdown を返す。額縁がクリップボードへのコピーと
+   * `.md` 書き出しの両方に使うので、**副作用を持たない純関数**であること
+   *（ファイルにもクリップボードにも触らない）
+   */
+  toMarkdown: (data: TData) => string
+}
+
+/**
  * ツールモジュール規約（rev 6章）。M6 の出力ロジック追加で6点セットが埋まった。
  * `createEmpty` は6点セットには無い7つ目のスロット（額縁の新規作成が使う雛形）。
+ * M9 で規約5を複数プロファイル（`outputs`）へ拡張した。
  */
 export interface ToolModule<TData = unknown> {
   /** 規約1: type 識別子 */
@@ -39,13 +65,8 @@ export interface ToolModule<TData = unknown> {
   Editor: ComponentType<EditorProps<TData>>
   /** 規約4: 整合性検証ルール（モジュール内検証。レベル2＝受け入れて赤表示） */
   checkConsistency: (data: TData) => ConsistencyIssue[]
-  /**
-   * 規約5: 出力ロジック（rev 6章・8章）。NotePM 向けの Markdown を返す。
-   * 額縁がクリップボードへのコピーと `.md` 書き出しの両方に使うので、
-   * **副作用を持たない純関数**であること（ファイルにもクリップボードにも触らない）。
-   * Mermaid を含むツールも戻り値はこの1本の文字列に収める
-   */
-  toMarkdown: (data: TData) => string
+  /** 規約5: 出力プロファイル（rev 6章・8章）。1つ以上 */
+  outputs: readonly OutputProfile<TData>[]
   /** プロジェクト内に同 type のファイルを1つしか許さないか（コア横断検証が使う） */
   singleton: boolean
   /** 規約6: マイグレータ（旧 schemaVersion → 現行版。初版は恒等） */
