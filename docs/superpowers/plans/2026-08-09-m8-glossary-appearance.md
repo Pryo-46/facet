@@ -2348,9 +2348,32 @@ Task 13（実機確認）で人間が出した指摘のうち、色と共通ス�
 
 - [ ] **Step 2: `palette.test.ts` を新トークンに追随させる**
 
-`TOKENS` に `'surface-accent'` を足し、`BACKGROUNDS` に `'surface-accent'` を足す。これだけで「`ink` / `ink-muted` / `rule` / `warning` / `ok` が `surface-accent` の上でも要件を満たす」検証が既存のループから自動的に増える。
+`TOKENS` に `'surface-accent'` を足す（形式の検査＝不透明な `oklch` であることは受ける）。
 
-**`REQUIREMENTS` は変更しないこと。** 期待値（算出済み、参考）: ライトは `ink` 12.21 / `ink-muted` 6.77、ダークは `ink` 9.14 / `ink-muted` 5.43。**`rule` / `warning` / `ok` も同じ背景で検証対象に入るので、そこが赤くなったら報告すること**（トークンの値を動かして通すのではなく、計画の矛盾として報告する）。
+**`BACKGROUNDS` には足さないこと。** あちらは「あらゆる役割トークンが載りうる汎用の面」（地とカードの面）の集合で、`surface-accent` の上に載るのはカラム名の文字だけである。`warning` / `ok` / `rule` をこの面の上で要件を満たすよう縛ると、**淡い緑を選べなくなる**（この面より暗い色でしか 3:1 / 4.5:1 を作れないため）。
+
+代わりに、実際に載るものだけを個別に検証する describe を足す。
+
+```ts
+describe('見出しの面（surface-accent）', () => {
+  for (const mode of MODES) {
+    const palette = toPalette(mode.pattern, mode.label)
+    for (const token of ['ink', 'ink-muted'] as const) {
+      it(`${mode.label}の ${token} が surface-accent の上で 4.5:1 以上`, () => {
+        const ratio = contrastRatio(palette[token], palette['surface-accent'])
+        expect(
+          ratio,
+          `${toHex(palette[token])} / ${toHex(palette['surface-accent'])} = ${ratio.toFixed(2)}:1`,
+        ).toBeGreaterThanOrEqual(4.5)
+      })
+    }
+  }
+})
+```
+
+期待値（算出済み）: ライトは `ink` 12.21 / `ink-muted` 6.77、ダークは `ink` 9.14 / `ink-muted` 5.43。
+
+> **この節は着手後に直した。** 当初は `BACKGROUNDS` に足す指示だったが、実装者が「`rule` / `warning` / `ok` が `surface-accent` 上で要件を割る」を**トークンを動かさずに報告**してきた（計画どおりの正しい対応）。汎用の面と限定的な面を同じ集合で扱ったのが計画の誤りだった。
 
 - [ ] **Step 3: ライトの方眼紙の線を薄くする**
 
