@@ -23,7 +23,7 @@
 - **色値の直書き禁止／Tailwind 標準パレット禁止／フォントサイズは `text-xs` `text-sm` `text-base` `text-lg` の4段のみ。** `src/styles/conventions.test.ts` が機械検査する。色は役割トークン（`text-ink` / `bg-warning` / `border-rule` / `bg-surface` / `bg-surface-accent` / `text-ink-muted` / `focus:ring-ring`）を使う
 - **DOM テストは role とアクセシブル名で引き、クラス名・レイアウト・スタイルの解決結果を見ない。** セルの面（warning / error）の検証は純関数のテスト（`warnings.test.ts` / コアの `cell-face.test.ts`）が持つ
 - **アクセシブル名の衝突に注意する（M8 の教訓）。** セルは `エラー名（No.1）`、列幅ハンドルは `エラー名の列幅を変更` で、どちらも「エラー名」で始まる。**テストの前方一致は必ず `（` まで含める**（`/^エラー名（/`）か、`getByRole('textbox' | 'separator', { name })` で引く
-- **テストの件数を計画・報告に書かない。** 期待値は「このファイルの `it` がすべて緑」
+- **テストの件数を「期待値」として書かない。** 計画が期待するのは「このファイルの `it` がすべて緑」であって件数ではない（`docs/lessons-for-planning.md`: M4・M5 で2回とも数え間違えた）。**実行して観測した結果を報告に書くのは構わない**——それは期待値ではなく事実である
 - **`schemas/error-catalog.schema.json` のファイル名を途中で変えない。** `scripts/gen-types.mjs` は消えたスキーマに対応する `src/types/*.ts` を掃除せず、`src/types/*.ts` は `.gitignore` 済みなので `git status` にも出ない（`open-issues.md` 記載）。リネームすると死んだ型が `tsc` の対象に残る
 - **UI 文言・メッセージは日本語。** データとスキーマの enum は英語のまま（rev 3章・4章）
 - **モジュール境界を跨がない。** コアに列データやフィールド名を持ち込まない／モジュールに行操作や重複検出を再実装しない
