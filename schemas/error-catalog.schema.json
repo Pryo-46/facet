@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "error-catalog.schema.json",
+  "title": "エラーカタログ (errorCatalog) schemaVersion 1",
+  "description": "仕様整理ツール詰め合わせのエラーカタログファイル。プロジェクトフォルダにつき1ファイル（単一性は整合性検証で担保）。キーの正規順序は本スキーマの properties 記載順とする（JSON Schema ではキー順を強制できないため、正規化はアプリの書き込み時処理が保証する）。",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "description": "スキーマの版。errorCatalog の初版は 1。アプリは検証前にこの値を読み、未知の新版は「一覧表示のみ・編集不可」として扱う。",
+      "const": 1
+    },
+    "type": {
+      "description": "ツール種別。エラーカタログは errorCatalog 固定。",
+      "const": "errorCatalog"
+    },
+    "title": {
+      "description": "表示名。プロジェクトのファイル一覧に使う。",
+      "type": "string"
+    },
+    "errors": {
+      "description": "エラーの配列。配列順＝UIの既定表示順（正）。表示Noはこの配列位置から導出する（順序フィールドを持たない）。ソート・フィルタはUI側の導出であり、この順を書き換えない。",
+      "type": "array",
+      "items": { "$ref": "#/$defs/errorEntry" }
+    }
+  },
+  "required": ["schemaVersion", "type", "title", "errors"],
+  "additionalProperties": false,
+  "$defs": {
+    "errorEntry": {
+      "description": "エラー1件。全キー常在（欠損でなく空の値で「未記入」を表現する）。",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "不変ID。プレフィクス error_ ＋ nanoid（英数字62文字カスタムアルファベット）10文字固定。連番禁止。",
+          "type": "string",
+          "pattern": "^error_[A-Za-z0-9]{10}$"
+        },
+        "name": {
+          "description": "エラー名。引くためのキーであり、表記ゆれ検知の照合対象。名前のないエラーは解釈不能のため空を許さない。システムがエラーコードを持たないプロジェクトがあるため、コードを同定単位にしない。",
+          "type": "string",
+          "minLength": 1
+        },
+        "occurrence": {
+          "description": "発生タイミング。本来は参照している側から逆引きして導出すべきだが、参照が実装されるまでは手入力する。空文字＝未記入として warning 可視化の対象。",
+          "type": "string"
+        },
+        "resolutionLevel": {
+          "description": "誰が解決するか。none＝検討した上で誰にも解決できない（外部サービス障害等。ok）／undecided＝まだ決めていない（warning対象）。原因の分類ではなく対応主体の分類であり、2軸を混ぜない。enumの拡張は schemaVersion の改訂として扱う。",
+          "enum": ["user", "support", "engineer", "none", "undecided"]
+        },
+        "causeForSupport": {
+          "description": "業務レベルの原因。サポート向け出力に載る。空文字＝「未定義」として warning 可視化の対象。",
+          "type": "string"
+        },
+        "causeForSpec": {
+          "description": "仕様レベルの原因。開発向け出力のみに載る。業務レベルと粒度が違うため分けている。空文字＝「未定義」として warning 可視化の対象。",
+          "type": "string"
+        },
+        "userAction": {
+          "description": "ユーザーが取るべき対応。空文字は resolutionLevel が user または none のときだけ warning。",
+          "type": "string"
+        },
+        "supportAction": {
+          "description": "サポート担当が取るべき対応（確認事項・エスカレーション先）。空文字は resolutionLevel が support または none のときだけ warning。",
+          "type": "string"
+        },
+        "engineerAction": {
+          "description": "エンジニアの介入内容（データメンテ等）。サポート向け出力にも載せる（サポートが何を依頼すべきか書けるようにするため）。空文字は resolutionLevel が engineer または none のときだけ warning。",
+          "type": "string"
+        },
+        "notes": {
+          "description": "備考。検知対象外の自由メモ。空でも warning にしない。",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "occurrence",
+        "resolutionLevel",
+        "causeForSupport",
+        "causeForSpec",
+        "userAction",
+        "supportAction",
+        "engineerAction",
+        "notes"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
