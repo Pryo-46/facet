@@ -52,6 +52,17 @@ describe('filterErrorIndices', () => {
     expect(filterErrorIndices(entries, { query: 'ﾛｸﾞｲﾝ', levels: [] })).toEqual([0])
   })
 
+  it('エントリ側の値も正規化して照合する（クエリ側だけの正規化では拾えない）', () => {
+    // 半角カナ・大文字で書かれたエントリを、全角・小文字のクエリで引く。
+    // entry 側の normalizeForMatch を外すとこのテストだけが赤くなる
+    const skewed: ErrorEntry[] = [
+      entry({ id: 'error_DDDDDDDDDD', name: 'ﾛｸﾞｲﾝできない' }),
+      entry({ id: 'error_EEEEEEEEEE', name: 'CSV 出力に失敗する', causeForSupport: 'ENCODING の不一致' }),
+    ]
+    expect(filterErrorIndices(skewed, { query: 'ログイン', levels: [] })).toEqual([0])
+    expect(filterErrorIndices(skewed, { query: 'encoding', levels: [] })).toEqual([1])
+  })
+
   it('解決レベルの絞り込みは複数指定が OR', () => {
     expect(filterErrorIndices(entries, { query: '', levels: ['user', 'engineer'] })).toEqual([0, 1])
   })
