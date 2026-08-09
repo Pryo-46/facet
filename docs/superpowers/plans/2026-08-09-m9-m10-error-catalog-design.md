@@ -144,8 +144,10 @@ if (fresh === null || fresh.path !== doc.path || !fresh.module.outputs.includes(
 
 ## 5. M9 の完了条件
 
-- **既存テストが内容を変えずに緑**（変わってよいのは移動したファイルの import パスのみ）
-- 用語集の画面と Markdown 出力バイト列が不変
+- **既存テストが「期待値を変えずに」緑。** 変えてよいのは次の2つだけで、**アサーションの期待値は1つも変えない**
+  - 移動したファイルの import パス
+  - 規約5の変更に伴う口の変更——フェイクモジュールの `toMarkdown: () => ''` → `outputs: [...]`（`app-controller.test.ts` / `file-ops.test.ts` / `load.test.ts` / `project-consistency.test.ts` / `registry.test.ts` の5本）と、`copyMarkdown()` / `exportMarkdown()` の呼び出しへの引数追加（`app-controller.test.ts` のみ）
+- 用語集の画面と Markdown 出力バイト列が不変。`glossary/consistency.test.ts` と `GlossaryEditor.dom.test.tsx` は**1バイトも変えない**（引き上げが振る舞いを保っていることの証拠になる）
 - 新規テスト: `use-list-rows`（挿入・削除・並び替え後のフォーカス移動、0件時の `onEmptied`）、`duplicate`、汎用化した `columns`、プロファイルの選択と `exportMarkdown` のモジュール不一致ガード
 - `npm test && npx tsc -b && npm run lint` が緑
 
