@@ -16,7 +16,7 @@
 
 以下は**全タスクの要件に暗黙に含まれる**。
 
-- **用語集には触らない。** 変更してよいのは `src/modules/index.ts` の登録1行だけ。`src/modules/glossary/**` のコードとテストは1バイトも変えない（変えたくなったら「計画の矛盾」として報告する）
+- **用語集には触らない。** 変更してよいのは `src/modules/index.ts` の登録1行と、**Task 6 の `src/modules/glossary/markdown.ts`（コアの整形関数への委譲に載せ替える）だけ**。`src/modules/glossary/**` の**テストは1バイトも変えない**（無変更のまま緑であることが、引き上げが振る舞いを保っている証拠になる。M9 と同じやり方）。それ以外の用語集のコードを変えたくなったら「計画の矛盾」として報告する
 - **額縁は無改修（決定18）。** `src/App.tsx` / `src/components/FileList.tsx` / `src/components/ExportMenu.tsx` を変更しない。新規作成メニューは `appRegistry.list()` 由来なので登録すれば出る／単一性違反は `module.singleton` を見るだけ／出力ドロップダウンは `outputs.length > 1` で自動的にメニューになる。**`App.tsx` の空状態にある「用語集を作る」ボタンにエラーカタログ版を足さない**——`ensureFileOfType` とインライン登録の競合（`open-issues.md` 記載）に呼び出し口を増やすと近づくため
 - **`src/components/CellInput.tsx` の変更は Task 10 だけ**（`MAX_ROWS` 5 → 8）。それ以外のタスクで共通コンポーネントを触らない
 - **検証コマンドは対象を絞らない。** 各タスクの最後は `npm test`（全件）。タスク完了時は `npm test && npx tsc -b && npm run lint`
@@ -65,6 +65,8 @@ npm test && npx tsc -b && npm run lint
 | `src/modules/error-catalog/column-widths.ts` | 列幅ストア（**プロファイルごとに1本**）と最小幅・変化量 |
 | `src/modules/error-catalog/consistency.ts` | 規約4: レベル2（赤）の3ルール |
 | `src/modules/error-catalog/warnings.ts` | セルの warning（黄）の判定。**issue ではない** |
+| `src/core/markdown-table.ts` | **新設。** Markdown 表のセル整形（エスケープ・行の組み立て・見出しの改行潰し）。全ツール共通 |
+| `src/modules/glossary/markdown.ts` | 上記への委譲に載せ替える（**テストは無変更**） |
 | `src/modules/error-catalog/markdown.ts` | 規約5: プロファイルの列で Markdown を組む純関数 |
 | `src/modules/error-catalog/search.ts` | 検索・`resolutionLevel` フィルタ・導出表示の判定 |
 | `src/modules/error-catalog/migrate.ts` | 規約6: 恒等マイグレータ |
@@ -1287,14 +1289,155 @@ git commit -m "feat(error-catalog): セルの warning 判定を追加する"
 ## Task 6: Markdown 出力
 
 **Files:**
+- Create: `src/core/markdown-table.ts`
+- Test: `src/core/markdown-table.test.ts`
+- Modify: `src/modules/glossary/markdown.ts`（コアへの委譲に載せ替える。**テストは触らない**）
 - Create: `src/modules/error-catalog/markdown.ts`
 - Test: `src/modules/error-catalog/markdown.test.ts`
 
 **Interfaces:**
 - Consumes: `FIELD_LABELS` / `ErrorField`（Task 2）、`NO_COLUMN_LABEL`（Task 3）、`markdownFields` / `SUPPORT_PROFILE` / `DEV_PROFILE`（Task 3）、`resolutionLabel`（Task 2）、`schemas/error-catalog.schema.json`
-- Produces: `errorCatalogToMarkdown(data: ErrorCatalogSchemaVersion1, fields: readonly ErrorField[]): string`
+- Produces:
+  - `escapeCell(text: string): string` / `row(cells: readonly string[]): string` / `dividerRow(count: number): string` / `headingText(text: string): string`（`@/core/markdown-table`）
+  - `errorCatalogToMarkdown(data: ErrorCatalogSchemaVersion1, fields: readonly ErrorField[]): string`
 
-- [ ] **Step 1: 失敗するテストを書く**
+**このタスクは2コミットに分ける。** 前半（Step 1〜4）で Markdown 表の整形をコアへ引き上げ、用語集をその上に載せ替える。後半（Step 5〜8）でエラーカタログの出力を載せる。**引き上げが振る舞いを保っている証拠は「用語集の `markdown.test.ts` を1バイトも変えずに緑」であること**（M9 と同じやり方）。エスケープ規則をアプリ内で2つ持たないための引き上げなので、**用語集側に同じ実装を残さない。**
+
+- [ ] **Step 1: コアの整形関数の失敗するテストを書く**
+
+`src/core/markdown-table.test.ts`:
+
+```ts
+import { describe, expect, it } from 'vitest'
+import { dividerRow, escapeCell, headingText, row } from './markdown-table'
+
+describe('escapeCell', () => {
+  it('| をエスケープする（列区切りと衝突する）', () => {
+    expect(escapeCell('a|b')).toBe('a\\|b')
+  })
+
+  it('改行は <br> にする（CRLF・CR・LF のすべて）', () => {
+    expect(escapeCell('1\r\n2\r3\n4')).toBe('1<br>2<br>3<br>4')
+  })
+
+  it('バックスラッシュを先に処理する（順序が逆だと自分が入れた \\ を二重エスケープする）', () => {
+    expect(escapeCell('C:\\Users\\bin')).toBe('C:\\\\Users\\\\bin')
+    // 生の `a\|b` は、リテラルの `\` ＋ エスケープされた `|` で `a\\\|b`
+    expect(escapeCell('a\\|b')).toBe('a\\\\\\|b')
+  })
+
+  it('空文字はそのまま（空セルは列として残る）', () => {
+    expect(escapeCell('')).toBe('')
+  })
+})
+
+describe('row', () => {
+  it('セルを | で挟んで連ねる', () => {
+    expect(row(['a', 'b'])).toBe('| a | b |')
+  })
+
+  it('空セルも列として残す（列数が崩れない）', () => {
+    expect(row(['a', '', 'c'])).toBe('| a |  | c |')
+  })
+})
+
+describe('dividerRow', () => {
+  it('列数ぶんの --- を並べる', () => {
+    expect(dividerRow(3)).toBe('| --- | --- | --- |')
+  })
+})
+
+describe('headingText', () => {
+  it('改行を空白へ潰す（h1 の混入経路を塞ぐ）', () => {
+    expect(headingText('用語集\n# 見出しのつもり')).toBe('用語集 # 見出しのつもり')
+  })
+
+  it('| はエスケープしない（見出しに列区切りは無い）', () => {
+    expect(headingText('a|b')).toBe('a|b')
+  })
+})
+```
+
+- [ ] **Step 2: 失敗を確認する**
+
+```bash
+npx vitest run src/core/markdown-table.test.ts
+```
+
+Expected: FAIL（`./markdown-table` が解決できない）
+
+- [ ] **Step 3: コアへ引き上げる**
+
+`src/core/markdown-table.ts`:
+
+```ts
+/**
+ * Markdown の表の組み立て（全ツール共通・コア。M10 で用語集の `markdown.ts` から引き上げ）。
+ *
+ * **表のセルは書き手を信用せずエスケープする**（rev 8章）。定義・原因・対応は
+ * 自由記述欄であり、Windows パスや正規表現、外部（Skill・エディタ）が書いた
+ * 複数行の値が入ると表が途中で割れて1件まるごと読めなくなる。
+ *
+ * **この規則をアプリ内で2つ持たない。** ツールごとに書き直すと、エスケープの
+ * 順序や改行の扱いがツールによって食い違い、「あるツールの出力だけ表が割れる」
+ * という最悪の挙動になる（`normalizeForMatch` を1つに保っているのと同じ理由）
+ */
+
+/**
+ * 表のセルに収める。`|` は列区切りと衝突するのでエスケープし、改行は `<br>` にする。
+ * **バックスラッシュを先に処理する**——順序を逆にすると、`|` エスケープで入れた
+ * `\` まで二重エスケープされる
+ */
+export function escapeCell(text: string): string {
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/\|/g, '\\|')
+    .replace(/\r\n|\r|\n/g, '<br>')
+}
+
+/** セルを1行に組む。空セルも列として残す（列数が崩れない） */
+export function row(cells: readonly string[]): string {
+  return `| ${cells.join(' | ')} |`
+}
+
+/** 見出し行の下の区切り行。列数を引数に取ることで見出しとの本数ずれを防ぐ */
+export function dividerRow(count: number): string {
+  return row(Array.from({ length: count }, () => '---'))
+}
+
+/**
+ * 見出しに収める。エンベロープの `title` も enum の値もスキーマ上はただの
+ * `string` なので、外部が書いた改行入りの値をそのまま `## ` の直後に出すと
+ * Markdown 上で新しい見出し（最悪 `# ` から始まる h1）が混入しうる。
+ * **`escapeCell` は表専用**（`|` をエスケープする）なので、見出しには使えない
+ */
+export function headingText(text: string): string {
+  return text.replace(/\r\n|\r|\n/g, ' ')
+}
+```
+
+- [ ] **Step 4: 用語集を委譲に載せ替え、テストが無変更のまま緑であることを確認する**
+
+`src/modules/glossary/markdown.ts` から `cell` / `row` / `heading` の**3つの関数定義を削除**し、コアの import に置き換える。呼び出し箇所は次のとおり読み替える（**それ以外は1文字も変えない**）:
+
+| 変更前 | 変更後 |
+| --- | --- |
+| `function cell(text) {...}` / `function row(cells) {...}` / `function heading(text) {...}` の定義 | 削除し、冒頭に `import { dividerRow, escapeCell, headingText, row } from '@/core/markdown-table'` |
+| `cell(...)`（`termRow` 内の4箇所） | `escapeCell(...)` |
+| `heading(...)`（2箇所） | `headingText(...)` |
+| `row(...)` | そのまま（コア版と同じ名前・同じ挙動） |
+| `const divider = row(FIELD_ORDER.map(() => '---'))` | `const divider = dividerRow(FIELD_ORDER.length)` |
+
+削除する関数に付いていた JSDoc のうち、エスケープ順序の理由はコア側へ移してある。用語集側には残さない。
+
+```bash
+git diff --stat -- src/modules/glossary
+npm test
+```
+
+Expected: `git diff --stat` に出るのは `src/modules/glossary/markdown.ts` **1ファイルだけ**（テストは無変更）。`npm test` は全件緑——**`glossary/markdown.test.ts` が1バイトも変わらずに通ることが、引き上げが出力バイト列を変えていない証拠になる。**
+
+- [ ] **Step 5: エラーカタログの失敗するテストを書く**
 
 `src/modules/error-catalog/markdown.test.ts`:
 
@@ -1482,7 +1625,7 @@ describe('空欄とエスケープ', () => {
 })
 ```
 
-- [ ] **Step 2: 失敗を確認する**
+- [ ] **Step 6: 失敗を確認する**
 
 ```bash
 npx vitest run src/modules/error-catalog/markdown.test.ts
@@ -1490,11 +1633,12 @@ npx vitest run src/modules/error-catalog/markdown.test.ts
 
 Expected: FAIL（`./markdown` が解決できない）
 
-- [ ] **Step 3: 実装を書く**
+- [ ] **Step 7: 実装を書く**
 
 `src/modules/error-catalog/markdown.ts`:
 
 ```ts
+import { dividerRow, escapeCell, headingText, row } from '@/core/markdown-table'
 import type { ErrorCatalogSchemaVersion1, ErrorEntry } from '@/types/error-catalog'
 import errorCatalogSchema from '../../../schemas/error-catalog.schema.json'
 import { NO_COLUMN_LABEL } from './columns'
@@ -1523,37 +1667,14 @@ const LEVEL_ORDER: readonly string[] =
 const UNDEFINED_VALUE = '（未定義）'
 
 /**
- * 表のセルに収める。`|` は列区切りと衝突するのでエスケープし、改行は `<br>` にする。
- * バックスラッシュを先に処理する理由：順序を逆にすると、`|` エスケープで
- * 入れた `\` まで二重エスケープされる
- */
-function cell(text: string): string {
-  return text
-    .replace(/\\/g, '\\\\')
-    .replace(/\|/g, '\\|')
-    .replace(/\r\n|\r|\n/g, '<br>')
-}
-
-function row(cells: readonly string[]): string {
-  return `| ${cells.join(' | ')} |`
-}
-
-/**
- * 見出しに収める。`title` も未知の enum 値もスキーマ上はただの文字列なので、
- * 改行が入ると `# 見出し` が h1 として混入しうる。改行は空白へ潰す
- */
-function heading(text: string): string {
-  return text.replace(/\r\n|\r|\n/g, ' ')
-}
-
-/**
  * セルの値。**空は「（未定義）」と書いて負債を出力にも残す。**
- * ただし `notes` は検知対象外の自由メモなので空のまま——用語集の備考と揃える
+ * ただし `notes` は検知対象外の自由メモなので空のまま——用語集の備考と揃える。
+ * エスケープはコア（`@/core/markdown-table`）が持つ
  */
 function value(entry: ErrorEntry, field: ErrorField): string {
   const raw: string = entry[field]
   if (raw === '' && field !== 'notes') return UNDEFINED_VALUE
-  return cell(raw)
+  return escapeCell(raw)
 }
 
 export function errorCatalogToMarkdown(
@@ -1572,11 +1693,12 @@ export function errorCatalogToMarkdown(
   })
 
   const header = row([NO_COLUMN_LABEL, ...fields.map((f) => FIELD_LABELS[f])])
-  const divider = row([NO_COLUMN_LABEL, ...fields].map(() => '---'))
-  const blocks: string[] = [`## ${heading(data.title)}`]
+  // No 列のぶんを足す。見出しと本数がずれないよう列数から作る
+  const divider = dividerRow(fields.length + 1)
+  const blocks: string[] = [`## ${headingText(data.title)}`]
   for (const [level, indices] of groups) {
     if (indices.length === 0) continue
-    blocks.push(`### ${heading(resolutionLabel(level))}`)
+    blocks.push(`### ${headingText(resolutionLabel(level))}`)
     const rows = indices.map((index) =>
       // **No はデータ配列の位置（index + 1）。** グループごとに 1 から振り直さない
       //——画面の No と出力の No が食い違うと、口頭で指すための目印として使えない
@@ -1588,17 +1710,19 @@ export function errorCatalogToMarkdown(
 }
 ```
 
-- [ ] **Step 4: テストが通ることを確認する**
+- [ ] **Step 8: テストが通ることを確認する**
 
 ```bash
-npx vitest run src/modules/error-catalog && npm test
+npx vitest run src/core/markdown-table.test.ts src/modules/error-catalog && npm test && npx tsc -b && npm run lint
 ```
 
-Expected: PASS（`markdown.test.ts` の `it` がすべて緑。既存テストも全件緑）
+Expected: PASS（`markdown-table.test.ts` と `markdown.test.ts` の `it` がすべて緑。既存テストも全件緑。**用語集のテストは1バイトも変えていない**）
 
-- [ ] **Step 5: コミット**
+- [ ] **Step 9: コミット（引き上げと新規実装を分ける）**
 
 ```bash
+git add src/core/markdown-table.ts src/core/markdown-table.test.ts src/modules/glossary/markdown.ts
+git commit -m "refactor(core): Markdown 表の整形をコアへ引き上げる"
 git add src/modules/error-catalog/markdown.ts src/modules/error-catalog/markdown.test.ts
 git commit -m "feat(error-catalog): プロファイル別の Markdown 出力を追加する"
 ```
@@ -2936,6 +3060,12 @@ Expected: 空（`sample-project/` の変更をコミットしない。CLAUDE.md 
 - **`CellInput` の行数上限を8にした影響**（`src/components/CellInput.tsx`）: 初回マウントの強制リフローのコストは行数に比例する（上の項目と同じ機構）。M10 の実機確認で体感が出なければ据え置き、出たら差分計算へ `[M10]`
 ```
 
+さらに `## 小さな負債` へ1件足す（M10 で意図的に複製した箇所の記録）:
+
+```markdown
+- **エディタのキー処理が用語集とエラーカタログで二重化している**（`GlossaryEditor.tsx` / `ErrorCatalogEditor.tsx`）: `runCommand` の switch・`onCellKeyDown`・`textFieldContext`・セルの面のクラス定数（計 約80行）がほぼ同一。M10 は意図的に複製した——いま抽象を決めても、3本目（ロジックツリーは列を持たない図系）が必要とする形と一致する保証がないため（M9 決定1が万能フックを退けたのと同じ理由）。**3本目が列を持つツール（状態遷移の遷移表など）だったら、その時点で引き上げる。** 判断材料は「2本の差が3点（プロファイルトグル・列幅ストア2本・吸収列）に収まっているか」 `[M10]`
+```
+
 **`open-issues.md` 冒頭の「最終更新」を M10 完了時点に直す。** 既存の項目のうち、M10 で解消したものがあれば消す（規約8と `gen-types` の残骸掃除は**どちらも M10 では解消しない**ので残す——規約8は検知エンジンごと作るときの話であり、`gen-types` はスキーマを消す・作り直すときに踏む話で、M10 はスキーマを1本足しただけ）。実装中に別の残件を見つけていたらここへ足す。
 
 - [ ] **Step 3: `overview-rev.md` へ反映する**
@@ -2948,7 +3078,13 @@ M10 で**実装が確定させた事実**を「正」へ書き戻す。次の2�
   - **M10 で2プロファイルの実例が実装確定した**：モジュールが宣言するのは**フィールドの並び1本**（`profiles.ts`）で、画面の列（`No` ＋ `fields`）と出力の列（`No` ＋ `fields` から グルーピング軸を除いたもの）を**そこから導出する**。列セットを2箇所に書くと片方だけ直したときに黙ってずれるため、`OutputProfile`（コアの契約）には列を持たせず、列の関心はモジュール内に閉じる。
 ```
 
-2. **8章「出力はNotePM向けMarkdown」**の用語集の出力仕様の項の直後に、エラーカタログの実装確定を1項足す:
+2. **6章「拡張要件」の「列を持つツールの共通機械はコアに置く（M9で確定）」の項**に、M10 で足した引き上げを書き加える:
+
+```markdown
+  **M10 で Markdown 表の整形（`src/core/markdown-table.ts`：セルのエスケープ・行と区切り行の組み立て・見出しの改行潰し）も加わった。** 表のセルのエスケープ規則は `normalizeForMatch`（照合規則）と同じく**アプリ内で1つだけ**——ツールごとに書き直すと、順序や改行の扱いが食い違って「あるツールの出力だけ表が割れる」という最悪の挙動になる。
+```
+
+3. **8章「出力はNotePM向けMarkdown」**の用語集の出力仕様の項の直後に、エラーカタログの実装確定を1項足す:
 
 ```markdown
 - **エラーカタログの出力仕様（M10で実装し確定）**：見出し階層は用語集と同じ（`##`＝エンベロープの `title`、`###`＝`resolutionLevel` のグループ、h1不使用）。グループ順は**enumの定義順をスキーマから実行時に導出**、空のグループは見出しごと省略、グループ内はデータ配列順。列は `No` ＋ プロファイルの宣言から `resolutionLevel` を除いたもの（サポート向け7列／開発向け9列）。**`No` はデータ配列の位置（index+1）**であり、グループごとに振り直さない——画面のNoと出力のNoが食い違うと、会議中に口頭で指すための目印として使えなくなる。空フィールドは `（未定義）`、`undecided` は `未分類` グループとして**サポート向け出力でも省略しない**。備考の空欄だけは `（未定義）` にしない（検知対象外の自由メモ。用語集の備考と同じ扱い）。
@@ -2986,13 +3122,13 @@ git commit -m "docs: M10 の申し送りと rev への反映を書く"
 ## M10 の完了条件（設計スペック 11節）
 
 - [ ] スキーマ検証・整合性検証・Markdown 出力・エディタ操作の単体テストと DOM テストがある
-- [ ] 用語集の既存テストが緑のまま（レジストリ登録1行以外は触っていない）。次で確認する:
+- [ ] 用語集の既存テストが緑のまま。次で確認する:
 
 ```bash
-git diff --stat origin/main -- src/modules/glossary src/core
+git diff --stat origin/main -- src/modules/glossary
 ```
 
-Expected: **出力が空**（用語集とコアのファイルは1つも変わっていない。`CellInput.tsx` は `src/components` なのでここには出ない）
+Expected: **`src/modules/glossary/markdown.ts` の1ファイルだけ**（Task 6 の委譲への載せ替え）。**テストファイルが1つも出ないこと**——用語集のテストが無変更のまま緑であることが、引き上げが振る舞いを保っている証拠になる
 
 - [ ] `npm test && npx tsc -b && npm run lint` が緑
 - [ ] 実機確認（Task 11）を終え、結果が申し送りに書かれている
