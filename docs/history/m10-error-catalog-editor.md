@@ -12,7 +12,7 @@ M10 は計画12タスク（実装10本、実機確認、本ドキュメント）
 
 ## Markdown 表の整形をコアへ引き上げた
 
-着手前スキャンでMarkdownのセル整形3関数（`cell` / `row` / `heading`）の複製が見つかり、人間の裁定で「コアへ引き上げる」と決まった（`.superpowers/sdd/2026-08-09-m10-error-catalog/progress.md` 冒頭）。Task 6 で `src/core/markdown-table.ts`（`escapeCell` / `row` / `dividerRow` / `headingText` の4関数）を新設し、用語集の `src/modules/glossary/markdown.ts` を委譲へ載せ替えた。
+着手前スキャンでMarkdownのセル整形3関数（`cell` / `row` / `heading`）の複製が見つかり、人間の裁定で「コアへ引き上げる」と決まった（計画の Global Constraints と Task 6 にその裁定が反映されている）。Task 6 で `src/core/markdown-table.ts`（`escapeCell` / `row` / `dividerRow` / `headingText` の4関数）を新設し、用語集の `src/modules/glossary/markdown.ts` を委譲へ載せ替えた。
 
 **用語集の `markdown.test.ts` は1バイトも変えずに緑のままだった**（`git diff e5ec823..HEAD -- src/modules/glossary/markdown.test.ts` の差分ゼロ）。これは M9 の5つの機械と同じ検証方法で、引き上げが振る舞いを保っていることの裏付けになる。コア版は列・フィールドの知識を一切持たない純関数のみで、`ErrorField` や `Term` 等の型を import していない。
 
