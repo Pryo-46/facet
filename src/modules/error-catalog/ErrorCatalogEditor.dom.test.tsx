@@ -266,6 +266,20 @@ describe('ErrorCatalogEditor: 列幅', () => {
     ])
   })
 
+  it('開発向けで広げてもサポート向けの幅は変わらない（ストアをプロファイルで引き分けている）', () => {
+    renderEditor(twoErrors)
+    fireEvent.click(screen.getByRole('button', { name: '開発向け' }))
+    fireEvent.keyDown(screen.getByRole('separator', { name: 'エラー名の列幅を変更' }), {
+      key: 'ArrowRight',
+    })
+    expect(errorColumnWidths.dev.getSnapshot()[1]).toBe(
+      PROFILE_COLUMNS.dev.defaultWidths[1] + RESIZE_STEP,
+    )
+    expect([...errorColumnWidths.support.getSnapshot()]).toEqual([
+      ...PROFILE_COLUMNS.support.defaultWidths,
+    ])
+  })
+
   it('エディタを作り直しても幅が残る（ファイル切替をまたぐ）', () => {
     renderEditor(twoErrors)
     fireEvent.keyDown(screen.getByRole('separator', { name: 'エラー名の列幅を変更' }), {
