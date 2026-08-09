@@ -12,8 +12,8 @@ dist-ssr/
 src-tauri/target/
 src-tauri/gen/
 
-# スキーマから生成する型（正は schemas/glossary.schema.json。npm run gen:types で再生成）
-src/types/glossary.ts
+# スキーマから生成する型（正は schemas/*.schema.json。npm run gen:types で再生成）
+src/types/*.ts
 
 # ログ
 logs
