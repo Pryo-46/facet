@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { buttonBase } from '@/components/button-styles'
 import { FileList } from '@/components/FileList'
 import { ToastStack } from '@/components/Toast'
 import { Button } from '@/components/ui/button'
@@ -284,26 +285,34 @@ function App() {
   }, [projectDir, controller, setBanner])
 
   return (
-    <main className="flex min-h-screen flex-col bg-canvas text-ink">
-      <header className="flex items-center gap-4 border-b border-rule px-6 py-3">
+    <main className="flex h-screen flex-col bg-canvas bg-grid-paper text-ink">
+      <header className="flex items-center gap-4 border-b border-rule bg-surface px-6 py-3">
         <h1 className="text-lg font-bold text-ink">facet</h1>
         <Button onClick={() => void openFolder()}>フォルダを開く</Button>
-        <Button disabled={history === null || !canUndo(history)} onClick={() => runHistory('undo')}>
+        <Button
+          variant="outline"
+          disabled={history === null || !canUndo(history)}
+          onClick={() => runHistory('undo')}
+        >
           元に戻す
         </Button>
-        <Button disabled={history === null || !canRedo(history)} onClick={() => runHistory('redo')}>
+        <Button
+          variant="outline"
+          disabled={history === null || !canRedo(history)}
+          onClick={() => runHistory('redo')}
+        >
           やり直す
         </Button>
-        <Button disabled={!canExport} onClick={() => void controller.copyMarkdown()}>
+        <Button variant="outline" disabled={!canExport} onClick={() => void controller.copyMarkdown()}>
           Markdown をコピー
         </Button>
-        <Button disabled={!canExport} onClick={() => void controller.exportMarkdown()}>
+        <Button variant="outline" disabled={!canExport} onClick={() => void controller.exportMarkdown()}>
           Markdown を書き出す
         </Button>
         {projectDir && <span className="text-sm text-ink-muted">{projectDir}</span>}
         <button
           type="button"
-          className="ml-auto text-sm text-ink-muted underline"
+          className={`${buttonBase} ml-auto text-sm text-ink-muted underline`}
           onClick={toggleTheme}
         >
           {dark ? 'ライト' : 'ダーク'}
@@ -319,7 +328,7 @@ function App() {
       )}
 
       <div className="flex min-h-0 flex-1">
-        <aside className="w-64 shrink-0 border-r border-rule">
+        <aside className="w-64 shrink-0 overflow-y-auto border-r border-rule bg-surface">
           <FileList
             files={files}
             selectedPath={selectedPath}
@@ -343,7 +352,7 @@ function App() {
                   </p>
                   <button
                     type="button"
-                    className="mt-2 rounded-sm border border-rule px-3 py-1 text-sm text-ink hover:bg-surface"
+                    className={`${buttonBase} mt-2 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
                     onClick={() => void controller.ensureFileOfType(glossaryModule)}
                   >
                     用語集を作る

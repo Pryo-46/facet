@@ -137,4 +137,21 @@ describe('glossaryToMarkdown', () => {
     const row = rows[0]
     expect(row).toMatch(/^\| 用語 \| アクター \| a\\\\\\\|b \| {1,2}\| {1,2}\|$/)
   })
+
+  it('未知の種別に改行が入っていても見出しを割らない', () => {
+    // enum 外の kind はスキーマ検証で弾かれるので通常は到達しない。
+    // glossaryToMarkdown を直接呼ぶことで、enum 拡張時の経路だけを再現する
+    const data = {
+      schemaVersion: 1,
+      type: 'glossary',
+      title: 'T',
+      terms: [
+        { id: 'term_xxxxxxxxxx', name: 'N', kind: '未知\n# 見出し', definition: '', aliases: [], notes: '' },
+      ],
+    } as unknown as GlossarySchemaVersion1
+    const md = glossaryToMarkdown(data)
+    expect(md).toContain('### 未知 # 見出し')
+    // 改行が残ると `# 見出し` が h1 として混入する
+    expect(md).not.toMatch(/^# /m)
+  })
 })

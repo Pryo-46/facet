@@ -61,3 +61,36 @@ describe('CellInput', () => {
     expect(el.value).toBe('受注')
   })
 })
+
+describe('CellInput: 複数行', () => {
+  it('multiline なら textarea として描かれる', () => {
+    render(<CellInput multiline value="" onValueChange={() => {}} aria-label="定義" />)
+    expect(screen.getByLabelText('定義').tagName).toBe('TEXTAREA')
+  })
+
+  it('multiline でない既定は input のまま', () => {
+    render(<CellInput value="" onValueChange={() => {}} aria-label="名称" />)
+    expect(screen.getByLabelText('名称').tagName).toBe('INPUT')
+  })
+
+  it('textarea でも変換中は親へ値を上げない（IME の巻き戻り防止）', () => {
+    const onValueChange = vi.fn()
+    render(<CellInput multiline value="" onValueChange={onValueChange} aria-label="定義" />)
+    const el = screen.getByLabelText('定義') as HTMLTextAreaElement
+
+    fireEvent.compositionStart(el)
+    fireEvent.change(el, { target: { value: 'じゅちゅう' } })
+    expect(onValueChange).not.toHaveBeenCalled()
+
+    fireEvent.compositionEnd(el, { target: { value: '受注' } })
+    expect(onValueChange).toHaveBeenCalledTimes(1)
+    expect(onValueChange).toHaveBeenCalledWith('受注')
+  })
+
+  it('改行を含む値をそのまま扱える（外部が書いた複数行の定義）', () => {
+    const onValueChange = vi.fn()
+    render(<CellInput multiline value="" onValueChange={onValueChange} aria-label="定義" />)
+    fireEvent.change(screen.getByLabelText('定義'), { target: { value: '1行目\n2行目' } })
+    expect(onValueChange).toHaveBeenCalledWith('1行目\n2行目')
+  })
+})

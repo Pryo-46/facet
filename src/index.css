@@ -46,6 +46,7 @@
     --color-ok-fg: var(--ok-fg);
     --color-canvas: var(--canvas);
     --color-surface: var(--surface);
+    --color-surface-accent: var(--surface-accent);
     --color-rule: var(--rule);
     --color-grid: var(--grid);
 
@@ -147,6 +148,11 @@
 
     /* 色ではない */
     --radius: 0.625rem;
+
+    /* 方眼紙のマス目。色ではないので palette.css には置かない
+       （palette.css は色値だけを持つ）。text-sm の行高（14px × 1.65 ＝ 23.1px）
+       とほぼ一致させ、方眼と文字行が揃って見えるようにしている */
+    --grid-size: 24px;
 }
 
 @layer base {
@@ -159,4 +165,36 @@
   html {
     @apply font-sans;
     }
+  button {
+    /* ラベルは1行なので行間を詰める。--text-sm--line-height: 1.65 は
+       本文（複数行の定義文）向けの値で、ボタンに効くと和文フォントの
+       縦メトリクスの非対称によりラベルが上へ寄る（M8 の実機確認で判明）。
+
+       **`line-height` を直接書いてはいけない。** Tailwind の text-* は
+       utilities レイヤーで `line-height: var(--tw-leading, <既定>)` を生成する。
+       cascade layers では異なるレイヤー間は特異性より先にレイヤー順序で決まり、
+       後に宣言される utilities が base に勝つため、base レイヤーで line-height を
+       直接書いても text-sm / text-xs を持つボタン（＝ほぼ全部）には届かない。
+       **--tw-leading を設定すれば話が変わる**——utilities 側が普段設定しない
+       変数へ逃がしているので、そもそも衝突が起きない。
+       leading-* を明示したボタンは utilities 側が同じ変数を上書きするので、
+       個別に変えたいときは従来どおり効く */
+    --tw-leading: 1.2;
+    }
+}
+
+/* =========================================================================
+ * 方眼紙の地（rev 9章の確定要素。M8 決定15 で実装）。
+ *
+ * 「地は方眼、作業する面は無地」という関係を作り、canvas と surface を
+ * 明度差ではなく模様の有無で見分けられるようにする——ライトでは
+ * 両者の L 差が 0.04（1.13:1）しかなく、罫線でしか分かれて見えなかった。
+ *
+ * ★ 色値を書かない。★ var(--grid) から取る。
+ *   palette.test.ts が index.css の色値直書きを弾く
+ * ========================================================================= */
+@utility bg-grid-paper {
+    background-image:
+        repeating-linear-gradient(to right, var(--grid) 0 1px, transparent 1px var(--grid-size)),
+        repeating-linear-gradient(to bottom, var(--grid) 0 1px, transparent 1px var(--grid-size));
 }

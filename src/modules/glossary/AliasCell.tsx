@@ -7,8 +7,11 @@ import { splitPastedAliases } from './alias-paste'
 
 const PLATFORM = currentPlatform()
 
+// GlossaryEditor.tsx の cellInput と同じ理由でリングにする——パネルの地は
+// bg-canvas なので focus:bg-surface 自体は見えなくはないが、セルの
+// フォーカス表現を表全体で揃えるため、ここもリングに統一する
 const aliasInput =
-  'w-full bg-transparent px-2 py-1 text-ink outline-none focus:bg-surface rounded-sm'
+  'w-full bg-transparent px-2 py-1 text-ink outline-none rounded-sm focus:ring-2 focus:ring-inset focus:ring-ring'
 
 /** データに載せる形（前後空白を落とし、空要素を除く） */
 function cleanAliases(draft: readonly string[]): string[] {
@@ -200,7 +203,9 @@ export function AliasCell(props: AliasCellProps) {
         type="button"
         data-cell={cellId}
         aria-label={label}
-        className="flex w-full flex-wrap gap-1 rounded-sm px-2 py-1 text-left outline-none focus:bg-surface"
+        // 閉じた別名セルは表本体の bg-surface に乗るので、cellInput と同じ理由で
+        // focus:bg-surface ではなくリングを使う（M8 修正3）
+        className="flex w-full flex-wrap gap-1 rounded-sm px-2 py-1 text-left outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
         onFocus={() => {
           if (suppressOpen.current) {
             suppressOpen.current = false
@@ -215,7 +220,12 @@ export function AliasCell(props: AliasCellProps) {
           <span className="text-ink-muted">別名なし</span>
         ) : (
           aliases.map((alias, i) => (
-            <span key={`${alias}-${i}`} className="rounded-sm bg-surface px-1 text-ink">
+            // チップの面は bg-surface だと表の面と同色で消える（テーブルの面が
+            // surface になった M8 決定2 が原因）。bg-canvas ではなく border に
+            // したのは、bg-canvas はサイドバーの選択行（M8 決定17）で
+            // 「地の色でへこんで見える＝選択中」の意味に既に使っており、
+            // チップは選択状態ではなく単なる項目の区切りなので意味を借用しない
+            <span key={`${alias}-${i}`} className="rounded-sm border border-grid px-1 text-ink">
               {alias}
             </span>
           ))

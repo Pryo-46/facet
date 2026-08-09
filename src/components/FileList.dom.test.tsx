@@ -143,3 +143,44 @@ describe('削除', () => {
     expect(screen.getByRole('button', { name: '壊れた.json を削除' })).not.toBeNull()
   })
 })
+
+describe('行の説明（aria-describedby）', () => {
+  // アクセシブル名は「<名前> を開く」で固定なので、title・「開けない」
+  // 「編集不可」・issue 件数バッジはスクリーンリーダーに読まれない（M8 残件4）。
+  // description 側で補う
+  const description = (name: string): string => {
+    const button = screen.getByRole('button', { name: `${name} を開く` })
+    const id = button.getAttribute('aria-describedby')
+    expect(id).not.toBeNull()
+    return document.getElementById(id as string)?.textContent ?? ''
+  }
+
+  it('タイトルが読まれる', () => {
+    setup([file('用語集.json')])
+    expect(description('用語集.json')).toContain('用語集')
+  })
+
+  it('issue の件数が読まれる', () => {
+    setup([
+      file('用語集.json', {
+        issues: [{ rule: 'singleton-violation', message: '用語集が2件あります', locations: [] }],
+      }),
+    ])
+    expect(description('用語集.json')).toContain('1')
+  })
+
+  it('開けないファイルは「開けない」が読まれる', () => {
+    setup([
+      file('壊れた.json', {
+        result: {
+          status: 'rejected',
+          type: null,
+          title: null,
+          reason: 'JSON として解釈できません',
+          errors: [],
+        },
+      }),
+    ])
+    expect(description('壊れた.json')).toContain('開けない')
+  })
+})

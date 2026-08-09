@@ -42,3 +42,31 @@ describe('resolveAvailableFileName', () => {
     expect(isTaken).toHaveBeenCalledTimes(MAX_NAME_CANDIDATES)
   })
 })
+
+describe('Windows で作れない名前', () => {
+  it('予約デバイス名は先頭に _ を足して避ける', () => {
+    // CON.json / NUL.json は拡張子を付けても予約のまま。作成に失敗する
+    for (const name of ['CON', 'con', 'PRN', 'AUX', 'NUL', 'COM1', 'LPT9']) {
+      expect(fileNameCandidate(name, 1)).toBe(`_${name}.json`)
+    }
+  })
+
+  it('予約語を含むだけの名前は避けない', () => {
+    expect(fileNameCandidate('CONTENT', 1)).toBe('CONTENT.json')
+    expect(fileNameCandidate('用語集CON', 1)).toBe('用語集CON.json')
+  })
+
+  it('末尾のドットと空白を落とす（Windows が黙って落とすため）', () => {
+    expect(fileNameCandidate('用語集...', 1)).toBe('用語集.json')
+    expect(fileNameCandidate('用語集 ', 1)).toBe('用語集.json')
+    expect(fileNameCandidate('用語集. .', 1)).toBe('用語集.json')
+  })
+
+  it('落とした結果が空になったら _ にする', () => {
+    expect(fileNameCandidate('...', 1)).toBe('_.json')
+  })
+
+  it('連番は避けた後の名前に付く', () => {
+    expect(fileNameCandidate('CON', 2)).toBe('_CON-2.json')
+  })
+})

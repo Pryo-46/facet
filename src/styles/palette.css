@@ -49,13 +49,20 @@
     --ink: oklch(0.205 0 89.9);             /* Basalt Black */
     --ink-muted: oklch(0.381 0.007 170.1);  /* Column Grey */
     --rule: oklch(0.6 0.014 120);           /* Mineral Line の色相から導出 */
-    --grid: oklch(0.824 0.014 120.3);       /* Mineral Line */
+    --grid: oklch(0.87 0.014 120.3);        /* Mineral Line を canvas 上 1.17:1 まで薄めた */
     --warning: oklch(0.518 0.132 34.6);     /* Ember Fault を 4.5:1 超へ */
     --ok: oklch(0.5 0.068 126);             /* Lichen Green を 4.5:1 超へ */
 
     /* warning / ok を面として使うときに載せる文字色 */
     --warning-fg: oklch(0.961 0.007 88.6);
     --ok-fg: oklch(0.961 0.007 88.6);
+
+    /* 見出しの面（テーブルのカラム名）。Lichen Green の色相 H126 から起こした淡い緑。
+       **ok（応答・結果・確定）とは別のトークンにする**——カラム名は確定でも応答でも
+       ないので、ok を流用すると意味論が壊れる（rev 9章「Lichen Green は ok 以外に
+       使わない」の趣旨は「意味を持つ緑を装飾に流用しない」ことにある）。
+       文字は ink / ink-muted の両方が載るので、両方のコントラストを検証する */
+    --surface-accent: oklch(0.87 0.04 126);
 }
 
 .dark {
@@ -71,4 +78,6 @@
 
     --warning-fg: oklch(0.18 0.004 164.6);
     --ok-fg: oklch(0.18 0.004 164.6);
+
+    --surface-accent: oklch(0.28 0.04 126);
 }

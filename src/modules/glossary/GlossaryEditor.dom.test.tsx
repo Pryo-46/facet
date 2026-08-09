@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { useState } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createHistory, record, redo as redoHistory, undo as undoHistory } from '@/core/history'
 import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
+import { glossaryColumnWidths, RESIZE_STEP } from './column-widths'
+import { DEFAULT_WIDTHS } from './columns'
 import { GlossaryEditor } from './GlossaryEditor'
 
 afterEach(cleanup)
@@ -54,7 +56,7 @@ describe('GlossaryEditor: IME', () => {
     const cell = screen.getByLabelText('名称（1行目）')
     fireEvent.compositionStart(cell)
     fireEvent.keyDown(cell, { key: 'Enter', isComposing: true })
-    expect(screen.getAllByLabelText(/^名称/)).toHaveLength(2)
+    expect(screen.getAllByLabelText(/^名称（/)).toHaveLength(2)
   })
 })
 
@@ -62,7 +64,7 @@ describe('GlossaryEditor: 行の操作言語', () => {
   it('Enter で直後に行が増え、新しい行の名称セルにフォーカスが移る', () => {
     const { latest } = renderEditor(twoTerms)
     fireEvent.keyDown(screen.getByLabelText('名称（1行目）'), { key: 'Enter' })
-    const names = screen.getAllByLabelText(/^名称/) as HTMLInputElement[]
+    const names = screen.getAllByLabelText(/^名称（/) as HTMLInputElement[]
     expect(names).toHaveLength(3)
     expect(names[1].value).toBe('新しい用語')
     expect(document.activeElement).toBe(names[1])
@@ -79,7 +81,7 @@ describe('GlossaryEditor: 行の操作言語', () => {
     const cell = screen.getByLabelText('名称（2行目）')
     fireEvent.change(cell, { target: { value: '' } })
     fireEvent.keyDown(cell, { key: 'Backspace' })
-    expect(screen.getAllByLabelText(/^名称/)).toHaveLength(1)
+    expect(screen.getAllByLabelText(/^名称（/)).toHaveLength(1)
   })
 
   it('空の定義セルで Backspace しても行は消えない（未定義は常態なので事故になる）', () => {
@@ -87,7 +89,7 @@ describe('GlossaryEditor: 行の操作言語', () => {
     const cell = screen.getByLabelText('定義（2行目）')
     fireEvent.change(cell, { target: { value: '' } })
     fireEvent.keyDown(cell, { key: 'Backspace' })
-    expect(screen.getAllByLabelText(/^名称/)).toHaveLength(2)
+    expect(screen.getAllByLabelText(/^名称（/)).toHaveLength(2)
   })
 
   it('Tab で右のセルへ移る', () => {
@@ -129,7 +131,7 @@ describe('GlossaryEditor: 行の操作言語', () => {
     onChange.mockClear()
     fireEvent.keyDown(screen.getByLabelText('名称（1行目）'), { key: 'Enter' })
     expect(onChange).not.toHaveBeenCalled()
-    expect(screen.getAllByLabelText(/^名称/)).toHaveLength(1)
+    expect(screen.getAllByLabelText(/^名称（/)).toHaveLength(1)
     expect(screen.getByText(/行の追加（Enter）/)).toBeTruthy()
   })
 
@@ -145,9 +147,32 @@ describe('GlossaryEditor: 行の操作言語', () => {
     const cell = screen.getByLabelText('名称（1行目）')
     fireEvent.change(cell, { target: { value: '' } })
     fireEvent.keyDown(cell, { key: 'Backspace' })
-    const names = screen.getAllByLabelText(/^名称/) as HTMLInputElement[]
+    const names = screen.getAllByLabelText(/^名称（/) as HTMLInputElement[]
     expect(names).toHaveLength(1)
     expect(document.activeElement).toBe(names[0])
+  })
+
+  it('定義セルの Enter は行追加として消費される（改行にしない）', () => {
+    renderEditor(twoTerms)
+    const cell = screen.getByLabelText('定義（1行目）')
+    // fireEvent は preventDefault されると false を返す
+    expect(fireEvent.keyDown(cell, { key: 'Enter' })).toBe(false)
+    expect(screen.getAllByLabelText(/^名称（/)).toHaveLength(3)
+  })
+
+  it('定義セルの Shift+Enter は既定動作に委ねる（セル内改行。M8 決定6）', () => {
+    renderEditor(twoTerms)
+    const cell = screen.getByLabelText('定義（1行目）')
+    // 止めない＝ブラウザが改行を入れる。行は増えない
+    expect(fireEvent.keyDown(cell, { key: 'Enter', shiftKey: true })).toBe(true)
+    expect(screen.getAllByLabelText(/^名称（/)).toHaveLength(2)
+  })
+
+  it('定義セルの Alt+Enter も既定動作に委ねる（Excel のセル内改行の手癖）', () => {
+    renderEditor(twoTerms)
+    const cell = screen.getByLabelText('定義（1行目）')
+    expect(fireEvent.keyDown(cell, { key: 'Enter', altKey: true })).toBe(true)
+    expect(screen.getAllByLabelText(/^名称（/)).toHaveLength(2)
   })
 })
 
@@ -166,7 +191,7 @@ describe('GlossaryEditor: 表示', () => {
       ]),
     )
     fireEvent.change(screen.getByLabelText('用語を検索'), { target: { value: 'オーダー' } })
-    const names = screen.getAllByLabelText(/^名称/) as HTMLInputElement[]
+    const names = screen.getAllByLabelText(/^名称（/) as HTMLInputElement[]
     expect(names.map((el) => el.value)).toEqual(['受注'])
   })
 })
@@ -352,6 +377,30 @@ describe('用語0件の空状態', () => {
   })
 })
 
+describe('用語を追加ボタン', () => {
+  it('用語があるときも表示される', () => {
+    renderEditor(twoTerms)
+    expect(screen.getByRole('button', { name: '用語を追加' })).not.toBeNull()
+  })
+
+  it('押すと末尾に行が増える', () => {
+    const { latest } = renderEditor(twoTerms)
+    fireEvent.click(screen.getByRole('button', { name: '用語を追加' }))
+    const terms = latest()?.terms
+    expect(terms).toHaveLength(3)
+    // **末尾に足す**（先頭でも選択行の後でもない）。一覧の一番下に
+    // ボタンがあるので、そこから生える位置が直感に合う
+    expect(terms?.[2].name).toBe('新しい用語')
+    expect(terms?.[0].name).toBe('受注')
+  })
+
+  it('検索・フィルタ中は出さない（行の追加が無効な状態と揃える）', () => {
+    renderEditor(twoTerms)
+    fireEvent.change(screen.getByLabelText('用語を検索'), { target: { value: '受注' } })
+    expect(screen.queryByRole('button', { name: '用語を追加' })).toBeNull()
+  })
+})
+
 describe('モーダル表示中', () => {
   it('Enter で行が増えない（キーはモーダル側が取る。rev 10章の境界規則）', () => {
     const { latest } = renderEditor(glossary([term({ id: 'term_AAAAAAAAAA', name: '受注' })]), true)
@@ -366,5 +415,59 @@ describe('モーダル表示中', () => {
     fireEvent.change(cell, { target: { value: '' } })
     fireEvent.keyDown(cell, { key: 'Backspace' })
     expect(latest()?.terms.length ?? 1).toBe(1)
+  })
+})
+
+describe('GlossaryEditor: 列幅', () => {
+  // モジュールスコープの store はテスト間で漏れる
+  beforeEach(() => glossaryColumnWidths.reset())
+
+  it('→ で広げ、← で狭められる', () => {
+    renderEditor(twoTerms)
+    const handle = screen.getByRole('separator', { name: '名称の列幅を変更' })
+    fireEvent.keyDown(handle, { key: 'ArrowRight' })
+    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(DEFAULT_WIDTHS[0] + RESIZE_STEP)
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(DEFAULT_WIDTHS[0])
+  })
+
+  it('Home でその列だけ既定へ戻る', () => {
+    renderEditor(twoTerms)
+    const name = screen.getByRole('separator', { name: '名称の列幅を変更' })
+    const notes = screen.getByRole('separator', { name: '備考の列幅を変更' })
+    fireEvent.keyDown(name, { key: 'ArrowRight' })
+    fireEvent.keyDown(notes, { key: 'ArrowRight' })
+    fireEvent.keyDown(name, { key: 'Home' })
+    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(DEFAULT_WIDTHS[0])
+    // 他の列は戻さない
+    expect(glossaryColumnWidths.getSnapshot()[3]).toBe(DEFAULT_WIDTHS[3] + RESIZE_STEP)
+  })
+
+  it('幅を持たない定義列にも、右隣の別名列を掴むハンドルが出る（定義｜別名の境界）', () => {
+    renderEditor(twoTerms)
+    expect(screen.queryByRole('separator', { name: '定義の列幅を変更' })).not.toBeNull()
+  })
+
+  it('定義列のハンドルを → で操作すると、別名列が狭まる（反転）', () => {
+    renderEditor(twoTerms)
+    const handle = screen.getByRole('separator', { name: '定義の列幅を変更' })
+    fireEvent.keyDown(handle, { key: 'ArrowRight' })
+    // widths は固定幅4列を並び順で持つ（名称・種別・別名・備考）。
+    // 定義列右端のハンドルが掴むのは右隣の別名列の幅なので、そこが変わる
+    expect(glossaryColumnWidths.getSnapshot()[2]).toBe(DEFAULT_WIDTHS[2] - RESIZE_STEP)
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+    expect(glossaryColumnWidths.getSnapshot()[2]).toBe(DEFAULT_WIDTHS[2])
+  })
+
+  it('エディタを作り直しても幅が残る（ファイル切替をまたぐ）', () => {
+    renderEditor(twoTerms)
+    fireEvent.keyDown(screen.getByRole('separator', { name: '名称の列幅を変更' }), {
+      key: 'ArrowRight',
+    })
+    const widened = glossaryColumnWidths.getSnapshot()[0]
+    // App は key={selected.path} でエディタを作り直す。それを再現する
+    cleanup()
+    renderEditor(twoTerms)
+    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(widened)
   })
 })
