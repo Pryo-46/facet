@@ -102,6 +102,23 @@ export interface ColumnResizeOptions {
   containerRef: React.RefObject<HTMLElement | null>
 }
 
+export interface HandleOptions {
+  /**
+   * ドラッグの向きを反転する。**幅を持たない列（残りを埋める列）の右端に
+   * 置くハンドル用。** その位置で掴めるのは右隣の列の幅なので、右へ引いたら
+   * 右隣が狭まる＝この列が広がる、という見た目どおりの動きにする
+   */
+  invert?: boolean
+}
+
+/**
+ * `invert` オプションに応じて delta の符号を合わせる。純関数として
+ * 単体でテストできるよう、向き反転の判断をここ1箇所に閉じる
+ */
+export function invertDelta(delta: number, invert?: boolean): number {
+  return invert === true ? -delta : delta
+}
+
 /** ハンドル要素に展開する props。ツール側は配線を書かない */
 export interface HandleProps {
   role: 'separator'
@@ -126,7 +143,7 @@ export interface HandleProps {
  */
 export function useColumnResize(options: ColumnResizeOptions): {
   widths: readonly number[]
-  getHandleProps: (index: number) => HandleProps
+  getHandleProps: (index: number, handleOptions?: HandleOptions) => HandleProps
 } {
   const { store, minWidth, flexMinWidth, step, containerRef } = options
   const widths = useSyncExternalStore(store.subscribe, store.getSnapshot)
@@ -159,51 +176,56 @@ export function useColumnResize(options: ColumnResizeOptions): {
   )
 
   const getHandleProps = useCallback(
-    (index: number): HandleProps => ({
-      role: 'separator',
-      'aria-orientation': 'vertical',
-      tabIndex: 0,
-      onPointerDown: (e) => {
-        // 既定動作（テキスト選択）を止めないとドラッグ中に選択が走る
-        e.preventDefault()
-        e.currentTarget.setPointerCapture(e.pointerId)
-        drag.current = {
-          index,
-          startX: e.clientX,
-          startWidths: store.getSnapshot(),
-          available: containerRef.current?.clientWidth ?? 0,
-        }
-      },
-      onPointerMove: (e) => {
-        const d = drag.current
-        if (d === null || d.index !== index) return
-        // **開始時の幅からの差分で計算する。** 直前の幅に足し込むと
-        // クランプに当たった後にカーソルを戻したとき追従しなくなる
-        apply(index, e.clientX - d.startX, d.startWidths, d.available)
-      },
-      onPointerUp: () => {
-        drag.current = null
-      },
-      onPointerCancel: () => {
-        drag.current = null
-      },
-      onKeyDown: (e) => {
-        if (e.key === 'Home') {
+    (index: number, handleOptions?: HandleOptions): HandleProps => {
+      // 幅を持たない列（残りを埋める列）の右端に置くハンドルは、右隣の列の
+      // 幅を逆向きに動かす。resetColumn は既定へ戻すだけで向きが無いので反転しない
+      const invert = handleOptions?.invert
+      return {
+        role: 'separator',
+        'aria-orientation': 'vertical',
+        tabIndex: 0,
+        onPointerDown: (e) => {
+          // 既定動作（テキスト選択）を止めないとドラッグ中に選択が走る
           e.preventDefault()
-          resetColumn(index)
-          return
-        }
-        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-        e.preventDefault()
-        apply(
-          index,
-          e.key === 'ArrowLeft' ? -step : step,
-          store.getSnapshot(),
-          containerRef.current?.clientWidth ?? 0,
-        )
-      },
-      onDoubleClick: () => resetColumn(index),
-    }),
+          e.currentTarget.setPointerCapture(e.pointerId)
+          drag.current = {
+            index,
+            startX: e.clientX,
+            startWidths: store.getSnapshot(),
+            available: containerRef.current?.clientWidth ?? 0,
+          }
+        },
+        onPointerMove: (e) => {
+          const d = drag.current
+          if (d === null || d.index !== index) return
+          // **開始時の幅からの差分で計算する。** 直前の幅に足し込むと
+          // クランプに当たった後にカーソルを戻したとき追従しなくなる
+          apply(index, invertDelta(e.clientX - d.startX, invert), d.startWidths, d.available)
+        },
+        onPointerUp: () => {
+          drag.current = null
+        },
+        onPointerCancel: () => {
+          drag.current = null
+        },
+        onKeyDown: (e) => {
+          if (e.key === 'Home') {
+            e.preventDefault()
+            resetColumn(index)
+            return
+          }
+          if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+          e.preventDefault()
+          apply(
+            index,
+            invertDelta(e.key === 'ArrowLeft' ? -step : step, invert),
+            store.getSnapshot(),
+            containerRef.current?.clientWidth ?? 0,
+          )
+        },
+        onDoubleClick: () => resetColumn(index),
+      }
+    },
     [store, apply, resetColumn, step, containerRef],
   )
 

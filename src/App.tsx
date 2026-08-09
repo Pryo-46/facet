@@ -285,7 +285,7 @@ function App() {
   }, [projectDir, controller, setBanner])
 
   return (
-    <main className="flex min-h-screen flex-col bg-canvas bg-grid-paper text-ink">
+    <main className="flex h-screen flex-col bg-canvas bg-grid-paper text-ink">
       <header className="flex items-center gap-4 border-b border-rule bg-surface px-6 py-3">
         <h1 className="text-lg font-bold text-ink">facet</h1>
         <Button onClick={() => void openFolder()}>フォルダを開く</Button>
@@ -328,7 +328,7 @@ function App() {
       )}
 
       <div className="flex min-h-0 flex-1">
-        <aside className="w-64 shrink-0 border-r border-rule bg-surface">
+        <aside className="w-64 shrink-0 overflow-y-auto border-r border-rule bg-surface">
           <FileList
             files={files}
             selectedPath={selectedPath}

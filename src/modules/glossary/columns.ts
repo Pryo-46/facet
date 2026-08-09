@@ -37,3 +37,17 @@ export const WIDTH_INDEX: readonly (number | null)[] = (() => {
 export const DEFAULT_WIDTHS: readonly number[] = COLUMNS.flatMap((c) =>
   c.defaultWidth === null ? [] : [c.defaultWidth],
 )
+
+/**
+ * `i` より後ろで最初に幅を持つ列の、幅配列上の添字を返す。無ければ null。
+ *
+ * 幅を持たない列（定義）の右端にハンドルを置くとき、掴めるのは右隣の
+ * 固定幅の列の幅なので、その添字をここで引く（M8 Task 15）
+ */
+export function nextWidthIndex(i: number): number | null {
+  for (let j = i + 1; j < WIDTH_INDEX.length; j++) {
+    const w = WIDTH_INDEX[j]
+    if (w !== null) return w
+  }
+  return null
+}

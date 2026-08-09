@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createColumnWidthStore, resizeColumns } from './column-resize'
+import { createColumnWidthStore, invertDelta, resizeColumns } from './column-resize'
 
 const base = { widths: [100, 100, 100], minWidth: 88, available: 1000, flexMinWidth: 200 }
 
@@ -37,6 +37,24 @@ describe('resizeColumns', () => {
     const widths = [100, 100, 100]
     resizeColumns({ ...base, widths, index: 0, delta: 50 })
     expect(widths).toEqual([100, 100, 100])
+  })
+})
+
+describe('invertDelta', () => {
+  it('invert を指定しなければ delta をそのまま返す', () => {
+    expect(invertDelta(10)).toBe(10)
+    expect(invertDelta(-10)).toBe(-10)
+  })
+
+  it('invert が false なら delta をそのまま返す', () => {
+    expect(invertDelta(10, false)).toBe(10)
+  })
+
+  it('invert が true なら符号を反転する', () => {
+    // 定義列の右端のハンドル用。右へドラッグ（delta 正）すると、
+    // 実際に動かす別名列の幅は逆に縮む
+    expect(invertDelta(10, true)).toBe(-10)
+    expect(invertDelta(-10, true)).toBe(10)
   })
 })
 

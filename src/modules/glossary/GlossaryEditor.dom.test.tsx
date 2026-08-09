@@ -419,9 +419,20 @@ describe('GlossaryEditor: 列幅', () => {
     expect(glossaryColumnWidths.getSnapshot()[3]).toBe(DEFAULT_WIDTHS[3] + RESIZE_STEP)
   })
 
-  it('幅を持たない定義列にはハンドルが無い', () => {
+  it('幅を持たない定義列にも、右隣の別名列を掴むハンドルが出る（定義｜別名の境界）', () => {
     renderEditor(twoTerms)
-    expect(screen.queryByRole('separator', { name: '定義の列幅を変更' })).toBeNull()
+    expect(screen.queryByRole('separator', { name: '定義の列幅を変更' })).not.toBeNull()
+  })
+
+  it('定義列のハンドルを → で操作すると、別名列が狭まる（反転）', () => {
+    renderEditor(twoTerms)
+    const handle = screen.getByRole('separator', { name: '定義の列幅を変更' })
+    fireEvent.keyDown(handle, { key: 'ArrowRight' })
+    // widths は固定幅4列を並び順で持つ（名称・種別・別名・備考）。
+    // 定義列右端のハンドルが掴むのは右隣の別名列の幅なので、そこが変わる
+    expect(glossaryColumnWidths.getSnapshot()[2]).toBe(DEFAULT_WIDTHS[2] - RESIZE_STEP)
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+    expect(glossaryColumnWidths.getSnapshot()[2]).toBe(DEFAULT_WIDTHS[2])
   })
 
   it('エディタを作り直しても幅が残る（ファイル切替をまたぐ）', () => {

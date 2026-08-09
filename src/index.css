@@ -171,10 +171,12 @@
        縦メトリクスの非対称によりラベルが上へ寄る（M8 の実機確認で判明）。
 
        **`line-height` を直接書いてはいけない。** Tailwind の text-* は
-       utilities レイヤーで `line-height: var(--tw-leading, <既定>)` を生成し、
-       クラスセレクタが要素セレクタに勝つため、base レイヤーの line-height は
-       text-sm / text-xs を持つボタン（＝ほぼ全部）に届かない。
-       **--tw-leading を設定すれば右辺の変数として拾われる**ので競合しない。
+       utilities レイヤーで `line-height: var(--tw-leading, <既定>)` を生成する。
+       cascade layers では異なるレイヤー間は特異性より先にレイヤー順序で決まり、
+       後に宣言される utilities が base に勝つため、base レイヤーで line-height を
+       直接書いても text-sm / text-xs を持つボタン（＝ほぼ全部）には届かない。
+       **--tw-leading を設定すれば話が変わる**——utilities 側が普段設定しない
+       変数へ逃がしているので、そもそも衝突が起きない。
        leading-* を明示したボタンは utilities 側が同じ変数を上書きするので、
        個別に変えたいときは従来どおり効く */
     --tw-leading: 1.2;

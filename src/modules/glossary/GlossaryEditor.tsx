@@ -23,7 +23,7 @@ import {
   MIN_COLUMN_WIDTH,
   RESIZE_STEP,
 } from './column-widths'
-import { COLUMNS, WIDTH_INDEX } from './columns'
+import { COLUMNS, nextWidthIndex, WIDTH_INDEX } from './columns'
 import { FIELD_LABELS, stepField, type GlossaryField } from './fields'
 import { kindLabel } from './kind-labels'
 import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } from './search'
@@ -38,7 +38,7 @@ const KIND_OPTIONS = glossarySchema.$defs.term.properties.kind.enum
 // 面の色を潰さずに重ねられる。色は役割トークンの --ring から取る（既に
 // --ink に紐づいている。palette.css は変更していない）
 const cellInput =
-  'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm focus:ring-2 focus:ring-inset focus:ring-ring'
+  'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
 // レベル2エラー（受け入れて赤表示）と warning（undecided / 未定義）は
 // どちらも同系色の面で示し、濃さで強度を区別する。
 // 波線下線は表記ゆれの「指摘（suggestion）」用に予約されているため使わない
@@ -349,24 +349,34 @@ export function GlossaryEditor({
             })}
           </colgroup>
           <thead>
-            <tr className="border-b border-rule bg-surface-accent text-left text-ink">
+            <tr className="text-left text-ink">
               {COLUMNS.map((col, i) => {
                 const w = WIDTH_INDEX[i]
                 return (
                   <th
                     key={col.field}
-                    className={`relative px-2 py-1 font-bold${i === 0 ? '' : ` ${colBorder}`}`}
+                    className={`sticky top-0 z-10 relative border-b border-rule bg-surface-accent px-2 py-1 font-bold${i === 0 ? '' : ` ${colBorder}`}`}
                   >
                     {FIELD_LABELS[col.field]}
-                    {/* 幅を持たない定義列にはハンドルを出さない（残りを埋める列なので、
-                        他の列を狭めることで広がる）。掴み代が見えるように
+                    {/* 幅を持たない定義列は自分ではハンドルを出さないが、右隣に
+                        固定幅の列があればそこにハンドルを出す。掴めるのは
+                        右隣（別名）の幅なので反転して渡す（見た目どおり、
+                        右へ引くと定義が広がる＝別名が狭まる）。掴み代が見えるように
                         列の境界へ grid の縦罫を引いてある（M8 決定2） */}
-                    {w !== null && (
+                    {w !== null ? (
                       <span
                         {...getHandleProps(w)}
                         aria-label={`${FIELD_LABELS[col.field]}の列幅を変更`}
                         className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-rule"
                       />
+                    ) : (
+                      nextWidthIndex(i) !== null && (
+                        <span
+                          {...getHandleProps(nextWidthIndex(i) as number, { invert: true })}
+                          aria-label={`${FIELD_LABELS[col.field]}の列幅を変更`}
+                          className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-rule"
+                        />
+                      )
                     )}
                   </th>
                 )
