@@ -524,12 +524,16 @@ export function GlossaryEditor({
       {data.terms.length > 0 && visible.length === 0 && (
         <p className="mt-3 text-sm text-ink-muted">該当する用語がありません。</p>
       )}
-      {data.terms.length === 0 && !derivedView && (
+      {!derivedView && (
+        // **0件のときだけでなく常に出す。** 行の追加が Enter だけだと、
+        // マウスで操作する人に手段が無い（rev 10章「マウス＝構造を操作する
+        // 自然さ」）。導出表示中に出さないのは、挿入した行が絞り込みに
+        // 掛からず見えないまま増えるため（Enter を止めているのと同じ理由）
         <button
           ref={addButtonRef}
           type="button"
           className={`${buttonBase} mt-3 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
-          onClick={() => insertRowAfter(-1)}
+          onClick={() => insertRowAfter(data.terms.length - 1)}
         >
           用語を追加
         </button>

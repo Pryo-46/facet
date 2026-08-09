@@ -377,6 +377,30 @@ describe('用語0件の空状態', () => {
   })
 })
 
+describe('用語を追加ボタン', () => {
+  it('用語があるときも表示される', () => {
+    renderEditor(twoTerms)
+    expect(screen.getByRole('button', { name: '用語を追加' })).not.toBeNull()
+  })
+
+  it('押すと末尾に行が増える', () => {
+    const { latest } = renderEditor(twoTerms)
+    fireEvent.click(screen.getByRole('button', { name: '用語を追加' }))
+    const terms = latest()?.terms
+    expect(terms).toHaveLength(3)
+    // **末尾に足す**（先頭でも選択行の後でもない）。一覧の一番下に
+    // ボタンがあるので、そこから生える位置が直感に合う
+    expect(terms?.[2].name).toBe('新しい用語')
+    expect(terms?.[0].name).toBe('受注')
+  })
+
+  it('検索・フィルタ中は出さない（行の追加が無効な状態と揃える）', () => {
+    renderEditor(twoTerms)
+    fireEvent.change(screen.getByLabelText('用語を検索'), { target: { value: '受注' } })
+    expect(screen.queryByRole('button', { name: '用語を追加' })).toBeNull()
+  })
+})
+
 describe('モーダル表示中', () => {
   it('Enter で行が増えない（キーはモーダル側が取る。rev 10章の境界規則）', () => {
     const { latest } = renderEditor(glossary([term({ id: 'term_AAAAAAAAAA', name: '受注' })]), true)
