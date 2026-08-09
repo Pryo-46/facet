@@ -20,28 +20,32 @@ function giveSize(el: HTMLElement): void {
 }
 
 /** ビューポートの状態を DOM に出す殻。内部状態を覗かずに検証するため */
-function Harness({ rect }: { rect?: Rect }) {
+function Harness({ rect, enabled = true }: { rect?: Rect; enabled?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
-  const { transform, spaceHeld, ensureVisible } = useViewport(ref)
+  const { transform, spaceHeld, ensureVisible } = useViewport(ref, enabled)
   return (
-    <div
-      ref={ref}
-      data-testid="canvas"
-      data-x={transform.x}
-      data-y={transform.y}
-      data-k={transform.k}
-      data-space={String(spaceHeld)}
-    >
-      <textarea aria-label="文言" />
-      <button
-        type="button"
-        onClick={() => {
-          if (rect !== undefined) ensureVisible(rect)
-        }}
+    <>
+      <div
+        ref={ref}
+        data-testid="canvas"
+        data-x={transform.x}
+        data-y={transform.y}
+        data-k={transform.k}
+        data-space={String(spaceHeld)}
       >
-        追従
-      </button>
-    </div>
+        <textarea aria-label="文言" />
+        <button
+          type="button"
+          onClick={() => {
+            if (rect !== undefined) ensureVisible(rect)
+          }}
+        >
+          追従
+        </button>
+      </div>
+      {/* キャンバスの外側。額縁のツールバーに相当する */}
+      <button type="button">保存</button>
+    </>
   )
 }
 
@@ -71,6 +75,39 @@ describe('useViewport（Space の押下監視）', () => {
     const field = screen.getByLabelText('文言')
     field.focus()
     expect(fireEvent.keyDown(field, { code: 'Space', key: ' ' })).toBe(true)
+    expect(canvas().dataset.space).toBe('false')
+  })
+
+  it('キャンバスの外にフォーカスがあるときの Space は奪わない', () => {
+    // **ボタンにとって Space は活性化のキー。** ここを取ると、ロジックツリーを
+    // 開いている間ずっと額縁のツールバーが「押しても何も起きない」ようになる
+    render(<Harness />)
+    screen.getByRole('button', { name: '保存' }).focus()
+    expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(true)
+    expect(canvas().dataset.space).toBe('false')
+  })
+
+  it('どこにもフォーカスが無いとき（body）は取る', () => {
+    // キャンバスの空きをクリックした直後がこの状態。ここまで弾くとパンできない
+    render(<Harness />)
+    expect(document.activeElement).toBe(document.body)
+    expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(false)
+    expect(canvas().dataset.space).toBe('true')
+  })
+
+  it('モーダルが開いている間は Space を取らない（rev 10章 境界規則）', () => {
+    render(<Harness enabled={false} />)
+    expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(true)
+    expect(canvas().dataset.space).toBe('false')
+  })
+
+  it('押しっぱなしのままモーダルが開いたら押下を解く', () => {
+    // 解かないと、モーダルを閉じた後も「Space を押している」状態が残り、
+    // ただの左ドラッグが図をパンさせる
+    const { rerender } = render(<Harness />)
+    fireEvent.keyDown(window, { code: 'Space', key: ' ' })
+    expect(canvas().dataset.space).toBe('true')
+    rerender(<Harness enabled={false} />)
     expect(canvas().dataset.space).toBe('false')
   })
 

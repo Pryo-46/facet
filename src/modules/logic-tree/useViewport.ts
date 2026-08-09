@@ -22,17 +22,38 @@ function isTextEntry(el: Element | null): boolean {
 }
 
 /**
+ * キャンバスの外に「Space を必要とする物」がフォーカスされているか。
+ *
+ * ボタンやリンクは Space が活性化のキーなので、奪うと**押しても何も起きない
+ * ボタン**になる（フックが載っている間ずっと、額縁のツールバーまで効く）。
+ * `null` と `<body>` は「どこにも合わせていない」通常の状態——キャンバスを
+ * クリックした直後がまさにこれなので、ここは通す
+ */
+function focusIsOutsideCanvas(canvas: HTMLElement | null, active: Element | null): boolean {
+  if (active === null || active === document.body) return false
+  return canvas === null || !canvas.contains(active)
+}
+
+/**
  * ビューポート（rev 10章 キャンバスの標準操作）。
  *
  * - `Ctrl+ホイール` ＝ カーソル中心ズーム
  * - `Space+ドラッグ` または中ボタンドラッグ ＝ パン
  *
- * **d3-zoom の既定はどちらも違う。** 既定の filter は `!event.ctrlKey` で
- * Ctrl+ホイールを**弾き**（ブラウザがピンチを ctrl 付きホイールとして送るため）、
- * 既定の wheelDelta は ctrl 付きに10倍を掛ける（1ノッチで4倍になり使い物に
- * ならない）。両方を差し替える
+ * **d3-zoom の既定（v3.0.0）は3点とも要求の逆を向いている。** 既定の filter は
+ * `(!event.ctrlKey || event.type === 'wheel') && !event.button` なので、
+ * (a) 修飾キーの無いホイールでもズームし、(b) 素の左ドラッグがパンになり
+ *（ノードの文字を選べなくなる）、(c) 中ボタンのドラッグは弾かれる。
+ * 既定の wheelDelta は ctrl 付きに10倍を掛けるので、1ノッチで4倍になり
+ * 使い物にならない。両方を差し替える
+ *
+ * `enabled` に false を渡している間はキー監視を止める（モーダルが開いている
+ * 間は操作言語を停止する。rev 10章 境界規則）
  */
-export function useViewport(ref: React.RefObject<HTMLDivElement | null>): ViewportControl {
+export function useViewport(
+  ref: React.RefObject<HTMLDivElement | null>,
+  enabled: boolean,
+): ViewportControl {
   const [transform, setTransform] = useState<Transform>(INITIAL_TRANSFORM)
   const [spaceHeld, setSpaceHeld] = useState(false)
   // ハンドラはマウント時に1回しか張らないので、最新値は ref から読む
@@ -81,20 +102,30 @@ export function useViewport(ref: React.RefObject<HTMLDivElement | null>): Viewpo
     }
   }, [ref])
 
-  // Space の押下監視。**テキスト入力中は無視する**——ノードの入力欄は常に
-  // textarea なので、ここを抜くと文字が打てなくなる（rev 10章 境界規則）
+  // Space の押下監視（rev 10章 境界規則）。**window に張るので、取ってよい
+  // 場面かを3つ確かめてから取る**——Space は文字であり、ボタンの活性化でもある
   useEffect(() => {
+    const release = (): void => {
+      spaceHeldRef.current = false
+      setSpaceHeld(false)
+    }
+    if (!enabled) {
+      // モーダルが開いている間はエディタの操作言語を止め、キーはモーダルが取る。
+      // 押しっぱなしで開いたときのために、押下の状態も落とす（blur と同じ理由）
+      release()
+      return
+    }
     const down = (e: KeyboardEvent): void => {
       if (e.code !== 'Space' || e.repeat) return
-      if (isTextEntry(document.activeElement)) return
+      const active = document.activeElement
+      // ノードの入力欄は常に textarea。ここを抜くと文字（空白）が打てなくなる
+      if (isTextEntry(active)) return
+      // キャンバスの外のボタン・リンクにとって Space は活性化のキー。奪わない
+      if (focusIsOutsideCanvas(ref.current, active)) return
       spaceHeldRef.current = true
       setSpaceHeld(true)
       // 何も入力していないときの Space はページのスクロールに使われる
       e.preventDefault()
-    }
-    const release = (): void => {
-      spaceHeldRef.current = false
-      setSpaceHeld(false)
     }
     const up = (e: KeyboardEvent): void => {
       if (e.code === 'Space') release()
@@ -108,7 +139,7 @@ export function useViewport(ref: React.RefObject<HTMLDivElement | null>): Viewpo
       window.removeEventListener('keyup', up)
       window.removeEventListener('blur', release)
     }
-  }, [])
+  }, [enabled, ref])
 
   const ensureVisible = useCallback(
     (rect: Rect) => {

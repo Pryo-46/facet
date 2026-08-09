@@ -52,8 +52,9 @@ export function LogicTreeEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const [font, setFont] = useState<NodeFont>(FALLBACK_NODE_FONT)
-  // ズーム・パン（Ctrl+ホイール／Space・中ボタンのドラッグ）と新ノードへの追従
-  const { transform, spaceHeld, ensureVisible } = useViewport(containerRef)
+  // ズーム・パン（Ctrl+ホイール／Space・中ボタンのドラッグ）と新ノードへの追従。
+  // モーダルが開いている間は止める（キーはモーダルが取る。rev 10章 境界規則）
+  const { transform, spaceHeld, ensureVisible } = useViewport(containerRef, !modalOpen)
 
   // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
   const [pendingFocus, setPendingFocus] = useState<string | null>(null)

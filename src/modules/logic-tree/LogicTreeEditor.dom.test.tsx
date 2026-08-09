@@ -411,6 +411,16 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     expect(root.className).not.toContain('cursor-grab')
   })
 
+  it('モーダルが開いている間はキャンバスの Space も止まる', () => {
+    // 額縁のモーダルにフォーカスが渡っている間、window に張った Space の監視が
+    // 生きていると**モーダルの中のボタンが Space で押せなくなる**（rev 10章）
+    const { container } = render(
+      <LogicTreeEditor data={file([[1, null, '親']])} onChange={() => {}} issues={[]} modalOpen />,
+    )
+    expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(true)
+    expect((container.firstElementChild as HTMLElement).className).not.toContain('cursor-grab')
+  })
+
   it('キーボードで足したノードが画面の外なら、見えるところまで視点が動く', () => {
     // 打った直後のノードが画面外だと、何を打っているか見えないまま入力に
     // なる。**ここは配線の検査**——寄せ方そのものは viewport.test.ts が見る
