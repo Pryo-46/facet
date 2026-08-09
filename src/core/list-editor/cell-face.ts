@@ -1,5 +1,4 @@
-import type { ConsistencyIssue } from '@/core/consistency'
-import type { GlossaryField } from './fields'
+import type { ConsistencyIssue } from '../consistency'
 
 /** 配列位置 → 赤表示するフィールド集合 */
 export type ErrorMarks = Map<number, Set<string>>
@@ -47,7 +46,7 @@ export type CellFace = 'error' | 'warn' | 'none'
 export function cellFace(
   marks: ErrorMarks,
   index: number,
-  field: GlossaryField,
+  field: string,
   warn = false,
 ): CellFace {
   if (hasError(marks, index, 'id')) return 'none'

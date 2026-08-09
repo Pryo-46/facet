@@ -9,6 +9,7 @@ import {
   type KeyContext,
 } from '@/core/keyboard/keymap'
 import { altModifierLabel, currentPlatform } from '@/core/keyboard/platform'
+import { buildErrorMarks, cellFace, hasError } from '@/core/list-editor/cell-face'
 import { insertAt, moveItem, removeAt } from '@/core/list-ops'
 import { newId } from '@/core/new-id'
 import type { EditorProps } from '@/core/registry'
@@ -16,7 +17,6 @@ import { computeRowKeys } from '@/core/row-keys'
 import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
 import glossarySchema from '../../../schemas/glossary.schema.json'
 import { AliasCell } from './AliasCell'
-import { buildErrorMarks, cellFace, hasError } from './cell-face'
 import {
   DEFINITION_MIN_WIDTH,
   glossaryColumnWidths,
