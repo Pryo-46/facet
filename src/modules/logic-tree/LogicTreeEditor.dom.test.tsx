@@ -179,6 +179,13 @@ describe('LogicTreeEditor（描画）', () => {
     expect(box?.className).toContain('pointer-events-auto')
   })
 
+  it('jsdom でもビューポートの配線でクラッシュしない', () => {
+    // d3-zoom はマウント時に listener を張るだけなので、レイアウトを持たない
+    // 環境でも落ちてはいけない（ここが落ちると他の DOM テストが全部道連れになる）
+    render(<Harness initial={file([[1, null, '親']])} />)
+    expect(screen.getByLabelText('ノード1')).toBeDefined()
+  })
+
   it('循環しているノードは図に出さない（位置を持たないので落ちない）', () => {
     // 1 は正常なルート、2 と 3 が互いを親にしている
     render(
@@ -384,6 +391,48 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     )
     fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'Enter' })
     expect(onChange.mock.calls[0][1]).toBe(null)
+  })
+
+  it('Space の押下はキャンバスの操作に回るが、ノードの編集中は文字として通す', () => {
+    // **ここを抜くとノードにスペースが打てなくなる**（入力欄は常に textarea）。
+    // rev 10章の境界規則を、フックの単体ではなく実際の画面で見ておく
+    const { container } = render(<Harness initial={file([[1, null, '親']])} />)
+    const root = container.firstElementChild as HTMLElement
+    const node = screen.getByLabelText('ノード1')
+    node.focus()
+    expect(fireEvent.keyDown(node, { code: 'Space', key: ' ' })).toBe(true)
+    expect(root.className).not.toContain('cursor-grab')
+
+    // 入力欄から外れていれば同じキーがパンの押下になる
+    node.blur()
+    expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(false)
+    expect(root.className).toContain('cursor-grab')
+    fireEvent.keyUp(window, { code: 'Space', key: ' ' })
+    expect(root.className).not.toContain('cursor-grab')
+  })
+
+  it('キーボードで足したノードが画面の外なら、見えるところまで視点が動く', () => {
+    // 打った直後のノードが画面外だと、何を打っているか見えないまま入力に
+    // なる。**ここは配線の検査**——寄せ方そのものは viewport.test.ts が見る
+    const { container } = render(<Harness initial={file([[1, null, '親']])} />)
+    const root = container.firstElementChild as HTMLElement
+    // jsdom は寸法を持たない。狭いキャンバスを差し込む（子は x=144 に出る）
+    Object.defineProperty(root, 'clientWidth', { configurable: true, value: 200 })
+    Object.defineProperty(root, 'clientHeight', { configurable: true, value: 100 })
+    const layer = container.querySelector('[data-layer="nodes"]') as HTMLElement
+    expect(layer.style.transform).toBe('translate(40px, 40px) scale(1)')
+
+    fireEvent.keyDown(screen.getByLabelText('ノード1'), { key: 'Tab' })
+    // 追従したので左へ寄っている（倍率は変わらない）
+    const moved = /translate\((-?[\d.]+)px, (-?[\d.]+)px\) scale\(([\d.]+)\)/.exec(
+      layer.style.transform,
+    )
+    expect(moved).not.toBe(null)
+    expect(Number(moved?.[1])).toBeLessThan(0)
+    expect(Number(moved?.[3])).toBe(1)
+    // 3レイヤは同じ transform を共有する（ズレるとエッジがノードから外れる）
+    const background = container.querySelector('[data-layer="background"]') as HTMLElement
+    expect(background.style.transform).toBe(layer.style.transform)
   })
 
   it('Undo で戻した内容が表示に反映される', () => {

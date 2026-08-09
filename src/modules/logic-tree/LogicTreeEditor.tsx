@@ -32,7 +32,8 @@ import {
 import { NodeBox } from './NodeBox'
 import { buildTree } from './tree'
 import { TreeEdges } from './TreeEdges'
-import { cssTransform, INITIAL_TRANSFORM, type Transform } from './viewport'
+import { useViewport } from './useViewport'
+import { cssTransform } from './viewport'
 
 /** 測定結果のキャッシュ。会議1回分の打鍵で無限に増えないよう頭を押さえる */
 const MEASURE_CACHE_LIMIT = 2000
@@ -51,8 +52,8 @@ export function LogicTreeEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const [font, setFont] = useState<NodeFont>(FALLBACK_NODE_FONT)
-  // Task 11 でビューポートのフックが差し替える。M1 の描画はこの値に従うだけ
-  const [transform] = useState<Transform>(INITIAL_TRANSFORM)
+  // ズーム・パン（Ctrl+ホイール／Space・中ボタンのドラッグ）と新ノードへの追従
+  const { transform, spaceHeld, ensureVisible } = useViewport(containerRef)
 
   // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
   const [pendingFocus, setPendingFocus] = useState<string | null>(null)
@@ -93,7 +94,14 @@ export function LogicTreeEditor({
     if (pendingFocus === null) return
     const el = containerRef.current?.querySelector<HTMLElement>(`[data-cell="${pendingFocus}"]`)
     el?.focus()
+    const point = positions.get(pendingFocus)
+    const size = sizes.get(pendingFocus)
+    // 打った直後のノードが画面外だと、何を打っているか見えない
+    if (point !== undefined && size !== undefined) {
+      ensureVisible({ x: point.x, y: point.y, width: size.width, height: size.height })
+    }
     setPendingFocus(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- positions / sizes は毎レンダー作り直される導出値。予約が入ったときだけ走らせる
   }, [pendingFocus])
 
   // 測定器はフォントが変わったときだけ作り直す。**キャッシュはフォントに
@@ -236,7 +244,9 @@ export function LogicTreeEditor({
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-hidden bg-canvas bg-grid-paper"
+      className={`relative h-full w-full overflow-hidden bg-canvas bg-grid-paper ${
+        spaceHeld ? 'cursor-grab' : ''
+      }`}
     >
       {/* 測定用の見本。**描画されるノードと同じフォントのクラスを持たせる**
           ことで、測定と描画が同一の情報源を見る（rev 9章）。
