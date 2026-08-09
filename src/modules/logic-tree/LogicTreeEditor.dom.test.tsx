@@ -443,6 +443,17 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     focus.mockRestore()
   })
 
+  it('矢印キーでのフォーカス移動でもコンテナをスクロールさせない', () => {
+    // I-1: pendingFocus の effect と同じ機構が、矢印キーの移動
+    // （focus-prev / focus-next / focus-parent / focus-child）にも要る。
+    // overflow-hidden にはスクロールバーが無いので、一度ずれると UI から戻す手段が無い
+    const focus = vi.spyOn(HTMLTextAreaElement.prototype, 'focus')
+    render(<Harness initial={file([[1, null, '親'], [2, 1, '子']])} />)
+    fireEvent.keyDown(screen.getByLabelText('ノード2'), { key: 'ArrowLeft' })
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+    focus.mockRestore()
+  })
+
   it('キーボードで足したノードが画面の外なら、見えるところまで視点が動く', () => {
     // 打った直後のノードが画面外だと、何を打っているか見えないまま入力に
     // なる。**ここは配線の検査**——寄せ方そのものは viewport.test.ts が見る

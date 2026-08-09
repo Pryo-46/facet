@@ -174,7 +174,16 @@ export function LogicTreeEditor({
     if (key === undefined) return false
     const el = containerRef.current?.querySelector<HTMLElement>(`[data-cell="${key}"]`)
     if (!el) return false
-    el.focus()
+    // pendingFocus の effect（上）と同じ理由: 画面外の要素に focus するとブラウザが
+    // 祖先の scrollLeft/scrollTop を動かすが、位置は transform で持っており
+    // panIntoView はスクロール量を見ていない（追従と二重に動いて以後ずれ続ける）。
+    // overflow-hidden にはスクロールバーが無いので、一度ずれると UI から戻す手段が無い
+    el.focus({ preventScroll: true })
+    const point = positions.get(key)
+    const size = sizes.get(key)
+    if (point !== undefined && size !== undefined) {
+      ensureVisible({ x: point.x, y: point.y, width: size.width, height: size.height })
+    }
     return true
   }
 
