@@ -23,6 +23,7 @@
 
 ## 将来の機能を作った瞬間に踏むもの
 
+- **`←→` が `arrowsOwnedByField` を見ないのに、コメントは「↑↓ と同じ規則」と書いている**（`src/core/keyboard/keymap.ts`）: ツリーのノードに select 系の欄が入った瞬間、`↑↓` と規則が割れる。**この節の定義そのもの** `[logic-tree-m1]`
 - **`ensureFileOfType` は将来のインライン登録から呼ぶと二択と競合する**（`src/core/app-controller.ts`）: 内部で `rescan()` を回すので、`ask` が出た直後に `selectFile` で選択を移してしまい、回答が「選択が変わったため書き戻しませんでした」に倒れる。今日は「用語集を作る」ボタンが空状態（未選択時）にしか出ないので到達不能だが、**インライン登録を実装した時点で踏む**（[`history/m4-core-file-operations.md`](history/m4-core-file-operations.md) の `ensureFileOfType` に関する項と併せて読むこと） `[M6]`
 - **モジュール規約8（表記ゆれ検知の対象フィールドパス宣言）が `ToolModule` に無い**（`src/core/registry.ts`）: rev 6章は8点セットと書いているが、コードは7点＋`createEmpty`。**検知エンジン自体もコアに無い**ため、宣言だけ足しても読み手のいない死んだコードになる。エンジンを作る時点で両方を足す `[M9]`
 - **`scripts/gen-types.mjs` は `schemas/*.schema.json` が減っても対応する `src/types/*.ts` を消さない**: スキーマを走査して書き出すだけで、消えたスキーマの古い型ファイルは掃除しない。M9 で `.gitignore` を `src/types/glossary.ts` から `src/types/*.ts` に広げたため、取り残された型ファイルは `git status` に現れず `tsc` の対象にだけ残る。**2本目以降のツールでスキーマを作り直す／消す時点で踏む** `[M9]`（M10 はスキーマを1本足しただけで、作り直し・削除は発生していないため未解消のまま）
@@ -35,6 +36,8 @@
 - **モーダルが開いている間もキャンバスのホイール／ドラッグが生きている**（`src/modules/logic-tree/useViewport.ts`）: rev 10章の境界規則は「モーダル中はエディタの操作言語を停止する」と定めており、キー監視（Space）は `enabled` で止めているが、**d3-zoom の `filter` は `enabled` を見ていない**。モーダルの裏で `Ctrl+ホイール` を回すとズームし、閉じたときに視点が変わっている。**規約に対する未達なので、いずれ塞ぐ。** 直し方は `filter` の先頭に `enabled` の ref を見る1行を足すだけ（`enabled` を ref に写す必要がある。d3 のハンドラはマウント時に1回しか張らないため） `[logic-tree-m1]`
 - **ID が重複しているファイルでは、その ID を親に指すノードが先頭の1つにだけ付く**（`src/modules/logic-tree/tree.ts`）: 挙動は決めてあるが、**画面に出るのは「ID が重複しています」だけ**で、木の形が想定と違って見える理由が読み手に繋がらない。ID 重複を直せば解消するので実害は小さいが、原因の説明が要る `[logic-tree-m1]`
 - **検証エラーのバナーが木の上部を覆う**（`src/modules/logic-tree/LogicTreeEditor.tsx`）: `absolute top-0` で敷いており、指摘が2件出ると最初のノードに重なる。`max-height` も無いので件数が多いと広く覆う。**赤表示が出ているファイルほどノードを触りたいのに、そのノードが隠れる**という逆向きの挙動になっている `[logic-tree-m1]`
+- **ドラッグ中にアンマウントすると d3 が window に張ったリスナーが残る**（`src/modules/logic-tree/useViewport.ts`）: 体感とは無関係に成立し、実機確認を終えても解消しない `[logic-tree-m1]`
+- **`FOLLOW_MARGIN`(48) > `CANVAS_MARGIN`(40) で初回の追従が 8px ずれる**（`src/modules/logic-tree/useViewport.ts` / `viewport.ts`）: 完全に見えているノードでも初回の追従だけ 8px 余分に動く。**実機確認の前に載せておく必要がある**——載せておかないと、実機で「1回だけカクッと動く」を見た人が I-1（二重スクロール）の再発と誤診する `[logic-tree-m1]`
 
 ## 性能
 
@@ -57,4 +60,4 @@
 
 - **用語テーブルの `<th>` に `sticky` と `relative` が同時に付いている**（`src/modules/glossary/GlossaryEditor.tsx`）: どちらも `position` なので、カラム名が固定されているのは Tailwind が `sticky` を `relative` より後に出力しているからにすぎない。`sticky` 自体が絶対配置の包含ブロックになる（列幅ハンドルはそれに乗っている）ので `relative` は不要。**出力順が変わると固定が静かに外れ、原因は読み手に自明でない** `[M8]`
 - **エディタのキー処理が用語集とエラーカタログで二重化している**（`GlossaryEditor.tsx` / `ErrorCatalogEditor.tsx`）: `runCommand` の switch・`onCellKeyDown`・`textFieldContext`・セルの面のクラス定数（計 約80行）がほぼ同一。M10 は意図的に複製した——いま抽象を決めても、3本目（ロジックツリーは列を持たない図系）が必要とする形と一致する保証がないため（M9 決定1が万能フックを退けたのと同じ理由）。**3本目が列を持つツール（状態遷移の遷移表など）だったら、その時点で引き上げる。** 判断材料は「2本の差が3点（プロファイルトグル・列幅ストア2本・吸収列）に収まっているか」 `[M10]`
-- **`CellInput` のコメントが「5行上限」と書いている箇所が2つあるが、`MAX_ROWS` は 8**（`src/components/CellInput.tsx`）: **51行目**（`autoSize` の JSDoc「ここで再計測すると 5行上限に切り詰められる」。logic-tree M1 の計画本文が古い数値を引き継いだもの）と、**103行目**（`measure()` の JSDoc「5行上限が効いているかの確認は実機で行う」。M10 で5→8に変えた際の取り残し）。**誤った数値がソースにコミットされている。** 2行直すだけだが、放っておくと「この部品は5行まで」と信じたコードが書かれる `[logic-tree-m1]`
+- **`focusSibling` が `commands.ts` の `siblingsOf` と同一の式**（`src/modules/logic-tree/LogicTreeEditor.tsx`）: 「次の写経で3本目が生える」。`export` 1行で潰せるうちに記録を残す `[logic-tree-m1]`
