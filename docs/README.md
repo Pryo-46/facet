@@ -50,7 +50,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 ```
 docs/glossary/        scope.md  session-notes.md
 docs/logic-tree/      logic-tree-m1-scope.md  logic-tree-canvas-tech-notes.md
-docs/error-catalog/   error-catalog-session-notes.md   ← M10 で実際に増えた3本目
+docs/error-catalog/   error-catalog-session-notes.md   ← エラーカタログのツールセッションで増えた3本目
 docs/history/         m9-....md  m10-....md            ← 時系列1本のまま
 docs/open-issues.md                                    ← ツール横断で1本
 ```
