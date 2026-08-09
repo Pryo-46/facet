@@ -53,7 +53,6 @@
 | `src/core/registry.ts` | `toMarkdown` を `outputs: readonly OutputProfile<TData>[]` に置換 |
 | `src/core/app-controller.ts` | `copyMarkdown(profile)` / `exportMarkdown(profile)` |
 | `src/modules/glossary/columns.ts` | コアの汎用版に載せ替え。列データは残す |
-| `src/modules/glossary/columns.test.ts` | import パス |
 | `src/modules/glossary/fields.ts` | `stepField` をコアへ委譲 |
 | `src/modules/glossary/consistency.ts` | `findDuplicates` / `groupByKey` を使う |
 | `src/modules/glossary/GlossaryEditor.tsx` | コアの機械に載せ替え |
@@ -419,8 +418,8 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Create: `src/core/list-editor/columns.ts`
 - Create: `src/core/list-editor/columns.test.ts`
 - Modify: `src/modules/glossary/columns.ts`
-- Modify: `src/modules/glossary/columns.test.ts`（import のみ）
-- Modify: `src/modules/glossary/GlossaryEditor.tsx`（`nextWidthIndex` の呼び出し）
+- **変更しない**: `src/modules/glossary/columns.test.ts`（`./columns` から同じ4つを取り続けるため、import も期待値も不変）
+- **変更しない**: `src/modules/glossary/GlossaryEditor.tsx`（`nextWidthIndex(i)` の1引数の口を用語集側に残すため）
 
 **Interfaces:**
 - Produces:
@@ -1411,45 +1410,41 @@ function firstOutput(h: { registry: ModuleRegistry }) {
 | 838 | `const done = h.controller.exportMarkdown(firstOutput(h))` |
 | 854 | `const done = h.controller.exportMarkdown(firstOutput(h))` |
 
-- [ ] **Step 6: 新しいガードのテストを書く**
+- [ ] **Step 6: 新しい振る舞いのテストを2件足す**
 
-`src/core/app-controller.test.ts` の `describe('exportMarkdown: 保存ダイアログを開いている間の変化', …)` の中、最後の `it` の後ろに足す:
+`src/core/app-controller.test.ts` の `describe('Markdown 出力')` の中、最後の `it` の後ろに足す。**既存の `it` には触らない。**
+
+`includes(profile)` のガードは、**選択中モジュールに属さないプロファイルを直に渡せば単独で検証できる**。2つ目のモジュールも保留ダイアログも要らない（`fresh.path !== doc.path` では説明できない失敗の仕方をするので、ガードが無ければ必ず落ちる）。
 
 ```ts
-  it('その間に別モジュールのファイルへ移ったら書き出さない（他ツールの出力関数に食わせない）', async () => {
-    const { askSavePath, release } = pendingSavePath()
+  it('選択中モジュールのものでないプロファイルでは書き出さない', async () => {
+    const askSavePath = vi.fn<(defaultPath: string) => Promise<string | null>>()
+      .mockResolvedValue('C:\\out\\a.md')
     const h = createHarness({ [p('a.json')]: note('A') }, { askSavePath })
-    // singleton でない2つ目のモジュールを足し、そのファイルへ選択を移す
-    h.registry.register(
-      noteModule({ type: 'memo', displayName: 'メモ', idPrefixes: ['memo'], singleton: false }),
-    )
-    h.disk.files.set(p('b.json'), serialize(
-      { schemaVersion: 1, type: 'memo', title: 'B', body: '' },
-      { ...noteSchema, properties: { ...noteSchema.properties, type: { const: 'memo' } } },
-    ))
     await h.controller.openFolder(DIR)
     await h.controller.selectFile(p('a.json'))
-    const profile = firstOutput(h)
-    const done = h.controller.exportMarkdown(profile)
-    await h.controller.selectFile(p('b.json'))
-    release('C:\\out\\a.md')
-    await done
+    // 別ツールのプロファイル。型の違うデータを食わせると事故になる
+    await h.controller.exportMarkdown({
+      id: 'alien',
+      label: 'よそ者',
+      fileSuffix: '',
+      toMarkdown: () => 'よそ者の出力',
+    })
     expect(h.disk.files.has('C:\\out\\a.md')).toBe(false)
     expect(h.toasts().at(-1)?.message).toMatch(/書き出しませんでした/)
   })
-```
 
-**このテストが `fresh.path !== doc.path` だけでも通ってしまう場合は、`fileSuffix` の付与を確認するテストに差し替えてよい。** 重要なのはガードが増えたことが検証されていること。少なくとも次は必ず足す:
-
-```ts
   it('fileSuffix を既定ファイル名に足す', async () => {
+    // 保存先を選ばずキャンセルするので、確かめるのは提示された既定名だけ
     const askSavePath = vi.fn<(defaultPath: string) => Promise<string | null>>()
       .mockResolvedValue(null)
     const h = createHarness({ [p('a.json')]: note('A') }, { askSavePath })
     await h.controller.openFolder(DIR)
     await h.controller.selectFile(p('a.json'))
     await h.controller.exportMarkdown({
-      id: 'support', label: 'サポート向け', fileSuffix: '-サポート向け',
+      id: 'support',
+      label: 'サポート向け',
+      fileSuffix: '-サポート向け',
       toMarkdown: () => '',
     })
     expect(askSavePath).toHaveBeenCalledWith(`${DIR}\\a-サポート向け.md`)
@@ -1464,13 +1459,28 @@ Expected: PASS。**既存のアサーションが1つも変わっていないこ
 - [ ] **Step 8: 全体が緑であることを確認**
 
 Run: `npm test`
-Expected: PASS。**`src/App.tsx` は次のタスクで直すため、この時点で `tsc -b` は `copyMarkdown` の引数不足で落ちる。** それを確認したうえで、App.tsx の呼び出しに暫定で `selectedModule!.outputs[0]` を渡して緑にしてからコミットする:
+Expected: PASS。**`src/App.tsx` は次のタスクで直すため、この時点で `tsc -b` は `copyMarkdown` の引数不足で落ちる。** それを確認したうえで、App.tsx を緑にしてからコミットする。
+
+`canExport` の直後に1行足す（**非 null 断言 `!` を使わないこと**。`canExport` が true なら埋まっているという不変条件はここから見えず、`!` はレビューで指摘される）:
 
 ```tsx
-        <Button variant="outline" disabled={!canExport} onClick={() => void controller.copyMarkdown(selectedModule!.outputs[0])}>
+  // Task 7 で ExportMenu に置き換える暫定。用語集は1プロファイルなので先頭でよい
+  const onlyOutput = selectedModule?.outputs[0]
 ```
 
-（`exportMarkdown` も同様。Task 7 でこの2行ごと `ExportMenu` に置き換える）
+2つのボタンをこう変える:
+
+```tsx
+        <Button
+          variant="outline"
+          disabled={!canExport || onlyOutput === undefined}
+          onClick={() => onlyOutput !== undefined && void controller.copyMarkdown(onlyOutput)}
+        >
+          Markdown をコピー
+        </Button>
+```
+
+（`exportMarkdown` も同様。Task 7 でこの2つごと `ExportMenu` に置き換える）
 
 Run: `npx tsc -b && npm run lint`
 Expected: エラーなし
