@@ -124,7 +124,12 @@ export function CellInput(props: CellInputProps) {
       onFieldKeyDown?.(e, {
         empty: el.value === '',
         // 折り返しの途中では caretAtStart / caretAtEnd が false になるので、
-        // ↑↓ は操作言語に取られずブラウザの行内移動が生きる（M8 決定4）
+        // ↑↓ は操作言語に取られずブラウザの行内移動が生きる（M8 決定4）。
+        //
+        // **選択範囲があるときは両方 false になる（＝行間移動に1打鍵余分に要る）。
+        // これは仕様である**——Excel をはじめ表形式の入力欄は同じ挙動で、
+        // 「選択したまま矢印でセルを移る」を許すと選択の解除と移動の
+        // どちらを意図したのか判別できない（M8 で残件から落とした）
         caretAtStart: el.selectionStart === 0 && el.selectionEnd === 0,
         caretAtEnd:
           el.selectionStart === el.value.length && el.selectionEnd === el.value.length,

@@ -210,6 +210,8 @@ export function createAppController(
     setSelected(null)
     host.setDocument(null)
     // 「このファイルが書けていない」というバナーは、そのファイルを離れたら消す
+    // （クリア条件の由来は docs/history/m2-core-validation-layer.md の
+    //  「saveError のクリア条件」。過去に取りこぼした障害の手がかりなので消さない）
     host.setBanner('save', null)
     return true
   }
@@ -329,12 +331,11 @@ export function createAppController(
   /**
    * ファイルを OS のゴミ箱へ移す（rev 6章。完全削除はしない）。
    *
-   * **切り離しは trash の前に行う。** `trashFile` が write の着地を待つ間、
-   * エディタが同じ saver を掴んだままだと、その間の打鍵で再武装したタイマーが
-   * 生きた write を残せる（M4 の申し送りの残余の窓）。選択と saver を先に落として
-   * エディタを畳めば、この窓は構造的に消える。
-   * `closeCurrentFile` を通さないのも要点——あれは保留編集を書き切る経路で、
-   * 消したファイルを書き戻して復活させる
+   * 切り離しを trash の前に行う理由は `trashFile`（src/core/file-ops.ts）の
+   * JSDoc に書いてある。**説明を二重に持たないこと**——片方だけ更新されると
+   * 食い違う。
+   * `closeCurrentFile` を通さないのはここ固有の要点である——あれは保留編集を
+   * 書き切る経路で、消したファイルを書き戻して復活させる
    */
   const deleteFile = async (file: ProjectFile): Promise<void> => {
     // 確認ダイアログを挟むので、選択状態は「押された時点」を読む
