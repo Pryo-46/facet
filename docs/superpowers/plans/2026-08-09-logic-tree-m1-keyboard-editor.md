@@ -21,7 +21,7 @@
 | --- | --- | --- |
 | ノードの持ち方 | **平坦な配列 ＋ `parentId`** | 入れ子だと循環・多重ルートが表現できず、スコープが要求する整合性検証3件のうち2件が「壊しても緑のままのテスト」になる。`children: string[]` だと1ノードが2つの親から参照でき、レイアウトの戻り値 `Map<キー, {x,y}>` が表現できるものを超える。`parentId` は親が1つであることがフィールドの形そのもの |
 | 配列の順序 | **DFS 行きがけ順（preorder）を保つ。構造を変える操作は必ず `orderNodes` を通す** | 兄弟順の正本は配列順（rev 5章）。preorder を保つと配列を上から読むだけで木の形が追え、挿入位置の計算が「部分木の直後」という一つの規則で済む |
-| `toMarkdown` | **モジュール規約で任意（`toMarkdown?`）にする。** ロジックツリーは M1 では持たない | 出力は M2。必須のままだと、押すと壊れた文字列が出るボタンが残る |
+| 出力（規約5） | **`outputs: []`（プロファイル0本）で登録する。** コアには手を入れない | 出力は M2。M9 が規約5を `outputs` の配列へ拡張しており、`src/components/ExportMenu.tsx` は **0本のときボタンを押せなくする分岐を既に持っている**（`only === undefined`）。ロジックツリーを選んでいる間、出力ボタンは出たまま無効になる |
 | 折り返しの単位 | **コードポイント単位のグリーディ（CSS の `word-break: break-all` と一致させる）** | 日本語は任意位置で折り返す。単語単位にすると測定層とブラウザの判断がずれる |
 | ノードの入力欄 | **常に `<textarea>`（`CellInput` を再利用）。フォーカス＝編集中** | IME 対応・ドラフト・Undo 反映・キャレット位置の判定が既に `CellInput` にあり、テスト済み（`CellInput.dom.test.tsx`）。M1 最大の risk（変換確定 Enter の誤爆）を新規コードに載せ替えない |
 | ルート上の `Enter` | **子を追加する**（兄弟ではなく） | 兄弟を作ると多重ルートになる。単一ルートの木という制約と矛盾しない唯一の意味 |
@@ -32,7 +32,16 @@
 
 1. **整合性検証を4ルールにする。** スコープの3件（ID重複・循環・ルート単一性）に加えて `missing-parent`（`parentId` が実在しない）を足す。足さないと、親を失ったノードが黙ってもう1つのルートとして描かれ、多重ルートの原因が画面から読み取れない
 2. **`src/core/keyboard/keymap.ts` と `src/components/CellInput.tsx` に手を入れる。** どちらもコアだが、rev 10章 実装規約が「キーボード処理はツールごとに自前実装しない」と定めている以上、ツリーが必要とする意味（Tab＝子追加、←→＝親子移動）はコアの `resolveCommand` に足す以外にない
-3. **`src/core/registry.ts` の `toMarkdown` を任意にする**（上表のとおり）
+
+## 直前に取り込んだ main（M9・M10）との関係
+
+この計画は **M9（コアのリスト編集基盤・出力プロファイル）と M10（エラーカタログ）を取り込んだ後**の木の上に載る。実装者が前提としてよいこと:
+
+- **型生成にコマンドを足す必要は無い。** `scripts/gen-types.mjs` が `schemas/*.schema.json` を走査するので、スキーマを置けば `src/types/<ベース名>.ts` が出る（`logic-tree.schema.json` → `src/types/logic-tree.ts`）
+- **規約5 は `outputs: readonly OutputProfile<TData>[]`** に変わっている（`toMarkdown` 単体のスロットは無い）
+- **重複の検出は `src/core/duplicate.ts` の `findDuplicates` に一元化されている**（M9）。整合性検証で自前のグループ化を書かない
+- **`src/core/list-editor/` は表形式エディタ用の基盤**（`use-list-rows` / `columns` / `cell-face` / `field-step`）。**キャンバスのツリーは使わない。** 無理に通すと、行と列を前提にした型にツリーを合わせることになる
+- `src/components/CellInput.tsx` の `MAX_ROWS` は M10 で 5 → 8 になった（ツリーは `autoSize={false}` にするので影響しない）
 
 ---
 
@@ -85,13 +94,11 @@
 
 | ファイル | 変更内容 |
 | --- | --- |
-| `package.json` | `gen:types` をツールごとの2本に割る |
-| `src/core/registry.ts` | `toMarkdown` を任意にする |
-| `src/core/app-controller.ts` | `toMarkdown` を持たないモジュールでの出力要求を止める |
-| `src/App.tsx` | `canExport` の条件。`globalKeyContext` に新フィールド |
 | `src/core/keyboard/keymap.ts` | `insert-child` / `focus-parent` / `focus-child` と `KeyContext.hierarchical` |
 | `src/components/CellInput.tsx` | `autoSize` プロパティ（高さを外から決める経路） |
-| `src/modules/glossary/GlossaryEditor.tsx` / `AliasCell.tsx` | `hierarchical: false` を渡す |
+| `src/core/registry.ts` | 規約5 の JSDoc（「1つ以上」→ 出力未実装のツールは0本でよい）**だけ**。型もコードも変えない |
+| `src/App.tsx` | `globalKeyContext` に `hierarchical: false` |
+| `src/modules/glossary/GlossaryEditor.tsx` / `src/modules/error-catalog/ErrorCatalogEditor.tsx` | `hierarchical: false` を渡す |
 | `src/modules/index.ts` | `logicTreeModule` の登録1行 |
 
 ---
@@ -102,7 +109,6 @@
 - Create: `schemas/logic-tree.schema.json`
 - Create: `src/modules/logic-tree/schema.test.ts`
 - Create: `src/modules/logic-tree/migrate.ts`
-- Modify: `package.json`（`scripts.gen:types`）
 - 生成物: `src/types/logic-tree.ts`（**手で書かない**）
 
 **Interfaces:**
@@ -168,29 +174,21 @@
 }
 ```
 
-- [ ] **Step 2: 型生成を2本に割る**
-
-`package.json` の `scripts` を次の形にする（`gen:types` を呼んでいる `predev` / `prebuild` / `pretest` / `prepare` はそのまま）:
-
-```json
-    "gen:types": "npm run gen:types:glossary && npm run gen:types:logic-tree",
-    "gen:types:glossary": "json2ts --input schemas/glossary.schema.json --output src/types/glossary.ts --bannerComment \"/* schemas/glossary.schema.json から自動生成。手で編集しないこと（npm run gen:types で再生成される）。 */\" --additionalProperties false",
-    "gen:types:logic-tree": "json2ts --input schemas/logic-tree.schema.json --output src/types/logic-tree.ts --bannerComment \"/* schemas/logic-tree.schema.json から自動生成。手で編集しないこと（npm run gen:types で再生成される）。 */\" --additionalProperties false",
-```
-
-- [ ] **Step 3: 生成して、名前を目で確認する**
+- [ ] **Step 2: 生成して、名前を目で確認する**
 
 ```bash
 npm run gen:types
 ```
 
+**`package.json` は触らない。** `scripts/gen-types.mjs` が `schemas/*.schema.json` を走査するので（M9 で1本ずつ書き並べる形をやめた）、スキーマを置けば `src/types/logic-tree.ts` が出る。出力に `logic-tree.schema.json -> src/types/logic-tree.ts` の行が出ることを確認する。
+
 `src/types/logic-tree.ts` を開いて、**エクスポートされている型名が `LogicTreeSchemaVersion1` と `TreeNode` であることを確認する。**
 
-json2ts はルート型名を `title` から、`$defs` の型名をキー名から導く（用語集では `"用語集 (glossary) schemaVersion 1"` → `GlossarySchemaVersion1`、`$defs/term` → `Term` になっている）。**もし別の名前が出たら、計画の予測が外れているので、生成された実際の名前を以降のタスクで使い、「計画と生成物の名前が違う」ことを報告すること。**
+json-schema-to-typescript はルート型名を `title` から、`$defs` の型名をキー名から導く（`"用語集 (glossary) schemaVersion 1"` → `GlossarySchemaVersion1`、`"エラーカタログ (errorCatalog) schemaVersion 1"` → `ErrorCatalogSchemaVersion1`、`$defs/term` → `Term`）。**もし別の名前が出たら、計画の予測が外れているので、生成された実際の名前を以降のタスクで使い、「計画と生成物の名前が違う」ことを報告すること。**
 
 `$defs` のキーを `node` にしていないのは、生成される型名 `Node` が DOM のグローバル型 `Node` と衝突するため。**`treeNode` から改名しないこと。**
 
-- [ ] **Step 4: マイグレータを書く**
+- [ ] **Step 3: マイグレータを書く**
 
 `src/modules/logic-tree/migrate.ts`:
 
@@ -206,16 +204,17 @@ export function migrateLogicTree(data: unknown, _fromVersion: number): LogicTree
 }
 ```
 
-- [ ] **Step 5: スキーマ検証のテストを書く（失敗させる）**
+- [ ] **Step 4: スキーマ検証のテストを書く（失敗させる）**
 
-`src/modules/logic-tree/schema.test.ts`:
+`src/modules/logic-tree/schema.test.ts`（**`src/modules/error-catalog/schema.test.ts` と同じ形にそろえる**）:
 
 ```ts
 import { describe, expect, it } from 'vitest'
-import { createSchemaValidator, type JsonSchema } from '@/core/schema-validation'
+import { serialize, type JsonSchema } from '@/core/canonical'
+import { createSchemaValidator } from '@/core/schema-validation'
 import logicTreeSchema from '../../../schemas/logic-tree.schema.json'
 
-const validate = createSchemaValidator(logicTreeSchema as unknown as JsonSchema)
+const validate = createSchemaValidator(logicTreeSchema as JsonSchema)
 
 const base = {
   schemaVersion: 1,
@@ -273,29 +272,36 @@ describe('logicTree のスキーマ検証（レベル1）', () => {
       }).ok,
     ).toBe(true)
   })
+
+  it('正規形のキー順はスキーマの properties 記載順になる', () => {
+    const shuffled = { nodes: [], title: 'T', type: 'logicTree', schemaVersion: 1 }
+    expect(serialize(shuffled, logicTreeSchema as JsonSchema)).toBe(
+      '{\n  "schemaVersion": 1,\n  "type": "logicTree",\n  "title": "T",\n  "nodes": []\n}\n',
+    )
+  })
 })
 ```
 
-**`@/core/schema-validation` の実際のエクスポート名（`createSchemaValidator` の引数型）を開いて確認し、上の import を合わせること。** `JsonSchema` が `@/core/canonical` 側にあるならそちらから取る。
-
-- [ ] **Step 6: 実行して落ちることを確認する**
+- [ ] **Step 5: 実行して落ちることを確認する**
 
 ```bash
 npx vitest run src/modules/logic-tree/schema.test.ts
 ```
 
-期待: スキーマファイルまたは型が無い段階なら import で失敗する。Step 1〜4 を終えている場合は緑になる。**緑になった場合は、テストを1つ意図的に壊して（例: `pattern` を消す）落ちることを確認してから戻すこと**——通っているのがスキーマのおかげか確かめる。
+期待: スキーマファイルまたは型が無い段階なら import で失敗する。Step 1〜3 を終えている場合は緑になる。**緑になった場合は、テストを1つ意図的に壊して（例: `pattern` を消す）落ちることを確認してから戻すこと**——通っているのがスキーマのおかげか確かめる。
 
-- [ ] **Step 7: 全体を回す**
+- [ ] **Step 6: 全体を回す**
 
 ```bash
 npm test && npx tsc -b && npm run lint
 ```
 
-- [ ] **Step 8: コミット**
+- [ ] **Step 7: コミット**
+
+**`src/types/logic-tree.ts` はコミットしない。** `.gitignore` が `src/types/*.ts` を無視している（正は `schemas/` の実体で、`npm run gen:types` から再生成される）。
 
 ```bash
-git add schemas/logic-tree.schema.json src/types/logic-tree.ts src/modules/logic-tree/migrate.ts src/modules/logic-tree/schema.test.ts package.json
+git add schemas/logic-tree.schema.json src/modules/logic-tree/migrate.ts src/modules/logic-tree/schema.test.ts
 git commit -m "feat(logic-tree): logicTree のスキーマと型生成を足す"
 ```
 
@@ -686,6 +692,7 @@ npx vitest run src/modules/logic-tree/consistency.test.ts
 
 ```ts
 import type { ConsistencyIssue, ConsistencyLocation } from '@/core/consistency'
+import { findDuplicates } from '@/core/duplicate'
 import type { LogicTreeSchemaVersion1, TreeNode } from '@/types/logic-tree'
 import { buildTree } from './tree'
 
@@ -709,17 +716,14 @@ export function checkLogicTreeConsistency(data: LogicTreeSchemaVersion1): Consis
   const nodes = data.nodes
   const built = buildTree(nodes)
 
-  // ID 重複（ID は機械的識別子なので正規化しない完全一致）
-  const byId = new Map<string, number[]>()
-  nodes.forEach((node, i) => byId.set(node.id, [...(byId.get(node.id) ?? []), i]))
-  for (const [id, group] of byId) {
-    if (group.length > 1) {
-      issues.push({
-        rule: 'duplicate-id',
-        message: `ID が重複しています（${group.length}件）: ${id}`,
-        locations: group.map((i) => at(nodes, i, 'id')),
-      })
-    }
+  // ID 重複（ID は機械的識別子なので正規化しない完全一致）。
+  // グループ化は core/duplicate.ts に一元化されている（M9）
+  for (const [id, indices] of findDuplicates(nodes, (n) => n.id)) {
+    issues.push({
+      rule: 'duplicate-id',
+      message: `ID が重複しています（${indices.length}件）: ${id}`,
+      locations: indices.map((i) => at(nodes, i, 'id')),
+    })
   }
 
   // 循環（＝根から到達できないノード）。図に描かれないので、ここで見せないと
@@ -1892,16 +1896,16 @@ git commit -m "feat(logic-tree): 編集コマンド（追加・削除・並び�
 **Files:**
 - Modify: `src/core/keyboard/keymap.ts`
 - Modify: `src/core/keyboard/keymap.test.ts`
-- Modify: `src/App.tsx:80-92`（`globalKeyContext`）
-- Modify: `src/modules/glossary/GlossaryEditor.tsx:244-249`
-- Modify: `src/modules/glossary/AliasCell.tsx:128-139`
+- Modify: `src/App.tsx`（`globalKeyContext`）
+- Modify: `src/modules/glossary/GlossaryEditor.tsx`（`resolveCommand` の呼び出し）
+- Modify: `src/modules/error-catalog/ErrorCatalogEditor.tsx`（同上）
 
 **Interfaces:**
 - Produces: `Command` に `'insert-child'` / `'focus-parent'` / `'focus-child'` が加わる。`KeyContext` に `hierarchical: boolean` が加わる
 
 **なぜコアを触るのか:** rev 10章 実装規約が「キーボード処理は共通フック／モジュールに一元化し、ツールごとのハンドラ自前実装を禁止」と定めている。ツリーが必要とする意味（**Tab＝子追加**は rev 10章が挙げる階層・リスト系ファミリーの標準そのもの、←→＝親子移動）は、`resolveCommand` の外に書けない。
 
-**用語集への影響:** `hierarchical: false` を渡すので挙動は一切変わらない。**変わっていないことをテストで確認する**（既存の `keymap.test.ts` が緑のままであること）。
+**既存の2ツール（用語集・エラーカタログ）への影響:** どちらも `hierarchical: false` を渡すので挙動は一切変わらない。**変わっていないことをテストで確認する**（既存の `keymap.test.ts` と両エディタの DOM テストが緑のままであること）。
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -2062,24 +2066,24 @@ export type Command =
 `tsc` が漏れを教えるので、`npx tsc -b` を回して出た箇所を潰す。想定は次の3つ:
 
 - `src/App.tsx` の `globalKeyContext`（`reorderEnabled: false` の隣）
-- `src/modules/glossary/GlossaryEditor.tsx` の `onCellKeyDown` 内（`reorderEnabled,` の隣）
-- `src/modules/glossary/AliasCell.tsx` の `resolveCommand` 呼び出し（`reorderEnabled,` の隣）
+- `src/modules/glossary/GlossaryEditor.tsx` の `resolveCommand` 呼び出し
+- `src/modules/error-catalog/ErrorCatalogEditor.tsx` の `resolveCommand` 呼び出し
 
-いずれも `hierarchical: false,` の1行。**用語集はフラットなリストで「子」が存在しない**（rev 10章の適用例）ことをコメントに1行残す。
+いずれも `hierarchical: false,` の1行。**どちらもフラットなリストで「子」が存在しない**（rev 10章の適用例）ことをコメントに1行残す。**`tsc` が上記以外の箇所を挙げたら、それも潰したうえで報告すること**（M9 でリスト編集の基盤が `src/core/list-editor/` へ動いており、計画が把握していない構築箇所がありうる）。
 
 - [ ] **Step 5: 実行して緑になることを確認する**
 
 ```bash
-npx vitest run src/core/keyboard/keymap.test.ts src/modules/glossary
+npx vitest run src/core/keyboard src/core/list-editor src/modules/glossary src/modules/error-catalog
 ```
 
-期待: 追記したテストが緑。**既存の用語集のテストが1つも落ちていないこと**——落ちたら `hierarchical: false` の意味づけが間違っている。
+期待: 追記したテストが緑。**既存の2ツールのテストが1つも落ちていないこと**——落ちたら `hierarchical: false` の意味づけが間違っている。
 
 - [ ] **Step 6: 全体を回してコミット**
 
 ```bash
 npm test && npx tsc -b && npm run lint
-git add src/core/keyboard/keymap.ts src/core/keyboard/keymap.test.ts src/App.tsx src/modules/glossary/GlossaryEditor.tsx src/modules/glossary/AliasCell.tsx
+git add src/core/keyboard src/App.tsx src/modules/glossary src/modules/error-catalog
 git commit -m "feat(core): 操作言語に階層構造の意味（Tab=子追加・←→=親子移動）を足す"
 ```
 
@@ -2202,10 +2206,7 @@ git commit -m "feat(core): CellInput に autoSize を足す（高さを呼び出
 - Create: `src/modules/logic-tree/LogicTreeEditor.tsx`
 - Create: `src/modules/logic-tree/LogicTreeEditor.dom.test.tsx`
 - Create: `src/modules/logic-tree/module.ts`
-- Modify: `src/core/registry.ts`（`toMarkdown` を任意に）
-- Modify: `src/core/app-controller.ts:728-783`（`currentDocument` のガード）
-- Modify: `src/core/app-controller.test.ts`（ガードのテストを追記）
-- Modify: `src/App.tsx`（`canExport`）
+- Modify: `src/core/registry.ts`（規約5 の JSDoc のみ）
 - Modify: `src/modules/index.ts`（登録1行）
 
 **Interfaces:**
@@ -2214,72 +2215,24 @@ git commit -m "feat(core): CellInput に autoSize を足す（高さを呼び出
 
 **このタスクの範囲:** 画面に木が出て、文言を打てて、空状態からルートを作れるところまで。**構造を変えるキー操作は Task 10、ズーム・パンは Task 11。**
 
-- [ ] **Step 1: モジュール規約の `toMarkdown` を任意にする**
+- [ ] **Step 1: 規約5 に「0本＝出力未実装」を明記する**
 
-`src/core/registry.ts`:
+**コードは変えない。** `src/core/registry.ts` の `outputs` の JSDoc だけを直す:
 
 ```ts
   /**
-   * 規約5: 出力ロジック（rev 6章・8章）。NotePM 向けの Markdown を返す。
-   * 額縁がクリップボードへのコピーと `.md` 書き出しの両方に使うので、
-   * **副作用を持たない純関数**であること（ファイルにもクリップボードにも触らない）。
-   * Mermaid を含むツールも戻り値はこの1本の文字列に収める。
+   * 規約5: 出力プロファイル（rev 6章・8章）。
    *
-   * **省略可。** 出力を作っていないツール（着手直後のツール）は持たない。
-   * 額縁は持たないモジュールに対して出力の導線自体を出さない——「押せるが
-   * 壊れた文字列が出るボタン」を作らないため
+   * **0本は「出力を作っていないツール」の状態として正しい。** 額縁の
+   * `ExportMenu` はプロファイルが無いとき出力ボタンを押せなくする——
+   * 「押せるが壊れた文字列が出るボタン」を作らないため
    */
-  toMarkdown?: (data: TData) => string
+  outputs: readonly OutputProfile<TData>[]
 ```
 
-- [ ] **Step 2: 額縁側を「持たないなら出さない」にする**
+**`ExportMenu` と `app-controller` は変えない。** `src/components/ExportMenu.tsx` は既に `only === undefined` で両ボタンを `disabled` にしており、`copyMarkdown` / `exportMarkdown` はメニューから選んだプロファイルを引数に取るので、0本のモジュールでは到達経路が無い。**この2つを「念のため」触らないこと**——既にあるガードの上に2つ目のガードを積むだけになる。
 
-`src/core/app-controller.ts` の `currentDocument`（**出力の対象を決めている関数**）を書き換える:
-
-```ts
-  /** 出力の対象。editable な選択中ファイルと、額縁が持つ編集中データが揃ったときだけ */
-  const currentDocument = (): {
-    path: string
-    module: AnyToolModule
-    data: unknown
-    toMarkdown: (data: unknown) => string
-  } | null => {
-    if (selectedPath === null) return null
-    const entry = files.find((f) => f.path === selectedPath)
-    if (entry === undefined || entry.result.status !== 'editable') return null
-    const module = registry.get(entry.result.type)
-    if (module === undefined) return null
-    // 出力ロジックを持たないツールは出力の対象にならない（rev 6章 規約5）
-    const toMarkdown = module.toMarkdown
-    if (toMarkdown === undefined) return null
-    const data = host.getEditingData()
-    if (data === null) return null
-    return { path: selectedPath, module, data, toMarkdown }
-  }
-```
-
-`copyMarkdown` の `doc.module.toMarkdown(doc.data)` を `doc.toMarkdown(doc.data)` に、`exportMarkdown` の `fresh.module.toMarkdown(fresh.data)` を `fresh.toMarkdown(fresh.data)` に変える。
-
-`src/App.tsx`:
-
-```ts
-  // 出力できるのは「出力ロジックを持つツールのファイルを選んでいて、編集中データが
-  // 揃っている」とき。コントローラ側でも同じ条件を確認しているが、UI はそれを
-  // 押せる／押せないの形で見せる
-  const canExport = selectedModule?.toMarkdown !== undefined && editingData !== null
-```
-
-`src/core/app-controller.test.ts` に追記する（既存のテストが使っているモジュールの組み立て方に合わせること）:
-
-```ts
-  it('toMarkdown を持たないモジュールのファイルでは Markdown をコピーしない', async () => {
-    // 出力未実装のツール。押せてしまうと壊れた文字列がクリップボードに入る
-    ...（既存のセットアップで toMarkdown を外したモジュールを登録し、
-        controller.copyMarkdown() の後に io.copyText が呼ばれていないことを確認する）
-  })
-```
-
-- [ ] **Step 3: フォントの読み取りを書く**
+- [ ] **Step 2: フォントの読み取りを書く**
 
 `src/modules/logic-tree/node-font.ts`:
 
@@ -2344,7 +2297,7 @@ export function createNodeMeasurer(font: NodeFont): MeasureWidth {
 }
 ```
 
-- [ ] **Step 4: ビューポートの型を置く**
+- [ ] **Step 3: ビューポートの型を置く**
 
 `src/modules/logic-tree/viewport.ts`:
 
@@ -2372,7 +2325,7 @@ export function svgTransform(t: Transform): string {
 }
 ```
 
-- [ ] **Step 5: ノードとエッジのコンポーネントを書く**
+- [ ] **Step 4: ノードとエッジのコンポーネントを書く**
 
 `src/modules/logic-tree/NodeBox.tsx`:
 
@@ -2499,7 +2452,7 @@ export function TreeEdges({ roots, positions, sizes, transform }: TreeEdgesProps
 }
 ```
 
-- [ ] **Step 6: エディタ本体を書く**
+- [ ] **Step 5: エディタ本体を書く**
 
 `src/modules/logic-tree/LogicTreeEditor.tsx`:
 
@@ -2698,7 +2651,7 @@ export function LogicTreeEditor({
 }
 ```
 
-- [ ] **Step 7: モジュールを組んで登録する**
+- [ ] **Step 6: モジュールを組んで登録する**
 
 `src/modules/logic-tree/module.ts`:
 
@@ -2711,6 +2664,7 @@ import { checkLogicTreeConsistency } from './consistency'
 import { LogicTreeEditor } from './LogicTreeEditor'
 import { migrateLogicTree } from './migrate'
 
+// `src/modules/error-catalog/module.ts` が最新の見本。**そちらに合わせること**
 export const logicTreeModule: ToolModule<LogicTreeSchemaVersion1> = {
   type: 'logicTree',
   displayName: 'ロジックツリー',
@@ -2719,8 +2673,9 @@ export const logicTreeModule: ToolModule<LogicTreeSchemaVersion1> = {
   idPrefixes: ['node'],
   Editor: LogicTreeEditor,
   checkConsistency: checkLogicTreeConsistency,
-  // 規約5（出力）は持たない。Markdown 出力は M2 で足す——それまで額縁は
-  // 出力の導線自体を出さない
+  // 規約5: 出力プロファイルは0本。Markdown / Mermaid 出力は M2 で足す——
+  // それまで額縁（ExportMenu）は出力ボタンを押せない状態で出す
+  outputs: [],
   // プロジェクトにロジックツリーは何本あってもよい（用語集と違いハブではない）
   singleton: false,
   migrate: migrateLogicTree,
@@ -2733,16 +2688,18 @@ export const logicTreeModule: ToolModule<LogicTreeSchemaVersion1> = {
 
 ```ts
 import { createRegistry } from '@/core/registry'
+import { errorCatalogModule } from './error-catalog/module'
 import { glossaryModule } from './glossary/module'
 import { logicTreeModule } from './logic-tree/module'
 
 /** アプリ全体で使うレジストリ。新ツールはここに register を1行足す（rev 6章）。 */
 export const appRegistry = createRegistry()
 appRegistry.register(glossaryModule)
+appRegistry.register(errorCatalogModule)
 appRegistry.register(logicTreeModule)
 ```
 
-- [ ] **Step 8: DOM テストを書く**
+- [ ] **Step 7: DOM テストを書く**
 
 `src/modules/logic-tree/LogicTreeEditor.dom.test.tsx`:
 
@@ -2863,27 +2820,29 @@ describe('LogicTreeEditor（描画）', () => {
 })
 ```
 
-- [ ] **Step 9: 実行して緑になることを確認する**
+- [ ] **Step 8: 実行して緑になることを確認する**
 
 ```bash
-npx vitest run src/modules/logic-tree src/core/app-controller.test.ts
+npx vitest run src/modules/logic-tree
 ```
 
-期待: 追加した `it` がすべて緑。**`app-controller.test.ts` の既存テストが落ちないこと**（用語集は `toMarkdown` を持つので出力の挙動は変わらない）。
+期待: 追加した `it` がすべて緑。
 
-- [ ] **Step 10: 全体を回す**
+- [ ] **Step 9: 全体を回す**
 
 ```bash
 npm test && npx tsc -b && npm run lint
 ```
 
-**新モジュールの登録で `FileList` や `App` のテストが落ちたら、それは「新規作成の選択肢が1つ増えた」ことの反映漏れである。** 落ちたテストの期待値を実態に合わせて直し、**何を直したかを報告に書くこと。**
+**新モジュールの登録で `FileList` や `App`、`registry` のテストが落ちたら、それは「登録されるツールが1つ増えた」ことの反映漏れである。** 落ちたテストの期待値を実態に合わせて直し、**何を直したかを報告に書くこと。**
 
-- [ ] **Step 11: コミット**
+`src/styles/conventions.test.ts`（色値・フォントサイズの機械検査）も新しい `.tsx` を走査対象に入れる。落ちたら**クラス名の側を直す**（検査を緩めない）。
+
+- [ ] **Step 10: コミット**
 
 ```bash
-git add src/modules/logic-tree src/modules/index.ts src/core/registry.ts src/core/app-controller.ts src/core/app-controller.test.ts src/App.tsx
-git commit -m "feat(logic-tree): エディタの描画とモジュール登録（出力ロジックは任意に）"
+git add src/modules/logic-tree src/modules/index.ts src/core/registry.ts
+git commit -m "feat(logic-tree): エディタの描画とモジュール登録"
 ```
 
 ---
@@ -3583,7 +3542,7 @@ git status --short
 - 実装で確定した事項（平坦＋`parentId` を選んだ理由、行きがけ順の正規化、常に textarea の模型、ルート上の Enter が子になること、空欄 Backspace が部分木ごと消すこと）
 - 計画の誤りとして報告されたもの
 - 実機確認の結果（**最大幅 320px が実データで窮屈だったか**は tech-notes 論点8 が待っている数値なので必ず書く）
-- コアに入れた変更（`toMarkdown` の任意化、`KeyContext.hierarchical`、`CellInput.autoSize`）
+- コアに入れた変更（`KeyContext.hierarchical`、`CellInput.autoSize`）と、**入れずに済んだもの**（出力プロファイル0本が `ExportMenu` の既存の分岐でそのまま成立した）
 
 ファイル名に `mN` の通し番号を使わない。**ロジックツリーの段階は `logic-tree-mN` で採番する**（用語集・コアの `m1`〜`m8` と並行して進むため、通し番号だと衝突する）。
 
@@ -3605,7 +3564,7 @@ git status --short
 - **10章「キャンバス化の決定」**: 各ツールセッションへの申し送りに、**ロジックツリーは自動レイアウトで確定**した旨を追記。あわせて一般則として「**マウスドラッグは座標の編集とは限らない。構造の編集を入力するジェスチャとして使える**」を明記する
 - **10章「実装規約」**: 「キャンバスライブラリ（React Flow / tldraw 等）は採用しない。イベント系を乗っ取るライブラリは操作言語の一元化規約と衝突するため」。あわせて「**ノードは DOM、エッジは SVG、ビューポートは d3-zoom**」を全キャンバス系ツール共通の構成として定める
 - **10章「キーボード操作：二層構造」**: 階層構造では `Tab`＝子追加・`←→`＝親子移動になること（`KeyContext.hierarchical`）。用語集が `Tab` をセル移動に充てているのは「フラットなリストには子が無い」ためだという既存の記述と接続する
-- **6章 モジュール規約**: **規約5（出力ロジック）は任意**とし、持たないツールには額縁が出力の導線を出さない、と改める
+- **6章 モジュール規約**: 規約5 の出力プロファイルは **0本を許す**（出力を作っていないツールの状態として正しく、額縁は出力ボタンを押せなくする）と明記する
 - **9章 デザインシステム**: 測定層と描画層が**同一のフォントトークンを参照する**必要がある旨を注記（ずれると全ノードのサイズが狂う）
 - **5章**: ロジックツリーは `singleton: false`（プロジェクトに何本あってもよい）
 
