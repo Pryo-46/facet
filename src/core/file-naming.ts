@@ -8,12 +8,23 @@
 /** Windows で使えない文字。macOS/Linux でも避けて構わないので一律で落とす */
 const ILLEGAL = /[\\/:*?"<>|]/g
 
+/**
+ * Windows の予約デバイス名。**拡張子を付けても予約のまま**なので
+ * `CON.json` は作成に失敗する。大文字小文字は区別されない
+ */
+const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
+
+/** Windows は末尾のドットと空白を黙って落とす（意図しない名前のファイルができる） */
+const TRAILING = /[. ]+$/
+
 /** 打ち切り回数。ディスクへの問い合わせを含むので無限には試さない */
 export const MAX_NAME_CANDIDATES = 100
 
 /** n 番目の候補名（1件目は連番なし）。連番の付け方をここ1箇所に閉じる */
 export function fileNameCandidate(baseName: string, n: number): string {
-  const base = baseName.replace(ILLEGAL, '_')
+  let base = baseName.replace(ILLEGAL, '_').replace(TRAILING, '')
+  if (base === '') base = '_'
+  if (RESERVED.test(base)) base = `_${base}`
   return n === 1 ? `${base}.json` : `${base}-${n}.json`
 }
 

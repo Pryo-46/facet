@@ -7,7 +7,8 @@
 ## 構成
 
 - **Tauri 2 ＋ Vite ＋ React ＋ TypeScript。** `npm run tauri dev` で起動する
-- **Tailwind CSS ＋ shadcn/ui。** 役割トークンは `src/index.css` にあり、値は仮置き（確定は M7）
+- **Tailwind CSS ＋ shadcn/ui。** 役割トークンは `src/index.css` の `@theme inline` にあり、**色値は `src/styles/palette.css` だけが持つ**（M7 で確定。[`overview-rev.md`](overview-rev.md) 9章）
+- **ウィンドウの初期サイズは 1280×800、最小は 1000×600**（`src-tauri/tauri.conf.json`）。用語テーブルの固定4列の合計が 736px、サイドバーが 256px なので、**1030px 付近から備考列が切れ始める**（M8 の実機確認で確認）。定義列が残り幅を吸収する構造上、狭めても横スクロールは出ず、代わりに列が潰れる——だから下限はウィンドウ側で持つ。初期値を 800×600 のままにすると起動した瞬間に崩れた状態から始まる
 - **Vitest。** `npm test`。環境は既定 `node`、DOM テストのみファイル先頭の `// @vitest-environment jsdom` で切り替える
 - **型生成。** `schemas/*.schema.json` → `src/types/*.ts` が `npm run gen:types` で通る
 - **`.gitattributes` に `*.json text eol=lf`**（**必須。** Windows の autocrlf 下では、これが無いと commit 時に CRLF 変換され全行 diff になり、正規形の LF が Git 上で無意味になる）

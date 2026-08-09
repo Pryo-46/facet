@@ -89,7 +89,16 @@ export function planExternalChange(args: {
   const notices = [
     ...changed
       .filter((e) => e.path !== args.selectedPath)
-      .map((e) => ({ key: `external:${e.path}`, message: `外部の変更を読み込みました: ${e.name}` })),
+      .map((e) => ({
+        key: `external:${e.path}`,
+        // **「読み込みました」で済ませない。** 外部の変更でスキーマ違反に
+        // 落ちたファイルは一覧に残るが開けなくなる。赤バッジは出るものの、
+        // メッセージが成功時と同じでは何が起きたか伝わらない
+        message:
+          e.result.status === 'rejected'
+            ? `外部の変更でこのファイルを開けなくなりました: ${e.name}`
+            : `外部の変更を読み込みました: ${e.name}`,
+      })),
     ...added.map((e) => ({ key: `external:${e.path}`, message: `ファイルが増えました: ${e.name}` })),
     ...removed
       .filter((f) => f.path !== args.selectedPath)

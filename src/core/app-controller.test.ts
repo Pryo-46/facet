@@ -631,6 +631,9 @@ describe('externalChange（外部変更の検知）', () => {
     expect(h.log.slice(from)).not.toContain('flush')
     expect(h.selectedPath()).toBeNull()
     expect(h.log).toContain(`dropModal:external:${p('a.json')}`)
+    // 消えたファイル宛ての削除確認も取り下げる。残すと、確定したときに
+    // trashFile が「もう無いファイル」を消しに行って失敗する（deleteFile 側と同じ失敗モード）
+    expect(h.log).toContain(`dropModal:delete:${p('a.json')}`)
     expect(h.disk.files.has(p('a.json'))).toBe(false)
   })
 
@@ -814,5 +817,59 @@ describe('ensureFileOfType', () => {
     await h.controller.ensureFileOfType(h.registry.get('note')!)
     expect(h.disk.files.size).toBe(1)
     expect(h.banners().scan).toContain('フォルダの再走査に失敗しました')
+  })
+})
+
+/** askSavePath を手で解決できるようにする（ダイアログが開いている間を再現する） */
+function pendingSavePath() {
+  let release: (path: string | null) => void = () => {}
+  const askSavePath = vi
+    .fn<(defaultPath: string) => Promise<string | null>>()
+    .mockImplementation(() => new Promise((resolve) => { release = resolve }))
+  return { askSavePath, release: (path: string | null) => release(path) }
+}
+
+describe('exportMarkdown: 保存ダイアログを開いている間の変化', () => {
+  it('その間に内容が変わったら、最新の内容を書く', async () => {
+    const { askSavePath, release } = pendingSavePath()
+    const h = createHarness({ [p('a.json')]: note('A', '古い本文') }, { askSavePath })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    const done = h.controller.exportMarkdown()
+    // ダイアログが開いている数秒〜数分の間に外部変更の取り込みが走った状況
+    h.setDocument({ schemaVersion: 1, type: 'note', title: 'A', body: '新しい本文' })
+    release('C:\\out\\a.md')
+    await done
+    expect(h.disk.files.get('C:\\out\\a.md')).toBe('## A\n\n新しい本文\n')
+  })
+
+  it('その間に選択が変わったら書き出さない', async () => {
+    const { askSavePath, release } = pendingSavePath()
+    const h = createHarness(
+      { [p('a.json')]: note('A'), [p('b.json')]: note('B') },
+      { askSavePath },
+    )
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    const done = h.controller.exportMarkdown()
+    await h.controller.selectFile(p('b.json'))
+    release('C:\\out\\a.md')
+    await done
+    // b の内容を a.md として書くのは明らかな事故
+    expect(h.disk.files.has('C:\\out\\a.md')).toBe(false)
+    expect(h.toasts().at(-1)?.message).toMatch(/書き出しませんでした/)
+  })
+})
+
+describe('削除確認の取り下げ', () => {
+  it('削除が確定したら同じファイルの削除確認を取り下げる', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    h.controller.requestDelete(h.files()[0])
+    const request = h.modals()[0]
+    if (request.kind !== 'confirm') throw new Error('confirm 以外が積まれた')
+    await request.onConfirm()
+    // 残すと、外部で消えた後に確定したとき trashFile が失敗する
+    expect(h.log).toContain(`dropModal:delete:${p('a.json')}`)
   })
 })

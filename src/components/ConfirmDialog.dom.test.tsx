@@ -29,7 +29,7 @@ describe('ConfirmDialog', () => {
 
   it('見出しと説明を出す', () => {
     setup()
-    expect(screen.getByText('ファイルを削除しますか？')).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'ファイルを削除しますか？' })).not.toBeNull()
     expect(screen.getByText('用語集.json を OS のゴミ箱へ移動します。')).not.toBeNull()
   })
 

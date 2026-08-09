@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CellInput, type FieldState } from '@/components/CellInput'
+import { buttonBase } from '@/components/button-styles'
+import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
   toKeyEventLike,
@@ -14,6 +16,14 @@ import { computeRowKeys } from '@/core/row-keys'
 import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
 import glossarySchema from '../../../schemas/glossary.schema.json'
 import { AliasCell } from './AliasCell'
+import { buildErrorMarks, cellFace, hasError } from './cell-face'
+import {
+  DEFINITION_MIN_WIDTH,
+  glossaryColumnWidths,
+  MIN_COLUMN_WIDTH,
+  RESIZE_STEP,
+} from './column-widths'
+import { COLUMNS, nextWidthIndex, WIDTH_INDEX } from './columns'
 import { FIELD_LABELS, stepField, type GlossaryField } from './fields'
 import { kindLabel } from './kind-labels'
 import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } from './search'
@@ -21,14 +31,27 @@ import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } f
 // 種別の選択肢はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂時に静かにずれる）
 const KIND_OPTIONS = glossarySchema.$defs.term.properties.kind.enum
 
+// フォーカスは面の塗り替えではなくリングで示す（M8 修正3）。テーブルの面が
+// bg-surface になった今、focus:bg-surface はコントラスト比 1.00:1 で見えない。
+// エラー・未定義セルは bg-warning/20・/10 の面を警告として持っているので、
+// フォーカスで背景を塗り替えるとその警告表示が消えてしまう——リングなら
+// 面の色を潰さずに重ねられる。色は役割トークンの --ring から取る（既に
+// --ink に紐づいている。palette.css は変更していない）
 const cellInput =
-  'w-full bg-transparent px-2 py-1 text-ink outline-none focus:bg-surface rounded-sm'
+  'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
 // レベル2エラー（受け入れて赤表示）と warning（undecided / 未定義）は
 // どちらも同系色の面で示し、濃さで強度を区別する。
 // 波線下線は表記ゆれの「指摘（suggestion）」用に予約されているため使わない
-// （glossary-session-notes 論点5）。濃さの値は仮置きで、確定は M7
-const errorCell = 'bg-warning/25'
+// （glossary-session-notes 論点5）。
+//
+// **濃さは M8 で確定した**（設計スペック 決定13）。合成後のコントラストは
+// src/styles/palette.test.ts が機械検査しており、値を変えるとそちらが落ちる。
+// /25 はダークの surface 上で ink-muted が 4.58:1 に落ちるため使えない
+const errorCell = 'bg-warning/20'
 const warnCell = 'bg-warning/10'
+
+/** 列の境界の縦罫。先頭列には引かない（M8 決定2） */
+const colBorder = 'border-l border-grid'
 
 /** セルの DOM 上の識別子。フォーカス移動（Task 12）が querySelector で引く */
 function cellId(rowKey: string, field: GlossaryField): string {
@@ -66,7 +89,7 @@ function focusCell(
   const el = container?.querySelector<HTMLElement>(`[data-cell="${cellId(rowKey, field)}"]`)
   if (!el) return false
   el.focus()
-  if (select && el instanceof HTMLInputElement) el.select()
+  if (select && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) el.select()
   return true
 }
 
@@ -101,6 +124,16 @@ export function GlossaryEditor({
     addButtonRef.current?.focus()
     setFocusAddButton(false)
   }, [focusAddButton])
+
+  // 幅を測る対象はテーブルを包む div（M8 決定9）
+  const tableRef = useRef<HTMLDivElement>(null)
+  const { widths, getHandleProps } = useColumnResize({
+    store: glossaryColumnWidths,
+    minWidth: MIN_COLUMN_WIDTH,
+    flexMinWidth: DEFINITION_MIN_WIDTH,
+    step: RESIZE_STEP,
+    containerRef: tableRef,
+  })
 
   const rowKeys = computeRowKeys(data.terms)
   const visible = filterTermIndices(data.terms, filter)
@@ -228,20 +261,17 @@ export function GlossaryEditor({
     arrowsOwnedByField: false,
   })
 
-  // locations を「配列位置 → 赤表示するフィールド集合」に引き直す。
-  // entityId ではなく位置で引く——ID 重複時に同じ ID を持つ全行へ
-  // マークが波及しないようにするため（M2 の申し送り）。
-  // field 'id' は ID 列が UI に無いため行全体の赤表示として扱う
-  const marks = new Map<number, Set<string>>()
-  for (const issue of issues) {
-    for (const loc of issue.locations) {
-      if (loc.entityIndex === null) continue
-      const set = marks.get(loc.entityIndex) ?? new Set<string>()
-      if (loc.field !== null) set.add(loc.field)
-      marks.set(loc.entityIndex, set)
-    }
+  // locations を「配列位置 → 赤表示するフィールド集合」に引き直す。判定
+  // ロジック（優先順位・二重塗り防止）とあわせて cell-face.ts の純関数へ
+  // 切り出してある。DOM テストは role・アクセシブル名で引きクラス名を見ないため、
+  // この振る舞いを固定する場所が別に要る（M8 でつぶした残件2の裏付け）
+  const marks = buildErrorMarks(issues)
+
+  /** セルの面のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ */
+  const cellClass = (index: number, field: GlossaryField, warn = false): string => {
+    const face = cellFace(marks, index, field, warn)
+    return face === 'error' ? errorCell : face === 'warn' ? warnCell : ''
   }
-  const mark = (index: number, field: string) => (marks.get(index)?.has(field) ? ` ${errorCell}` : '')
 
   return (
     <div ref={containerRef} className="p-4">
@@ -250,7 +280,7 @@ export function GlossaryEditor({
         <input
           type="search"
           aria-label="用語を検索"
-          className="w-64 rounded-sm border border-rule bg-canvas px-2 py-1 text-sm text-ink outline-none focus:bg-surface"
+          className="w-64 rounded-sm border border-rule bg-canvas px-2 py-1 text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
           placeholder="名称・別名・定義を検索"
           value={filter.query}
           onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
@@ -262,8 +292,8 @@ export function GlossaryEditor({
               key={kind}
               type="button"
               aria-pressed={active}
-              className={`rounded-sm border border-rule px-2 py-1 text-xs ${
-                active ? 'bg-ink text-canvas' : 'text-ink-muted hover:bg-surface'
+              className={`${buttonBase} border border-rule px-2 py-1 text-xs ${
+                active ? 'bg-ink text-canvas' : 'bg-canvas text-ink hover:bg-surface'
               }`}
               onClick={() =>
                 setFilter((f) => ({
@@ -294,150 +324,216 @@ export function GlossaryEditor({
           ))}
         </ul>
       )}
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-rule text-left text-ink-muted">
-            <th className="w-40 px-2 py-1 font-normal">{FIELD_LABELS.name}</th>
-            <th className="w-32 px-2 py-1 font-normal">{FIELD_LABELS.kind}</th>
-            <th className="px-2 py-1 font-normal">{FIELD_LABELS.definition}</th>
-            <th className="w-44 px-2 py-1 font-normal">{FIELD_LABELS.aliases}</th>
-            <th className="w-44 px-2 py-1 font-normal">{FIELD_LABELS.notes}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visible.map((index, visiblePos) => {
-            const term = data.terms[index]
-            const rowKey = rowKeys[index]
-            const row = visiblePos + 1
-            return (
-              <tr key={rowKey} className={`border-b border-rule align-top${mark(index, 'id')}`}>
-                <td className={mark(index, 'name')}>
-                  <CellInput
-                    className={cellInput}
-                    aria-label={`${FIELD_LABELS.name}（${row}行目）`}
-                    data-cell={cellId(rowKey, 'name')}
-                    value={term.name}
-                    // 空の名称はスキーマ違反（minLength 1）なのでデータに載せない。
-                    // 空欄の間の表示は CellInput のドラフトが持ち、セルを抜けると戻る
-                    sanitize={(raw) => (raw.trim() === '' ? null : raw)}
-                    onValueChange={(v) => updateTerm(index, { name: v }, `${rowKey}:name`)}
-                    onFieldKeyDown={(e, s) =>
-                      onCellKeyDown(
-                        e,
-                        { index, visiblePos, field: 'name' },
-                        // 名称セルだけが空欄 Backspace で行を消せる。定義セルは
-                        // 空（未定義 warning）が常態なので、そこで消えると事故になる
-                        textFieldContext(s, true),
-                      )
-                    }
-                  />
-                </td>
-                <td className={term.kind === 'undecided' ? warnCell : ''}>
-                  <select
-                    className={cellInput}
-                    aria-label={`${FIELD_LABELS.kind}（${row}行目）`}
-                    data-cell={cellId(rowKey, 'kind')}
-                    value={term.kind}
-                    onChange={(e) =>
-                      updateTerm(index, { kind: e.target.value as Term['kind'] }, null)
-                    }
-                    onKeyDown={(e) =>
-                      onCellKeyDown(
-                        e,
-                        { index, visiblePos, field: 'kind' },
-                        {
-                          editing: false,
-                          fieldEmpty: false,
-                          deletableField: false,
-                          caretAtStart: true,
-                          caretAtEnd: true,
-                          // 素の↑↓は select の選択肢切り替えに使う（Alt+↑↓ は有効）
-                          arrowsOwnedByField: true,
-                        },
-                      )
-                    }
+      {/* テーブルは surface の面に載せ、外枠だけ rule で締める。内側の罫は
+          grid（装飾）に落とす——M7 が rule と grid を2トークンに分けた理由が
+          そのまま効く階層である（M8 決定2）。
+          **角丸のための overflow-hidden はあえて置かない。** 別名セル
+          （AliasCell）のパネルはこの div を包含ブロックとする absolute 配置で、
+          パネルの高さ（別名の行＋操作ヒントで60px強）は行の高さ（約31px）を
+          必ず上回る。overflow-hidden を掛けると最終行で開いたパネルが
+          下端で切れて到達不能になる（横方向も同様——別名列と備考列を両方
+          最小幅まで狭めると w-56 が右端を越える）。角丸は装飾だが別名パネルは
+          機能なので、角丸をあきらめて直角にする。外枠と面（border-rule /
+          bg-surface）はそのまま残す */}
+      <div ref={tableRef} className="border border-rule bg-surface">
+        <table className="w-full table-fixed border-collapse text-sm">
+          <colgroup>
+            {COLUMNS.map((col, i) => {
+              const w = WIDTH_INDEX[i]
+              return (
+                <col
+                  key={col.field}
+                  style={w === null ? undefined : { width: widths[w] }}
+                />
+              )
+            })}
+          </colgroup>
+          <thead>
+            <tr className="text-left text-ink">
+              {COLUMNS.map((col, i) => {
+                const w = WIDTH_INDEX[i]
+                return (
+                  <th
+                    key={col.field}
+                    className={`sticky top-0 z-10 relative border-b border-rule bg-surface-accent px-2 py-1 font-bold${i === 0 ? '' : ` ${colBorder}`}`}
                   >
-                    {KIND_OPTIONS.map((kind) => (
-                      <option key={kind} value={kind}>
-                        {kindLabel(kind)}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className={term.definition === '' ? warnCell : ''}>
-                  <CellInput
-                    className={`${cellInput} placeholder:text-warning/70`}
-                    aria-label={`${FIELD_LABELS.definition}（${row}行目）`}
-                    data-cell={cellId(rowKey, 'definition')}
-                    // 空欄は「未定義」と明示する（負債を消えなくして見せる。
-                    // M6 の Markdown 出力が空定義を「（未定義）」と書く仕様と揃える）
-                    placeholder="未定義"
-                    value={term.definition}
-                    onValueChange={(v) =>
-                      updateTerm(index, { definition: v }, `${rowKey}:definition`)
-                    }
-                    onFieldKeyDown={(e, s) =>
-                      onCellKeyDown(e, { index, visiblePos, field: 'definition' }, textFieldContext(s, false))
-                    }
-                  />
-                </td>
-                <td className={mark(index, 'aliases')}>
-                  <AliasCell
-                    aliases={term.aliases}
-                    onAliasesChange={(next, mergeKey) =>
-                      updateTerm(index, { aliases: next }, mergeKey ?? null)
-                    }
-                    cellId={cellId(rowKey, 'aliases')}
-                    label={`${FIELD_LABELS.aliases}（${row}行目）`}
-                    reorderEnabled={reorderEnabled}
-                    modalOpen={modalOpen}
-                    onClosedKeyDown={(e) =>
-                      onCellKeyDown(
-                        e,
-                        { index, visiblePos, field: 'aliases' },
-                        {
-                          editing: false,
-                          fieldEmpty: false,
-                          deletableField: false,
-                          caretAtStart: true,
-                          caretAtEnd: true,
-                          arrowsOwnedByField: false,
-                        },
+                    {FIELD_LABELS[col.field]}
+                    {/* 幅を持たない定義列は自分ではハンドルを出さないが、右隣に
+                        固定幅の列があればそこにハンドルを出す。掴めるのは
+                        右隣（別名）の幅なので反転して渡す（見た目どおり、
+                        右へ引くと定義が広がる＝別名が狭まる）。掴み代が見えるように
+                        列の境界へ grid の縦罫を引いてある（M8 決定2） */}
+                    {w !== null ? (
+                      <span
+                        {...getHandleProps(w)}
+                        aria-label={`${FIELD_LABELS[col.field]}の列幅を変更`}
+                        className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-rule"
+                      />
+                    ) : (
+                      nextWidthIndex(i) !== null && (
+                        <span
+                          {...getHandleProps(nextWidthIndex(i) as number, { invert: true })}
+                          aria-label={`${FIELD_LABELS[col.field]}の列幅を変更`}
+                          className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-rule"
+                        />
                       )
-                    }
-                    onLeave={(direction) => {
-                      const step = stepField('aliases', direction)
-                      focusVisible(visiblePos + step.rowDelta, step.field)
-                    }}
-                    onLeaveVertical={(direction) => focusVisible(visiblePos + direction, 'aliases')}
-                  />
-                </td>
-                <td>
-                  <CellInput
-                    className={cellInput}
-                    aria-label={`${FIELD_LABELS.notes}（${row}行目）`}
-                    data-cell={cellId(rowKey, 'notes')}
-                    value={term.notes}
-                    onValueChange={(v) => updateTerm(index, { notes: v }, `${rowKey}:notes`)}
-                    onFieldKeyDown={(e, s) =>
-                      onCellKeyDown(e, { index, visiblePos, field: 'notes' }, textFieldContext(s, false))
-                    }
-                  />
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+                    )}
+                  </th>
+                )
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((index, visiblePos) => {
+              const term = data.terms[index]
+              const rowKey = rowKeys[index]
+              const row = visiblePos + 1
+              return (
+                <tr key={rowKey} className={`border-b border-grid align-middle${hasError(marks, index, 'id') ? ` ${errorCell}` : ''}`}>
+                  <td className={cellClass(index, 'name')}>
+                    <CellInput
+                      className={cellInput}
+                      aria-label={`${FIELD_LABELS.name}（${row}行目）`}
+                      data-cell={cellId(rowKey, 'name')}
+                      value={term.name}
+                      // 空の名称はスキーマ違反（minLength 1）なのでデータに載せない。
+                      // 空欄の間の表示は CellInput のドラフトが持ち、セルを抜けると戻る
+                      sanitize={(raw) => (raw.trim() === '' ? null : raw)}
+                      onValueChange={(v) => updateTerm(index, { name: v }, `${rowKey}:name`)}
+                      onFieldKeyDown={(e, s) =>
+                        onCellKeyDown(
+                          e,
+                          { index, visiblePos, field: 'name' },
+                          // 名称セルだけが空欄 Backspace で行を消せる。定義セルは
+                          // 空（未定義 warning）が常態なので、そこで消えると事故になる
+                          textFieldContext(s, true),
+                        )
+                      }
+                    />
+                  </td>
+                  <td className={`relative ${colBorder} ${cellClass(index, 'kind', term.kind === 'undecided')}`}>
+                    <select
+                      className={`${cellInput} appearance-none pr-6`}
+                      aria-label={`${FIELD_LABELS.kind}（${row}行目）`}
+                      data-cell={cellId(rowKey, 'kind')}
+                      value={term.kind}
+                      onChange={(e) =>
+                        updateTerm(index, { kind: e.target.value as Term['kind'] }, null)
+                      }
+                      onKeyDown={(e) =>
+                        onCellKeyDown(
+                          e,
+                          { index, visiblePos, field: 'kind' },
+                          {
+                            editing: false,
+                            fieldEmpty: false,
+                            deletableField: false,
+                            caretAtStart: true,
+                            caretAtEnd: true,
+                            // 素の↑↓は select の選択肢切り替えに使う（Alt+↑↓ は有効）
+                            arrowsOwnedByField: true,
+                          },
+                        )
+                      }
+                    >
+                      {KIND_OPTIONS.map((kind) => (
+                        <option key={kind} value={kind}>
+                          {kindLabel(kind)}
+                        </option>
+                      ))}
+                    </select>
+                    {/* appearance-none で消えた矢印を描き直す。**背景画像の
+                        data URI は使わない**——色値を書くことになり
+                        conventions.test.ts が弾く（M8 決定14） */}
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 12 12"
+                      className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 fill-none stroke-current stroke-2 text-ink-muted"
+                    >
+                      <path d="M3 4.5 L6 7.5 L9 4.5" />
+                    </svg>
+                  </td>
+                  <td className={`${colBorder} ${cellClass(index, 'definition', term.definition === '')}`}>
+                    <CellInput
+                      multiline
+                      className={`${cellInput} placeholder:text-ink-muted`}
+                      aria-label={`${FIELD_LABELS.definition}（${row}行目）`}
+                      data-cell={cellId(rowKey, 'definition')}
+                      // 空欄は「未定義」と明示する（負債を消えなくして見せる。
+                      // M6 の Markdown 出力が空定義を「（未定義）」と書く仕様と揃える）
+                      placeholder="未定義"
+                      value={term.definition}
+                      onValueChange={(v) =>
+                        updateTerm(index, { definition: v }, `${rowKey}:definition`)
+                      }
+                      onFieldKeyDown={(e, s) =>
+                        onCellKeyDown(e, { index, visiblePos, field: 'definition' }, textFieldContext(s, false))
+                      }
+                    />
+                  </td>
+                  <td className={`${colBorder} ${cellClass(index, 'aliases')}`}>
+                    <AliasCell
+                      aliases={term.aliases}
+                      onAliasesChange={(next, mergeKey) =>
+                        updateTerm(index, { aliases: next }, mergeKey ?? null)
+                      }
+                      cellId={cellId(rowKey, 'aliases')}
+                      label={`${FIELD_LABELS.aliases}（${row}行目）`}
+                      reorderEnabled={reorderEnabled}
+                      modalOpen={modalOpen}
+                      onClosedKeyDown={(e) =>
+                        onCellKeyDown(
+                          e,
+                          { index, visiblePos, field: 'aliases' },
+                          {
+                            editing: false,
+                            fieldEmpty: false,
+                            deletableField: false,
+                            caretAtStart: true,
+                            caretAtEnd: true,
+                            arrowsOwnedByField: false,
+                          },
+                        )
+                      }
+                      onLeave={(direction) => {
+                        const step = stepField('aliases', direction)
+                        focusVisible(visiblePos + step.rowDelta, step.field)
+                      }}
+                      onLeaveVertical={(direction) => focusVisible(visiblePos + direction, 'aliases')}
+                    />
+                  </td>
+                  <td className={`${colBorder} ${cellClass(index, 'notes')}`}>
+                    <CellInput
+                      multiline
+                      className={cellInput}
+                      aria-label={`${FIELD_LABELS.notes}（${row}行目）`}
+                      data-cell={cellId(rowKey, 'notes')}
+                      value={term.notes}
+                      onValueChange={(v) => updateTerm(index, { notes: v }, `${rowKey}:notes`)}
+                      onFieldKeyDown={(e, s) =>
+                        onCellKeyDown(e, { index, visiblePos, field: 'notes' }, textFieldContext(s, false))
+                      }
+                    />
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
       {data.terms.length > 0 && visible.length === 0 && (
         <p className="mt-3 text-sm text-ink-muted">該当する用語がありません。</p>
       )}
-      {data.terms.length === 0 && !derivedView && (
+      {!derivedView && (
+        // **0件のときだけでなく常に出す。** 行の追加が Enter だけだと、
+        // マウスで操作する人に手段が無い（rev 10章「マウス＝構造を操作する
+        // 自然さ」）。導出表示中に出さないのは、挿入した行が絞り込みに
+        // 掛からず見えないまま増えるため（Enter を止めているのと同じ理由）
         <button
           ref={addButtonRef}
           type="button"
-          className="mt-3 rounded-sm border border-rule px-3 py-1 text-sm text-ink hover:bg-surface"
-          onClick={() => insertRowAfter(-1)}
+          className={`${buttonBase} mt-3 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
+          onClick={() => insertRowAfter(data.terms.length - 1)}
         >
           用語を追加
         </button>

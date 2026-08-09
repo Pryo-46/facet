@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  composite,
   contrastRatio,
+  decodeSrgb,
   deltaEok,
+  encodeSrgb,
+  type LinearRgb,
   oklchToLinear,
   parseOklch,
   relativeLuminance,
@@ -104,5 +108,41 @@ describe('simulate', () => {
       const simulated = deltaEok(simulate(w, vision), simulate(o, vision))
       expect(simulated, `${vision} で色差が縮んでいない`).toBeLessThan(normal)
     }
+  })
+})
+
+describe('アルファ合成', () => {
+  const BLACK: LinearRgb = [0, 0, 0]
+  const WHITE: LinearRgb = [1, 1, 1]
+
+  it('alpha 1 は前景そのもの、alpha 0 は背景そのもの', () => {
+    expect(composite(BLACK, WHITE, 1)).toEqual(BLACK)
+    expect(composite(BLACK, WHITE, 0)).toEqual(WHITE)
+  })
+
+  it('合成はガンマ補正済み sRGB 上で行う（線形空間で混ぜない）', () => {
+    // ガンマ空間で 0.5 に混ざった結果を線形へ戻すと 0.2140。
+    // 線形空間で混ぜていたら 0.5 になる——この差がこのテストの主張である。
+    // **toHex を経由しない**：黒と白の中点は 127.5 と丸めの境界に乗るため、
+    // 期待値が処理系の丸めに依存してしまう（閾値ちょうどの値を置かない）
+    const [r, g, b] = composite(BLACK, WHITE, 0.5)
+    expect(r).toBeCloseTo(0.2140, 4)
+    expect(g).toBeCloseTo(0.2140, 4)
+    expect(b).toBeCloseTo(0.2140, 4)
+  })
+
+  it('sRGB の伝達関数が往復する', () => {
+    for (const v of [0, 0.001, 0.05, 0.25, 0.5, 0.9, 1]) {
+      expect(decodeSrgb(encodeSrgb(v))).toBeCloseTo(v, 10)
+    }
+  })
+
+  it('現行のプレースホルダの重ね（text-warning/70 を warning/10 の面へ）が 2.8:1 付近になる', () => {
+    // docs/open-issues.md が実測として記録した値。合成モデルが
+    // 正しいことの裏付けであり、壊れたら計算のどこかが狂っている
+    const surface = oklchToLinear({ L: 0.961, C: 0.007, H: 88.6 })
+    const warning = oklchToLinear({ L: 0.518, C: 0.132, H: 34.6 })
+    const face = composite(warning, surface, 0.1)
+    expect(contrastRatio(composite(warning, face, 0.7), face)).toBeCloseTo(2.8, 1)
   })
 })
