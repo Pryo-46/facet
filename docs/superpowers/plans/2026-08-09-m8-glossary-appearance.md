@@ -28,43 +28,45 @@
 
 **新規作成**
 
-| ファイル | 責務 |
-| --- | --- |
-| `src/core/column-resize.ts` | 列幅の純関数・store の factory・ポインタ配線のフック。全ツール共用（rev 10章の実装規約） |
-| `src/core/column-resize.test.ts` | 上記の単体テスト |
-| `src/modules/glossary/columns.ts` | 用語テーブルの列定義（並び・既定幅・幅配列との添字対応） |
-| `src/modules/glossary/columns.test.ts` | 上記の単体テスト |
-| `src/modules/glossary/column-widths.ts` | 用語集の列幅 store のインスタンスと寸法定数 |
-| `docs/history/m8-glossary-editor-appearance.md` | M8 の申し送り |
+| ファイル                                        | 責務                                                                                     |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `src/core/column-resize.ts`                     | 列幅の純関数・store の factory・ポインタ配線のフック。全ツール共用（rev 10章の実装規約） |
+| `src/core/column-resize.test.ts`                | 上記の単体テスト                                                                         |
+| `src/modules/glossary/columns.ts`               | 用語テーブルの列定義（並び・既定幅・幅配列との添字対応）                                 |
+| `src/modules/glossary/columns.test.ts`          | 上記の単体テスト                                                                         |
+| `src/modules/glossary/column-widths.ts`         | 用語集の列幅 store のインスタンスと寸法定数                                              |
+| `docs/history/m8-glossary-editor-appearance.md` | M8 の申し送り                                                                            |
 
 **変更**
 
-| ファイル | 変更の要点 |
-| --- | --- |
-| `src/styles/contrast.ts` | アルファ合成（`composite`）と sRGB 伝達関数の公開 |
-| `src/styles/palette.test.ts` | 重ね合わせのコントラスト検証、実装との紐づき検査、方眼紙ユーティリティの検査 |
-| `src/components/CellInput.tsx` | `multiline`（textarea・5行上限） |
-| `src/components/FileList.tsx` | 行の高さ・区切り・選択状態・`aria-describedby` |
-| `src/modules/glossary/GlossaryEditor.tsx` | 骨格・額縁・色・折り返し・列幅ハンドル |
-| `src/modules/glossary/markdown.ts` | 見出しのエスケープとコメントの訂正 |
-| `src/App.tsx` | 方眼紙の地・面の塗り分け・ボタンの variant |
-| `src/index.css` | 方眼紙ユーティリティとマス目のサイズ |
-| `src/core/app-controller.ts` | `exportMarkdown` の読み直し・`dropModal` の対象・コメントの復元 |
-| `src/core/external-change.ts` | 選択外ファイルの通知メッセージの出し分け |
-| `src/core/file-naming.ts` | Windows の予約デバイス名と末尾のドット・空白 |
-| `src-tauri/src/lib.rs` | `move_to_trash` の非同期化 |
-| `tsconfig.test.json` | 説明を JSONC コメントへ |
-| `docs/overview-rev.md` / `docs/open-issues.md` / `docs/README.md` | 反映と棚卸し |
+| ファイル                                                          | 変更の要点                                                                   |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `src/styles/contrast.ts`                                          | アルファ合成（`composite`）と sRGB 伝達関数の公開                            |
+| `src/styles/palette.test.ts`                                      | 重ね合わせのコントラスト検証、実装との紐づき検査、方眼紙ユーティリティの検査 |
+| `src/components/CellInput.tsx`                                    | `multiline`（textarea・5行上限）                                             |
+| `src/components/FileList.tsx`                                     | 行の高さ・区切り・選択状態・`aria-describedby`                               |
+| `src/modules/glossary/GlossaryEditor.tsx`                         | 骨格・額縁・色・折り返し・列幅ハンドル                                       |
+| `src/modules/glossary/markdown.ts`                                | 見出しのエスケープとコメントの訂正                                           |
+| `src/App.tsx`                                                     | 方眼紙の地・面の塗り分け・ボタンの variant                                   |
+| `src/index.css`                                                   | 方眼紙ユーティリティとマス目のサイズ                                         |
+| `src/core/app-controller.ts`                                      | `exportMarkdown` の読み直し・`dropModal` の対象・コメントの復元              |
+| `src/core/external-change.ts`                                     | 選択外ファイルの通知メッセージの出し分け                                     |
+| `src/core/file-naming.ts`                                         | Windows の予約デバイス名と末尾のドット・空白                                 |
+| `src-tauri/src/lib.rs`                                            | `move_to_trash` の非同期化                                                   |
+| `tsconfig.test.json`                                              | 説明を JSONC コメントへ                                                      |
+| `docs/overview-rev.md` / `docs/open-issues.md` / `docs/README.md` | 反映と棚卸し                                                                 |
 
 ---
 
 ## Task 1: アルファ合成をコントラスト計算に足す
 
 **Files:**
+
 - Modify: `src/styles/contrast.ts`
 - Test: `src/styles/contrast.test.ts`
 
 **Interfaces:**
+
 - Consumes: 既存の `LinearRgb`（`readonly [number, number, number]`）
 - Produces: `encodeSrgb(v: number): number` / `decodeSrgb(v: number): number` / `composite(fg: LinearRgb, bg: LinearRgb, alpha: number): LinearRgb`。Task 2 が `composite` を使う
 
@@ -73,41 +75,44 @@
 `src/styles/contrast.test.ts` の末尾に追記する（既存の `describe` は消さない）。ファイル先頭の `import` に `composite`, `decodeSrgb`, `encodeSrgb` と、型 `LinearRgb` を足すこと。
 
 ```ts
-describe('アルファ合成', () => {
-  const BLACK: LinearRgb = [0, 0, 0]
-  const WHITE: LinearRgb = [1, 1, 1]
+describe("アルファ合成", () => {
+  const BLACK: LinearRgb = [0, 0, 0];
+  const WHITE: LinearRgb = [1, 1, 1];
 
-  it('alpha 1 は前景そのもの、alpha 0 は背景そのもの', () => {
-    expect(composite(BLACK, WHITE, 1)).toEqual(BLACK)
-    expect(composite(BLACK, WHITE, 0)).toEqual(WHITE)
-  })
+  it("alpha 1 は前景そのもの、alpha 0 は背景そのもの", () => {
+    expect(composite(BLACK, WHITE, 1)).toEqual(BLACK);
+    expect(composite(BLACK, WHITE, 0)).toEqual(WHITE);
+  });
 
-  it('合成はガンマ補正済み sRGB 上で行う（線形空間で混ぜない）', () => {
+  it("合成はガンマ補正済み sRGB 上で行う（線形空間で混ぜない）", () => {
     // ガンマ空間で 0.5 に混ざった結果を線形へ戻すと 0.2140。
     // 線形空間で混ぜていたら 0.5 になる——この差がこのテストの主張である。
     // **toHex を経由しない**：黒と白の中点は 127.5 と丸めの境界に乗るため、
     // 期待値が処理系の丸めに依存する（閾値ちょうどの値を置かない）
-    const [r, g, b] = composite(BLACK, WHITE, 0.5)
-    expect(r).toBeCloseTo(0.214, 4)
-    expect(g).toBeCloseTo(0.214, 4)
-    expect(b).toBeCloseTo(0.214, 4)
-  })
+    const [r, g, b] = composite(BLACK, WHITE, 0.5);
+    expect(r).toBeCloseTo(0.214, 4);
+    expect(g).toBeCloseTo(0.214, 4);
+    expect(b).toBeCloseTo(0.214, 4);
+  });
 
-  it('sRGB の伝達関数が往復する', () => {
+  it("sRGB の伝達関数が往復する", () => {
     for (const v of [0, 0.001, 0.05, 0.25, 0.5, 0.9, 1]) {
-      expect(decodeSrgb(encodeSrgb(v))).toBeCloseTo(v, 10)
+      expect(decodeSrgb(encodeSrgb(v))).toBeCloseTo(v, 10);
     }
-  })
+  });
 
-  it('現行のプレースホルダの重ね（text-warning/70 を warning/10 の面へ）が 2.8:1 付近になる', () => {
+  it("現行のプレースホルダの重ね（text-warning/70 を warning/10 の面へ）が 2.8:1 付近になる", () => {
     // docs/open-issues.md が実測として記録した値。合成モデルが
     // 正しいことの裏付けであり、壊れたら計算のどこかが狂っている
-    const surface = oklchToLinear({ L: 0.961, C: 0.007, H: 88.6 })
-    const warning = oklchToLinear({ L: 0.518, C: 0.132, H: 34.6 })
-    const face = composite(warning, surface, 0.1)
-    expect(contrastRatio(composite(warning, face, 0.7), face)).toBeCloseTo(2.8, 1)
-  })
-})
+    const surface = oklchToLinear({ L: 0.961, C: 0.007, H: 88.6 });
+    const warning = oklchToLinear({ L: 0.518, C: 0.132, H: 34.6 });
+    const face = composite(warning, surface, 0.1);
+    expect(contrastRatio(composite(warning, face, 0.7), face)).toBeCloseTo(
+      2.8,
+      1,
+    );
+  });
+});
 ```
 
 - [ ] **Step 2: テストが落ちることを確認する**
@@ -128,12 +133,12 @@ npx vitest run src/styles/contrast.test.ts
  * `toHex` が内側に持っていた式をここへ出した（合成でも同じ式が要るため）
  */
 export function encodeSrgb(v: number): number {
-  return v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055
+  return v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055;
 }
 
 /** ガンマ補正済み sRGB（0..1）→ 線形 sRGB。`encodeSrgb` の逆 */
 export function decodeSrgb(v: number): number {
-  return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
+  return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
 }
 
 /**
@@ -148,10 +153,16 @@ export function decodeSrgb(v: number): number {
  * 「元の色にアルファ 25% が付いたもの」と厳密に等価であり、そのあと
  * ブラウザがこの関数と同じ合成を行う。だから alpha をそのまま渡してよい
  */
-export function composite(fg: LinearRgb, bg: LinearRgb, alpha: number): LinearRgb {
+export function composite(
+  fg: LinearRgb,
+  bg: LinearRgb,
+  alpha: number,
+): LinearRgb {
   const mix = (i: 0 | 1 | 2): number =>
-    decodeSrgb(clamp01(encodeSrgb(fg[i]) * alpha + encodeSrgb(bg[i]) * (1 - alpha)))
-  return [mix(0), mix(1), mix(2)]
+    decodeSrgb(
+      clamp01(encodeSrgb(fg[i]) * alpha + encodeSrgb(bg[i]) * (1 - alpha)),
+    );
+  return [mix(0), mix(1), mix(2)];
 }
 ```
 
@@ -163,8 +174,8 @@ export function toHex(rgb: LinearRgb): string {
   const channel = (v: number): string =>
     Math.round(clamp01(encodeSrgb(v)) * 255)
       .toString(16)
-      .padStart(2, '0')
-  return `#${channel(rgb[0])}${channel(rgb[1])}${channel(rgb[2])}`
+      .padStart(2, "0");
+  return `#${channel(rgb[0])}${channel(rgb[1])}${channel(rgb[2])}`;
 }
 ```
 
@@ -190,10 +201,12 @@ git commit -m "半透明の重ね合わせをコントラスト計算に足す"
 ## Task 2: 用語集の警告色を確定する
 
 **Files:**
+
 - Modify: `src/styles/palette.test.ts`
 - Modify: `src/modules/glossary/GlossaryEditor.tsx`
 
 **Interfaces:**
+
 - Consumes: Task 1 の `composite`
 - Produces: `errorCell = 'bg-warning/20'` / `warnCell = 'bg-warning/10'` が確定し、`palette.test.ts` がそれを実装と紐づけて検査する
 
@@ -209,40 +222,40 @@ git commit -m "半透明の重ね合わせをコントラスト計算に足す"
  * errorCell / warnCell と一致していなければならない**（下の紐づき検査が見る）
  */
 const OVERLAYS = [
-  { label: 'エラーセル', alpha: 0.2, className: 'bg-warning/20' },
-  { label: '未定義・未分類セル', alpha: 0.1, className: 'bg-warning/10' },
-] as const
+  { label: "エラーセル", alpha: 0.2, className: "bg-warning/20" },
+  { label: "未定義・未分類セル", alpha: 0.1, className: "bg-warning/10" },
+] as const;
 
 /**
  * これらの面の上に置く文字。**warning は置かない**（M8 決定12）——
  * 測ると warning/10 の面の上で 4.59:1 しか出ず、同系色が重なって読みにくい
  */
 const OVERLAY_FOREGROUNDS = [
-  { token: 'ink', use: '本文' },
-  { token: 'ink-muted', use: 'プレースホルダ「未定義」' },
-] as const
+  { token: "ink", use: "本文" },
+  { token: "ink-muted", use: "プレースホルダ「未定義」" },
+] as const;
 
 /** 閾値ちょうどを置かない（M7 の教訓）。本文 4.5:1 に3%の余裕 */
-const OVERLAY_MIN = 4.5 * 1.03
+const OVERLAY_MIN = 4.5 * 1.03;
 ```
 
 次に、既存の `for (const mode of MODES) { describe(...) }` ブロックの中、`warning-fg` / `ok-fg` のループの**直後**に足す。
 
 ```ts
-    for (const bg of BACKGROUNDS) {
-      for (const overlay of OVERLAYS) {
-        for (const fg of OVERLAY_FOREGROUNDS) {
-          it(`${fg.token}（${fg.use}）が ${overlay.className} を ${bg} に重ねた面の上で ${OVERLAY_MIN.toFixed(2)}:1 以上`, () => {
-            const face = composite(palette.warning, palette[bg], overlay.alpha)
-            const ratio = contrastRatio(palette[fg.token], face)
-            expect(
-              ratio,
-              `${toHex(palette[fg.token])} / ${toHex(face)} = ${ratio.toFixed(2)}:1`,
-            ).toBeGreaterThanOrEqual(OVERLAY_MIN)
-          })
-        }
-      }
+for (const bg of BACKGROUNDS) {
+  for (const overlay of OVERLAYS) {
+    for (const fg of OVERLAY_FOREGROUNDS) {
+      it(`${fg.token}（${fg.use}）が ${overlay.className} を ${bg} に重ねた面の上で ${OVERLAY_MIN.toFixed(2)}:1 以上`, () => {
+        const face = composite(palette.warning, palette[bg], overlay.alpha);
+        const ratio = contrastRatio(palette[fg.token], face);
+        expect(
+          ratio,
+          `${toHex(palette[fg.token])} / ${toHex(face)} = ${ratio.toFixed(2)}:1`,
+        ).toBeGreaterThanOrEqual(OVERLAY_MIN);
+      });
     }
+  }
+}
 ```
 
 さらにファイル末尾へ、実装との紐づき検査を足す。
@@ -258,31 +271,36 @@ const OVERLAY_MIN = 4.5 * 1.03
  * 踏んだ「計画自身が機械検査と衝突する」形そのものである
  */
 const stripTsComments = (source: string): string =>
-  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+  source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 
 const glossaryEditorSource = stripTsComments(
-  readFileSync(new URL('../modules/glossary/GlossaryEditor.tsx', import.meta.url), 'utf8'),
-)
+  readFileSync(
+    new URL("../modules/glossary/GlossaryEditor.tsx", import.meta.url),
+    "utf8",
+  ),
+);
 
-describe('重ね合わせの値が実装と一致している', () => {
+describe("重ね合わせの値が実装と一致している", () => {
   // 上の検算は OVERLAYS の alpha を見ているだけなので、実装が別の濃さを
   // 使っていても緑になる。**検算と実装を繋ぐのはこの検査である**
   for (const overlay of OVERLAYS) {
     it(`GlossaryEditor が ${overlay.className}（${overlay.label}）を使っている`, () => {
-      expect(glossaryEditorSource).toContain(overlay.className)
-    })
+      expect(glossaryEditorSource).toContain(overlay.className);
+    });
   }
 
-  it('検算していない濃さを使っていない', () => {
-    const used = [...glossaryEditorSource.matchAll(/bg-warning\/(\d+)/g)].map((m) => Number(m[1]))
-    const known = OVERLAYS.map((o) => Math.round(o.alpha * 100))
-    expect([...new Set(used)].filter((u) => !known.includes(u))).toEqual([])
-  })
+  it("検算していない濃さを使っていない", () => {
+    const used = [...glossaryEditorSource.matchAll(/bg-warning\/(\d+)/g)].map(
+      (m) => Number(m[1]),
+    );
+    const known = OVERLAYS.map((o) => Math.round(o.alpha * 100));
+    expect([...new Set(used)].filter((u) => !known.includes(u))).toEqual([]);
+  });
 
-  it('プレースホルダに warning 系の文字色を使っていない（M8 決定12）', () => {
-    expect(glossaryEditorSource).not.toMatch(/placeholder:text-warning/)
-  })
-})
+  it("プレースホルダに warning 系の文字色を使っていない（M8 決定12）", () => {
+    expect(glossaryEditorSource).not.toMatch(/placeholder:text-warning/);
+  });
+});
 ```
 
 - [ ] **Step 2: テストが落ちることを確認する**
@@ -306,34 +324,38 @@ npx vitest run src/styles/palette.test.ts
 // **濃さは M8 で確定した**（設計スペック 決定13）。合成後のコントラストは
 // src/styles/palette.test.ts が機械検査しており、値を変えるとそちらが落ちる。
 // /25 はダークの surface 上で ink-muted が 4.58:1 に落ちるため使えない
-const errorCell = 'bg-warning/20'
-const warnCell = 'bg-warning/10'
+const errorCell = "bg-warning/20";
+const warnCell = "bg-warning/10";
 
 /** 列の境界の縦罫。先頭列には引かない（M8 決定2） */
-const colBorder = 'border-l border-grid'
+const colBorder = "border-l border-grid";
 ```
 
 次に `mark` の定義（`:244`）を、エラーと warning を合成できる形へ置き換える。
 
 ```ts
-  const hasError = (index: number, field: string): boolean =>
-    marks.get(index)?.has(field) ?? false
+const hasError = (index: number, field: string): boolean =>
+  marks.get(index)?.has(field) ?? false;
 
-  /**
-   * セルの面を決める。**エラーは warning より強いので優先する。**
-   * 定義セル・種別セルも `hasError` を見る——見ていないと、これらを指す
-   * 検証ルールが増えた時点で「issue 一覧には出るのにセルが赤くならない」に
-   * なる（M8 でつぶした残件2）。いまは該当ルールが無いので到達しない。
-   *
-   * **行全体が赤いときはセルを塗らない。** 同じ半透明を二重に重ねると
-   * 検証済みの濃さ（warning/20）より濃くなり、コントラストが
-   * palette.test.ts の検証範囲の外へ出る。ID 重複と名称重複が同時に
-   * 起きた行で実際に発生する組み合わせである
-   */
-  const cellFace = (index: number, field: GlossaryField, warn = false): string => {
-    if (hasError(index, 'id')) return ''
-    return hasError(index, field) ? errorCell : warn ? warnCell : ''
-  }
+/**
+ * セルの面を決める。**エラーは warning より強いので優先する。**
+ * 定義セル・種別セルも `hasError` を見る——見ていないと、これらを指す
+ * 検証ルールが増えた時点で「issue 一覧には出るのにセルが赤くならない」に
+ * なる（M8 でつぶした残件2）。いまは該当ルールが無いので到達しない。
+ *
+ * **行全体が赤いときはセルを塗らない。** 同じ半透明を二重に重ねると
+ * 検証済みの濃さ（warning/20）より濃くなり、コントラストが
+ * palette.test.ts の検証範囲の外へ出る。ID 重複と名称重複が同時に
+ * 起きた行で実際に発生する組み合わせである
+ */
+const cellFace = (
+  index: number,
+  field: GlossaryField,
+  warn = false,
+): string => {
+  if (hasError(index, "id")) return "";
+  return hasError(index, field) ? errorCell : warn ? warnCell : "";
+};
 ```
 
 各セルの `className` を差し替える。
@@ -378,16 +400,18 @@ const colBorder = 'border-l border-grid'
 `</select>` の直後（`<td>` の中）に矢印を足す。
 
 ```tsx
-                  {/* appearance-none で消えた矢印を描き直す。**背景画像の
+{
+  /* appearance-none で消えた矢印を描き直す。**背景画像の
                       data URI は使わない**——色値を書くことになり
-                      conventions.test.ts が弾く（M8 決定14） */}
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 12 12"
-                    className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 fill-none stroke-current stroke-2 text-ink-muted"
-                  >
-                    <path d="M3 4.5 L6 7.5 L9 4.5" />
-                  </svg>
+                      conventions.test.ts が弾く（M8 決定14） */
+}
+<svg
+  aria-hidden="true"
+  viewBox="0 0 12 12"
+  className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 fill-none stroke-current stroke-2 text-ink-muted"
+>
+  <path d="M3 4.5 L6 7.5 L9 4.5" />
+</svg>;
 ```
 
 - [ ] **Step 5: テストが通ることを確認する**
@@ -412,11 +436,13 @@ git commit -m "用語集の警告色を実測で確定し、定義セル・種�
 ## Task 3: テーブルの骨格と額縁
 
 **Files:**
+
 - Create: `src/modules/glossary/columns.ts`
 - Create: `src/modules/glossary/columns.test.ts`
 - Modify: `src/modules/glossary/GlossaryEditor.tsx`
 
 **Interfaces:**
+
 - Consumes: `FIELD_ORDER` / `FIELD_LABELS` / `GlossaryField`（`./fields`）
 - Produces: `COLUMNS: readonly ColumnSpec[]` / `WIDTH_INDEX: readonly (number | null)[]` / `DEFAULT_WIDTHS: readonly number[]`。Task 6 が `DEFAULT_WIDTHS` と `WIDTH_INDEX` を使う
 
@@ -427,36 +453,38 @@ git commit -m "用語集の警告色を実測で確定し、定義セル・種�
 `src/modules/glossary/columns.test.ts` を新規作成する。
 
 ```ts
-import { describe, expect, it } from 'vitest'
-import { COLUMNS, DEFAULT_WIDTHS, WIDTH_INDEX } from './columns'
-import { FIELD_ORDER } from './fields'
+import { describe, expect, it } from "vitest";
+import { COLUMNS, DEFAULT_WIDTHS, WIDTH_INDEX } from "./columns";
+import { FIELD_ORDER } from "./fields";
 
-describe('用語テーブルの列', () => {
-  it('列の並びが FIELD_ORDER と一致する', () => {
+describe("用語テーブルの列", () => {
+  it("列の並びが FIELD_ORDER と一致する", () => {
     // 表の列と Tab のセル移動順が食い違うと、操作言語が破綻する
-    expect(COLUMNS.map((c) => c.field)).toEqual([...FIELD_ORDER])
-  })
+    expect(COLUMNS.map((c) => c.field)).toEqual([...FIELD_ORDER]);
+  });
 
-  it('幅を持たない列は定義列だけ（残りを埋める列）', () => {
-    expect(COLUMNS.filter((c) => c.defaultWidth === null).map((c) => c.field)).toEqual([
-      'definition',
-    ])
-  })
+  it("幅を持たない列は定義列だけ（残りを埋める列）", () => {
+    expect(
+      COLUMNS.filter((c) => c.defaultWidth === null).map((c) => c.field),
+    ).toEqual(["definition"]);
+  });
 
-  it('WIDTH_INDEX が COLUMNS の添字を幅配列の添字へ写す', () => {
+  it("WIDTH_INDEX が COLUMNS の添字を幅配列の添字へ写す", () => {
     // 幅配列は固定幅の4列だけを持つので、COLUMNS の添字とは一致しない。
     // ここを取り違えると、掴んだ列と動く列がずれる
-    expect(WIDTH_INDEX).toEqual([0, 1, null, 2, 3])
-  })
+    expect(WIDTH_INDEX).toEqual([0, 1, null, 2, 3]);
+  });
 
-  it('既定幅が並び順で並ぶ', () => {
-    expect(DEFAULT_WIDTHS).toEqual([176, 128, 176, 256])
-  })
+  it("既定幅が並び順で並ぶ", () => {
+    expect(DEFAULT_WIDTHS).toEqual([176, 128, 176, 256]);
+  });
 
-  it('幅を持つ列の数と DEFAULT_WIDTHS の長さが一致する', () => {
-    expect(DEFAULT_WIDTHS).toHaveLength(COLUMNS.filter((c) => c.defaultWidth !== null).length)
-  })
-})
+  it("幅を持つ列の数と DEFAULT_WIDTHS の長さが一致する", () => {
+    expect(DEFAULT_WIDTHS).toHaveLength(
+      COLUMNS.filter((c) => c.defaultWidth !== null).length,
+    );
+  });
+});
 ```
 
 - [ ] **Step 2: テストが落ちることを確認する**
@@ -470,7 +498,7 @@ npx vitest run src/modules/glossary/columns.test.ts
 - [ ] **Step 3: `columns.ts` を書く**
 
 ```ts
-import type { GlossaryField } from './fields'
+import type { GlossaryField } from "./fields";
 
 /**
  * 用語テーブルの列（M8 決定1）。
@@ -481,18 +509,18 @@ import type { GlossaryField } from './fields'
  * 窓を狭めたときも定義列が縮んで吸収する
  */
 export interface ColumnSpec {
-  field: GlossaryField
-  defaultWidth: number | null
+  field: GlossaryField;
+  defaultWidth: number | null;
 }
 
 export const COLUMNS: readonly ColumnSpec[] = [
-  { field: 'name', defaultWidth: 176 },
-  { field: 'kind', defaultWidth: 128 },
-  { field: 'definition', defaultWidth: null },
-  { field: 'aliases', defaultWidth: 176 },
+  { field: "name", defaultWidth: 176 },
+  { field: "kind", defaultWidth: 128 },
+  { field: "definition", defaultWidth: null },
+  { field: "aliases", defaultWidth: 176 },
   // 備考は自由記述で長くなりやすいので、名称・別名より広く取る（M7 の要望7）
-  { field: 'notes', defaultWidth: 256 },
-]
+  { field: "notes", defaultWidth: 256 },
+];
 
 /**
  * COLUMNS の添字 → 幅配列の添字。幅を持たない列は null。
@@ -501,14 +529,14 @@ export const COLUMNS: readonly ColumnSpec[] = [
  * 一致しない。対応をここ1箇所に閉じ、コンポーネント側で添字を計算しない
  */
 export const WIDTH_INDEX: readonly (number | null)[] = (() => {
-  let n = 0
-  return COLUMNS.map((c) => (c.defaultWidth === null ? null : n++))
-})()
+  let n = 0;
+  return COLUMNS.map((c) => (c.defaultWidth === null ? null : n++));
+})();
 
 /** 固定幅を持つ列の既定幅（並び順）。列幅 store の初期値になる */
 export const DEFAULT_WIDTHS: readonly number[] = COLUMNS.flatMap((c) =>
   c.defaultWidth === null ? [] : [c.defaultWidth],
-)
+);
 ```
 
 - [ ] **Step 4: テストが通ることを確認する**
@@ -588,12 +616,14 @@ git commit -m "用語テーブルを table-fixed + colgroup へ組み替え、�
 ## Task 4: CellInput の複数行対応
 
 **Files:**
+
 - Modify: `src/components/CellInput.tsx`
 - Modify: `src/modules/glossary/GlossaryEditor.tsx`
 - Modify: `src/modules/glossary/markdown.ts`
 - Test: `src/components/CellInput.dom.test.tsx`, `src/modules/glossary/GlossaryEditor.dom.test.tsx`
 
 **Interfaces:**
+
 - Produces: `CellInputProps.multiline?: boolean`。`onFieldKeyDown` の引数の型が `React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>` へ広がる
 
 設計スペックの決定4・5・6、要望6。
@@ -640,28 +670,28 @@ describe('CellInput: 複数行', () => {
 `src/modules/glossary/GlossaryEditor.dom.test.tsx` の `describe('GlossaryEditor: 行の操作言語')` の中に追記する。
 
 ```ts
-  it('定義セルの Enter は行追加として消費される（改行にしない）', () => {
-    renderEditor(twoTerms)
-    const cell = screen.getByLabelText('定義（1行目）')
-    // fireEvent は preventDefault されると false を返す
-    expect(fireEvent.keyDown(cell, { key: 'Enter' })).toBe(false)
-    expect(screen.getAllByLabelText(/^名称/)).toHaveLength(3)
-  })
+it("定義セルの Enter は行追加として消費される（改行にしない）", () => {
+  renderEditor(twoTerms);
+  const cell = screen.getByLabelText("定義（1行目）");
+  // fireEvent は preventDefault されると false を返す
+  expect(fireEvent.keyDown(cell, { key: "Enter" })).toBe(false);
+  expect(screen.getAllByLabelText(/^名称/)).toHaveLength(3);
+});
 
-  it('定義セルの Shift+Enter は既定動作に委ねる（セル内改行。M8 決定6）', () => {
-    renderEditor(twoTerms)
-    const cell = screen.getByLabelText('定義（1行目）')
-    // 止めない＝ブラウザが改行を入れる。行は増えない
-    expect(fireEvent.keyDown(cell, { key: 'Enter', shiftKey: true })).toBe(true)
-    expect(screen.getAllByLabelText(/^名称/)).toHaveLength(2)
-  })
+it("定義セルの Shift+Enter は既定動作に委ねる（セル内改行。M8 決定6）", () => {
+  renderEditor(twoTerms);
+  const cell = screen.getByLabelText("定義（1行目）");
+  // 止めない＝ブラウザが改行を入れる。行は増えない
+  expect(fireEvent.keyDown(cell, { key: "Enter", shiftKey: true })).toBe(true);
+  expect(screen.getAllByLabelText(/^名称/)).toHaveLength(2);
+});
 
-  it('定義セルの Alt+Enter も既定動作に委ねる（Excel のセル内改行の手癖）', () => {
-    renderEditor(twoTerms)
-    const cell = screen.getByLabelText('定義（1行目）')
-    expect(fireEvent.keyDown(cell, { key: 'Enter', altKey: true })).toBe(true)
-    expect(screen.getAllByLabelText(/^名称/)).toHaveLength(2)
-  })
+it("定義セルの Alt+Enter も既定動作に委ねる（Excel のセル内改行の手癖）", () => {
+  renderEditor(twoTerms);
+  const cell = screen.getByLabelText("定義（1行目）");
+  expect(fireEvent.keyDown(cell, { key: "Enter", altKey: true })).toBe(true);
+  expect(screen.getAllByLabelText(/^名称/)).toHaveLength(2);
+});
 ```
 
 - [ ] **Step 2: テストが落ちることを確認する**
@@ -677,32 +707,32 @@ npx vitest run src/components/CellInput.dom.test.tsx src/modules/glossary/Glossa
 `src/components/CellInput.tsx` を全面的に書き換える。
 
 ```tsx
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from "react";
 
 /** キー処理に必要な入力欄の状態。操作言語の KeyContext に詰め替えて使う */
 export interface FieldState {
-  empty: boolean
-  caretAtStart: boolean
-  caretAtEnd: boolean
+  empty: boolean;
+  caretAtStart: boolean;
+  caretAtEnd: boolean;
 }
 
 /** 折り返しの上限。これを超えたらセル内スクロールに切り替わる（M8 決定5） */
-const MAX_ROWS = 5
+const MAX_ROWS = 5;
 
 export interface CellInputProps {
-  value: string
-  onValueChange: (next: string) => void
+  value: string;
+  onValueChange: (next: string) => void;
   /**
    * 生入力をデータに載せる値へ変換する。null＝この入力はデータに反映しない。
    * 例: 名称はスキーマで minLength 1 なので、空にしている途中の状態を
    * 書き込むとレベル1違反ファイルを自分で作ってしまう
    */
-  sanitize?: (raw: string) => string | null
+  sanitize?: (raw: string) => string | null;
   /** キー処理は呼び出し側（操作言語）が行う。ここではキーの意味を決めない */
   onFieldKeyDown?: (
     e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
     state: FieldState,
-  ) => void
+  ) => void;
   /**
    * 折り返す（textarea にする）。定義・備考のように自由記述が入る欄だけ true。
    *
@@ -710,11 +740,11 @@ export interface CellInputProps {
    * 含むペーストから改行を落とすので、「名称に改行が入って Markdown の
    * 見出しと表が壊れる」経路が構造的に塞がる（M8 決定4）
    */
-  multiline?: boolean
-  placeholder?: string
-  className?: string
-  'aria-label': string
-  'data-cell'?: string
+  multiline?: boolean;
+  placeholder?: string;
+  className?: string;
+  "aria-label": string;
+  "data-cell"?: string;
 }
 
 /**
@@ -730,25 +760,32 @@ export interface CellInputProps {
  *   Shift+Enter / Alt+Enter は誰も消費しないのでブラウザが改行を入れる
  */
 export function CellInput(props: CellInputProps) {
-  const { value, onValueChange, sanitize, onFieldKeyDown, multiline, placeholder, className } =
-    props
+  const {
+    value,
+    onValueChange,
+    sanitize,
+    onFieldKeyDown,
+    multiline,
+    placeholder,
+    className,
+  } = props;
   // 未反映の生入力。null＝表示は親の value をそのまま使う
-  const [draft, setDraft] = useState<string | null>(null)
+  const [draft, setDraft] = useState<string | null>(null);
   // 直近に見た親の value。変わったらドラフトを捨てる
-  const [seenValue, setSeenValue] = useState(value)
-  const composing = useRef(false)
-  const areaRef = useRef<HTMLTextAreaElement>(null)
-  const [rows, setRows] = useState(1)
+  const [seenValue, setSeenValue] = useState(value);
+  const composing = useRef(false);
+  const areaRef = useRef<HTMLTextAreaElement>(null);
+  const [rows, setRows] = useState(1);
 
   if (value !== seenValue) {
-    setSeenValue(value)
-    setDraft(null)
+    setSeenValue(value);
+    setDraft(null);
   }
 
   const commit = (raw: string) => {
-    const next = sanitize ? sanitize(raw) : raw
-    if (next !== null) onValueChange(next)
-  }
+    const next = sanitize ? sanitize(raw) : raw;
+    if (next !== null) onValueChange(next);
+  };
 
   /**
    * 内容に合わせて行数を決める。**ピクセルの max-height を書かない**ので、
@@ -759,64 +796,74 @@ export function CellInput(props: CellInputProps) {
    * 測れないときは何もしない。5行上限が効いているかの確認は実機で行う
    */
   useLayoutEffect(() => {
-    const el = areaRef.current
-    if (el === null) return
-    const style = getComputedStyle(el)
-    const lineHeight = Number.parseFloat(style.lineHeight)
-    if (!Number.isFinite(lineHeight) || lineHeight <= 0) return
-    const paddingTop = Number.parseFloat(style.paddingTop)
-    const paddingBottom = Number.parseFloat(style.paddingBottom)
+    const el = areaRef.current;
+    if (el === null) return;
+    const style = getComputedStyle(el);
+    const lineHeight = Number.parseFloat(style.lineHeight);
+    if (!Number.isFinite(lineHeight) || lineHeight <= 0) return;
+    const paddingTop = Number.parseFloat(style.paddingTop);
+    const paddingBottom = Number.parseFloat(style.paddingBottom);
     const padding =
       (Number.isFinite(paddingTop) ? paddingTop : 0) +
-      (Number.isFinite(paddingBottom) ? paddingBottom : 0)
+      (Number.isFinite(paddingBottom) ? paddingBottom : 0);
     // 測るために一度1行へ戻す。React は次のレンダで rows を書き戻す
-    el.rows = 1
-    const needed = Math.max(1, Math.round((el.scrollHeight - padding) / lineHeight))
-    const next = Math.min(needed, MAX_ROWS)
-    el.rows = next
-    setRows((prev) => (prev === next ? prev : next))
-  }, [draft, value, multiline])
+    el.rows = 1;
+    const needed = Math.max(
+      1,
+      Math.round((el.scrollHeight - padding) / lineHeight),
+    );
+    const next = Math.min(needed, MAX_ROWS);
+    el.rows = next;
+    setRows((prev) => (prev === next ? prev : next));
+  }, [draft, value, multiline]);
 
   const shared = {
     className,
     placeholder,
-    'aria-label': props['aria-label'],
-    'data-cell': props['data-cell'],
+    "aria-label": props["aria-label"],
+    "data-cell": props["data-cell"],
     value: draft ?? value,
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      const raw = e.target.value
-      setDraft(raw)
-      if (composing.current) return
-      commit(raw)
+    onChange: (
+      e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    ) => {
+      const raw = e.target.value;
+      setDraft(raw);
+      if (composing.current) return;
+      commit(raw);
     },
     onCompositionStart: () => {
-      composing.current = true
+      composing.current = true;
     },
-    onCompositionEnd: (e: React.CompositionEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      composing.current = false
-      const raw = e.currentTarget.value
-      setDraft(raw)
-      commit(raw)
+    onCompositionEnd: (
+      e: React.CompositionEvent<HTMLInputElement | HTMLTextAreaElement>,
+    ) => {
+      composing.current = false;
+      const raw = e.currentTarget.value;
+      setDraft(raw);
+      commit(raw);
     },
-    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      const el = e.currentTarget
+    onKeyDown: (
+      e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+    ) => {
+      const el = e.currentTarget;
       onFieldKeyDown?.(e, {
-        empty: el.value === '',
+        empty: el.value === "",
         // 折り返しの途中では caretAtStart / caretAtEnd が false になるので、
         // ↑↓ は操作言語に取られずブラウザの行内移動が生きる（M8 決定4）
         caretAtStart: el.selectionStart === 0 && el.selectionEnd === 0,
         caretAtEnd:
-          el.selectionStart === el.value.length && el.selectionEnd === el.value.length,
-      })
+          el.selectionStart === el.value.length &&
+          el.selectionEnd === el.value.length,
+      });
     },
     // 反映されなかった入力（空の名称など）を残さない。抜けたら確定値に戻す
     onBlur: () => setDraft(null),
-  }
+  };
 
   if (multiline) {
-    return <textarea {...shared} ref={areaRef} rows={rows} />
+    return <textarea {...shared} ref={areaRef} rows={rows} />;
   }
-  return <input {...shared} />
+  return <input {...shared} />;
 }
 ```
 
@@ -825,14 +872,18 @@ export function CellInput(props: CellInputProps) {
 `src/modules/glossary/GlossaryEditor.tsx` の `focusCell`（`:69`）を直す。
 
 ```ts
-  if (select && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) el.select()
+if (
+  select &&
+  (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)
+)
+  el.select();
 ```
 
 `cellInput` に `resize-none` を足す（textarea の掴み代を出さない）。
 
 ```ts
 const cellInput =
-  'w-full resize-none bg-transparent px-2 py-1 text-ink outline-none focus:bg-surface rounded-sm'
+  "w-full resize-none bg-transparent px-2 py-1 text-ink outline-none focus:bg-surface rounded-sm";
 ```
 
 定義セルと備考セルの `CellInput` に `multiline` を足す。
@@ -868,31 +919,38 @@ const cellInput =
 あわせて種別グループの見出し（`:80`）を `heading()` に通す。**`title` は通しているのに種別だけ素通しだった。**
 
 ```ts
-    // kindLabel は未知の値に生値を返す（kind-labels.ts）。enum を拡張した版の
-    // ファイルを古いアプリで開くと、改行入りの kind がそのまま見出しへ出て
-    // 「h1 は使わない」（NotePM の階層と衝突する）が崩れる経路になる
-    blocks.push(`### ${heading(kindLabel(kind))}`)
+// kindLabel は未知の値に生値を返す（kind-labels.ts）。enum を拡張した版の
+// ファイルを古いアプリで開くと、改行入りの kind がそのまま見出しへ出て
+// 「h1 は使わない」（NotePM の階層と衝突する）が崩れる経路になる
+blocks.push(`### ${heading(kindLabel(kind))}`);
 ```
 
 先に `src/modules/glossary/markdown.test.ts` へ落ちるテストを足すこと。
 
 ```ts
-  it('未知の種別に改行が入っていても見出しを割らない', () => {
-    // enum 外の kind はスキーマ検証で弾かれるので通常は到達しない。
-    // glossaryToMarkdown を直接呼ぶことで、enum 拡張時の経路だけを再現する
-    const data = {
-      schemaVersion: 1,
-      type: 'glossary',
-      title: 'T',
-      terms: [
-        { id: 'term_xxxxxxxxxx', name: 'N', kind: '未知\n# 見出し', definition: '', aliases: [], notes: '' },
-      ],
-    } as unknown as GlossarySchemaVersion1
-    const md = glossaryToMarkdown(data)
-    expect(md).toContain('### 未知 # 見出し')
-    // 改行が残ると `# 見出し` が h1 として混入する
-    expect(md).not.toMatch(/^# /m)
-  })
+it("未知の種別に改行が入っていても見出しを割らない", () => {
+  // enum 外の kind はスキーマ検証で弾かれるので通常は到達しない。
+  // glossaryToMarkdown を直接呼ぶことで、enum 拡張時の経路だけを再現する
+  const data = {
+    schemaVersion: 1,
+    type: "glossary",
+    title: "T",
+    terms: [
+      {
+        id: "term_xxxxxxxxxx",
+        name: "N",
+        kind: "未知\n# 見出し",
+        definition: "",
+        aliases: [],
+        notes: "",
+      },
+    ],
+  } as unknown as GlossarySchemaVersion1;
+  const md = glossaryToMarkdown(data);
+  expect(md).toContain("### 未知 # 見出し");
+  // 改行が残ると `# 見出し` が h1 として混入する
+  expect(md).not.toMatch(/^# /m);
+});
 ```
 
 - [ ] **Step 6: 検証する**
@@ -917,10 +975,12 @@ git commit -m "定義・備考を折り返せるようにし、種別の見出�
 ## Task 5: 列幅のコアモジュール
 
 **Files:**
+
 - Create: `src/core/column-resize.ts`
 - Create: `src/core/column-resize.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `resizeColumns(spec: ColumnResizeSpec): number[]`
   - `createColumnWidthStore(defaults: readonly number[]): ColumnWidthStore`（`{ defaults, getSnapshot, subscribe, set, reset }`）
@@ -934,87 +994,102 @@ git commit -m "定義・備考を折り返せるようにし、種別の見出�
 `src/core/column-resize.test.ts` を新規作成する。
 
 ```ts
-import { describe, expect, it, vi } from 'vitest'
-import { createColumnWidthStore, resizeColumns } from './column-resize'
+import { describe, expect, it, vi } from "vitest";
+import { createColumnWidthStore, resizeColumns } from "./column-resize";
 
-const base = { widths: [100, 100, 100], minWidth: 88, available: 1000, flexMinWidth: 200 }
+const base = {
+  widths: [100, 100, 100],
+  minWidth: 88,
+  available: 1000,
+  flexMinWidth: 200,
+};
 
-describe('resizeColumns', () => {
-  it('指定した列だけを delta ぶん動かす', () => {
-    expect(resizeColumns({ ...base, index: 1, delta: 50 })).toEqual([100, 150, 100])
-  })
+describe("resizeColumns", () => {
+  it("指定した列だけを delta ぶん動かす", () => {
+    expect(resizeColumns({ ...base, index: 1, delta: 50 })).toEqual([
+      100, 150, 100,
+    ]);
+  });
 
-  it('最小幅より狭くしない', () => {
-    expect(resizeColumns({ ...base, index: 0, delta: -500 })).toEqual([88, 100, 100])
-  })
+  it("最小幅より狭くしない", () => {
+    expect(resizeColumns({ ...base, index: 0, delta: -500 })).toEqual([
+      88, 100, 100,
+    ]);
+  });
 
-  it('残りを埋める列に flexMinWidth を残す（それ以上は広げない）', () => {
+  it("残りを埋める列に flexMinWidth を残す（それ以上は広げない）", () => {
     // 他の列が 200、残りを埋める列に 200 を残すので上限は 1000-200-200=600
-    expect(resizeColumns({ ...base, index: 0, delta: 5000 })).toEqual([600, 100, 100])
-  })
+    expect(resizeColumns({ ...base, index: 0, delta: 5000 })).toEqual([
+      600, 100, 100,
+    ]);
+  });
 
-  it('available が 0 以下なら上限を掛けない', () => {
+  it("available が 0 以下なら上限を掛けない", () => {
     // jsdom には clientWidth が無い（常に 0）。ここで上限を掛けると
     // キーボード操作のテストが「広げられない」に落ちて意味を失う
-    expect(resizeColumns({ ...base, index: 0, delta: 5000, available: 0 })).toEqual([
-      5100, 100, 100,
-    ])
-  })
+    expect(
+      resizeColumns({ ...base, index: 0, delta: 5000, available: 0 }),
+    ).toEqual([5100, 100, 100]);
+  });
 
-  it('上限が最小幅を下回っても最小幅は割らない', () => {
-    expect(resizeColumns({ ...base, index: 0, delta: 10, available: 250 })).toEqual([88, 100, 100])
-  })
+  it("上限が最小幅を下回っても最小幅は割らない", () => {
+    expect(
+      resizeColumns({ ...base, index: 0, delta: 10, available: 250 }),
+    ).toEqual([88, 100, 100]);
+  });
 
-  it('範囲外の index は素通しする', () => {
-    expect(resizeColumns({ ...base, index: 9, delta: 50 })).toEqual([100, 100, 100])
-  })
+  it("範囲外の index は素通しする", () => {
+    expect(resizeColumns({ ...base, index: 9, delta: 50 })).toEqual([
+      100, 100, 100,
+    ]);
+  });
 
-  it('引数の配列を書き換えない', () => {
-    const widths = [100, 100, 100]
-    resizeColumns({ ...base, widths, index: 0, delta: 50 })
-    expect(widths).toEqual([100, 100, 100])
-  })
-})
+  it("引数の配列を書き換えない", () => {
+    const widths = [100, 100, 100];
+    resizeColumns({ ...base, widths, index: 0, delta: 50 });
+    expect(widths).toEqual([100, 100, 100]);
+  });
+});
 
-describe('createColumnWidthStore', () => {
-  it('getSnapshot は変化していなければ同一参照を返す', () => {
+describe("createColumnWidthStore", () => {
+  it("getSnapshot は変化していなければ同一参照を返す", () => {
     // useSyncExternalStore は毎回新しい配列を返すと無限ループする
-    const store = createColumnWidthStore([10, 20])
-    expect(store.getSnapshot()).toBe(store.getSnapshot())
-  })
+    const store = createColumnWidthStore([10, 20]);
+    expect(store.getSnapshot()).toBe(store.getSnapshot());
+  });
 
-  it('set で値が変わり、参照も変わる', () => {
-    const store = createColumnWidthStore([10, 20])
-    const before = store.getSnapshot()
-    store.set([30, 40])
-    expect(store.getSnapshot()).toEqual([30, 40])
-    expect(store.getSnapshot()).not.toBe(before)
-  })
+  it("set で値が変わり、参照も変わる", () => {
+    const store = createColumnWidthStore([10, 20]);
+    const before = store.getSnapshot();
+    store.set([30, 40]);
+    expect(store.getSnapshot()).toEqual([30, 40]);
+    expect(store.getSnapshot()).not.toBe(before);
+  });
 
-  it('reset で既定へ戻る', () => {
-    const store = createColumnWidthStore([10, 20])
-    store.set([30, 40])
-    store.reset()
-    expect(store.getSnapshot()).toEqual([10, 20])
-  })
+  it("reset で既定へ戻る", () => {
+    const store = createColumnWidthStore([10, 20]);
+    store.set([30, 40]);
+    store.reset();
+    expect(store.getSnapshot()).toEqual([10, 20]);
+  });
 
-  it('defaults は set で汚れない', () => {
-    const store = createColumnWidthStore([10, 20])
-    store.set([30, 40])
-    expect(store.defaults).toEqual([10, 20])
-  })
+  it("defaults は set で汚れない", () => {
+    const store = createColumnWidthStore([10, 20]);
+    store.set([30, 40]);
+    expect(store.defaults).toEqual([10, 20]);
+  });
 
-  it('購読者へ通知し、解除すると届かなくなる', () => {
-    const store = createColumnWidthStore([10, 20])
-    const listener = vi.fn()
-    const unsubscribe = store.subscribe(listener)
-    store.set([30, 40])
-    expect(listener).toHaveBeenCalledTimes(1)
-    unsubscribe()
-    store.set([50, 60])
-    expect(listener).toHaveBeenCalledTimes(1)
-  })
-})
+  it("購読者へ通知し、解除すると届かなくなる", () => {
+    const store = createColumnWidthStore([10, 20]);
+    const listener = vi.fn();
+    const unsubscribe = store.subscribe(listener);
+    store.set([30, 40]);
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
+    store.set([50, 60]);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
 ```
 
 - [ ] **Step 2: テストが落ちることを確認する**
@@ -1030,7 +1105,7 @@ npx vitest run src/core/column-resize.test.ts
 `src/core/column-resize.ts` を新規作成する。
 
 ```ts
-import { useCallback, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useRef, useSyncExternalStore } from "react";
 
 /**
  * 表の列幅（rev 10章の実装規約「キーボード・マウス処理は共通フック／
@@ -1043,18 +1118,18 @@ import { useCallback, useRef, useSyncExternalStore } from 'react'
 /** 幅の変更要求。純関数なので単体でテストできる */
 export interface ColumnResizeSpec {
   /** 固定幅を持つ列だけを並び順で持つ配列 */
-  widths: readonly number[]
-  index: number
-  delta: number
-  minWidth: number
+  widths: readonly number[];
+  index: number;
+  delta: number;
+  minWidth: number;
   /**
    * テーブルが使える内寸(px)。**0 以下＝不明**として上限を掛けない。
    * jsdom にはレイアウトが無く clientWidth が 0 になるため、ここで
    * 上限を掛けるとキーボード操作のテストが「広げられない」に落ちる
    */
-  available: number
+  available: number;
   /** 幅を持たない列（残りを埋める列）に残す最小幅 */
-  flexMinWidth: number
+  flexMinWidth: number;
 }
 
 /**
@@ -1062,26 +1137,26 @@ export interface ColumnResizeSpec {
  * 仕事は「残りを埋める列が潰れる操作を止めること」に尽きる
  */
 export function resizeColumns(spec: ColumnResizeSpec): number[] {
-  const { widths, index, delta, minWidth, available, flexMinWidth } = spec
-  const next = [...widths]
-  const current = next[index]
-  if (current === undefined) return next
-  const others = next.reduce((sum, w, i) => (i === index ? sum : sum + w), 0)
+  const { widths, index, delta, minWidth, available, flexMinWidth } = spec;
+  const next = [...widths];
+  const current = next[index];
+  if (current === undefined) return next;
+  const others = next.reduce((sum, w, i) => (i === index ? sum : sum + w), 0);
   const upper =
     available > 0
       ? Math.max(minWidth, available - flexMinWidth - others)
-      : Number.POSITIVE_INFINITY
-  next[index] = Math.min(Math.max(current + delta, minWidth), upper)
-  return next
+      : Number.POSITIVE_INFINITY;
+  next[index] = Math.min(Math.max(current + delta, minWidth), upper);
+  return next;
 }
 
 export interface ColumnWidthStore {
   /** 既定幅。1列だけ戻すときの参照元 */
-  readonly defaults: readonly number[]
-  getSnapshot: () => readonly number[]
-  subscribe: (listener: () => void) => () => void
-  set: (widths: readonly number[]) => void
-  reset: () => void
+  readonly defaults: readonly number[];
+  getSnapshot: () => readonly number[];
+  subscribe: (listener: () => void) => () => void;
+  set: (widths: readonly number[]) => void;
+  reset: () => void;
 }
 
 /**
@@ -1095,33 +1170,35 @@ export interface ColumnWidthStore {
  * **モジュールスコープの可変状態はテスト間で漏れる。**
  * テストの beforeEach で `reset()` を呼ぶこと
  */
-export function createColumnWidthStore(defaults: readonly number[]): ColumnWidthStore {
-  const initial: readonly number[] = [...defaults]
+export function createColumnWidthStore(
+  defaults: readonly number[],
+): ColumnWidthStore {
+  const initial: readonly number[] = [...defaults];
   // **同一参照を返し続けること。** useSyncExternalStore は getSnapshot が
   // 毎回新しい配列を返すと無限ループする
-  let current: readonly number[] = initial
-  const listeners = new Set<() => void>()
+  let current: readonly number[] = initial;
+  const listeners = new Set<() => void>();
   const emit = (): void => {
-    for (const listener of listeners) listener()
-  }
+    for (const listener of listeners) listener();
+  };
   return {
     defaults: initial,
     getSnapshot: () => current,
     subscribe: (listener) => {
-      listeners.add(listener)
+      listeners.add(listener);
       return () => {
-        listeners.delete(listener)
-      }
+        listeners.delete(listener);
+      };
     },
     set: (widths) => {
-      current = [...widths]
-      emit()
+      current = [...widths];
+      emit();
     },
     reset: () => {
-      current = initial
-      emit()
+      current = initial;
+      emit();
     },
-  }
+  };
 }
 ```
 
@@ -1139,26 +1216,26 @@ npx vitest run src/core/column-resize.test.ts
 
 ```ts
 export interface ColumnResizeOptions {
-  store: ColumnWidthStore
-  minWidth: number
-  flexMinWidth: number
+  store: ColumnWidthStore;
+  minWidth: number;
+  flexMinWidth: number;
   /** キーボード（←→）1回あたりの変化量(px) */
-  step: number
+  step: number;
   /** 利用可能幅を測る要素。ドラッグ開始時に1度だけ clientWidth を読む */
-  containerRef: React.RefObject<HTMLElement | null>
+  containerRef: React.RefObject<HTMLElement | null>;
 }
 
 /** ハンドル要素に展開する props。ツール側は配線を書かない */
 export interface HandleProps {
-  role: 'separator'
-  'aria-orientation': 'vertical'
-  tabIndex: 0
-  onPointerDown: (e: React.PointerEvent<HTMLElement>) => void
-  onPointerMove: (e: React.PointerEvent<HTMLElement>) => void
-  onPointerUp: () => void
-  onPointerCancel: () => void
-  onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => void
-  onDoubleClick: () => void
+  role: "separator";
+  "aria-orientation": "vertical";
+  tabIndex: 0;
+  onPointerDown: (e: React.PointerEvent<HTMLElement>) => void;
+  onPointerMove: (e: React.PointerEvent<HTMLElement>) => void;
+  onPointerUp: () => void;
+  onPointerCancel: () => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => void;
+  onDoubleClick: () => void;
 }
 
 /**
@@ -1171,89 +1248,101 @@ export interface HandleProps {
  * **利用可能幅はドラッグ開始時に1度だけ読む。** ドラッグ中に窓は変わらない
  */
 export function useColumnResize(options: ColumnResizeOptions): {
-  widths: readonly number[]
-  getHandleProps: (index: number) => HandleProps
+  widths: readonly number[];
+  getHandleProps: (index: number) => HandleProps;
 } {
-  const { store, minWidth, flexMinWidth, step, containerRef } = options
-  const widths = useSyncExternalStore(store.subscribe, store.getSnapshot)
+  const { store, minWidth, flexMinWidth, step, containerRef } = options;
+  const widths = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const drag = useRef<{
-    index: number
-    startX: number
-    startWidths: readonly number[]
-    available: number
-  } | null>(null)
+    index: number;
+    startX: number;
+    startWidths: readonly number[];
+    available: number;
+  } | null>(null);
 
   const apply = useCallback(
-    (index: number, delta: number, from: readonly number[], available: number): void => {
+    (
+      index: number,
+      delta: number,
+      from: readonly number[],
+      available: number,
+    ): void => {
       store.set(
-        resizeColumns({ widths: from, index, delta, minWidth, available, flexMinWidth }),
-      )
+        resizeColumns({
+          widths: from,
+          index,
+          delta,
+          minWidth,
+          available,
+          flexMinWidth,
+        }),
+      );
     },
     [store, minWidth, flexMinWidth],
-  )
+  );
 
   /** その列だけ既定へ戻す（ダブルクリック・Home）。全列は戻さない */
   const resetColumn = useCallback(
     (index: number): void => {
-      const next = [...store.getSnapshot()]
-      const fallback = store.defaults[index]
-      if (fallback === undefined) return
-      next[index] = fallback
-      store.set(next)
+      const next = [...store.getSnapshot()];
+      const fallback = store.defaults[index];
+      if (fallback === undefined) return;
+      next[index] = fallback;
+      store.set(next);
     },
     [store],
-  )
+  );
 
   const getHandleProps = useCallback(
     (index: number): HandleProps => ({
-      role: 'separator',
-      'aria-orientation': 'vertical',
+      role: "separator",
+      "aria-orientation": "vertical",
       tabIndex: 0,
       onPointerDown: (e) => {
         // 既定動作（テキスト選択）を止めないとドラッグ中に選択が走る
-        e.preventDefault()
-        e.currentTarget.setPointerCapture(e.pointerId)
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
         drag.current = {
           index,
           startX: e.clientX,
           startWidths: store.getSnapshot(),
           available: containerRef.current?.clientWidth ?? 0,
-        }
+        };
       },
       onPointerMove: (e) => {
-        const d = drag.current
-        if (d === null || d.index !== index) return
+        const d = drag.current;
+        if (d === null || d.index !== index) return;
         // **開始時の幅からの差分で計算する。** 直前の幅に足し込むと
         // クランプに当たった後にカーソルを戻したとき追従しなくなる
-        apply(index, e.clientX - d.startX, d.startWidths, d.available)
+        apply(index, e.clientX - d.startX, d.startWidths, d.available);
       },
       onPointerUp: () => {
-        drag.current = null
+        drag.current = null;
       },
       onPointerCancel: () => {
-        drag.current = null
+        drag.current = null;
       },
       onKeyDown: (e) => {
-        if (e.key === 'Home') {
-          e.preventDefault()
-          resetColumn(index)
-          return
+        if (e.key === "Home") {
+          e.preventDefault();
+          resetColumn(index);
+          return;
         }
-        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
-        e.preventDefault()
+        if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+        e.preventDefault();
         apply(
           index,
-          e.key === 'ArrowLeft' ? -step : step,
+          e.key === "ArrowLeft" ? -step : step,
           store.getSnapshot(),
           containerRef.current?.clientWidth ?? 0,
-        )
+        );
       },
       onDoubleClick: () => resetColumn(index),
     }),
     [store, apply, resetColumn, step, containerRef],
-  )
+  );
 
-  return { widths, getHandleProps }
+  return { widths, getHandleProps };
 }
 ```
 
@@ -1279,11 +1368,13 @@ git commit -m "列幅のコアモジュール（純関数・store の factory・
 ## Task 6: 用語集に列幅ドラッグを配線する
 
 **Files:**
+
 - Create: `src/modules/glossary/column-widths.ts`
 - Modify: `src/modules/glossary/GlossaryEditor.tsx`
 - Test: `src/modules/glossary/GlossaryEditor.dom.test.tsx`
 
 **Interfaces:**
+
 - Consumes: Task 5 の `createColumnWidthStore` / `useColumnResize`、Task 3 の `COLUMNS` / `WIDTH_INDEX` / `DEFAULT_WIDTHS`
 - Produces: `glossaryColumnWidths: ColumnWidthStore` / `MIN_COLUMN_WIDTH` / `DEFINITION_MIN_WIDTH` / `RESIZE_STEP`
 
@@ -1292,8 +1383,8 @@ git commit -m "列幅のコアモジュール（純関数・store の factory・
 - [ ] **Step 1: `column-widths.ts` を書く**
 
 ```ts
-import { createColumnWidthStore } from '@/core/column-resize'
-import { DEFAULT_WIDTHS } from './columns'
+import { createColumnWidthStore } from "@/core/column-resize";
+import { DEFAULT_WIDTHS } from "./columns";
 
 /**
  * 用語テーブルの列幅（M8 決定7）。
@@ -1309,16 +1400,16 @@ import { DEFAULT_WIDTHS } from './columns'
  * **モジュールスコープの可変状態はテスト間で漏れる。**
  * DOM テストの beforeEach で `glossaryColumnWidths.reset()` を呼ぶこと
  */
-export const glossaryColumnWidths = createColumnWidthStore(DEFAULT_WIDTHS)
+export const glossaryColumnWidths = createColumnWidthStore(DEFAULT_WIDTHS);
 
 /** 列の最小幅(px)。日本語の見出しが2文字で折り返さない程度 */
-export const MIN_COLUMN_WIDTH = 88
+export const MIN_COLUMN_WIDTH = 88;
 
 /** 定義列（幅を持たない列）に残す最小幅(px) */
-export const DEFINITION_MIN_WIDTH = 200
+export const DEFINITION_MIN_WIDTH = 200;
 
 /** キーボード（←→）1回あたりの変化量(px) */
-export const RESIZE_STEP = 16
+export const RESIZE_STEP = 16;
 ```
 
 - [ ] **Step 2: 失敗するテストを書く**
@@ -1326,48 +1417,57 @@ export const RESIZE_STEP = 16
 `src/modules/glossary/GlossaryEditor.dom.test.tsx` の末尾に追記する。import に `beforeEach` を足し、`glossaryColumnWidths` / `RESIZE_STEP` / `DEFAULT_WIDTHS` を import すること。
 
 ```ts
-describe('GlossaryEditor: 列幅', () => {
+describe("GlossaryEditor: 列幅", () => {
   // モジュールスコープの store はテスト間で漏れる
-  beforeEach(() => glossaryColumnWidths.reset())
+  beforeEach(() => glossaryColumnWidths.reset());
 
-  it('→ で広げ、← で狭められる', () => {
-    renderEditor(twoTerms)
-    const handle = screen.getByRole('separator', { name: '名称の列幅を変更' })
-    fireEvent.keyDown(handle, { key: 'ArrowRight' })
-    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(DEFAULT_WIDTHS[0] + RESIZE_STEP)
-    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
-    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(DEFAULT_WIDTHS[0])
-  })
+  it("→ で広げ、← で狭められる", () => {
+    renderEditor(twoTerms);
+    const handle = screen.getByRole("separator", { name: "名称の列幅を変更" });
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(
+      DEFAULT_WIDTHS[0] + RESIZE_STEP,
+    );
+    fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(DEFAULT_WIDTHS[0]);
+  });
 
-  it('Home でその列だけ既定へ戻る', () => {
-    renderEditor(twoTerms)
-    const name = screen.getByRole('separator', { name: '名称の列幅を変更' })
-    const notes = screen.getByRole('separator', { name: '備考の列幅を変更' })
-    fireEvent.keyDown(name, { key: 'ArrowRight' })
-    fireEvent.keyDown(notes, { key: 'ArrowRight' })
-    fireEvent.keyDown(name, { key: 'Home' })
-    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(DEFAULT_WIDTHS[0])
+  it("Home でその列だけ既定へ戻る", () => {
+    renderEditor(twoTerms);
+    const name = screen.getByRole("separator", { name: "名称の列幅を変更" });
+    const notes = screen.getByRole("separator", { name: "備考の列幅を変更" });
+    fireEvent.keyDown(name, { key: "ArrowRight" });
+    fireEvent.keyDown(notes, { key: "ArrowRight" });
+    fireEvent.keyDown(name, { key: "Home" });
+    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(DEFAULT_WIDTHS[0]);
     // 他の列は戻さない
-    expect(glossaryColumnWidths.getSnapshot()[3]).toBe(DEFAULT_WIDTHS[3] + RESIZE_STEP)
-  })
+    expect(glossaryColumnWidths.getSnapshot()[3]).toBe(
+      DEFAULT_WIDTHS[3] + RESIZE_STEP,
+    );
+  });
 
-  it('幅を持たない定義列にはハンドルが無い', () => {
-    renderEditor(twoTerms)
-    expect(screen.queryByRole('separator', { name: '定義の列幅を変更' })).toBeNull()
-  })
+  it("幅を持たない定義列にはハンドルが無い", () => {
+    renderEditor(twoTerms);
+    expect(
+      screen.queryByRole("separator", { name: "定義の列幅を変更" }),
+    ).toBeNull();
+  });
 
-  it('エディタを作り直しても幅が残る（ファイル切替をまたぐ）', () => {
-    renderEditor(twoTerms)
-    fireEvent.keyDown(screen.getByRole('separator', { name: '名称の列幅を変更' }), {
-      key: 'ArrowRight',
-    })
-    const widened = glossaryColumnWidths.getSnapshot()[0]
+  it("エディタを作り直しても幅が残る（ファイル切替をまたぐ）", () => {
+    renderEditor(twoTerms);
+    fireEvent.keyDown(
+      screen.getByRole("separator", { name: "名称の列幅を変更" }),
+      {
+        key: "ArrowRight",
+      },
+    );
+    const widened = glossaryColumnWidths.getSnapshot()[0];
     // App は key={selected.path} でエディタを作り直す。それを再現する
-    cleanup()
-    renderEditor(twoTerms)
-    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(widened)
-  })
-})
+    cleanup();
+    renderEditor(twoTerms);
+    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(widened);
+  });
+});
 ```
 
 - [ ] **Step 3: テストが落ちることを確認する**
@@ -1383,27 +1483,27 @@ npx vitest run src/modules/glossary/GlossaryEditor.dom.test.tsx
 `src/modules/glossary/GlossaryEditor.tsx` に import を足す。
 
 ```ts
-import { useColumnResize } from '@/core/column-resize'
+import { useColumnResize } from "@/core/column-resize";
 import {
   DEFINITION_MIN_WIDTH,
   glossaryColumnWidths,
   MIN_COLUMN_WIDTH,
   RESIZE_STEP,
-} from './column-widths'
+} from "./column-widths";
 ```
 
 コンポーネントの中、`const rowKeys = ...` の前に足す。
 
 ```ts
-  // 幅を測る対象はテーブルを包む div（M8 決定9）
-  const tableRef = useRef<HTMLDivElement>(null)
-  const { widths, getHandleProps } = useColumnResize({
-    store: glossaryColumnWidths,
-    minWidth: MIN_COLUMN_WIDTH,
-    flexMinWidth: DEFINITION_MIN_WIDTH,
-    step: RESIZE_STEP,
-    containerRef: tableRef,
-  })
+// 幅を測る対象はテーブルを包む div（M8 決定9）
+const tableRef = useRef<HTMLDivElement>(null);
+const { widths, getHandleProps } = useColumnResize({
+  store: glossaryColumnWidths,
+  minWidth: MIN_COLUMN_WIDTH,
+  flexMinWidth: DEFINITION_MIN_WIDTH,
+  step: RESIZE_STEP,
+  containerRef: tableRef,
+});
 ```
 
 包む div に ref を付け、`<colgroup>` の幅の出所を `DEFAULT_WIDTHS` から `widths` へ差し替える。
@@ -1413,36 +1513,35 @@ import {
 ```
 
 ```tsx
-                <col
-                  key={col.field}
-                  style={w === null ? undefined : { width: widths[w] }}
-                />
+<col key={col.field} style={w === null ? undefined : { width: widths[w] }} />
 ```
 
 `<th>` にハンドルを足す。
 
 ```tsx
-              {COLUMNS.map((col, i) => {
-                const w = WIDTH_INDEX[i]
-                return (
-                  <th
-                    key={col.field}
-                    className={`relative px-2 py-1 font-bold${i === 0 ? '' : ` ${colBorder}`}`}
-                  >
-                    {FIELD_LABELS[col.field]}
-                    {/* 幅を持たない定義列にはハンドルを出さない（残りを埋める列なので、
+{
+  COLUMNS.map((col, i) => {
+    const w = WIDTH_INDEX[i];
+    return (
+      <th
+        key={col.field}
+        className={`relative px-2 py-1 font-bold${i === 0 ? "" : ` ${colBorder}`}`}
+      >
+        {FIELD_LABELS[col.field]}
+        {/* 幅を持たない定義列にはハンドルを出さない（残りを埋める列なので、
                         他の列を狭めることで広がる）。掴み代が見えるように
                         列の境界へ grid の縦罫を引いてある（M8 決定2） */}
-                    {w !== null && (
-                      <span
-                        {...getHandleProps(w)}
-                        aria-label={`${FIELD_LABELS[col.field]}の列幅を変更`}
-                        className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-rule"
-                      />
-                    )}
-                  </th>
-                )
-              })}
+        {w !== null && (
+          <span
+            {...getHandleProps(w)}
+            aria-label={`${FIELD_LABELS[col.field]}の列幅を変更`}
+            className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-rule"
+          />
+        )}
+      </th>
+    );
+  });
+}
 ```
 
 `DEFAULT_WIDTHS` を使わなくなるので、`./columns` からの import を `COLUMNS` と `WIDTH_INDEX` だけに減らす。
@@ -1469,6 +1568,7 @@ git commit -m "用語テーブルの列幅をドラッグとキーボードで�
 ## Task 7: 方眼紙の地と全体の塗り分け
 
 **Files:**
+
 - Modify: `src/index.css`
 - Modify: `src/App.tsx`
 - Test: `src/styles/palette.test.ts`
@@ -1480,15 +1580,15 @@ git commit -m "用語テーブルの列幅をドラッグとキーボードで�
 `src/styles/palette.test.ts` の `describe('index.css')` の中に追記する。
 
 ```ts
-  it('方眼紙のユーティリティが grid トークンから色を取る（M8 決定15）', () => {
-    expect(indexCss).toMatch(/@utility\s+bg-grid-paper/)
-    // 色は必ず役割トークン経由。直書きは同じ describe の別の it が弾く
-    expect(indexCss).toMatch(/bg-grid-paper[\s\S]*var\(--grid\)/)
-  })
+it("方眼紙のユーティリティが grid トークンから色を取る（M8 決定15）", () => {
+  expect(indexCss).toMatch(/@utility\s+bg-grid-paper/);
+  // 色は必ず役割トークン経由。直書きは同じ describe の別の it が弾く
+  expect(indexCss).toMatch(/bg-grid-paper[\s\S]*var\(--grid\)/);
+});
 
-  it('マス目のサイズを持つ', () => {
-    expect(indexCss).toMatch(/--grid-size:\s*\d+px/)
-  })
+it("マス目のサイズを持つ", () => {
+  expect(indexCss).toMatch(/--grid-size:\s*\d+px/);
+});
 ```
 
 - [ ] **Step 2: テストが落ちることを確認する**
@@ -1504,10 +1604,10 @@ npx vitest run src/styles/palette.test.ts
 `src/index.css` の `:root { --background: ...` のブロックの中、`--radius: 0.625rem;` の直後に足す。
 
 ```css
-    /* 方眼紙のマス目。色ではないので palette.css には置かない
+/* 方眼紙のマス目。色ではないので palette.css には置かない
        （palette.css は色値だけを持つ）。text-sm の行高（14px × 1.65 ＝ 23.1px）
        とほぼ一致させ、方眼と文字行が揃って見えるようにしている */
-    --grid-size: 24px;
+--grid-size: 24px;
 ```
 
 ファイル末尾（`@layer base { ... }` の後）に足す。
@@ -1524,9 +1624,17 @@ npx vitest run src/styles/palette.test.ts
  *   palette.test.ts が index.css の色値直書きを弾く
  * ========================================================================= */
 @utility bg-grid-paper {
-    background-image:
-        repeating-linear-gradient(to right, var(--grid) 0 1px, transparent 1px var(--grid-size)),
-        repeating-linear-gradient(to bottom, var(--grid) 0 1px, transparent 1px var(--grid-size));
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      var(--grid) 0 1px,
+      transparent 1px var(--grid-size)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      var(--grid) 0 1px,
+      transparent 1px var(--grid-size)
+    );
 }
 ```
 
@@ -1598,6 +1706,7 @@ git commit -m "方眼紙の地を敷き、面と地を塗り分ける"
 ## Task 8: 左メニューの行
 
 **Files:**
+
 - Modify: `src/components/FileList.tsx`
 - Test: `src/components/FileList.dom.test.tsx`
 
@@ -1608,46 +1717,52 @@ git commit -m "方眼紙の地を敷き、面と地を塗り分ける"
 `src/components/FileList.dom.test.tsx` の末尾に追記する。既存の `file()` / `setup()` ヘルパをそのまま使う。
 
 ```ts
-describe('行の説明（aria-describedby）', () => {
+describe("行の説明（aria-describedby）", () => {
   // アクセシブル名は「<名前> を開く」で固定なので、title・「開けない」
   // 「編集不可」・issue 件数バッジはスクリーンリーダーに読まれない（M8 残件4）。
   // description 側で補う
   const description = (name: string): string => {
-    const button = screen.getByRole('button', { name: `${name} を開く` })
-    const id = button.getAttribute('aria-describedby')
-    expect(id).not.toBeNull()
-    return document.getElementById(id as string)?.textContent ?? ''
-  }
+    const button = screen.getByRole("button", { name: `${name} を開く` });
+    const id = button.getAttribute("aria-describedby");
+    expect(id).not.toBeNull();
+    return document.getElementById(id as string)?.textContent ?? "";
+  };
 
-  it('タイトルが読まれる', () => {
-    setup([file('用語集.json')])
-    expect(description('用語集.json')).toContain('用語集')
-  })
+  it("タイトルが読まれる", () => {
+    setup([file("用語集.json")]);
+    expect(description("用語集.json")).toContain("用語集");
+  });
 
-  it('issue の件数が読まれる', () => {
+  it("issue の件数が読まれる", () => {
     setup([
-      file('用語集.json', {
-        issues: [{ rule: 'singleton-violation', message: '用語集が2件あります', locations: [] }],
+      file("用語集.json", {
+        issues: [
+          {
+            rule: "singleton-violation",
+            message: "用語集が2件あります",
+            locations: [],
+          },
+        ],
       }),
-    ])
-    expect(description('用語集.json')).toContain('1')
-  })
+    ]);
+    expect(description("用語集.json")).toContain("1");
+  });
 
-  it('開けないファイルは「開けない」が読まれる', () => {
+  it("開けないファイルは「開けない」が読まれる", () => {
     setup([
-      file('壊れた.json', {
+      file("壊れた.json", {
         result: {
-          status: 'rejected',
+          status: "rejected",
           type: null,
           title: null,
-          reason: 'JSON として解釈できません',
+          reason: "JSON として解釈できません",
           errors: [],
         },
       }),
-    ])
-    expect(description('壊れた.json')).toContain('開けない')
-  })
-})
+    ]);
+    expect(description("壊れた.json")).toContain("開けない");
+  });
+});
 ```
 
 - [ ] **Step 2: テストが落ちることを確認する**
@@ -1668,13 +1783,13 @@ npx vitest run src/components/FileList.dom.test.tsx
  * `aria-describedby` は id で結ぶ必要があり、map の中では id を作れない
  */
 function FileRow(props: {
-  file: ProjectFile
-  selected: boolean
-  onSelect: () => void
-  onDelete: () => void
+  file: ProjectFile;
+  selected: boolean;
+  onSelect: () => void;
+  onDelete: () => void;
 }) {
-  const { file } = props
-  const descId = useId()
+  const { file } = props;
+  const descId = useId();
   return (
     // items-stretch で削除ボタンが行の高さいっぱいになる（要望8）。
     // 行の区切りは grid（薄い装飾の罫。要望9）
@@ -1684,15 +1799,19 @@ function FileRow(props: {
         aria-label={`${file.name} を開く`}
         aria-describedby={descId}
         className={`min-w-0 flex-1 border-l-2 px-4 py-2 text-left text-sm ${
-          props.selected ? 'border-ink bg-canvas' : 'border-transparent hover:bg-canvas'
+          props.selected
+            ? "border-ink bg-canvas"
+            : "border-transparent hover:bg-canvas"
         }`}
         onClick={props.onSelect}
       >
         <span className="block truncate text-ink">{file.name}</span>
         <span id={descId} className="block text-xs text-ink-muted">
-          {file.result.status === 'editable' && file.result.title}
-          {file.result.status === 'rejected' && <span className="text-warning">開けない</span>}
-          {file.result.status === 'listOnly' && '編集不可'}
+          {file.result.status === "editable" && file.result.title}
+          {file.result.status === "rejected" && (
+            <span className="text-warning">開けない</span>
+          )}
+          {file.result.status === "listOnly" && "編集不可"}
           {file.issues.length > 0 && (
             <span className="ml-1 rounded-sm bg-warning px-1 text-xs text-warning-fg">
               {file.issues.length}
@@ -1712,24 +1831,24 @@ function FileRow(props: {
         削除
       </button>
     </li>
-  )
+  );
 }
 ```
 
 `<ul>` の中身をこれに置き換える。
 
 ```tsx
-        <ul>
-          {props.files.map((file) => (
-            <FileRow
-              key={file.path}
-              file={file}
-              selected={file.path === props.selectedPath}
-              onSelect={() => props.onSelect(file)}
-              onDelete={() => props.onDelete(file)}
-            />
-          ))}
-        </ul>
+<ul>
+  {props.files.map((file) => (
+    <FileRow
+      key={file.path}
+      file={file}
+      selected={file.path === props.selectedPath}
+      onSelect={() => props.onSelect(file)}
+      onDelete={() => props.onDelete(file)}
+    />
+  ))}
+</ul>
 ```
 
 サイドバーが `bg-surface` になった（Task 7）ので、hover と選択は `bg-canvas`（地の色でへこんで見える）に変える。選択行だけ左端に `border-ink` の帯が付く。新規作成ボタンの `hover:bg-surface`（`:46`）も同じ理由で `hover:bg-canvas` にする。
@@ -1756,6 +1875,7 @@ git commit -m "左メニューの行の高さ・区切り・選択状態を整�
 ## Task 9: 外部変更まわりのコアの穴3件
 
 **Files:**
+
 - Modify: `src/core/external-change.ts`
 - Modify: `src/core/app-controller.ts`
 - Test: `src/core/external-change.test.ts`, `src/core/app-controller.test.ts`
@@ -1768,10 +1888,10 @@ git commit -m "左メニューの行の高さ・区切り・選択状態を整�
 
 ```ts
 /** 同じパスが外部の変更でスキーマ違反に落ちた状態 */
-const ABroken = entry('用語集.json', '{ 壊れた')
+const ABroken = entry("用語集.json", "{ 壊れた");
 
-describe('選択中でないファイルの通知', () => {
-  it('外部の変更で開けなくなったら「読み込みました」と言わない', () => {
+describe("選択中でないファイルの通知", () => {
+  it("外部の変更で開けなくなったら「読み込みました」と言わない", () => {
     // 赤バッジは出るが、メッセージが成功時と同じでは何が起きたか伝わらない
     const plan = planExternalChange({
       prev: [listed(A)],
@@ -1779,23 +1899,25 @@ describe('選択中でないファイルの通知', () => {
       knownText: ledger({ [A.path]: A.text }),
       selectedPath: null,
       hasUnsavedEdits: false,
-    })
+    });
     expect(plan.notices.map((n) => n.message)).toEqual([
-      '外部の変更でこのファイルを開けなくなりました: 用語集.json',
-    ])
-  })
+      "外部の変更でこのファイルを開けなくなりました: 用語集.json",
+    ]);
+  });
 
-  it('開ける内容のままなら従来どおりのメッセージ', () => {
+  it("開ける内容のままなら従来どおりのメッセージ", () => {
     const plan = planExternalChange({
       prev: [listed(A)],
       scan: scan([A2]),
       knownText: ledger({ [A.path]: A.text }),
       selectedPath: null,
       hasUnsavedEdits: false,
-    })
-    expect(plan.notices.map((n) => n.message)).toEqual(['外部の変更を読み込みました: 用語集.json'])
-  })
-})
+    });
+    expect(plan.notices.map((n) => n.message)).toEqual([
+      "外部の変更を読み込みました: 用語集.json",
+    ]);
+  });
+});
 ```
 
 - [ ] **Step 2: テストが落ちることを確認する**
@@ -1833,19 +1955,19 @@ npx vitest run src/core/external-change.test.ts
 `src/core/app-controller.ts` の `deleteFile` の中（`:359` の直後）に足す。
 
 ```ts
-      host.dropModal(`external:${file.path}`)
-      // 削除確認そのものも取り下げる。**同じファイルの確認が積まれている**
-      // 状態（連打・外部削除との競合）で残すと、確定したときに trashFile が
-      // 失敗して「ファイルを削除できませんでした」が出る
-      host.dropModal(`delete:${file.path}`)
+host.dropModal(`external:${file.path}`);
+// 削除確認そのものも取り下げる。**同じファイルの確認が積まれている**
+// 状態（連打・外部削除との競合）で残すと、確定したときに trashFile が
+// 失敗して「ファイルを削除できませんでした」が出る
+host.dropModal(`delete:${file.path}`);
 ```
 
 `handleSelectedGone` の中（`:535` の直後）にも同じ理由で足す。
 
 ```ts
-    host.dropModal(`external:${path}`)
-    // 外部で消えた後に古い削除確認を確定すると、trashFile が失敗する
-    host.dropModal(`delete:${path}`)
+host.dropModal(`external:${path}`);
+// 外部で消えた後に古い削除確認を確定すると、trashFile が失敗する
+host.dropModal(`delete:${path}`);
 ```
 
 - [ ] **Step 5: `exportMarkdown` に読み直しを入れる**
@@ -1853,22 +1975,23 @@ npx vitest run src/core/external-change.test.ts
 `src/core/app-controller.ts` の `exportMarkdown`（`:745`）の `if (target === null) return` の直後に足し、`io.write` の引数を差し替える。
 
 ```ts
-      if (target === null) return
-      // **ダイアログを出す前のスナップショットで書かない。** ネイティブ
-      // ダイアログが開いている数秒〜数分の間に外部変更の取り込みが走ると、
-      // doc.data は取り込み前の内容を指す。ここで引き直す
-      const fresh = currentDocument()
-      if (fresh === null || fresh.path !== doc.path) {
-        host.showToast({
-          key: 'export',
-          message: 'Markdown を書き出しませんでした（保存先を選んでいる間に対象が変わりました）',
-        })
-        return
-      }
+if (target === null) return;
+// **ダイアログを出す前のスナップショットで書かない。** ネイティブ
+// ダイアログが開いている数秒〜数分の間に外部変更の取り込みが走ると、
+// doc.data は取り込み前の内容を指す。ここで引き直す
+const fresh = currentDocument();
+if (fresh === null || fresh.path !== doc.path) {
+  host.showToast({
+    key: "export",
+    message:
+      "Markdown を書き出しませんでした（保存先を選んでいる間に対象が変わりました）",
+  });
+  return;
+}
 ```
 
 ```ts
-      await io.write(target, fresh.module.toMarkdown(fresh.data))
+await io.write(target, fresh.module.toMarkdown(fresh.data));
 ```
 
 - [ ] **Step 6: コントローラ側のテストを書く**
@@ -1878,57 +2001,70 @@ npx vitest run src/core/external-change.test.ts
 ```ts
 /** askSavePath を手で解決できるようにする（ダイアログが開いている間を再現する） */
 function pendingSavePath() {
-  let release: (path: string | null) => void = () => {}
+  let release: (path: string | null) => void = () => {};
   const askSavePath = vi
     .fn<(defaultPath: string) => Promise<string | null>>()
-    .mockImplementation(() => new Promise((resolve) => { release = resolve }))
-  return { askSavePath, release: (path: string | null) => release(path) }
+    .mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+  return { askSavePath, release: (path: string | null) => release(path) };
 }
 
-describe('exportMarkdown: 保存ダイアログを開いている間の変化', () => {
-  it('その間に内容が変わったら、最新の内容を書く', async () => {
-    const { askSavePath, release } = pendingSavePath()
-    const h = createHarness({ [p('a.json')]: note('A', '古い本文') }, { askSavePath })
-    await h.controller.openFolder(DIR)
-    await h.controller.selectFile(p('a.json'))
-    const done = h.controller.exportMarkdown()
-    // ダイアログが開いている数秒〜数分の間に外部変更の取り込みが走った状況
-    h.setDocument({ schemaVersion: 1, type: 'note', title: 'A', body: '新しい本文' })
-    release('C:\\out\\a.md')
-    await done
-    expect(h.disk.files.get('C:\\out\\a.md')).toBe('## A\n\n新しい本文\n')
-  })
-
-  it('その間に選択が変わったら書き出さない', async () => {
-    const { askSavePath, release } = pendingSavePath()
+describe("exportMarkdown: 保存ダイアログを開いている間の変化", () => {
+  it("その間に内容が変わったら、最新の内容を書く", async () => {
+    const { askSavePath, release } = pendingSavePath();
     const h = createHarness(
-      { [p('a.json')]: note('A'), [p('b.json')]: note('B') },
+      { [p("a.json")]: note("A", "古い本文") },
       { askSavePath },
-    )
-    await h.controller.openFolder(DIR)
-    await h.controller.selectFile(p('a.json'))
-    const done = h.controller.exportMarkdown()
-    await h.controller.selectFile(p('b.json'))
-    release('C:\\out\\a.md')
-    await done
-    // b の内容を a.md として書くのは明らかな事故
-    expect(h.disk.files.has('C:\\out\\a.md')).toBe(false)
-    expect(h.toasts().at(-1)?.message).toMatch(/書き出しませんでした/)
-  })
-})
+    );
+    await h.controller.openFolder(DIR);
+    await h.controller.selectFile(p("a.json"));
+    const done = h.controller.exportMarkdown();
+    // ダイアログが開いている数秒〜数分の間に外部変更の取り込みが走った状況
+    h.setDocument({
+      schemaVersion: 1,
+      type: "note",
+      title: "A",
+      body: "新しい本文",
+    });
+    release("C:\\out\\a.md");
+    await done;
+    expect(h.disk.files.get("C:\\out\\a.md")).toBe("## A\n\n新しい本文\n");
+  });
 
-describe('削除確認の取り下げ', () => {
-  it('削除が確定したら同じファイルの削除確認を取り下げる', async () => {
-    const h = createHarness({ [p('a.json')]: note('A') })
-    await h.controller.openFolder(DIR)
-    h.controller.requestDelete(h.files()[0])
-    const request = h.modals()[0]
-    if (request.kind !== 'confirm') throw new Error('confirm 以外が積まれた')
-    await request.onConfirm()
+  it("その間に選択が変わったら書き出さない", async () => {
+    const { askSavePath, release } = pendingSavePath();
+    const h = createHarness(
+      { [p("a.json")]: note("A"), [p("b.json")]: note("B") },
+      { askSavePath },
+    );
+    await h.controller.openFolder(DIR);
+    await h.controller.selectFile(p("a.json"));
+    const done = h.controller.exportMarkdown();
+    await h.controller.selectFile(p("b.json"));
+    release("C:\\out\\a.md");
+    await done;
+    // b の内容を a.md として書くのは明らかな事故
+    expect(h.disk.files.has("C:\\out\\a.md")).toBe(false);
+    expect(h.toasts().at(-1)?.message).toMatch(/書き出しませんでした/);
+  });
+});
+
+describe("削除確認の取り下げ", () => {
+  it("削除が確定したら同じファイルの削除確認を取り下げる", async () => {
+    const h = createHarness({ [p("a.json")]: note("A") });
+    await h.controller.openFolder(DIR);
+    h.controller.requestDelete(h.files()[0]);
+    const request = h.modals()[0];
+    if (request.kind !== "confirm") throw new Error("confirm 以外が積まれた");
+    await request.onConfirm();
     // 残すと、外部で消えた後に確定したとき trashFile が失敗する
-    expect(h.log).toContain(`dropModal:delete:${p('a.json')}`)
-  })
-})
+    expect(h.log).toContain(`dropModal:delete:${p("a.json")}`);
+  });
+});
 ```
 
 - [ ] **Step 7: 検証する**
@@ -1953,6 +2089,7 @@ git commit -m "外部変更まわりの穴3件を塞ぐ（書き出しのスナ�
 ## Task 10: ファイル名の予約語と削除の非同期化
 
 **Files:**
+
 - Modify: `src/core/file-naming.ts`
 - Modify: `src-tauri/src/lib.rs`
 - Test: `src/core/file-naming.test.ts`
@@ -1964,33 +2101,33 @@ git commit -m "外部変更まわりの穴3件を塞ぐ（書き出しのスナ�
 `src/core/file-naming.test.ts` の末尾に追記する。
 
 ```ts
-describe('Windows で作れない名前', () => {
-  it('予約デバイス名は先頭に _ を足して避ける', () => {
+describe("Windows で作れない名前", () => {
+  it("予約デバイス名は先頭に _ を足して避ける", () => {
     // CON.json / NUL.json は拡張子を付けても予約のまま。作成に失敗する
-    for (const name of ['CON', 'con', 'PRN', 'AUX', 'NUL', 'COM1', 'LPT9']) {
-      expect(fileNameCandidate(name, 1)).toBe(`_${name}.json`)
+    for (const name of ["CON", "con", "PRN", "AUX", "NUL", "COM1", "LPT9"]) {
+      expect(fileNameCandidate(name, 1)).toBe(`_${name}.json`);
     }
-  })
+  });
 
-  it('予約語を含むだけの名前は避けない', () => {
-    expect(fileNameCandidate('CONTENT', 1)).toBe('CONTENT.json')
-    expect(fileNameCandidate('用語集CON', 1)).toBe('用語集CON.json')
-  })
+  it("予約語を含むだけの名前は避けない", () => {
+    expect(fileNameCandidate("CONTENT", 1)).toBe("CONTENT.json");
+    expect(fileNameCandidate("用語集CON", 1)).toBe("用語集CON.json");
+  });
 
-  it('末尾のドットと空白を落とす（Windows が黙って落とすため）', () => {
-    expect(fileNameCandidate('用語集...', 1)).toBe('用語集.json')
-    expect(fileNameCandidate('用語集 ', 1)).toBe('用語集.json')
-    expect(fileNameCandidate('用語集. .', 1)).toBe('用語集.json')
-  })
+  it("末尾のドットと空白を落とす（Windows が黙って落とすため）", () => {
+    expect(fileNameCandidate("用語集...", 1)).toBe("用語集.json");
+    expect(fileNameCandidate("用語集 ", 1)).toBe("用語集.json");
+    expect(fileNameCandidate("用語集. .", 1)).toBe("用語集.json");
+  });
 
-  it('落とした結果が空になったら _ にする', () => {
-    expect(fileNameCandidate('...', 1)).toBe('_.json')
-  })
+  it("落とした結果が空になったら _ にする", () => {
+    expect(fileNameCandidate("...", 1)).toBe("_.json");
+  });
 
-  it('連番は避けた後の名前に付く', () => {
-    expect(fileNameCandidate('CON', 2)).toBe('_CON-2.json')
-  })
-})
+  it("連番は避けた後の名前に付く", () => {
+    expect(fileNameCandidate("CON", 2)).toBe("_CON-2.json");
+  });
+});
 ```
 
 - [ ] **Step 2: テストが落ちることを確認する**
@@ -2010,17 +2147,17 @@ npx vitest run src/core/file-naming.test.ts
  * Windows の予約デバイス名。**拡張子を付けても予約のまま**なので
  * `CON.json` は作成に失敗する。大文字小文字は区別されない
  */
-const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i
+const RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 
 /** Windows は末尾のドットと空白を黙って落とす（意図しない名前のファイルができる） */
-const TRAILING = /[. ]+$/
+const TRAILING = /[. ]+$/;
 
 /** n 番目の候補名（1件目は連番なし）。連番の付け方をここ1箇所に閉じる */
 export function fileNameCandidate(baseName: string, n: number): string {
-  let base = baseName.replace(ILLEGAL, '_').replace(TRAILING, '')
-  if (base === '') base = '_'
-  if (RESERVED.test(base)) base = `_${base}`
-  return n === 1 ? `${base}.json` : `${base}-${n}.json`
+  let base = baseName.replace(ILLEGAL, "_").replace(TRAILING, "");
+  if (base === "") base = "_";
+  if (RESERVED.test(base)) base = `_${base}`;
+  return n === 1 ? `${base}.json` : `${base}-${n}.json`;
 }
 ```
 
@@ -2065,6 +2202,7 @@ git commit -m "Windows の予約デバイス名を避け、ゴミ箱への移動
 ## Task 11: 小さな負債5件
 
 **Files:**
+
 - Modify: `src/components/CellInput.tsx`
 - Modify: `src/components/ConfirmDialog.dom.test.tsx`
 - Modify: `src/core/app-controller.ts`
@@ -2079,13 +2217,13 @@ git commit -m "Windows の予約デバイス名を避け、ゴミ箱への移動
 `src/components/CellInput.tsx` の `onKeyDown` の中、`caretAtStart` の直前のコメントに追記する。
 
 ```ts
-        // 折り返しの途中では caretAtStart / caretAtEnd が false になるので、
-        // ↑↓ は操作言語に取られずブラウザの行内移動が生きる（M8 決定4）。
-        //
-        // **選択範囲があるときは両方 false になる（＝行間移動に1打鍵余分に要る）。
-        // これは仕様である**——Excel をはじめ表形式の入力欄は同じ挙動で、
-        // 「選択したまま矢印でセルを移る」を許すと選択の解除と移動の
-        // どちらを意図したのか判別できない（M8 で残件から落とした）
+// 折り返しの途中では caretAtStart / caretAtEnd が false になるので、
+// ↑↓ は操作言語に取られずブラウザの行内移動が生きる（M8 決定4）。
+//
+// **選択範囲があるときは両方 false になる（＝行間移動に1打鍵余分に要る）。
+// これは仕様である**——Excel をはじめ表形式の入力欄は同じ挙動で、
+// 「選択したまま矢印でセルを移る」を許すと選択の解除と移動の
+// どちらを意図したのか判別できない（M8 で残件から落とした）
 ```
 
 - [ ] **Step 2: `ConfirmDialog` のテストのクエリを直す（残件6）**
@@ -2093,7 +2231,9 @@ git commit -m "Windows の予約デバイス名を避け、ゴミ箱への移動
 `src/components/ConfirmDialog.dom.test.tsx:32` を差し替える。`AlertDialogTitle` は h2 なので role で引ける。
 
 ```ts
-    expect(screen.getByRole('heading', { name: 'ファイルを削除しますか？' })).not.toBeNull()
+expect(
+  screen.getByRole("heading", { name: "ファイルを削除しますか？" }),
+).not.toBeNull();
 ```
 
 `:33` の説明文は見出しではないので `getByText` のままでよい。
@@ -2103,23 +2243,23 @@ git commit -m "Windows の予約デバイス名を避け、ゴミ箱への移動
 `src/core/app-controller.ts` の `closeCurrentFile` の中、バナーをクリアしている行のコメントに由来への参照を戻す。
 
 ```ts
-    // 「このファイルが書けていない」というバナーは、そのファイルを離れたら消す
-    // （クリア条件の由来は docs/history/m2-core-validation-layer.md の
-    //  「saveError のクリア条件」。過去に取りこぼした障害の手がかりなので消さない）
+// 「このファイルが書けていない」というバナーは、そのファイルを離れたら消す
+// （クリア条件の由来は docs/history/m2-core-validation-layer.md の
+//  「saveError のクリア条件」。過去に取りこぼした障害の手がかりなので消さない）
 ```
 
 `deleteFile` の JSDoc と `src/core/file-ops.ts` の `trashFile` の JSDoc が「切り離しは trash の前に」の説明を重複して持っている。**説明の本体は `trashFile` 側に置き**（そこが実際に順序を実装している）、`deleteFile` 側は参照だけにする。
 
 ```ts
-  /**
-   * ファイルを OS のゴミ箱へ移す（rev 6章。完全削除はしない）。
-   *
-   * 切り離しを trash の前に行う理由は `trashFile`（src/core/file-ops.ts）の
-   * JSDoc に書いてある。**説明を二重に持たないこと**——片方だけ更新されると
-   * 食い違う。
-   * `closeCurrentFile` を通さないのはここ固有の要点である——あれは保留編集を
-   * 書き切る経路で、消したファイルを書き戻して復活させる
-   */
+/**
+ * ファイルを OS のゴミ箱へ移す（rev 6章。完全削除はしない）。
+ *
+ * 切り離しを trash の前に行う理由は `trashFile`（src/core/file-ops.ts）の
+ * JSDoc に書いてある。**説明を二重に持たないこと**——片方だけ更新されると
+ * 食い違う。
+ * `closeCurrentFile` を通さないのはここ固有の要点である——あれは保留編集を
+ * 書き切る経路で、消したファイルを書き戻して復活させる
+ */
 ```
 
 - [ ] **Step 4: `tsconfig.test.json` の説明を JSONC コメントにする（残件8）**
@@ -2133,11 +2273,11 @@ git commit -m "Windows の予約デバイス名を避け、ゴミ箱への移動
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
     "types": ["vite/client", "node"],
     "noEmit": true,
-    "composite": true
+    "composite": true,
   },
   /* app 側の exclude（テストファイル）を継承すると include が全部落ちるので打ち消す */
   "exclude": [],
-  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "src"]
+  "include": ["src/**/*.test.ts", "src/**/*.test.tsx", "src"],
 }
 ```
 
@@ -2176,9 +2316,227 @@ git commit -m "小さな負債を片付ける（キャレット仕様の確定�
 
 ---
 
+## Task 14: 実機確認の指摘（色と共通スタイル）
+
+**Files:**
+- Modify: `src/styles/palette.css`, `src/styles/palette.test.ts`, `src/index.css`
+- Create: `src/components/button-styles.ts`
+- Modify: `src/App.tsx`, `src/components/FileList.tsx`, `src/components/Toast.tsx`, `src/modules/glossary/GlossaryEditor.tsx`, `src/modules/glossary/AliasCell.tsx`
+
+Task 13（実機確認）で人間が出した指摘のうち、色と共通スタイルに関わる4件。
+
+- [ ] **Step 1: 見出し用の役割トークン `surface-accent` を新設する**
+
+`src/styles/palette.css` の `:root` と `.dark` の両方に足す。**値は算出済み。そのまま使うこと。**
+
+```css
+    /* 見出しの面（テーブルのカラム名）。Lichen Green の色相 H126 から起こした淡い緑。
+       **ok（応答・結果・確定）とは別のトークンにする**——カラム名は確定でも応答でも
+       ないので、ok を流用すると意味論が壊れる（rev 9章「Lichen Green は ok 以外に
+       使わない」の趣旨は「意味を持つ緑を装飾に流用しない」ことにある）。
+       文字は ink / ink-muted の両方が載るので、両方のコントラストを検証する */
+    --surface-accent: oklch(0.87 0.04 126);
+```
+
+`.dark` 側:
+
+```css
+    --surface-accent: oklch(0.28 0.04 126);
+```
+
+`src/index.css` の `@theme inline` に `--color-surface-accent: var(--surface-accent);` を足す（`--color-surface` の隣）。
+
+- [ ] **Step 2: `palette.test.ts` を新トークンに追随させる**
+
+`TOKENS` に `'surface-accent'` を足し、`BACKGROUNDS` に `'surface-accent'` を足す。これだけで「`ink` / `ink-muted` / `rule` / `warning` / `ok` が `surface-accent` の上でも要件を満たす」検証が既存のループから自動的に増える。
+
+**`REQUIREMENTS` は変更しないこと。** 期待値（算出済み、参考）: ライトは `ink` 12.21 / `ink-muted` 6.77、ダークは `ink` 9.14 / `ink-muted` 5.43。**`rule` / `warning` / `ok` も同じ背景で検証対象に入るので、そこが赤くなったら報告すること**（トークンの値を動かして通すのではなく、計画の矛盾として報告する）。
+
+- [ ] **Step 3: ライトの方眼紙の線を薄くする**
+
+`src/styles/palette.css` の `:root` の `--grid` を差し替える。**ダークは変えない**（実機確認で「ダークは OK」と判断された）。
+
+```css
+    --grid: oklch(0.87 0.014 120.3);       /* Mineral Line を canvas 上 1.17:1 まで薄めた */
+```
+
+現行 `oklch(0.824 0.014 120.3)` は canvas 上 1.36:1 で、実機で「濃い」と判断された。`grid` は装飾なのでコントラスト要件の対象外（`REQUIREMENTS` に入っていない）。
+
+- [ ] **Step 4: カラム名の背景を `surface-accent` にする**
+
+`src/modules/glossary/GlossaryEditor.tsx` の `<thead>` の `<tr>` の `bg-canvas` を `bg-surface-accent` に変える。
+
+- [ ] **Step 5: ボタンのラベルの縦位置を構造的に揃える**
+
+**原因は M7 が日本語向けに設定した `--text-sm--line-height: 1.65`。** shadcn の `Button` は `items-center` を持つが、和文フォント（Yu Gothic UI）の ascent / descent が非対称なため、行ボックスが高いとラベルが上に寄る。**生の `<button>` が13箇所あり、そちらも同じ症状になる。**
+
+`src/index.css` の `@layer base` に足す。**要素セレクタで一律に当てるのが要点**——新しくボタンを作っても自動的に揃い、「実装のたびに同じ指摘が出る」ことがなくなる。
+
+```css
+  button {
+    /* ラベルは1行なので行間を詰める。--text-sm--line-height: 1.65 は
+       本文（複数行の定義文）向けの値で、ボタンに効くと和文フォントの
+       縦メトリクスの非対称によりラベルが上へ寄る（M8 の実機確認で判明）。
+       **要素セレクタで当てるのは意図的**：新しいボタンを作っても自動的に
+       揃うようにして、同じ指摘が繰り返されるのを構造的に止める */
+    line-height: 1.2;
+  }
+```
+
+- [ ] **Step 6: 生のボタンの土台クラスを1箇所に集める**
+
+`src/components/button-styles.ts` を新設する。**13箇所の生の `<button>` は用途が違う**（ツールバー・フィルタ・削除・行追加）ので1つのクラスに潰さず、**共通の土台＋用途ごとの差分**という形にする。
+
+```ts
+/**
+ * 生の `<button>` の土台（rev 9章の共通コンポーネント方針）。
+ *
+ * shadcn の `Button` を使うほどでない小さなボタン（フィルタのチップ、
+ * 一覧の行、トーストの操作）はこの土台を敷いてから用途ごとの差分を足す。
+ * **新しいボタンを作るときもここを通すこと**——揃っていないと
+ * 「押せるものの見た目が場所ごとに違う」が積み上がる。
+ * ラベルの縦位置は src/index.css の `@layer base` が要素セレクタで
+ * 揃えているので、ここには書かない（二重に持たない）
+ */
+export const buttonBase =
+  'inline-flex items-center justify-center rounded-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50'
+```
+
+各所の生の `<button>` の `className` の先頭に `${buttonBase} ` を敷き、既にある `rounded-sm` / `inline-flex` / `disabled:` の重複指定を削る。**見た目を変える意図は無い**ので、`px-*` / `py-*` / `text-*` / 色の指定はそのまま残すこと。
+
+- [ ] **Step 7: 種別フィルタのボタンの視認性を上げる**
+
+`src/modules/glossary/GlossaryEditor.tsx` の種別フィルタは、非アクティブ時が `text-ink-muted hover:bg-surface` で背景を持たない。**ヘッダ領域が `bg-surface` になった（Task 7）ため hover も同色で効かず**、実機で「透過で視認性が悪い」と判断された。
+
+非アクティブ時に地の色（`bg-canvas`）を敷き、hover はテーブルの面（`bg-surface`）へ。押せることが分かり、アクティブ（`bg-ink text-canvas`）との差も保たれる。
+
+```tsx
+                active ? 'bg-ink text-canvas' : 'bg-canvas text-ink hover:bg-surface'
+```
+
+**文字色も `text-ink-muted` から `text-ink` に上げること**（`ink-muted` は「抑えた文字」で、押せるものには弱い）。
+
+- [ ] **Step 8: 検証してコミットする**
+
+```
+npm test
+npx tsc -b
+npm run lint
+```
+
+期待: すべて緑。**特に `palette.test.ts` が `surface-accent` を背景に含めた検証を新たに実行し、それが通ること。**
+
+```bash
+git add src/styles/ src/index.css src/components/ src/modules/glossary/ src/App.tsx
+git commit -m "実機確認の指摘を直す（見出しの面・方眼紙の濃度・ボタンの縦位置・フィルタの視認性）"
+```
+
+---
+
+## Task 15: 実機確認の指摘（レイアウトと操作）
+
+**Files:**
+- Modify: `src/App.tsx`, `src/modules/glossary/GlossaryEditor.tsx`, `src/core/column-resize.ts`, `src-tauri/tauri.conf.json`
+- Test: `src/core/column-resize.test.ts`, `src/modules/glossary/GlossaryEditor.dom.test.tsx`
+
+- [ ] **Step 1: ヘッダ・サイドバー・カラム名を固定する**
+
+用語が増えたときにスクロールしても位置が分かるようにする（実機確認で出た新規要望）。
+
+`src/App.tsx:287` の `min-h-screen` を `h-screen` に変える。**これが要点**——`min-h-screen` は中身が伸びるとページ全体が伸び、`<section>` の `overflow-auto` より先に body がスクロールする。`h-screen` にすれば高さが固定され、スクロールは `<section>` の中だけで起きるので、ヘッダ（`<header>`）とサイドバー（`<aside>`）は**何もしなくても固定される**。
+
+```tsx
+    <main className="flex h-screen flex-col bg-canvas bg-grid-paper text-ink">
+```
+
+サイドバー（`:330` の `<aside>`）にはファイルが増えたときのために `overflow-y-auto` を足す。
+
+カラム名は `src/modules/glossary/GlossaryEditor.tsx` の `<thead>` の `<tr>` に `sticky top-0 z-10` を当てる。**`border-collapse` では `<tr>` の `sticky` が効かないので、`<th>` 側に当てること**（枠線も `<th>` に付いている）。
+
+- [ ] **Step 2: ウィンドウの最小幅を決める**
+
+`src-tauri/tauri.conf.json` の `windows[0]` に足す。固定4列の合計が 736px、サイドバー 256px、余白を足すと **1030px 付近で備考列が切れ始める**（実機確認で確認済み）。
+
+```json
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1000,
+        "minHeight": 600,
+```
+
+初期値も `800×600` から広げる。**800 のままだと起動した瞬間に崩れた状態から始まる。**
+
+- [ ] **Step 3: 「定義｜別名」の境界にハンドルを出す**
+
+現在ハンドルは固定幅を持つ4列（名称・種別・別名・備考）の右端にあるが、**定義列は幅を持たないためハンドルが無く、「定義｜別名」の境界だけ掴めない**（実機確認で指摘）。
+
+`src/core/column-resize.ts` の `getHandleProps` に**反転オプション**を足す。定義列の右端に置くハンドルは、その右隣（別名）の幅を**逆向きに**動かす——右へドラッグすれば定義が広がる（＝別名が狭まる）という直感どおりの操作になる。
+
+```ts
+export interface HandleOptions {
+  /**
+   * ドラッグの向きを反転する。**幅を持たない列（残りを埋める列）の右端に
+   * 置くハンドル用。** その位置で掴めるのは右隣の列の幅なので、右へ引いたら
+   * 右隣が狭まる＝この列が広がる、という見た目どおりの動きにする
+   */
+  invert?: boolean
+}
+```
+
+`getHandleProps(index: number, options?: HandleOptions)` とし、`apply` に渡す delta と、キーボードの `step` の符号を反転させる。**`resetColumn` は反転しない**（既定へ戻すだけなので向きの概念が無い）。
+
+`src/modules/glossary/GlossaryEditor.tsx` は、`w === null` の列にも次の固定列があればハンドルを出す。
+
+```tsx
+                    {w !== null ? (
+                      <span
+                        {...getHandleProps(w)}
+                        aria-label={`${FIELD_LABELS[col.field]}の列幅を変更`}
+                        className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-rule"
+                      />
+                    ) : (
+                      // 幅を持たない列の右端。掴めるのは右隣の幅なので反転して渡す
+                      nextWidthIndex(i) !== null && (
+                        <span
+                          {...getHandleProps(nextWidthIndex(i) as number, { invert: true })}
+                          aria-label={`${FIELD_LABELS[col.field]}の列幅を変更`}
+                          className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-rule"
+                        />
+                      )
+                    )}
+```
+
+`nextWidthIndex(i)` は「i より後ろで最初に幅を持つ列の、幅配列上の添字」を返すヘルパ。`src/modules/glossary/columns.ts` に置き、単体テストを書くこと。
+
+**テストを追加する**: `column-resize.test.ts` に「`invert` で delta の符号が反転する」、`GlossaryEditor.dom.test.tsx` に「定義列のハンドルを → で操作すると別名列が狭まる」。
+
+- [ ] **Step 4: 定義・備考のセルの縦位置を揃える**
+
+実機確認で「定義、備考のテキストボックスが上寄せ」と指摘された。`<td>` には `align-middle` が効いているが、`<textarea>` は置換要素で `vertical-align: baseline` が既定のため、行の高さが他のセルより高いときに上へずれる。
+
+`cellInput`（`GlossaryEditor.tsx:40`）に `align-middle` を足す。`<input>` と `<select>` にも同じクラスが当たるので、5列すべての縦位置が揃う。
+
+- [ ] **Step 5: 検証してコミットする**
+
+```
+npm test
+npx tsc -b
+npm run lint
+```
+
+**`cargo check` も回すこと**（`tauri.conf.json` はビルド設定なので、壊すと起動しなくなる）。この worktree では初回以降キャッシュが効くので数秒で終わる。
+
+```bash
+git add src/ src-tauri/tauri.conf.json
+git commit -m "実機確認の指摘を直す（固定表示・最小幅・定義列のハンドル・セルの縦位置）"
+```
+
+---
+
 ## Task 12: ドキュメントの更新
 
 **Files:**
+
 - Modify: `docs/overview-rev.md`
 - Modify: `docs/open-issues.md`
 - Modify: `docs/README.md`
