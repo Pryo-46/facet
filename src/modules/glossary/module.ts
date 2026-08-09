@@ -15,8 +15,11 @@ export const glossaryModule: ToolModule<GlossarySchemaVersion1> = {
   idPrefixes: ['term'],
   Editor: GlossaryEditor,
   checkConsistency: checkGlossaryConsistency,
-  // 規約5: NotePM 向け Markdown（session-notes 論点7）。Mermaid は無い
-  toMarkdown: glossaryToMarkdown,
+  // 規約5: NotePM 向け Markdown（session-notes 論点7）。Mermaid は無い。
+  // 用語集は1プロファイル。fileSuffix が '' なので書き出し名は M6 から不変
+  outputs: [
+    { id: 'default', label: 'Markdown', fileSuffix: '', toMarkdown: glossaryToMarkdown },
+  ],
   // 用語集はハブなのでプロジェクトにつき1つ（rev 5章の単一性）
   singleton: true,
   migrate: migrateGlossary,

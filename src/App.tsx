@@ -206,6 +206,8 @@ function App() {
   // 出力できるのは「開けているファイルを選んでいて、編集中データが揃っている」とき。
   // コントローラ側でも同じ条件を確認しているが、UI はそれを押せる／押せないの形で見せる
   const canExport = selectedModule !== undefined && editingData !== null
+  // Task 7 で ExportMenu に置き換える暫定。用語集は1プロファイルなので先頭でよい
+  const onlyOutput = selectedModule?.outputs[0]
 
   const runHistory = (kind: 'undo' | 'redo') => {
     const h = historyRef.current
@@ -303,10 +305,18 @@ function App() {
         >
           やり直す
         </Button>
-        <Button variant="outline" disabled={!canExport} onClick={() => void controller.copyMarkdown()}>
+        <Button
+          variant="outline"
+          disabled={!canExport || onlyOutput === undefined}
+          onClick={() => onlyOutput !== undefined && void controller.copyMarkdown(onlyOutput)}
+        >
           Markdown をコピー
         </Button>
-        <Button variant="outline" disabled={!canExport} onClick={() => void controller.exportMarkdown()}>
+        <Button
+          variant="outline"
+          disabled={!canExport || onlyOutput === undefined}
+          onClick={() => onlyOutput !== undefined && void controller.exportMarkdown(onlyOutput)}
+        >
           Markdown を書き出す
         </Button>
         {projectDir && <span className="text-sm text-ink-muted">{projectDir}</span>}

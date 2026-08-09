@@ -12,7 +12,7 @@ function fakeModule(type: string, singleton: boolean): AnyToolModule {
     idPrefixes: [type],
     Editor: () => null,
     checkConsistency: () => [],
-    toMarkdown: () => '',
+    outputs: [{ id: 'default', label: 'Markdown', fileSuffix: '', toMarkdown: () => '' }],
     singleton,
     migrate: (d) => d,
     createEmpty: () => ({}),

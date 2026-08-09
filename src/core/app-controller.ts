@@ -6,7 +6,7 @@ import { createKnownDisk } from './known-disk'
 import { classifyFile } from './load'
 import type { ModalRequest } from './modal-queue'
 import { computeIssues, type ProjectFile } from './project-file'
-import type { AnyToolModule, ModuleRegistry } from './registry'
+import type { AnyToolModule, ModuleRegistry, OutputProfile } from './registry'
 import { toProjectFile, type ScanResult } from './scan'
 import type { ToastItem } from './toasts'
 
@@ -102,9 +102,9 @@ export interface AppController {
   /** ウィンドウ close のゲート。true＝閉じてよい */
   requestClose(): Promise<boolean>
   /** 選択中ファイルの Markdown をクリップボードへ（rev 8章） */
-  copyMarkdown(): Promise<void>
+  copyMarkdown(profile: OutputProfile<unknown>): Promise<void>
   /** 選択中ファイルの Markdown を .md として書き出す（rev 8章） */
-  exportMarkdown(): Promise<void>
+  exportMarkdown(profile: OutputProfile<unknown>): Promise<void>
   /** アンマウント時。**flush しない**（失敗で復元された pending を捨てないため） */
   dispose(): void
 }
@@ -737,11 +737,11 @@ export function createAppController(
     return { path: selectedPath, module, data }
   }
 
-  const copyMarkdown = async (): Promise<void> => {
+  const copyMarkdown = async (profile: OutputProfile<unknown>): Promise<void> => {
     const doc = currentDocument()
     if (doc === null) return
     try {
-      await io.copyText(doc.module.toMarkdown(doc.data))
+      await io.copyText(profile.toMarkdown(doc.data))
       host.setBanner('io', null)
       host.showToast({ key: 'export', message: 'Markdown をクリップボードにコピーしました' })
     } catch (err) {
@@ -749,18 +749,22 @@ export function createAppController(
     }
   }
 
-  const exportMarkdown = async (): Promise<void> => {
+  const exportMarkdown = async (profile: OutputProfile<unknown>): Promise<void> => {
     const doc = currentDocument()
     if (doc === null) return
     try {
-      const target = await io.askSavePath(doc.path.replace(/\.json$/i, '.md'))
+      const base = doc.path.replace(/\.json$/i, '')
+      const target = await io.askSavePath(`${base}${profile.fileSuffix}.md`)
       // キャンセルは失敗ではない。バナーを出さず黙って戻る
       if (target === null) return
       // **ダイアログを出す前のスナップショットで書かない。** ネイティブ
       // ダイアログが開いている数秒〜数分の間に外部変更の取り込みが走ると、
       // doc.data は取り込み前の内容を指す。ここで引き直す
       const fresh = currentDocument()
-      if (fresh === null || fresh.path !== doc.path) {
+      // **プロファイルの持ち主が変わっていないことも確かめる。** 選択が別の
+      // ファイル＝別のモジュールへ移っていると、手元のプロファイルは別ツールの
+      // ものであり、型の違うデータを別ツールの出力関数に食わせることになる
+      if (fresh === null || fresh.path !== doc.path || !fresh.module.outputs.includes(profile)) {
         host.showToast({
           key: 'export',
           message: 'Markdown を書き出しませんでした（保存先を選んでいる間に対象が変わりました）',
@@ -774,7 +778,7 @@ export function createAppController(
       // 成り立つ想定にすぎない。仮に .json のまま書かれても、台帳に無い記録は
       // 次の外部変更として検知されるだけで、自己書き込み除外を誤って発動させる
       // 側の事故（本来検知すべき変更を見逃す）にはならない
-      await io.write(target, fresh.module.toMarkdown(fresh.data))
+      await io.write(target, profile.toMarkdown(fresh.data))
       host.setBanner('io', null)
       host.showToast({ key: 'export', message: `Markdown を書き出しました: ${target}` })
     } catch (err) {
