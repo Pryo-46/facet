@@ -180,6 +180,45 @@ describe('階層構造（hierarchical: true）', () => {
     ).toBe('focus-child')
   })
 
+  it('→ は文中では何もしない（キャレット移動が生きる）', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight' }),
+        ctx({ hierarchical: true, editing: true, caretAtEnd: false }),
+      ),
+    ).toBe(null)
+  })
+
+  it('Alt+←→ には意味を与えない（並び替えは Alt+↑↓ の担当）', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft', altKey: true }),
+        ctx({ hierarchical: true, editing: true, caretAtStart: true }),
+      ),
+    ).toBe(null)
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight', altKey: true }),
+        ctx({ hierarchical: true, editing: true, caretAtEnd: true }),
+      ),
+    ).toBe(null)
+  })
+
+  it('Shift+←→ には意味を与えない（選択の拡張は入力欄のもの）', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft', shiftKey: true }),
+        ctx({ hierarchical: true, editing: true, caretAtStart: true }),
+      ),
+    ).toBe(null)
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight', shiftKey: true }),
+        ctx({ hierarchical: true, editing: true, caretAtEnd: true }),
+      ),
+    ).toBe(null)
+  })
+
   it('Enter は階層でも「直後に追加」のまま', () => {
     expect(resolveCommand(key({ key: 'Enter' }), ctx({ hierarchical: true }))).toBe(
       'insert-item-after',
