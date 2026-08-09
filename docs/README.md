@@ -1,6 +1,6 @@
 # ドキュメントの地図
 
-facet は「人間は構造化された UI で入力し、ツールが網羅性の担保・描画・構造化テキスト出力を担う」会議用ツール群。用語集エディタが1本目で、ロジックツリー / シーケンス / 状態遷移が続く予定。
+facet は「人間は構造化された UI で入力し、ツールが網羅性の担保・描画・構造化テキスト出力を担う」会議用ツール群。用語集エディタが1本目、エラーカタログが2本目、ロジックツリーが3本目（キャンバス系の1本目）。シーケンス / 状態遷移が続く予定。
 
 ## どれを読むか
 
@@ -9,6 +9,9 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | なぜこの設計なのか | [`overview-rev.md`](overview-rev.md) — **全体方針の「正」**。3〜10章が設計制約の本体。他の文書はここを `rev N章` の形で参照する |
 | 何をどの順で作るか（用語集） | [`glossary/scope.md`](glossary/scope.md) |
 | 用語集の仕様がなぜそう決まったか | [`glossary/session-notes.md`](glossary/session-notes.md) |
+| 何をどの順で作るか（ロジックツリー） | [`logic-tree/logic-tree-m1-scope.md`](logic-tree/logic-tree-m1-scope.md) |
+| ロジックツリーのキャンバスがなぜこの技術なのか | [`logic-tree/logic-tree-canvas-tech-notes.md`](logic-tree/logic-tree-canvas-tech-notes.md) |
+| エラーカタログの仕様がなぜそう決まったか | [`error-catalog/error-catalog-session-notes.md`](error-catalog/error-catalog-session-notes.md) |
 | 環境・ビルド・Tauri の前提 | [`project-setup.md`](project-setup.md) |
 | **いま何が壊れている／未着手か** | [`open-issues.md`](open-issues.md) — **生きた文書**。解消したら消す |
 | **計画を書く前に知るべき失敗** | [`lessons-for-planning.md`](lessons-for-planning.md) |
@@ -32,6 +35,8 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 
 ファイル名は `mN-<機能>-<主題>.md`。機能はフォルダで分けず名前に入れている——マイルストーンはツールを跨ぐことがあり（M6 は用語集とコアの半々）、フォルダで強制すると嘘になるため。`docs/history/*glossary*` で機能横断に引ける。
 
+**採番は2系統ある。** コア・用語集・エラーカタログの流れは通し番号（`M1`〜`M10`）だが、**ロジックツリーは `logic-tree-mN` で独立して採番する**——このツールは自分の段階（M1〜M5）を持ち、上の流れと**並行して進む**ため、通し番号にすると同じ `M11` が2つ生まれる。ツールが独自の段階を切ったときは同じ形（`<tool>-mN`）で採番すること。
+
 | | 主題 | |
 | --- | --- | --- |
 | [M1](history/m1-core-walking-skeleton.md) | 歩けるスケルトン | コア |
@@ -44,6 +49,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [M8](history/m8-glossary-editor-appearance.md) | 用語集エディタの見た目と操作性 | 用語集 |
 | [M9](history/m9-core-list-editor-and-output-profiles.md) | リストエディタのコア化と出力プロファイル | コア |
 | [M10](history/m10-error-catalog-editor.md) | エラーカタログエディタ | エラーカタログ |
+| [logic-tree-m1](history/logic-tree-m1-keyboard-editor.md) | キーボードで打ち切れるキャンバスエディタ | ロジックツリー |
 
 ## ツールが増えたとき
 
@@ -51,7 +57,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 docs/glossary/        scope.md  session-notes.md
 docs/logic-tree/      logic-tree-m1-scope.md  logic-tree-canvas-tech-notes.md
 docs/error-catalog/   error-catalog-session-notes.md   ← エラーカタログのツールセッションで増えた3本目
-docs/history/         m9-....md  m10-....md            ← 時系列1本のまま
+docs/history/         m10-....md  logic-tree-m1-....md  ← フォルダは1本。採番だけ2系統
 docs/open-issues.md                                    ← ツール横断で1本
 ```
 
