@@ -92,6 +92,72 @@ describe('LogicTreeEditor（描画）', () => {
     expect(screen.getByText('ルートが2件あります')).toBeDefined()
   })
 
+  it('親子の数だけエッジを描く', () => {
+    // 「画面に木が出る」の枝の部分。ここにアサーションが無いと、
+    // edgePath が壊れても walk が1本も push しなくても緑になる。
+    //
+    // **孫を持たせる。** 親と子だけの木だと walk の再帰呼び出しを消しても
+    // 結果が変わらず、再帰が無検証のまま緑になる
+    const { container } = render(
+      <Harness
+        initial={file([[1, null, '親'], [2, 1, '子A'], [3, 2, '孫'], [4, 1, '子B']])}
+      />,
+    )
+    const paths = container.querySelectorAll('path')
+    expect(paths.length).toBe(3)
+    for (const path of paths) {
+      // 属性が空でないことまで見る。d="" でも要素は2つ数えられてしまう
+      const d = path.getAttribute('d')
+      expect(d).toMatch(/^M [\d.-]+ [\d.-]+ C /)
+    }
+  })
+
+  it('葉しかない木にはエッジを描かない', () => {
+    const { container } = render(<Harness initial={file([[1, null, '親']])} />)
+    expect(container.querySelectorAll('path').length).toBe(0)
+  })
+
+  it('指摘の対象になったノードに警告の面と枠を当てる（面と枠は片方だけ）', () => {
+    render(
+      <LogicTreeEditor
+        data={file([[1, null, 'x'], [2, 1, 'y']])}
+        onChange={() => {}}
+        issues={[
+          {
+            rule: 'duplicate-id',
+            message: 'ID が重複しています',
+            locations: [{ entityId: ID(1), entityIndex: 0, field: 'text' }],
+          },
+        ]}
+        modalOpen={false}
+      />,
+    )
+    const target = screen.getByLabelText('ノード1')
+    expect(target.className).toContain('bg-warning/20')
+    expect(target.className).toContain('border-warning')
+    // **面と枠のクラスは片方だけ出す。** 両方並べると勝つのは生成 CSS の
+    // 順序であってクラス名の順序ではない（M8 が cascade layers で踏んだ形）
+    expect(target.className).not.toContain('bg-surface')
+    expect(target.className).not.toContain('border-rule')
+
+    // 指摘の付いていないノードは通常の面のまま
+    const other = screen.getByLabelText('ノード2')
+    expect(other.className).toContain('bg-surface')
+    expect(other.className).not.toContain('bg-warning')
+  })
+
+  it('ノードのレイヤは操作を通し、ノードの矩形だけが受ける', () => {
+    // レイヤはツリー順で空状態のボタンより上に来る透明な面なので、
+    // pointer-events を切らないと中央のヒットテストを奪って
+    // 「クリックして開始」が押せなくなる（jsdom はヒットテストを
+    //  持たないため、クリックのテストではこの退行を検出できない）
+    const { container } = render(<Harness initial={file([[1, null, 'x']])} />)
+    const layer = container.querySelector('[data-layer="nodes"]')
+    expect(layer?.className).toContain('pointer-events-none')
+    const box = screen.getByLabelText('ノード1').parentElement
+    expect(box?.className).toContain('pointer-events-auto')
+  })
+
   it('循環しているノードは図に出さない（位置を持たないので落ちない）', () => {
     // 1 は正常なルート、2 と 3 が互いを親にしている
     render(

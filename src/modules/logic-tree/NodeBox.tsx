@@ -32,7 +32,10 @@ export function NodeBox(props: NodeBoxProps) {
   const face = props.invalid ? 'border-warning bg-warning/20' : 'border-rule bg-surface'
   return (
     <div
-      className="absolute"
+      // ノードのレイヤは pointer-events-none で操作を通す。操作を受けるのは
+      // この矩形だけ——レイヤ全面が受けると、下にある空状態のボタンや
+      // 背景（Task 11 のパン）に触れなくなる
+      className="pointer-events-auto absolute"
       style={{ left: props.x, top: props.y, width: props.width, height: props.height }}
     >
       <CellInput

@@ -38,6 +38,12 @@ export function LogicTreeEditor({
   // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
   const [pendingFocus, setPendingFocus] = useState<string | null>(null)
 
+  // Web フォントの読み込みで canvas の measureText の結果は変わるが、
+  // getComputedStyle が返す値は変わらない（宣言されたファミリ列を返すだけで、
+  // どのフェイスに解決されたかは映らない）。だからフォントの同一性では
+  // 判定できず、読み込み完了を世代として数えて測り直す
+  const [fontGeneration, setFontGeneration] = useState(0)
+
   const readFont = (): void => {
     setFont((prev) => {
       const next = readNodeFont(probeRef.current)
@@ -54,7 +60,9 @@ export function LogicTreeEditor({
     if (typeof document === 'undefined' || !('fonts' in document)) return
     let alive = true
     void document.fonts.ready.then(() => {
-      if (alive) readFont()
+      if (!alive) return
+      readFont()
+      setFontGeneration((n) => n + 1)
     })
     return () => {
       alive = false
@@ -70,14 +78,21 @@ export function LogicTreeEditor({
   }, [pendingFocus])
 
   // 測定器はフォントが変わったときだけ作り直す。**キャッシュはフォントに
-  // 紐づく**ので、同じ入れ物の中で持つ（別々に持つと片方だけ古くなる）
+  // 紐づく**ので、同じ入れ物の中で持つ（別々に持つと片方だけ古くなる）。
+  //
+  // 鍵に lineHeight と世代を混ぜる。**`font.font` の文字列には行間が
+  // 入っていない**のに `wrapText` の height は lineHeight に依存するので、
+  // 書体が同じまま行間だけ変わるとキャッシュが古い高さを返し続ける。
+  // 世代は上の document.fonts.ready が進めるカウンタで、
+  // 「読み込み後に測り直す」を成立させるのはこちらである
+  const measurerKey = `${font.font}|${font.lineHeight}|${fontGeneration}`
   const measurerRef = useRef<{
-    font: string
+    key: string
     measure: MeasureWidth
     cache: Map<string, WrappedText>
   } | null>(null)
-  if (measurerRef.current === null || measurerRef.current.font !== font.font) {
-    measurerRef.current = { font: font.font, measure: createNodeMeasurer(font), cache: new Map() }
+  if (measurerRef.current === null || measurerRef.current.key !== measurerKey) {
+    measurerRef.current = { key: measurerKey, measure: createNodeMeasurer(font), cache: new Map() }
   }
   const measurer = measurerRef.current
 
@@ -159,8 +174,14 @@ export function LogicTreeEditor({
 
       <TreeEdges roots={built.roots} positions={positions} sizes={sizes} transform={transform} />
 
+      {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面で、
+          ツリー順では空状態のボタンより後ろ（＝上）に来る。z-index はどちらも
+          auto なので、pointer-events を切らないと中央のヒットテストを
+          この面が奪い、「クリックして開始」が押せなくなる。操作を受けるのは
+          ノードの矩形だけでよいので、NodeBox 側で auto に戻す。
+          Task 11 の「背景を掴んでパンする」もこの形のまま効く */}
       <div
-        className="absolute inset-0 origin-top-left"
+        className="pointer-events-none absolute inset-0 origin-top-left"
         style={{ transform: cssTransform(transform) }}
         data-layer="nodes"
       >

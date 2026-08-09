@@ -335,8 +335,13 @@ describe('重ね合わせの値が実装と一致している', () => {
   // 「全コンポーネントがこの2本を宣言している」ことは要求しない——
   // 表を持たないエディタ（ロジックツリー）はセルという単位を持たず、
   // 使いもしない定数を検査のためだけに置かせるのは本末転倒である。
-  // **濃さの側は下の「検算していない濃さを使っていない」が全件を見る**ので、
-  // 検算を通っていない面が入り込む口はそちらで塞がっている
+  //
+  // ただし**「宣言があるファイルだけを見る」形にはしないこと。** それだと
+  // 検査対象がソース側の自己申告になり、定数名を errorCell → errorFace に
+  // 変えるだけで検査から抜けられる（濃さを入れ替えても 20 と 10 はどちらも
+  // 既知の alpha なので、下の「検算していない濃さ」も受け皿にならない）。
+  // **名前が error / warn を名乗るなら濃さは検算した値でなければならない**
+  // という否定形にして、名前を変えて逃げる道を塞ぐ
   it('errorCell と warnCell がそれぞれ検算した濃さに紐づいている', () => {
     const declaring = componentSources.filter(({ source }) =>
       /const\s+(errorCell|warnCell)\s*=/.test(source),
@@ -346,6 +351,10 @@ describe('重ね合わせの値が実装と一致している', () => {
     for (const { file, source } of declaring) {
       expect(source, file).toMatch(/const errorCell = 'bg-warning\/20'/)
       expect(source, file).toMatch(/const warnCell = 'bg-warning\/10'/)
+    }
+    for (const { file, source } of componentSources) {
+      expect(source, file).not.toMatch(/const\s+\w*[eE]rror\w*\s*=\s*'bg-warning\/(?!20\b)\d+'/)
+      expect(source, file).not.toMatch(/const\s+\w*[wW]arn\w*\s*=\s*'bg-warning\/(?!10\b)\d+'/)
     }
   })
 
