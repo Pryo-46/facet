@@ -298,7 +298,7 @@ npm run gen:types
 Expected: 標準出力に `gen:types  error-catalog.schema.json -> src/types/error-catalog.ts` と `gen:types  glossary.schema.json -> src/types/glossary.ts` の2行が出る。生成された型の名前を確認する:
 
 ```bash
-npx tsc --noEmit false --outFile /dev/null 2>/dev/null; grep -n "export interface" src/types/error-catalog.ts
+grep -n "export interface" src/types/error-catalog.ts
 ```
 
 Expected: `export interface ErrorCatalogSchemaVersion1` と `export interface ErrorEntry` の2つ。**この2つの名前を以降のタスクがそのまま import する。違う名前が出たら「計画の矛盾」として報告する**（後続タスクの import をすべて直す必要があるため、勝手に読み替えない）。
