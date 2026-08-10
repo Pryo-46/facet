@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "type": "errorCatalog",
+  "title": "受注管理 エラーカタログ",
+  "errors": [
+    {
+      "id": "error_Qw8ZxLm2Kt",
+      "name": "取引先が見つからない",
+      "occurrence": "受注登録で取引先コードを入力して確定したとき",
+      "resolutionLevel": "user",
+      "causeForSupport": "入力した取引先コードが未登録",
+      "causeForSpec": "取引先マスタに存在しないコードで検索し 404 が返る",
+      "userAction": "取引先コードを確認して入れ直す。未登録なら取引先登録を先に行う",
+      "supportAction": "",
+      "engineerAction": "",
+      "notes": ""
+    },
+    {
+      "id": "error_Hj4NbVc9Ry",
+      "name": "在庫引当に失敗する",
+      "occurrence": "",
+      "resolutionLevel": "undecided",
+      "causeForSupport": "",
+      "causeForSpec": "",
+      "userAction": "",
+      "supportAction": "",
+      "engineerAction": "",
+      "notes": "在庫がマイナスになる経路があるらしい。次回の会議で確認する"
+    }
+  ]
+}

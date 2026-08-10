@@ -1,0 +1,33 @@
+{
+  "skill_name": "error-catalog-register",
+  "evals": [
+    {
+      "id": 0,
+      "name": "new-catalog-from-conversation",
+      "prompt": "いま仕様を詰めている最中で、プロジェクトフォルダは <PROJECT_DIR> です。会議で出たエラーをカタログに残しておきたい。1つ目は「取引先が見つからない」——受注登録で取引先コードを入れて確定したときに出ます。原因は未登録のコードを入れたケースで、ユーザーがコードを確認して入れ直せば解決します。2つ目は「在庫引当に失敗する」——これは誰が対応するのかも含めて、まだ何も決まっていません。",
+      "expected_output": "<PROJECT_DIR> に type=errorCatalog の JSON が1つ作られる。2件とも登録され、1件目は resolutionLevel=user かつ userAction が埋まる。2件目は resolutionLevel=undecided で、occurrence・原因・対応3種がすべて空のまま（AIが推測で埋めない）。ID は error_ + 英数字10文字。ファイルは正規形（キー順・LF・末尾改行）。",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "append-to-existing-catalog",
+      "prompt": "<PROJECT_DIR> のプロジェクトにエラーを1件足してください。「受注を削除できない」——他部署が作成した受注を削除しようとしたときに出ます。これはサポートが権限を確認して、必要なら代理で削除する運用です。",
+      "expected_output": "既存のエラーカタログに追記される（2つ目のカタログファイルを作らない）。既存2件の id・配列順・全フィールドが1バイトも変わらず、新規エラーが末尾に追加される。新規エラーは resolutionLevel=support かつ supportAction が埋まり、userAction と engineerAction は空のまま。",
+      "files": ["fixtures/existing-project/エラーカタログ.json"]
+    },
+    {
+      "id": 2,
+      "name": "fill-in-existing-error",
+      "prompt": "<PROJECT_DIR> のエラーカタログにある「在庫引当に失敗する」の対応が決まりました。エンジニアが在庫データを補正する必要があります（引当済みレコードが残ってしまうケース）。発生タイミングは受注確定時です。",
+      "expected_output": "既存エラー error_Hj4NbVc9Ry の resolutionLevel が engineer になり、engineerAction と occurrence が埋まる。id は変わらない。配列順が変わらない。もう1件（error_Qw8ZxLm2Kt）のフィールドが1バイトも変わらない。新しいエラーを追加しない。",
+      "files": ["fixtures/existing-project/エラーカタログ.json"]
+    },
+    {
+      "id": 3,
+      "name": "extract-from-message-list",
+      "prompt": "<PROJECT_DIR>/エラーメッセージ一覧.md が実装から抽出したエラーメッセージの一覧です。ここからエラーカタログを作っておいてもらえますか。プロジェクトフォルダは <PROJECT_DIR> です。",
+      "expected_output": "一覧から候補を提示してユーザーに確定を取る（全件を独断で登録しない）。入力検証（E2001/E2002）や内部エラー（E9001）のような実装都合のメッセージをそのまま1件ずつ登録していない。書き出す場合はスキーマ検証を通り正規形で、原因・対応を推測で埋めない。",
+      "files": ["fixtures/message-list-project/エラーメッセージ一覧.md"]
+    }
+  ]
+}
