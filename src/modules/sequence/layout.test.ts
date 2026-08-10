@@ -42,6 +42,32 @@ describe('layoutSequence', () => {
     expect(r.actorX[2] - r.actorX[1]).toBeGreaterThanOrEqual(MIN_COL_GAP)
   })
 
+  it('ヘッダ同士がぶつからない下限: w[g]/2 + w[g+1]/2 + 16 が列幅を決める', () => {
+    // ラベル要求（デフォルト labelWidth 80 → need 104）を actorWidths の下限が上回るケース。
+    // gap0 = 400/2 + 400/2 + 16 = 416, gap1 = 400/2 + 96/2 + 16 = 264 のはず。
+    const wideActors = input({ actorWidths: [400, 400, 96] })
+    const r = layoutSequence(wideActors)
+    expect(r.actorX[1] - r.actorX[0]).toBe(400 / 2 + 400 / 2 + 16)
+    expect(r.actorX[2] - r.actorX[1]).toBe(400 / 2 + 96 / 2 + 16)
+  })
+
+  it('自己ループ（fromIndex === toIndex）は列幅計算をスキップする', () => {
+    const self = input()
+    self.steps[0] = { fromIndex: 1, toIndex: 1, metrics: metrics(999, 24) }
+    const r = layoutSequence(self)
+    // 自己ループのラベル(999)が列幅に影響しなければ、gap0 は MIN_COL_GAP のまま
+    expect(r.actorX[1] - r.actorX[0]).toBe(MIN_COL_GAP)
+    expect(Number.isFinite(r.actorX[1])).toBe(true)
+  })
+
+  it('参照切れ（範囲外の toIndex）は列幅に影響しない', () => {
+    const oob = input()
+    oob.steps[0] = { fromIndex: 0, toIndex: 5, metrics: metrics(999, 24) }
+    const r = layoutSequence(oob)
+    // toIndex(5) が actors 配列の範囲外なら、gap0 はこのステップの影響を受けない
+    expect(r.actorX[1] - r.actorX[0]).toBe(MIN_COL_GAP)
+  })
+
   it('長いラベルが跨ぐ区間は広がる（3列のうち中央の区間だけ）', () => {
     const wide = input()
     wide.steps[1] = { fromIndex: 1, toIndex: 2, metrics: metrics(300, 24) }
@@ -72,6 +98,19 @@ describe('layoutSequence', () => {
     const slots = 28 * 3 + SLOT_GAP * 2
     expect(r.rows[1].height).toBeGreaterThanOrEqual(slots)
     expect(r.rows[0].height).toBe(Math.max(MIN_ROW_HEIGHT, 24 + ARROW_GAP * 2))
+  })
+
+  it('arrowY はラベル下端（top + labelHeight）から ARROW_GAP だけ離れた位置になる', () => {
+    const r = layoutSequence(input())
+    // 3ステップとも labelHeight は 24（metrics() のデフォルト）
+    expect(r.rows[0].arrowY).toBe(r.rows[0].top + 24 + ARROW_GAP)
+    expect(r.rows[1].arrowY).toBe(r.rows[1].top + 24 + ARROW_GAP)
+    expect(r.rows[2].arrowY).toBe(r.rows[2].top + 24 + ARROW_GAP)
+    // labelHeight を変えると arrowY も追従する
+    const tall = input()
+    tall.steps[0] = { fromIndex: 0, toIndex: 1, metrics: metrics(80, 60) }
+    const rTall = layoutSequence(tall)
+    expect(rTall.rows[0].arrowY).toBe(rTall.rows[0].top + 60 + ARROW_GAP)
   })
 
   it('行は上から順に積まれ、重ならない', () => {
