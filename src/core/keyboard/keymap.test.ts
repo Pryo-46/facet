@@ -326,6 +326,15 @@ describe('horizontal（横リスト＝参加者ヘッダ）', () => {
     expect(resolveCommand(key({ key: 'ArrowDown', altKey: true }), ctx({ horizontal: true }))).toBeNull()
   })
 
+  it('horizontal では素の（Alt 無し）↑↓ も関与しない（↑↓の horizontal ガードの変異耐性: キャレット端でも focus-prev/next にならない）', () => {
+    expect(
+      resolveCommand(key({ key: 'ArrowUp' }), ctx({ horizontal: true, caretAtStart: true })),
+    ).toBeNull()
+    expect(
+      resolveCommand(key({ key: 'ArrowDown' }), ctx({ horizontal: true, caretAtEnd: true })),
+    ).toBeNull()
+  })
+
   it('reorderEnabled: false なら Alt+←→ も無効', () => {
     expect(
       resolveCommand(
@@ -358,18 +367,33 @@ describe('toggle-item-state（主修飾キー＋Enter）', () => {
 })
 
 describe('←→ と arrowsOwnedByField（open-issues の穴の解消）', () => {
-  it('hierarchical でも欄が矢印を使うなら ←→ は欄のもの', () => {
+  it('hierarchical でも欄が矢印を使うなら ←→ は欄のもの（キャレット端でも構造移動に化けない＝ガードの変異耐性）', () => {
     expect(
-      resolveCommand(key({ key: 'ArrowLeft' }), ctx({ hierarchical: true, arrowsOwnedByField: true })),
+      resolveCommand(
+        key({ key: 'ArrowLeft' }),
+        ctx({ hierarchical: true, arrowsOwnedByField: true, caretAtStart: true }),
+      ),
     ).toBeNull()
     expect(
-      resolveCommand(key({ key: 'ArrowRight' }), ctx({ hierarchical: true, arrowsOwnedByField: true })),
+      resolveCommand(
+        key({ key: 'ArrowRight' }),
+        ctx({ hierarchical: true, arrowsOwnedByField: true, caretAtEnd: true }),
+      ),
     ).toBeNull()
   })
 
-  it('horizontal でも同様', () => {
+  it('horizontal でも同様（キャレット端でも focus-prev/next に化けない＝ガードの変異耐性）', () => {
     expect(
-      resolveCommand(key({ key: 'ArrowLeft' }), ctx({ horizontal: true, arrowsOwnedByField: true })),
+      resolveCommand(
+        key({ key: 'ArrowLeft' }),
+        ctx({ horizontal: true, arrowsOwnedByField: true, caretAtStart: true }),
+      ),
+    ).toBeNull()
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight' }),
+        ctx({ horizontal: true, arrowsOwnedByField: true, caretAtEnd: true }),
+      ),
     ).toBeNull()
   })
 })
