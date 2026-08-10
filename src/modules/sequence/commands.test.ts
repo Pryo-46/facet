@@ -11,7 +11,10 @@ import {
   removeActor,
   removeStep,
   setActorDomain,
+  setActorName,
   setAnswerText,
+  setStepActor,
+  setStepLabel,
   setStepShape,
   stepShapeOf,
   toggleNotApplicable,
@@ -157,6 +160,22 @@ describe('setStepShape', () => {
     expect(stepShapeOf(setStepShape(data(), 0, 'call-async').steps[0])).toBe('call-async')
     expect(stepShapeOf(setStepShape(data(), 0, 'reply').steps[0])).toBe('reply')
     expect(stepShapeOf(setStepShape(data(), 0, 'self').steps[0])).toBe('self')
+  })
+})
+
+describe('範囲外 index は何もしない（グローバル制約）', () => {
+  it('参加者を書き換える関数は範囲外 index で元データをそのまま返す', () => {
+    const d = data()
+    expect(setActorName(d, 99, 'x')).toBe(d)
+    expect(setActorDomain(d, 99, 'x')).toBe(d)
+  })
+
+  it('ステップを書き換える関数は範囲外 index で元データをそのまま返す', () => {
+    const d = data()
+    expect(setStepLabel(d, 99, 'x')).toBe(d)
+    expect(setStepActor(d, 99, 'from', 'actor_Aaaaaaaaa1')).toBe(d)
+    expect(setStepShape(d, 99, 'self')).toBe(d)
+    expect(createActorAndAssign(d, 99, 'from', '新規')).toBe(d)
   })
 })
 

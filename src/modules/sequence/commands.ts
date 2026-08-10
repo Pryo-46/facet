@@ -73,6 +73,7 @@ export function setActorName(
   index: number,
   name: string,
 ): SequenceSchemaVersion1 {
+  if (d.actors[index] === undefined) return d
   const actors = [...d.actors]
   actors[index] = { ...actors[index], name }
   return withActors(d, actors)
@@ -84,6 +85,7 @@ export function setActorDomain(
   index: number,
   domain: string,
 ): SequenceSchemaVersion1 {
+  if (d.actors[index] === undefined) return d
   const actors = [...d.actors]
   const { domain: _old, ...rest } = actors[index]
   actors[index] = domain === '' ? rest : { ...rest, domain }
@@ -152,6 +154,7 @@ export function setStepLabel(
   index: number,
   label: string,
 ): SequenceSchemaVersion1 {
+  if (d.steps[index] === undefined) return d
   return replaceStep(d, index, { ...d.steps[index], label })
 }
 
@@ -161,13 +164,15 @@ export function setStepActor(
   field: 'from' | 'to',
   actorId: string,
 ): SequenceSchemaVersion1 {
+  if (d.steps[index] === undefined) return d
   return replaceStep(d, index, { ...d.steps[index], [field]: actorId })
 }
 
 /**
  * 未登録の名前が確定されたら、参加者を末尾に足して参照を差し替える（1操作＝
  * 1履歴）。同一ファイル内で完結するインライン登録であり、rev 6章の
- * クロスファイルのインライン登録（用語集）とは別物
+ * クロスファイルのインライン登録（用語集）とは別物。範囲外 stepIndex では
+ * 参加者も足さない（「何も起きない」を1操作全体として守る）
  */
 export function createActorAndAssign(
   d: SequenceSchemaVersion1,
@@ -175,6 +180,7 @@ export function createActorAndAssign(
   field: 'from' | 'to',
   name: string,
 ): SequenceSchemaVersion1 {
+  if (d.steps[stepIndex] === undefined) return d
   const actor: SequenceActor = { id: newId('actor'), name }
   const withActor = withActors(d, [...d.actors, actor])
   return setStepActor(withActor, stepIndex, field, actor.id)
@@ -214,6 +220,7 @@ export function setStepShape(
   index: number,
   shape: StepShapeValue,
 ): SequenceSchemaVersion1 {
+  if (d.steps[index] === undefined) return d
   const { awaitsReply: _aw, to, ...rest } = d.steps[index]
   switch (shape) {
     case 'call-sync':
