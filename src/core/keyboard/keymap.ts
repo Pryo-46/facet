@@ -10,11 +10,14 @@ export type Command =
   | 'redo'
   | 'cancel'
   | 'insert-item-after'
+  | 'insert-child'
   | 'delete-item'
   | 'move-item-up'
   | 'move-item-down'
   | 'focus-prev'
   | 'focus-next'
+  | 'focus-parent'
+  | 'focus-child'
   | 'focus-next-field'
   | 'focus-prev-field'
 
@@ -45,6 +48,12 @@ export interface KeyContext {
   arrowsOwnedByField: boolean
   /** 並び替えが有効か。導出表示中は false（session-notes 論点4） */
   reorderEnabled: boolean
+  /**
+   * 子を持てる構造か（ツリー・アウトライン）。true のとき Tab は
+   * ファミリー標準の「子追加」になり、←→ が親子間の移動になる（rev 10章）。
+   * 用語集のようなフラットなリストは false——「子」という意味が存在しない
+   */
+  hierarchical: boolean
 }
 
 /**
@@ -79,6 +88,10 @@ export function resolveCommand(e: KeyEventLike, ctx: KeyContext): Command | null
       return e.altKey || e.shiftKey ? null : 'insert-item-after'
     case 'Tab':
       if (e.altKey) return null
+      // 階層構造では Tab は子追加（rev 10章 階層・リスト系の標準）。
+      // Shift+Tab に「親にする」を割り当てるのは M1 の範囲外——意味を
+      // 与えないことで、キャンバスから Tab 順で抜ける経路として残る
+      if (ctx.hierarchical) return e.shiftKey ? null : 'insert-child'
       return e.shiftKey ? 'focus-prev-field' : 'focus-next-field'
     case 'Backspace':
       if (e.altKey || e.shiftKey) return null
@@ -91,6 +104,13 @@ export function resolveCommand(e: KeyEventLike, ctx: KeyContext): Command | null
       if (e.altKey) return ctx.reorderEnabled ? 'move-item-down' : null
       if (e.shiftKey || ctx.arrowsOwnedByField) return null
       return !ctx.editing || ctx.caretAtEnd ? 'focus-next' : null
+    case 'ArrowLeft':
+      if (!ctx.hierarchical || e.altKey || e.shiftKey) return null
+      // 端でだけ構造の移動に切り替える（↑↓ と同じ規則）
+      return !ctx.editing || ctx.caretAtStart ? 'focus-parent' : null
+    case 'ArrowRight':
+      if (!ctx.hierarchical || e.altKey || e.shiftKey) return null
+      return !ctx.editing || ctx.caretAtEnd ? 'focus-child' : null
     default:
       return null
   }

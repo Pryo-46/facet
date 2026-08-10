@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { CellInput } from './CellInput'
 
@@ -92,5 +92,82 @@ describe('CellInput: 複数行', () => {
     render(<CellInput multiline value="" onValueChange={onValueChange} aria-label="定義" />)
     fireEvent.change(screen.getByLabelText('定義'), { target: { value: '1行目\n2行目' } })
     expect(onValueChange).toHaveBeenCalledWith('1行目\n2行目')
+  })
+
+  it('autoSize={false} でも IME 変換中は親へ値を上げない', () => {
+    const onValueChange = vi.fn()
+    render(
+      <CellInput multiline autoSize={false} aria-label="ノード" value="" onValueChange={onValueChange} />,
+    )
+    const el = screen.getByLabelText('ノード')
+    fireEvent.compositionStart(el)
+    fireEvent.change(el, { target: { value: 'じゅちゅう' } })
+    expect(onValueChange).not.toHaveBeenCalled()
+    fireEvent.compositionEnd(el, { target: { value: '受注' } })
+    expect(onValueChange).toHaveBeenCalledWith('受注')
+  })
+})
+
+describe('autoSize', () => {
+  // jsdom はレイアウトを持たないので、measure() が読む値を差し込んで
+  // 「測れる環境」を作る。これをしないと measure() は行間の判定で抜けてしまい、
+  // autoSize の有無に関わらず rows が 1 のままになって、分岐を区別できない
+  let restore: (() => void) | null = null
+
+  beforeEach(() => {
+    const scrollHeightDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      'scrollHeight',
+    )
+    Object.defineProperty(HTMLTextAreaElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get: () => 100,
+    })
+    const original = window.getComputedStyle
+    const spy = vi.spyOn(window, 'getComputedStyle').mockImplementation(((
+      el: Element,
+      pseudo?: string | null,
+    ) => {
+      const style = original.call(window, el, pseudo ?? undefined)
+      return new Proxy(style, {
+        get(target, key) {
+          if (key === 'lineHeight') return '20px'
+          if (key === 'paddingTop' || key === 'paddingBottom') return '0px'
+          return Reflect.get(target, key)
+        },
+      })
+    }) as typeof window.getComputedStyle)
+    restore = () => {
+      spy.mockRestore()
+      if (scrollHeightDescriptor) {
+        Object.defineProperty(HTMLTextAreaElement.prototype, 'scrollHeight', scrollHeightDescriptor)
+      } else {
+        delete (HTMLTextAreaElement.prototype as unknown as Record<string, unknown>).scrollHeight
+      }
+    }
+  })
+
+  afterEach(() => {
+    restore?.()
+    restore = null
+  })
+
+  it('既定（autoSize 省略）では内容に合わせて rows を決める', () => {
+    render(<CellInput multiline aria-label="セル" value={'あ\nい\nう'} onValueChange={() => {}} />)
+    // scrollHeight 100 / lineHeight 20 = 5行
+    expect((screen.getByLabelText('セル') as HTMLTextAreaElement).rows).toBe(5)
+  })
+
+  it('autoSize={false} のとき rows を自分で決めない（高さは CSS に委ねる）', () => {
+    render(
+      <CellInput
+        multiline
+        autoSize={false}
+        aria-label="セル"
+        value={'あ\nい\nう'}
+        onValueChange={() => {}}
+      />,
+    )
+    expect((screen.getByLabelText('セル') as HTMLTextAreaElement).rows).toBe(1)
   })
 })
