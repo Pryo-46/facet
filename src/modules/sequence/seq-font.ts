@@ -2,7 +2,7 @@
 // 2本目完成後に別マイルストーンで判断する（scope の禁止事項）。差分を
 // 作らないこと——直すときは両方を直し、open-issues の複製の項に従う
 
-import { createEstimateMeasurer, type MeasureWidth } from '../logic-tree/measure'
+import { createEstimateMeasurer, type MeasureWidth } from './measure'
 
 export interface SeqFont {
   /** canvas の ctx.font に渡す値（CSS の font 短縮形と同じ書式） */
