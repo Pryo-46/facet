@@ -244,7 +244,7 @@ export function SequenceEditor({
 
   /** 測定は1パス。同じ文字列でも当てる箱が違えば結果が違うので、鍵に箱の種別を混ぜる */
   const wrap = (box: string, text: string, opts: WrapOptions): WrappedBlock => {
-    const key = `${box} ${text}`
+    const key = `${box}:${text}`
     let block = measurer.cache.get(key)
     if (block === undefined) {
       block = wrapWithin(text, measurer.measure, font.lineHeight, opts)
@@ -605,6 +605,11 @@ export function SequenceEditor({
         style={{ transform: cssTransform(transform) }}
         data-layer="background"
       >
+        {/* 行全体の赤（id 重複など、欄を特定できない指摘）。
+            **同じピクセルに warning の面を2枚重ねない**（M8 の「面は片方だけ」）。
+            そのため帯はガターの手前で止める——ガターのセルは未定義の
+            `bg-warning/10` を自分で持っており、重ねると未検算の濃さになる。
+            図の側では文言セルが面を降りる（下の labelFace） */}
         {data.steps.map((_step, index) =>
           stepHas(index, 'row') ? (
             <div
@@ -613,7 +618,7 @@ export function SequenceEditor({
               style={{
                 left: DIAGRAM_MARGIN,
                 top: layout.rows[index].top,
-                width: layout.totalWidth,
+                width: Math.max(0, layout.gutterX - DIAGRAM_MARGIN - CELL_GAP * 2),
                 height: layout.rows[index].height,
               }}
             />
@@ -697,7 +702,10 @@ export function SequenceEditor({
           const view = stepViews[index]
           const row = layout.rows[index]
           const isSelf = view.shape === 'self'
-          const labelFace = stepHas(index, 'row') ? 'bg-warning/20' : 'bg-canvas'
+          // 行全体が赤い行では、文言セルは面を持たない（背景の帯を透かす）。
+          // bg-warning/20 を重ねると同じ色を2枚敷くことになり、
+          // bg-canvas で塗ると帯に穴が開く（どちらも「面は片方だけ」に反する）
+          const labelFace = stepHas(index, 'row') ? 'bg-transparent' : 'bg-canvas'
           // 文言は矢印の真上に置く（layout の arrowY は文言の高さから決まっている）
           const labelTop = row.arrowY - ARROW_GAP - view.label.height
           const anchorX = view.fromIndex < 0 ? DIAGRAM_MARGIN : layout.actorX[view.fromIndex]

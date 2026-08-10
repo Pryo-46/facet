@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useState } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SequenceSchemaVersion1 } from '@/types/sequence'
@@ -26,8 +27,36 @@ function doc(): SequenceSchemaVersion1 {
 
 function setup(data = doc(), issues: never[] | Parameters<typeof SequenceEditor>[0]['issues'] = []) {
   const onChange = vi.fn()
-  render(<SequenceEditor data={data} onChange={onChange} issues={issues} modalOpen={false} />)
-  return { onChange }
+  const { container } = render(
+    <SequenceEditor data={data} onChange={onChange} issues={issues} modalOpen={false} />,
+  )
+  return { onChange, container }
+}
+
+/**
+ * 額縁と同じく onChange を state に反映する殻（logic-tree の DOM テストと同じ作法）。
+ * **1打鍵で2回 onChange が起きる経路**の検査に要る——素の setup は data が
+ * 固定なので、2回目が1回目の結果の上に載っているかを見られない
+ */
+function Harness({
+  initial,
+  onChange,
+}: {
+  initial: SequenceSchemaVersion1
+  onChange?: (next: SequenceSchemaVersion1, mergeKey?: string | null) => void
+}) {
+  const [data, setData] = useState(initial)
+  return (
+    <SequenceEditor
+      data={data}
+      onChange={(next, mergeKey) => {
+        onChange?.(next, mergeKey)
+        setData(next)
+      }}
+      issues={[]}
+      modalOpen={false}
+    />
+  )
 }
 
 /** onChange の最後の呼び出しのデータを取り出す */
@@ -162,7 +191,51 @@ describe('問いスロット（ガター）', () => {
   })
 })
 
+describe('参照セルの確定', () => {
+  it('未登録名を打っての Enter は参加者を足すだけ（ステップは増えない）', () => {
+    // **1打鍵で確定と行追加が両方走ると、後から届いた行追加が
+    // 古い data から作られていて確定を消す**（インライン作成した参加者ごと）
+    const onChange = vi.fn()
+    render(<Harness initial={doc()} onChange={onChange} />)
+    const cell = screen.getByLabelText('ステップ1の受け手')
+    fireEvent.change(cell, { target: { value: 'メール基盤' } })
+    fireEvent.keyDown(cell, { key: 'Enter' })
+    const afterCommit = last(onChange)
+    expect(afterCommit.actors).toHaveLength(4)
+    expect(afterCommit.actors[3].name).toBe('メール基盤')
+    expect(afterCommit.steps).toHaveLength(3)
+    expect(afterCommit.steps[0].to).toBe(afterCommit.actors[3].id)
+
+    // 確定済み（ドラフト無し）のセルで押せば、従来どおりステップが増える
+    fireEvent.keyDown(screen.getByLabelText('ステップ1の受け手'), { key: 'Enter' })
+    const afterInsert = last(onChange)
+    expect(afterInsert.steps).toHaveLength(4)
+    expect(afterInsert.actors).toHaveLength(4)
+  })
+})
+
 describe('赤表示', () => {
+  it('行全体の赤は warning の面を2枚重ねない（M8「面は片方だけ」）', () => {
+    const { container } = setup(doc(), [
+      {
+        rule: 'duplicate-id',
+        message: 'x',
+        locations: [{ entityId: 'step_Aaaaaaaaa1', entityIndex: 0, field: 'id' }],
+      },
+    ])
+    const band = container.querySelector<HTMLElement>('[data-layer="background"] .bg-warning\\/20')
+    expect(band).not.toBe(null)
+    // 図の側: 文言セルは自分の面を持たない（帯を透かす）
+    expect(screen.getByLabelText('ステップ1の文言').className).toContain('bg-transparent')
+    expect(screen.getByLabelText('ステップ1の文言').className).not.toContain('bg-warning')
+    // ガターの側: 帯はスロット（未定義の bg-warning/10）の手前で止まる
+    const slot = screen.getByLabelText('ステップ1の答え: 失敗が確定したら？')
+    const slotBox = slot.parentElement?.parentElement as HTMLElement
+    const bandRight =
+      Number.parseFloat(band?.style.left ?? '0') + Number.parseFloat(band?.style.width ?? '0')
+    expect(bandRight).toBeLessThanOrEqual(Number.parseFloat(slotBox.style.left))
+  })
+
   it('missing-actor の issue が from セルに赤を付ける', () => {
     const d = doc()
     d.steps[0] = { ...d.steps[0], from: 'actor_Zzzzzzzzz9' }

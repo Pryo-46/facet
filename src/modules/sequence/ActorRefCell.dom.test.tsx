@@ -14,6 +14,7 @@ const actors = [
 function setup(over: Partial<Parameters<typeof ActorRefCell>[0]> = {}) {
   const onSelect = vi.fn()
   const onCreate = vi.fn()
+  const onFieldKeyDown = vi.fn()
   render(
     <ActorRefCell
       value="actor_Aaaaaaaaa2"
@@ -23,10 +24,16 @@ function setup(over: Partial<Parameters<typeof ActorRefCell>[0]> = {}) {
       data-cell="s1:from"
       onSelect={onSelect}
       onCreate={onCreate}
+      onFieldKeyDown={onFieldKeyDown}
       {...over}
     />,
   )
-  return { onSelect, onCreate, input: screen.getByLabelText('送り手') as HTMLInputElement }
+  return {
+    onSelect,
+    onCreate,
+    onFieldKeyDown,
+    input: screen.getByLabelText('送り手') as HTMLInputElement,
+  }
 }
 
 describe('ActorRefCell', () => {
@@ -95,6 +102,43 @@ describe('ActorRefCell', () => {
     expect(onSelect).not.toHaveBeenCalled()
     expect(onCreate).not.toHaveBeenCalled()
     expect(input.value).toBe('API')
+  })
+
+  it('ドラフトがある状態の Enter は確定だけして親のキー処理へ渡さない', () => {
+    // **1打鍵＝1操作。** 渡すと親（操作言語）が同じ Enter を
+    // 「次のステップを追加」と読み、commit() より古いデータから作った
+    // 追加で確定を上書きする（未登録名ならインライン作成した参加者ごと消える）
+    const { onSelect, onFieldKeyDown, input } = setup()
+    fireEvent.change(input, { target: { value: '決済' } })
+    expect(fireEvent.keyDown(input, { key: 'Enter' })).toBe(false)
+    expect(onSelect).toHaveBeenCalledWith('actor_Aaaaaaaaa3')
+    expect(onFieldKeyDown).not.toHaveBeenCalled()
+  })
+
+  it('未登録名のドラフトでも同じ（onCreate だけが起きる）', () => {
+    const { onCreate, onFieldKeyDown, input } = setup()
+    fireEvent.change(input, { target: { value: 'メール基盤' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onCreate).toHaveBeenCalledWith('メール基盤')
+    expect(onFieldKeyDown).not.toHaveBeenCalled()
+  })
+
+  it('ドラフトが無い Enter は親へ委譲する（行追加の経路を塞がない）', () => {
+    const { onSelect, onCreate, onFieldKeyDown, input } = setup()
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(onFieldKeyDown).toHaveBeenCalled()
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('Tab はドラフトがあっても親へ委譲する（確定して次の欄へ抜ける）', () => {
+    // Tab の写像（focus-next-field）はデータを触らないので上書きが起きない。
+    // ここを塞ぐとキャンバスから Tab 順で抜けられなくなる
+    const { onSelect, onFieldKeyDown, input } = setup()
+    fireEvent.change(input, { target: { value: '決済' } })
+    fireEvent.keyDown(input, { key: 'Tab' })
+    expect(onSelect).toHaveBeenCalledWith('actor_Aaaaaaaaa3')
+    expect(onFieldKeyDown).toHaveBeenCalled()
   })
 
   it('IME 変換中の ↑↓ は候補切替しない', () => {

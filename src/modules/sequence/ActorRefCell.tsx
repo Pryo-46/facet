@@ -80,7 +80,20 @@ export function ActorRefCell(props: ActorRefCellProps) {
           cycle(e.key === 'ArrowUp' ? -1 : 1)
           return
         }
-        if (!composing && (e.key === 'Enter' || e.key === 'Tab')) commit()
+        if (!composing && (e.key === 'Enter' || e.key === 'Tab')) {
+          const hadDraft = draft !== null
+          commit()
+          // **ドラフトの確定と「次のステップを足す」を同じ打鍵で起こさない。**
+          // ここで親へ委譲すると、操作言語が Enter を insert-item-after と読み、
+          // エディタが commit() の onSelect / onCreate より**古い data**から
+          // 追加を作って直前の変更を上書きする。未登録名のときは、
+          // インライン作成した参加者ごと消える（実測で再現）。
+          // Tab は欄を移るだけでデータを触らないので、従来どおり委譲する
+          if (hadDraft && e.key === 'Enter') {
+            e.preventDefault()
+            return
+          }
+        }
         const el = e.currentTarget
         props.onFieldKeyDown?.(e, {
           empty: el.value === '',
