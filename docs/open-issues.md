@@ -4,12 +4,14 @@
 >
 > ここに載るのは「**いつでもよいが、忘れると実害化するもの**」。いま着手すべきものはマイルストーンの計画に入れる。マイルストーン完了時にこのファイルを更新するのは義務（[`../CLAUDE.md`](../CLAUDE.md) 参照）。
 >
-> 最終更新: logic-tree M1 完了時点（2026-08-10）
+> 最終更新: sequence M1 完了時点（2026-08-11）
 
-各項目の末尾の `[MN]` は**最初に記録されたマイルストーン**。長く開いているものほど「踏まないから残っている」のか「踏むけど後回しにしている」のかを見分ける手がかりになる。**採番は2系統**（コア・用語集・エラーカタログの `MN` と、ロジックツリーの `logic-tree-mN`）。
+各項目の末尾の `[MN]` は**最初に記録されたマイルストーン**。長く開いているものほど「踏まないから残っている」のか「踏むけど後回しにしている」のかを見分ける手がかりになる。**採番は3系統**（コア・用語集・エラーカタログの `MN`、ロジックツリーの `logic-tree-mN`、シーケンスの `sequence-mN`）。
 
 ## テストが無い箇所
 
+- **sequence M1 の実機確認が未実施**（計画 Task 13）: `npm test` / `tsc` / `lint` / `vite build` はすべて緑だが、**jsdom が持たないもの——実フォントの解決、ヒットテスト、IME の変換確定、ブラウザの既定動作——は1つも検証されていない**。チェックリストは [`history/sequence-m1-keyboard-editor.md`](history/sequence-m1-keyboard-editor.md) に空のまま置いてある。**実施したらこの項目を消し、申し送りのチェックを埋めるコミットを入れる** `[sequence-m1]`
+- **sequence の変異耐性に穴が残っているテストが3箇所**: `schema.test.ts`（`additionalProperties` の拒否・`unknownSlot` の `decision` enum・`const` / `from`-`to` のパターン）／`consistency.test.ts`（**actor 側の ID 重複ケースが無い**ので実装の actor ループを消しても全緑、**reply の `to` 欠落ケースが無い**ので `to-mismatch` を call だけに絞っても全緑）。いずれも最終レビューが実害小と判断して繰り越したもので、**この層に触るときの宿題** `[sequence-m1]`
 - **interleaving を要する3分岐にテストが無い**（`src/core/app-controller.ts`）: `rescan` の `switchingFolder > 0` ガード（フォルダ切替中に届いた旧フォルダのイベントが新しい一覧を上書きする）、`rescan` の `token !== scanSeq || projectDir !== dir` ガード（遅れて着地した古い走査結果が新しい一覧を上書きする）、`handleSelectedGone` の `selectSeq++`（進行中の `selectFile` が着地して消えたファイルを選び直す）。**コントローラは I/O を注入しているので `io.scan` に手動 Promise を挟めば書ける。** この層に触るときの宿題 `[M6]`
 - **`currentDocument()` の「未選択」分岐を明示的に踏むテストが無い**（`src/core/app-controller.ts`）。「編集中データなし」分岐と観測が重なる `[M6]`
 - **`FLUSH_MAX_ROUNDS` の打ち切りパスに直接テストが無い**（`src/core/autosave.ts`）。戻り値は安全側の false なので後回し可 `[M5]`
@@ -19,7 +21,6 @@
 
 ## 将来の機能を作った瞬間に踏むもの
 
-- **`←→` が `arrowsOwnedByField` を見ないのに、コメントは「↑↓ と同じ規則」と書いている**（`src/core/keyboard/keymap.ts`）: ツリーのノードに select 系の欄が入った瞬間、`↑↓` と規則が割れる。**この節の定義そのもの** `[logic-tree-m1]`
 - **`ensureFileOfType` は将来のインライン登録から呼ぶと二択と競合する**（`src/core/app-controller.ts`）: 内部で `rescan()` を回すので、`ask` が出た直後に `selectFile` で選択を移してしまい、回答が「選択が変わったため書き戻しませんでした」に倒れる。今日は「用語集を作る」ボタンが空状態（未選択時）にしか出ないので到達不能だが、**インライン登録を実装した時点で踏む**（[`history/m4-core-file-operations.md`](history/m4-core-file-operations.md) の `ensureFileOfType` に関する項と併せて読むこと） `[M6]`
 - **モジュール規約8（表記ゆれ検知の対象フィールドパス宣言）が `ToolModule` に無い**（`src/core/registry.ts`）: rev 6章は8点セットと書いているが、コードは7点＋`createEmpty`。**検知エンジン自体もコアに無い**ため、宣言だけ足しても読み手のいない死んだコードになる。エンジンを作る時点で両方を足す `[M9]`
 - **`scripts/gen-types.mjs` は `schemas/*.schema.json` が減っても対応する `src/types/*.ts` を消さない**: スキーマを走査して書き出すだけで、消えたスキーマの古い型ファイルは掃除しない。M9 で `.gitignore` を `src/types/glossary.ts` から `src/types/*.ts` に広げたため、取り残された型ファイルは `git status` に現れず `tsc` の対象にだけ残る。**2本目以降のツールでスキーマを作り直す／消す時点で踏む** `[M9]`（M10 はスキーマを1本足しただけで、作り直し・削除は発生していないため未解消のまま）
@@ -28,6 +29,11 @@
 
 ## 挙動の穴（実害は小さいが残っている）
 
+- **`StepShapeCell` に `onClick` が無い**（`src/modules/sequence/StepShapeCell.tsx`）: 形（呼出／投げっぱなし／応答／内部処理）は `Space` / `Enter` / `↑↓` でしか変えられず、**マウスだけで操作する人には形を変える手段が無い**。rev 10章「キーでしか到達できない『意味』を残さない」に対する未達で、M8 の実機確認で発覚した用語集の「行を増やす手段が無い」と同じ形である。`<button>` なので `onClick` を1本足すだけで塞がる `[sequence-m1]`
+- **答えスロットで `Alt+↑↓` を押すとステップが並び替わる**（`src/modules/sequence/SequenceEditor.tsx`）: 答えのセルはガターの中で1本の列として `↑↓` で動くが、`Alt+↑↓` は `move-item-up/down` を素通りさせてステップ本体の並び替えになる。**写像表に無い挙動**であり、答えを見比べている最中に図の時系列が動く。答えスロットでは `reorderEnabled: false` にするか、答えの入れ替えという意味を与えるかの判断が要る `[sequence-m1]`
+- **`reply` の行に `unposed-answer` の赤が出ない**（`src/modules/sequence/SequenceEditor.tsx`）: 整合性検証は「`reply` に答えがある」を検出してバナーに出すが、**行のガターは一般文言（`─ 応答の失敗は呼出側の「結果不明」が扱う`）のまま**なので、どの行が指摘されているのかが図の上で分からない。指摘の場所と表示の場所が繋がっていない `[sequence-m1]`
+- **`replyTo`（応答と呼出の対応）が無く、`reply` 行の説明が一般文言である**（`schemas/sequence.schema.json` / `src/modules/sequence/`）: 「この応答はどの呼出への応答か」をデータが持たないため、行の説明は誰に対しても同じ文になる。design-notes 論点3 は**意図的に持たない**と決めた（対応の明示が要ると分かってから入れる）ので欠陥ではないが、**呼出が入れ子になるシナリオを実際に書いたときに読めるか**は実使用でしか分からない。ホバーで対の呼出をハイライトする等を検討するなら、まずこのフィールドが要る `[sequence-m1]`
+- **編集セル群（from / to / 形）が矢印ラベルと最大 7px 重なる**（`src/modules/sequence/SequenceEditor.tsx` / `layout.ts`）: レイアウト層の行高が `max(ラベル高, ガタースロット群の高さ)` で決まり、**編集セルのぶんの高さを取っていない**ことの帰結。矢印線を中心に上下へ振り分けて「次の行に食い込む」ほうは消したが、自分の行の中の重なりは残っている。直すならレイアウト側に「矢印の下に確保する高さ」を入れる（純関数の契約変更なので、実機で気になってからにする）。**幅 276 のセル群が隣のライフラインを横切る**のも同じ箇所の話 `[sequence-m1]`
 - **`resolveCommand` の細かい非対称**（`src/core/keyboard/keymap.ts`）: macOS の `Ctrl+Backspace`（主修飾キーは Cmd なので素の Backspace として通る）と `Alt+Shift+↑↓`（`altKey` を先に見るため並び替えになる） `[M3]`
 - **モーダルが開いている間もキャンバスのホイール／ドラッグが生きている**（`src/modules/logic-tree/useViewport.ts`）: rev 10章の境界規則は「モーダル中はエディタの操作言語を停止する」と定めており、キー監視（Space）は `enabled` で止めているが、**d3-zoom の `filter` は `enabled` を見ていない**。モーダルの裏で `Ctrl+ホイール` を回すとズームし、閉じたときに視点が変わっている。**規約に対する未達なので、いずれ塞ぐ。** 直し方は `filter` の先頭に `enabled` の ref を見る1行を足すだけ（`enabled` を ref に写す必要がある。d3 のハンドラはマウント時に1回しか張らないため） `[logic-tree-m1]`
 - **ID が重複しているファイルでは、その ID を親に指すノードが先頭の1つにだけ付く**（`src/modules/logic-tree/tree.ts`）: 挙動は決めてあるが、**画面に出るのは「ID が重複しています」だけ**で、木の形が想定と違って見える理由が読み手に繋がらない。ID 重複を直せば解消するので実害は小さいが、原因の説明が要る `[logic-tree-m1]`
@@ -50,12 +56,15 @@
 
 - **`warning` と `ok` が P型・D型色覚で識別できない**（`src/styles/palette.css`）: 採用した Basalt 由来の配色は、OKLab の色差が標準色覚で 0.151 / P型 0.050 / D型 0.041（ライト）。0.10 を下回ると「同じ色の濃淡」に見え始める。**色を差し替えるときに、青緑側（`oklch(0.470 0.075 168)` 付近）へ振る案を再検討すること。** `palette.test.ts` がこの数字を毎回出力するが、意図的に失敗させていない（M7 の設計スペック 決定4） `[M7]`
 - **`ok` がどのコンポーネントからも参照されていない**（`src/styles/palette.css`）: rev 9章の3系統として定義とテストはあるが、facet の画面に「確定・応答」を色で示す箇所がまだ無い（トーストは種別を持たない）。**成功トーストなどを作った時点で使う。** M8 で新設した `surface-accent`（見出しの面）は**別のトークン**であって、これを解消しない——カラム名は「確定・応答」ではないので、`ok` を流用すると意味論が壊れる `[M7]`
+  - **sequence M1 が最初の使いどころだったが、使わなかった**（`src/modules/sequence/GutterSlot.tsx`）: scope は答えスロットの色を「未定義＝warning／handled＝ok 系／notApplicable＝弱い ok 系」と書いていたが、**`ok` の面（`bg-ok/α`）は濃さの検算が済んでいない**ため、`handled` と `notApplicable` はどちらも無地（`border-rule bg-surface`、文字色だけ差をつける）にした。**「回答済み」と「考慮不要」の区別が、面の色ではなく文言に頼っている**状態である。上の色差の再検討（P型・D型）と一緒に、`ok` の半透明の濃さを検算するときに入れる `[sequence-m1]`
+- **行全体の指摘と `from`/`to` の指摘が同時に出ると `warning` の面が二重になりうる**（`src/modules/sequence/SequenceEditor.tsx`）: 行の帯と文言セルの面は排他にしたが（M8「面は片方だけ」）、`from`/`to` の参照切れが指すセルは `bg-surface` の上に枠を出す形なので今は重ならない。**`from`/`to` のセルに面を与えた瞬間、行の帯と2枚になる。** 排他の判定は `stepHas(index,'row')` の1箇所にあるので、面を増やすときはそこを通すこと `[sequence-m1]`
 - **方眼背景がキャンバスのズームに追従しない**（`src/modules/logic-tree/LogicTreeEditor.tsx`）: `bg-grid-paper` はビューポート（transform を当てる要素）の**外側**に敷いてあるので、拡大しても升目の大きさが変わらない。**rev 9章「地は方眼、作業する面は無地」の意図には合っている**（方眼は地の模様であって図の一部ではない）が、キャンバスとしては**倍率の手がかりを失っている**——どれだけ拡大しているかが画面から読めない。倍率表示を出すか方眼を内側へ移すかは、実機で「今どれくらいの倍率か分からない」と感じたときに決める `[logic-tree-m1]`
 
 ## 小さな負債
 
 - **用語テーブルの `<th>` に `sticky` と `relative` が同時に付いている**（`src/modules/glossary/GlossaryEditor.tsx`）: どちらも `position` なので、カラム名が固定されているのは Tailwind が `sticky` を `relative` より後に出力しているからにすぎない。`sticky` 自体が絶対配置の包含ブロックになる（列幅ハンドルはそれに乗っている）ので `relative` は不要。**出力順が変わると固定が静かに外れ、原因は読み手に自明でない** `[M8]`
 - **エディタのキー処理が用語集とエラーカタログで二重化している**（`GlossaryEditor.tsx` / `ErrorCatalogEditor.tsx`）: `runCommand` の switch・`onCellKeyDown`・`textFieldContext`・セルの面のクラス定数（計 約80行）がほぼ同一。M10 は意図的に複製した——いま抽象を決めても、3本目（ロジックツリーは列を持たない図系）が必要とする形と一致する保証がないため（M9 決定1が万能フックを退けたのと同じ理由）。**3本目が列を持つツール（状態遷移の遷移表など）だったら、その時点で引き上げる。** 判断材料は「2本の差が3点（プロファイルトグル・列幅ストア2本・吸収列）に収まっているか」 `[M10]`
+- **キャンバスの土台が logic-tree と sequence で丸ごと複製されている**（`src/modules/sequence/viewport.ts` / `viewport.test.ts` / `useViewport.ts` / `useViewport.dom.test.tsx` / `seq-font.ts`、および `measure.ts` の折り返しアルゴリズム）: sequence M1 の scope が「一般化は2本目完成後の別マイルストーンで判断する」と定めた**意図的な複製**で、各ファイルの先頭にその旨のコメントがある。**2本目が完成したので、判断の材料は揃った**——ツリー（再帰の Reingold–Tilford 型）とシーケンス（X も Y も単純な積み上げ）でレイアウト関数の性質は大きく違うが、**その下のビューポート・測定・フォント読み取りは差が無い**（`viewport.ts` は先頭コメント3行以外 diff ゼロ）。`core/canvas` へ引き上げるかを別マイルストーンで決めること。**それまでは差分を作らない。直すときは両方を直す。** なお logic-tree 側の既知の穴（モーダル中もホイール／ドラッグが生きている・ドラッグ中のアンマウントでリスナーが残る・`FOLLOW_MARGIN` の 8px ずれ）は、**この複製によってそのまま2本に増えている** `[sequence-m1]`
 - **`focusSibling` が `commands.ts` の `siblingsOf` と同一の式**（`src/modules/logic-tree/LogicTreeEditor.tsx`）: 「次の写経で3本目が生える」。`export` 1行で潰せるうちに記録を残す `[logic-tree-m1]`
 - **エラー登録 Skill の同梱スクリプトが、警告判定・ラベル文言・整合性検証をアプリと複製している**（`.claude/skills/error-catalog-register/scripts/error-catalog-write.mjs` の `isWarn` / `LEVEL_LABEL` / `ACTION_LABEL` / 整合性検証の3ルール）: それぞれ `src/modules/error-catalog/warnings.ts` の `isWarnCell`・`resolution-labels.ts` の `RESOLUTION_LABELS`・`fields.ts` の `FIELD_LABELS`・`consistency.ts` の `checkErrorCatalogConsistency` と、条件・文言が1対1で一致するよう手で複製している。Skill とアプリの接点はファイル（正規形）だけという設計上の決定の帰結で、構造的に避けられない。**`schemas/error-catalog.schema.json` の `resolutionLevel` enum を改訂するときは、この2箇所を両方追従させること。** 追従漏れがあっても双方は独立に動くため、テストでは検知されない `[Skill]`
 - **2本の Skill の `evals/grade.mjs` で自己位置解決の形が揃っていない**: 用語集版（`.claude/skills/glossary-term-register/evals/grade.mjs`）は `SKILL` / `SCHEMA` を主チェックアウトの絶対パス（`C:/Dev/Projects/facet/...`）で持っており、worktree では動かない。エラー登録版は最終レビューで `import.meta.url` からの自己位置解決に直したため、**2本で形が揃っていない。** 3本目の Skill を作るときか、用語集版に触る機会に揃える `[Skill]`
