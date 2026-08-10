@@ -68,6 +68,18 @@ describe('ActorRefCell', () => {
     expect(onSelect).toHaveBeenLastCalledWith('actor_Aaaaaaaaa3')
   })
 
+  it('前方一致が複数（曖昧）なら onCreate に落ちる（「決」→ 決済／決済API）', () => {
+    const ambiguousActors = [
+      ...actors,
+      { id: 'actor_Aaaaaaaaa4', name: '決済API' },
+    ]
+    const { onSelect, onCreate, input } = setup({ actors: ambiguousActors })
+    fireEvent.change(input, { target: { value: '決' } })
+    fireEvent.blur(input)
+    expect(onCreate).toHaveBeenCalledWith('決')
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
   it('未登録名を打って blur すると onCreate', () => {
     const { onSelect, onCreate, input } = setup()
     fireEvent.change(input, { target: { value: 'メール基盤' } })
