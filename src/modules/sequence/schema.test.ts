@@ -143,4 +143,10 @@ describe('sequence スキーマ（レベル1）', () => {
     d.zones = []
     expect(validate(d).ok).toBe(false)
   })
+
+  it('handled なのに text が空文字だと拒否する', () => {
+    const d = valid()
+    ;(d.steps[0].failures as Record<string, unknown>).failed = { decision: 'handled', text: '' }
+    expect(validate(d).ok).toBe(false)
+  })
 })
