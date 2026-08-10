@@ -8,10 +8,6 @@
 
 各項目の末尾の `[MN]` は**最初に記録されたマイルストーン**。長く開いているものほど「踏まないから残っている」のか「踏むけど後回しにしている」のかを見分ける手がかりになる。**採番は2系統**（コア・用語集・エラーカタログの `MN` と、ロジックツリーの `logic-tree-mN`）。
 
-## 実機で確認していないもの
-
-- **ロジックツリーエディタの実機確認が丸ごと未実施**（`docs/history/logic-tree-m1-keyboard-editor.md` の「実機確認: 未実施」にチェックリストがある）: logic-tree M1 は実装11タスクとレビューを終えて全テスト緑だが、**GUI を起動しての一巡を誰も行っていない**。**とりわけ完了条件2（日本語の変換確定 Enter がノード追加に誤爆しないこと）が未確認で、ここが崩れていれば M1 は未完である。** あわせて **最大幅 320px が実データで窮屈かどうかの数値**を記録すること——[`logic-tree/logic-tree-canvas-tech-notes.md`](logic-tree/logic-tree-canvas-tech-notes.md) 論点8「最大幅の可変化（保留）」がこの数値を待っている `[logic-tree-m1]`
-
 ## テストが無い箇所
 
 - **interleaving を要する3分岐にテストが無い**（`src/core/app-controller.ts`）: `rescan` の `switchingFolder > 0` ガード（フォルダ切替中に届いた旧フォルダのイベントが新しい一覧を上書きする）、`rescan` の `token !== scanSeq || projectDir !== dir` ガード（遅れて着地した古い走査結果が新しい一覧を上書きする）、`handleSelectedGone` の `selectSeq++`（進行中の `selectFile` が着地して消えたファイルを選び直す）。**コントローラは I/O を注入しているので `io.scan` に手動 Promise を挟めば書ける。** この層に触るときの宿題 `[M6]`
