@@ -359,8 +359,13 @@ describe('重ね合わせの値が実装と一致している', () => {
   })
 
   it('検算していない濃さを使っていない', () => {
+    // bg- だけでなく border- / text- も見る。**枠線や文字も半透明の
+    // warning を名乗りうる**ため、面（bg-）に絞ると素通りする
+    // （GutterSlot.tsx の枠が実際にすり抜けていた。M1 sequence Task 12）
     for (const { file, source } of componentSources) {
-      const used = [...source.matchAll(/bg-warning\/(\d+)/g)].map((m) => Number(m[1]))
+      const used = [...source.matchAll(/(?:bg|border|text)-warning\/(\d+)/g)].map((m) =>
+        Number(m[1]),
+      )
       const known = OVERLAYS.map((o) => Math.round(o.alpha * 100))
       expect([...new Set(used)].filter((u) => !known.includes(u)), file).toEqual([])
     }

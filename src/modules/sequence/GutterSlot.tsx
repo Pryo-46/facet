@@ -31,7 +31,7 @@ export interface GutterSlotProps {
 export function GutterSlot(props: GutterSlotProps) {
   const face =
     props.state === 'unanswered'
-      ? 'border-warning/40 bg-warning/10 text-ink-muted'
+      ? 'border-warning bg-warning/10 text-ink-muted'
       : props.state === 'notApplicable'
         ? 'border-rule bg-surface text-ink-muted'
         : 'border-rule bg-surface text-ink'
