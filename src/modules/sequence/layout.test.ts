@@ -59,6 +59,12 @@ describe('layoutSequence', () => {
     const gap12 = r.actorX[2] - r.actorX[1]
     expect(gap01).toBeGreaterThan(MIN_COL_GAP)
     expect(gap01).toBe(gap12)
+    // LABEL_SIDE_PAD は非公開だがレイアウト計画の定数表に載っている値（24）。
+    // 分配後の区間幅は (labelWidth + LABEL_SIDE_PAD) / 区間数 になるはず。
+    // ここで割り算そのものを検証する（割り算を消しても gap01 === gap12 は崩れないため、
+    // 等値性だけでは変異を検出できない）。
+    const labelSidePad = 24
+    expect(gap01).toBe((500 + labelSidePad) / 2)
   })
 
   it('行の高さ: ガターのスロット群がラベルより高い行は、スロット群に合わせて伸びる', () => {
