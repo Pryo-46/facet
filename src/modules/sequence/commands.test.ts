@@ -220,6 +220,25 @@ describe('答えスロット', () => {
     expect(back.steps[0].failures?.failed).toEqual({ decision: 'handled', text: 'エラー表示' })
   })
 
+  it('decision 無し・text だけの unknown（スキーマが許す部分状態。外部/Skill 作成ファイルで到達）は、failed スロットの編集や toggleNotApplicable で消えない', () => {
+    const base = data()
+    const withPartialUnknown: SequenceSchemaVersion1 = {
+      ...base,
+      steps: [
+        { ...base.steps[0], failures: { unknown: { text: 'メモだけ（decision 無し）' } } },
+        ...base.steps.slice(1),
+      ],
+    }
+
+    const edited = setAnswerText(withPartialUnknown, 0, 'failed', 'エラー表示')
+    expect(edited.steps[0].failures?.unknown).toEqual({ text: 'メモだけ（decision 無し）' })
+    expect(edited.steps[0].failures?.failed).toEqual({ decision: 'handled', text: 'エラー表示' })
+
+    const toggled = toggleNotApplicable(withPartialUnknown, 0, 'failed')
+    expect(toggled.steps[0].failures?.unknown).toEqual({ text: 'メモだけ（decision 無し）' })
+    expect(toggled.steps[0].failures?.failed).toEqual({ decision: 'notApplicable' })
+  })
+
   it('コマンドは元データを破壊しない（非破壊性を構造操作でも確認）', () => {
     const d = data()
     const before = JSON.stringify(d)

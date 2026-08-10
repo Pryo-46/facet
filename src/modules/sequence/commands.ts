@@ -238,11 +238,18 @@ export function setStepShape(
 
 type Failures = NonNullable<SequenceStep['failures']>
 
-/** failures / unknown の空オブジェクトを残さない後片付け */
+/**
+ * failures / unknown の空オブジェクトを残さない後片付け。
+ * decision も ifExecuted も無くても text だけの unknown はスキーマが許す部分状態
+ * （外部/Skill 作成ファイルで到達しうる）——空オブジェクトと誤判定して消さない
+ */
 function cleanupFailures(step: SequenceStep, failures: Failures): SequenceStep {
   const unknown = failures.unknown
   const cleanedUnknown =
-    unknown !== undefined && unknown.decision === undefined && unknown.ifExecuted === undefined
+    unknown !== undefined &&
+    unknown.decision === undefined &&
+    unknown.ifExecuted === undefined &&
+    unknown.text === undefined
       ? undefined
       : unknown
   const next: Failures = {}

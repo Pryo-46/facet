@@ -94,8 +94,9 @@ export function checkSequenceConsistency(data: SequenceSchemaVersion1): Consiste
       const present: AnswerPath[] = []
       if (step.failures.failed !== undefined) present.push('failed')
       if (step.failures.unknown !== undefined) {
-        // unknown 自体の decision または text があれば「unknown への答え」とみなす。
-        // ifExecuted だけの部分回答では unknown 自体は未回答（未定義のまま）
+        // unknown 自体は decision があって初めて「答えた」とみなす。text だけの
+        // 部分メモは未回答扱い（unposed 判定にも数えない——posed でなくても赤にならない）。
+        // ifExecuted だけの部分回答でも unknown 自体は未回答（未定義のまま）
         if (step.failures.unknown.decision !== undefined) present.push('unknown')
         if (step.failures.unknown.ifExecuted !== undefined) present.push('ifExecuted')
       }
