@@ -20,6 +20,8 @@ export type Command =
   | 'focus-child'
   | 'focus-next-field'
   | 'focus-prev-field'
+  /** 欄の状態トグル（主修飾キー＋Enter）。sequence の答えスロットの「考慮不要」が使う。意味を持たないツールは無視してよい */
+  | 'toggle-item-state'
 
 export interface KeyEventLike {
   key: string
@@ -54,6 +56,12 @@ export interface KeyContext {
    * 用語集のようなフラットなリストは false——「子」という意味が存在しない
    */
   hierarchical: boolean
+  /**
+   * 横に並ぶリストか（シーケンスの参加者ヘッダ）。true のとき Alt+←→ が
+   * 並び替え、←→ がキャレット端で隣への移動になり、↑↓ は関与しない。
+   * hierarchical と同時に true にしないこと
+   */
+  horizontal: boolean
 }
 
 /**
@@ -77,6 +85,7 @@ export function resolveCommand(e: KeyEventLike, ctx: KeyContext): Command | null
     // Windows/Linux のデファクトは Ctrl+Y も「やり直し」（rev 10章の拡張規則）。
     // macOS に Cmd+Y を Redo とする慣習は無いので割り当てない
     if (ctx.platform !== 'mac' && !e.shiftKey && (e.key === 'y' || e.key === 'Y')) return 'redo'
+    if (e.key === 'Enter' && !e.shiftKey && !e.altKey) return 'toggle-item-state'
     // Ctrl+C / Ctrl+A などは奪わない
     return null
   }
@@ -97,19 +106,33 @@ export function resolveCommand(e: KeyEventLike, ctx: KeyContext): Command | null
       if (e.altKey || e.shiftKey) return null
       return ctx.fieldEmpty && ctx.deletableField ? 'delete-item' : null
     case 'ArrowUp':
+      if (ctx.horizontal) return null
       if (e.altKey) return ctx.reorderEnabled ? 'move-item-up' : null
       if (e.shiftKey || ctx.arrowsOwnedByField) return null
       return !ctx.editing || ctx.caretAtStart ? 'focus-prev' : null
     case 'ArrowDown':
+      if (ctx.horizontal) return null
       if (e.altKey) return ctx.reorderEnabled ? 'move-item-down' : null
       if (e.shiftKey || ctx.arrowsOwnedByField) return null
       return !ctx.editing || ctx.caretAtEnd ? 'focus-next' : null
     case 'ArrowLeft':
+      if (ctx.horizontal) {
+        if (e.altKey) return ctx.reorderEnabled && !e.shiftKey ? 'move-item-up' : null
+        if (e.shiftKey || ctx.arrowsOwnedByField) return null
+        return !ctx.editing || ctx.caretAtStart ? 'focus-prev' : null
+      }
       if (!ctx.hierarchical || e.altKey || e.shiftKey) return null
-      // 端でだけ構造の移動に切り替える（↑↓ と同じ規則）
+      // 欄が矢印を使うなら欄のもの。端でだけ構造の移動に切り替える（↑↓ と同じ規則）
+      if (ctx.arrowsOwnedByField) return null
       return !ctx.editing || ctx.caretAtStart ? 'focus-parent' : null
     case 'ArrowRight':
+      if (ctx.horizontal) {
+        if (e.altKey) return ctx.reorderEnabled && !e.shiftKey ? 'move-item-down' : null
+        if (e.shiftKey || ctx.arrowsOwnedByField) return null
+        return !ctx.editing || ctx.caretAtEnd ? 'focus-next' : null
+      }
       if (!ctx.hierarchical || e.altKey || e.shiftKey) return null
+      if (ctx.arrowsOwnedByField) return null
       return !ctx.editing || ctx.caretAtEnd ? 'focus-child' : null
     default:
       return null
