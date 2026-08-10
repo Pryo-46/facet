@@ -30,4 +30,23 @@ describe('questionLabels', () => {
     expect(questionLabels(call(true)).failed).toBe('失敗が確定したら？')
     expect(questionLabels(call(true)).ifExecuted).toBe('実行済みだったら？')
   })
+  it('reply には問いが立たない（すべて空文字）', () => {
+    expect(questionLabels({ kind: 'reply' })).toEqual({ failed: '', unknown: '', ifExecuted: '' })
+  })
+  it('非活性キーは空文字（self）', () => {
+    const labels = questionLabels({ kind: 'self' })
+    expect(labels.unknown).toBe('')
+    expect(labels.ifExecuted).toBe('')
+  })
+  it('非活性キーは空文字（call+awaitsReply:false）', () => {
+    const labels = questionLabels(call(false))
+    expect(labels.failed).toBe('')
+    expect(labels.ifExecuted).toBe('')
+  })
+  it('活性キーはすべて非空（call+awaitsReply:true）', () => {
+    const labels = questionLabels(call(true))
+    expect(labels.failed).not.toBe('')
+    expect(labels.unknown).not.toBe('')
+    expect(labels.ifExecuted).not.toBe('')
+  })
 })

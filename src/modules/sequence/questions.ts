@@ -54,6 +54,10 @@ export function questionLabels(step: StepShape): QuestionLabels {
   if (step.kind === 'self') {
     return { failed: '処理失敗したら？', unknown: '', ifExecuted: '' }
   }
+  if (step.kind === 'reply') {
+    // reply に問いは立たない（poseQuestions と対応）。空文字は「表示するラベルが無い」の意
+    return { failed: '', unknown: '', ifExecuted: '' }
+  }
   if (step.kind === 'call' && step.awaitsReply === false) {
     return { failed: '', unknown: '届かなかったかもしれない。それでよいか？', ifExecuted: '' }
   }
