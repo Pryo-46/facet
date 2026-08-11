@@ -201,7 +201,7 @@ describe('index.css', () => {
 /**
  * TSX のコメントを落とす。**行番号を保つ必要は無いので単純に消す。**
  *
- * 既存の `stripComments`（このファイルの先頭）は CSS 用で `/* *​/` しか
+ * 既存の `stripCssComments`（`palette-requirements.ts`）は CSS 用で `/* *​/` しか
  * 落とさない。TSX には `//` があるうえ、下の検査が読む GlossaryEditor.tsx は
  * コメントの中で `/25`（不採用にした濃さ）に言及している。コメントを
  * 落とさずに走査すると、説明文が違反として検出される——M7 の Task 5 が
