@@ -438,6 +438,115 @@ describe('操作ヒントとラベルの面', () => {
   })
 })
 
+describe('立っていない答えのグレースロット', () => {
+  /**
+   * call-sync（awaitsReply: true）で failed に「再試行する」を回答済みのまま
+   * 投げっぱなし（awaitsReply: false）へ切替、のフィクスチャ。
+   * 投げっぱなしは unknown だけが立つ（poseQuestions）ので、failed は
+   * 立っていない答え（ghost）になる
+   */
+  function ghostDoc(): SequenceSchemaVersion1 {
+    return {
+      schemaVersion: 1,
+      type: 'sequence',
+      title: 't',
+      actors: [
+        { id: 'actor_Bbbbbbbbb1', name: '画面' },
+        { id: 'actor_Bbbbbbbbb2', name: 'API' },
+      ],
+      steps: [
+        {
+          id: 'step_Bbbbbbbbb1',
+          kind: 'call',
+          from: 'actor_Bbbbbbbbb1',
+          to: 'actor_Bbbbbbbbb2',
+          label: '通知',
+          awaitsReply: false,
+          failures: { failed: { decision: 'handled', text: '再試行する' } },
+        },
+      ],
+    }
+  }
+
+  it('立っていない答えがグレースロットとして描画される', () => {
+    setup(ghostDoc())
+    expect(screen.getByText('再試行する')).toBeDefined()
+    expect(screen.getByText('失敗が確定したら？')).toBeDefined() // 打ち消し線付きの問いラベル
+  })
+
+  it('✕ を押すと確認ダイアログが出て、削除で failures から消える', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={ghostDoc()} onChange={onChange} />)
+    fireEvent.click(screen.getByLabelText(/この答えを削除/))
+    fireEvent.click(screen.getByText('削除する'))
+    expect(last(onChange).steps[0].failures?.failed).toBeUndefined()
+  })
+
+  it('確認ダイアログでキャンセルすると何も変わらない', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={ghostDoc()} onChange={onChange} />)
+    fireEvent.click(screen.getByLabelText(/この答えを削除/))
+    fireEvent.click(screen.getByText('キャンセル'))
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByText('再試行する')).toBeDefined()
+  })
+
+  it('notApplicable の立っていない答えは「─ 考慮不要」で見える', () => {
+    const d = ghostDoc()
+    d.steps[0] = {
+      ...d.steps[0],
+      failures: { failed: { decision: 'notApplicable' } },
+    }
+    setup(d)
+    expect(screen.getByText('─ 考慮不要')).toBeDefined()
+  })
+
+  it('reply 行でも立っていない答えがグレースロットで出る（行内表示＝ブレスト決定7）', () => {
+    const d = ghostDoc()
+    d.steps[0] = {
+      id: 'step_Bbbbbbbbb1',
+      kind: 'reply',
+      from: 'actor_Bbbbbbbbb1',
+      to: 'actor_Bbbbbbbbb2',
+      label: '通知結果',
+      failures: { failed: { decision: 'handled', text: '再試行する' } },
+    }
+    setup(d)
+    // reply の一般文言は、ghost があるこの行では省略する（brief (c) の選択。報告に記載）
+    expect(screen.queryByText(/^─ 応答が返らない/)).toBeNull()
+    expect(screen.getByText('再試行する')).toBeDefined()
+    expect(screen.getByLabelText(/この答えを削除/)).toBeDefined()
+  })
+
+  it('種別を元に戻すと答えは通常スロットに復活する', () => {
+    // 投げっぱなし→（形セルで）call-sync に戻す → 「再試行する」が編集可能なスロットに居る。
+    // 既存の setStepShape が failures を消さないことの画面側の固定
+    render(<Harness initial={ghostDoc()} />)
+    // STEP_SHAPE_ORDER は [call-sync, call-async, reply, self]。
+    // 投げっぱなし（call-async）から ArrowUp 1回で call-sync に戻る
+    fireEvent.keyDown(screen.getByLabelText('ステップ1の形'), { key: 'ArrowUp' })
+    const slot = screen.getByLabelText('ステップ1の答え: 失敗が確定したら？') as HTMLInputElement
+    expect(slot.value).toBe('再試行する')
+    expect(screen.queryByLabelText(/この答えを削除/)).toBeNull()
+  })
+})
+
+describe('self の to-mismatch は行の帯になる', () => {
+  it('self なのに to があるステップは行の帯（row）扱いになる', () => {
+    const d = doc()
+    d.steps[2] = { ...d.steps[2], to: 'actor_Aaaaaaaaa1' }
+    const { container } = setup(d, [
+      {
+        rule: 'to-mismatch',
+        message: 'x',
+        locations: [{ entityId: 'step_Aaaaaaaaa3', entityIndex: 2, field: 'to' }],
+      },
+    ])
+    const bands = container.querySelectorAll<HTMLElement>('[data-layer="background"] .bg-warning\\/20')
+    expect(bands).toHaveLength(1)
+  })
+})
+
 describe('赤表示', () => {
   it('行全体の赤は warning の面を2枚重ねない（M8「面は片方だけ」）', () => {
     const { container } = setup(doc(), [

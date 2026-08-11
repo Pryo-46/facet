@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { CellInput } from '@/components/CellInput'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { buttonBase } from '@/components/button-styles'
 import {
   resolveCommand,
@@ -22,6 +23,7 @@ import {
   moveActor,
   moveStep,
   removeActor,
+  removeAnswer,
   removeStep,
   setActorName,
   setAnswerText,
@@ -32,6 +34,7 @@ import {
   toggleNotApplicable,
   type SeqEditResult,
 } from './commands'
+import { GhostSlot } from './GhostSlot'
 import { GutterSlot, type SlotState } from './GutterSlot'
 import {
   ARROW_GAP,
@@ -64,7 +67,7 @@ import {
   type WrappedBlock,
   type WrapOptions,
 } from './measure'
-import { poseQuestions, questionLabels, type AnswerPath } from './questions'
+import { poseQuestions, questionLabels, unposedAnswers, type AnswerPath } from './questions'
 import { createSeqMeasurer, FALLBACK_SEQ_FONT, readSeqFont, sameFont, type SeqFont } from './seq-font'
 import { SequenceEdges, type EdgeStep } from './SequenceEdges'
 import { StepShapeCell } from './StepShapeCell'
@@ -84,6 +87,18 @@ const PLATFORM = currentPlatform()
  * ifExecuted は unknown の下位問い**なので入れ替えないこと
  */
 const QUESTION_ORDER: readonly AnswerPath[] = ['failed', 'unknown', 'ifExecuted']
+
+/**
+ * ガターのグレースロット（ブレスト決定4）が使う、問いの汎用文言。
+ * 種別切替後は元の種別が分からない（answer は残っているが、どの類型で
+ * 立っていた問いかは失われている）ので、call-sync（応答待ちの呼出）の
+ * 文言を汎用として使う。GhostSlot は文字列を受け取るだけで意味を知らない
+ */
+const GHOST_QUESTION_LABEL: Record<AnswerPath, string> = {
+  failed: '失敗が確定したら？',
+  unknown: '結果不明だったら？',
+  ifExecuted: '実行済みだったら？',
+}
 
 /** 答えセルの外形幅（内容幅＋左右の inset）。ガターの幅も layout がこれで導出する */
 const ANSWER_BOX_WIDTH = ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2
@@ -186,9 +201,18 @@ export function SequenceEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const [font, setFont] = useState<SeqFont>(FALLBACK_SEQ_FONT)
+
+  // ガターのグレースロットの削除確認（Undo で戻せるとはいえ、削除は確認を挟む）
+  const [confirmTarget, setConfirmTarget] = useState<{ index: number; path: AnswerPath } | null>(
+    null,
+  )
+  // エディタ内ダイアログが開いている間も操作言語を止める（rev 10章 境界規則）。
+  // 額縁由来の modalOpen と OR を取る——どちらか一方が開いていれば止まる
+  const anyModalOpen = modalOpen || confirmTarget !== null
+
   // ズーム・パン（Ctrl+ホイール／Space・中ボタンのドラッグ）と新しい行への追従。
   // モーダルが開いている間は止める（キーはモーダルが取る。rev 10章 境界規則）
-  const { transform, spaceHeld, ensureVisible } = useViewport(containerRef, !modalOpen)
+  const { transform, spaceHeld, ensureVisible } = useViewport(containerRef, !anyModalOpen)
 
   // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
   const [pendingFocus, setPendingFocus] = useState<string | null>(null)
@@ -292,10 +316,20 @@ export function SequenceEditor({
       const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
       return { path, question: labels[path], state: slotStateOf(slot.decision), text, height: block.height }
     })
+    // 立っていない問いへの答え（種別切替の残骸）。ガターにグレースロットで見せる
+    const ghosts = unposedAnswers(step).map((path) => {
+      const slot = readAnswer(step, path)
+      const text =
+        slot.decision === 'notApplicable' && (slot.text === undefined || slot.text === '')
+          ? '─ 考慮不要'
+          : (slot.text ?? '')
+      const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
+      return { path, text, height: block.height }
+    })
     // 参照切れは -1 のまま layout へ渡す（layout は範囲外を読み飛ばす契約）
     const fromIndex = data.actors.findIndex((a) => a.id === step.from)
     const toIndex = step.to === undefined ? null : data.actors.findIndex((a) => a.id === step.to)
-    return { shape, label, answers, fromIndex, toIndex }
+    return { shape, label, answers, ghosts, fromIndex, toIndex }
   })
 
   const layoutInput: SeqLayoutInput = {
@@ -307,7 +341,7 @@ export function SequenceEditor({
       metrics: {
         labelWidth: view.label.width,
         labelHeight: view.label.height,
-        slotHeights: view.answers.map((answer) => answer.height),
+        slotHeights: [...view.answers.map((a) => a.height), ...view.ghosts.map((g) => g.height)],
       },
     })),
   }
@@ -364,10 +398,13 @@ export function SequenceEditor({
         continue
       }
       if (!location.entityId.startsWith('step_')) continue
-      const field =
+      const rawField =
         location.field === 'from' || location.field === 'to' || location.field === 'failures'
           ? location.field
           : 'row'
+      // self は to セルを描画しないので、to への指摘は行の帯で見せる（ブレスト決定7）
+      const field =
+        rawField === 'to' && data.steps[location.entityIndex]?.kind === 'self' ? 'row' : rawField
       const fields = invalidStepFields.get(location.entityIndex) ?? new Set<string>()
       fields.add(field)
       invalidStepFields.set(location.entityIndex, fields)
@@ -501,7 +538,7 @@ export function SequenceEditor({
   ): void => {
     const cmd = resolveCommand(toKeyEventLike(e), {
       platform: PLATFORM,
-      modalOpen,
+      modalOpen: anyModalOpen,
       ...context,
     })
     if (cmd === null) return
@@ -891,13 +928,21 @@ export function SequenceEditor({
               </div>
 
               {/* ガターの行ブラケット＋行見出し（ブレスト決定9）。答えスロットが
-                  どのステップの行かを、図の番号と縦線で括って見せる */}
+                  どのステップの行かを、図の番号と縦線で括って見せる。
+                  M2: ghost スロットも同じ列に積むので、末尾は答え・ghost の
+                  どちらが最後に来ても正しく括れるよう ghost 込みで計算し直す */}
               {(() => {
+                const lastIndex = view.answers.length + view.ghosts.length - 1
+                const lastHeight =
+                  view.ghosts.length > 0
+                    ? view.ghosts[view.ghosts.length - 1].height
+                    : view.answers.length > 0
+                      ? view.answers[view.answers.length - 1].height
+                      : 0
                 const slotsBottom =
-                  view.answers.length === 0
+                  lastIndex < 0
                     ? row.top + GUTTER_HEADING_HEIGHT + 18
-                    : row.slotTops[row.slotTops.length - 1] +
-                      view.answers[view.answers.length - 1].height
+                    : row.slotTops[lastIndex] + lastHeight
                 return (
                   <>
                     <div
@@ -917,8 +962,13 @@ export function SequenceEditor({
               })()}
 
               {/* ガター: 立っている問いのスロット群。reply は問いが無いので、
-                  空白にせず「呼出側が扱う」ことを言う（design-notes 論点3） */}
-              {view.answers.length === 0 ? (
+                  空白にせず「呼出側が扱う」ことを言う（design-notes 論点3）。
+                  **一般文言は answers も ghosts も無いときだけ出す。** ghosts が
+                  あるときに一般文言まで出すと、どちらもガターの同じ先頭位置
+                  （row.top + GUTTER_HEADING_HEIGHT）を取り合って重なる
+                  （layout.ts は一般文言の分の高さを知らない）。ghost は
+                  残骸そのものを見せる情報量が上位なので、一般文言側を省く */}
+              {view.answers.length === 0 && view.ghosts.length === 0 ? (
                 <div
                   className="absolute text-xs text-ink-muted"
                   style={{ left: layout.gutterX, top: row.top + GUTTER_HEADING_HEIGHT, width: layout.gutterWidth }}
@@ -953,28 +1003,42 @@ export function SequenceEditor({
                 ))
               )}
 
-              {/* 答えの欄そのものは3状態の面を持つので、赤は枠を重ねて見せる
-                  （GutterSlot の状態表示と食い合わせない） */}
-              {stepHas(index, 'failures') && view.answers.length > 0 && (
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute rounded-sm border border-warning"
-                  style={{
-                    left: layout.gutterX - 2,
-                    top: row.top - 2,
-                    width: layout.gutterWidth + 4,
-                    height:
-                      row.slotTops[row.slotTops.length - 1] +
-                      view.answers[view.answers.length - 1].height -
-                      row.top +
-                      4,
-                  }}
+              {/* ガター: 立っていない答え（種別切替の残骸）のグレースロット
+                  （ブレスト決定4）。通常スロットの後、ghosts の順で積む */}
+              {view.ghosts.map((ghost, ghostIndex) => (
+                <GhostSlot
+                  key={`${key}:ghost:${ghost.path}`}
+                  question={GHOST_QUESTION_LABEL[ghost.path]}
+                  text={ghost.text}
+                  aria-label={`ステップ${index + 1}の立っていない答え「${GHOST_QUESTION_LABEL[ghost.path]}」: この答えを削除`}
+                  x={layout.gutterX}
+                  y={row.slotTops[view.answers.length + ghostIndex]}
+                  labelWidth={QUESTION_LABEL_WIDTH}
+                  answerWidth={ANSWER_BOX_WIDTH}
+                  height={ghost.height}
+                  onDelete={() => setConfirmTarget({ index, path: ghost.path })}
                 />
-              )}
+              ))}
             </div>
           )
         })}
       </div>
+
+      <ConfirmDialog
+        open={confirmTarget !== null}
+        title="答えを削除しますか？"
+        description={
+          confirmTarget === null
+            ? ''
+            : `「${GHOST_QUESTION_LABEL[confirmTarget.path]}」への答えを削除します。削除後は Undo で戻せます。削除せず種別を元に戻せば、答えはそのまま復活します。`
+        }
+        confirmLabel="削除する"
+        onConfirm={() => {
+          if (confirmTarget !== null) onChange(removeAnswer(data, confirmTarget.index, confirmTarget.path), null)
+          setConfirmTarget(null)
+        }}
+        onCancel={() => setConfirmTarget(null)}
+      />
     </div>
   )
 }
