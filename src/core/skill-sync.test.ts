@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { syncBundledSkills, type SkillSyncIo } from './skill-sync'
+import { shouldSyncSkillFile, syncBundledSkills, type SkillSyncIo } from './skill-sync'
 
 function fakeIo(existing: string[] = []) {
   const removed: string[] = []
@@ -78,5 +78,48 @@ describe('syncBundledSkills', () => {
     }
     await expect(syncBundledSkills('/proj', failing, ['a', 'b'])).rejects.toThrow('読めません')
     expect(written.map((w) => w.text)).toEqual(['b'])
+  })
+
+  it('開発・評価用のファイルはプロジェクトフォルダへ同期しない', async () => {
+    const { io, written } = fakeIo()
+    const withDevFiles: SkillSyncIo = {
+      ...io,
+      readBundled: async (skill) => [
+        { path: 'SKILL.md', text: `# ${skill}` },
+        { path: 'scripts/write.mjs', text: 'export {}' },
+        { path: 'evals/evals.json', text: '{}' },
+        { path: 'evals/fixtures/existing-project/用語集.json', text: '{}' },
+        { path: 'package.json', text: '{}' },
+        { path: '.gitignore', text: 'node_modules/' },
+      ],
+    }
+    await syncBundledSkills('/proj', withDevFiles, ['glossary-term-register'])
+    expect(written.map((w) => w.path)).toEqual([
+      '/proj/.claude/skills/glossary-term-register/SKILL.md',
+      '/proj/.claude/skills/glossary-term-register/scripts/write.mjs',
+    ])
+  })
+})
+
+describe('shouldSyncSkillFile', () => {
+  it('evals/ 配下は同期しない', () => {
+    expect(shouldSyncSkillFile('evals/evals.json')).toBe(false)
+    expect(shouldSyncSkillFile('evals/fixtures/existing-project/用語集.json')).toBe(false)
+    expect(shouldSyncSkillFile('evals/grade.mjs')).toBe(false)
+  })
+
+  it('package.json と .gitignore は同期しない', () => {
+    expect(shouldSyncSkillFile('package.json')).toBe(false)
+    expect(shouldSyncSkillFile('.gitignore')).toBe(false)
+  })
+
+  it('SKILL.md と scripts/*.mjs は同期する', () => {
+    expect(shouldSyncSkillFile('SKILL.md')).toBe(true)
+    expect(shouldSyncSkillFile('scripts/glossary-write.mjs')).toBe(true)
+  })
+
+  it('references/ のような未知のディレクトリは同期する（除外リスト方式である固定）', () => {
+    expect(shouldSyncSkillFile('references/style.md')).toBe(true)
+    expect(shouldSyncSkillFile('assets/logo.png')).toBe(true)
   })
 })

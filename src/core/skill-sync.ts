@@ -17,6 +17,24 @@ export const BUNDLED_SKILLS: readonly string[] = [
   'error-catalog-register',
 ]
 
+/**
+ * 同梱 Skill のファイル（Skill 名からの相対パス、`/` 区切り）を
+ * プロジェクトフォルダへ同期してよいかを判定する（純関数）。
+ *
+ * **除外リスト方式。** Skill 自身が動作のために足すもの（`references/` や
+ * `assets/` など、開発時点で名前を知らないもの）は既定で同梱されるべきで、
+ * 落とすべきは開発・評価用の足場だけだから。除外するのは:
+ * - `evals/` 配下（Skill の評価ハーネス。会議で使う人には無意味なノイズ）
+ * - Skill 直下の `package.json`（evals の依存宣言）
+ * - Skill 直下の `.gitignore`（開発用）
+ */
+export function shouldSyncSkillFile(path: string): boolean {
+  if (path === 'evals' || path.startsWith('evals/')) return false
+  if (path === 'package.json') return false
+  if (path === '.gitignore') return false
+  return true
+}
+
 export interface SkillSyncIo {
   /** 同梱 Skill の中身。path は Skill 名からの相対パス（`/` 区切り） */
   readBundled(skill: string): Promise<ReadonlyArray<{ path: string; text: string }>>
@@ -45,7 +63,7 @@ export async function syncBundledSkills(
     skills.map(async (skill) => {
       const root = await io.join(projectDir, '.claude', 'skills', skill)
       if (await io.exists(root)) await io.removeDir(root)
-      const files = await io.readBundled(skill)
+      const files = (await io.readBundled(skill)).filter((file) => shouldSyncSkillFile(file.path))
       for (const file of files) {
         const parts = file.path.split('/')
         const name = parts.pop()
