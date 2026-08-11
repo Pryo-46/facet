@@ -263,6 +263,17 @@ describe('レール（行の左端の編集セル列）', () => {
     expect(shape.right).toBeLessThanOrEqual(gutterLeft('ステップ1の答え: 処理失敗したら？'))
   })
 
+  it('DOM 順（＝Tab 順）はレールの視覚順: from → to → 種別 → ラベル → 答え', () => {
+    // 実機フィードバックによる仕様変更: from/to は既定値が入っているため
+    // 最初に打つのはラベルだが、Tab で最初に止まるのはレールの左端であってほしい
+    const { container } = setup()
+    // computeRowKeys が付ける行キーは `id#出現番号`（row-keys.ts）
+    const cells = Array.from(
+      container.querySelectorAll<HTMLElement>('[data-cell^="step_Aaaaaaaaa1#0:"]'),
+    ).map((el) => el.getAttribute('data-cell')?.split(':')[1])
+    expect(cells).toEqual(['from', 'to', 'shape', 'label', 'failed', 'unknown', 'ifExecuted'])
+  })
+
   it('行が違っても同じ列に並ぶ（self の行・矢印の無い呼出でも定位置）', () => {
     const d = doc()
     // from === to の呼出は矢印が引けない（線を描かない契約）。それでもセルは出る
@@ -282,6 +293,23 @@ describe('レール（行の左端の編集セル列）', () => {
     expect(screen.getByLabelText('ステップ2の送り手')).toBeDefined()
     expect(cellBox('ステップ2の送り手').left).toBe(cellBox('ステップ1の送り手').left)
     expect(screen.queryByLabelText('ステップ3の受け手')).toBeNull()
+  })
+})
+
+describe('操作ヒントとラベルの面', () => {
+  it('操作ヒントが常時表示される', () => {
+    // getByText の既定ノーマライザは textContent 側の空白（全角スペース含む）を
+    // 単一の半角スペースへ畳むが、matcher 文字列そのものは畳まない
+    // （testing-library/dom の matches()）。畳んだ形で問い合わせる
+    setup()
+    expect(
+      screen.getByText('Enter: ステップ追加 Tab: セル移動 Ctrl+Enter: 考慮不要 Alt+↑↓: 並び替え'),
+    ).toBeDefined()
+  })
+
+  it('通常時のラベルセルは不透明の面（bg-surface）を持つ（入力できる見た目のため）', () => {
+    setup()
+    expect(screen.getByLabelText('ステップ1の文言').className).toContain('bg-surface')
   })
 })
 

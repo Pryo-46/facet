@@ -600,6 +600,12 @@ export function SequenceEditor({
             ステップを追加
           </button>
         )}
+        {/* 操作ヒント。**額縁の帯の中に置き、self-end で右寄せする**——
+            transform の外側なのでズームと独立に読め、フローに乗せているので
+            バナー（issues banner）が出ているときはその下に押し出され重ならない */}
+        <div className="self-end p-2 text-xs text-ink-muted">
+          Enter: ステップ追加　Tab: セル移動　Ctrl+Enter: 考慮不要　Alt+↑↓: 並び替え
+        </div>
       </div>
 
       {data.actors.length === 0 && (
@@ -719,10 +725,13 @@ export function SequenceEditor({
           const view = stepViews[index]
           const row = layout.rows[index]
           const isSelf = view.shape === 'self'
+          // 通常時は不透明の bg-surface を敷く——枠線の無いラベルセルが
+          // 入力可能に見えないという実機フィードバックへの対応（rounded-sm は
+          // 呼び出し側の className に既にある。ここは色だけを決める）。
           // 行全体が赤い行では、文言セルは面を持たない（背景の帯を透かす）。
           // bg-warning/20 を重ねると同じ色を2枚敷くことになり、
-          // bg-canvas で塗ると帯に穴が開く（どちらも「面は片方だけ」に反する）
-          const labelFace = stepHas(index, 'row') ? 'bg-transparent' : 'bg-canvas'
+          // bg-surface のまま塗ると帯に穴が開く（どちらも「面は片方だけ」に反する）
+          const labelFace = stepHas(index, 'row') ? 'bg-transparent' : 'bg-surface'
           // 文言は矢印の真上に置く（layout の arrowY は文言の高さから決まっている）
           const labelTop = row.arrowY - ARROW_GAP - view.label.height
           // 参照が引けない行の逃げ場は「図の左端」＝レールの右。
@@ -749,29 +758,6 @@ export function SequenceEditor({
                 style={{ left: RAIL_NUM_X, top: railTop + 4, width: RAIL_NUM_WIDTH }}
               >
                 {`#${index + 1}`}
-              </div>
-
-              <div
-                className="pointer-events-auto absolute"
-                style={{
-                  left: labelLeft,
-                  top: labelTop,
-                  width: view.label.width,
-                  height: view.label.height,
-                }}
-              >
-                <CellInput
-                  multiline
-                  autoSize={false}
-                  className={`h-full w-full resize-none overflow-hidden whitespace-pre-wrap break-all rounded-sm ${
-                    isSelf ? `${SELF_BOX_CLASS} border-rule` : LABEL_BOX_CLASS
-                  } ${labelFace} text-center text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
-                  aria-label={`ステップ${index + 1}の文言`}
-                  data-cell={`${key}:label`}
-                  value={step.label}
-                  onValueChange={(next) => onChange(setStepLabel(data, index, next), `${key}:label`)}
-                  onFieldKeyDown={(e, state) => onLabelKeyDown(e, index, state)}
-                />
               </div>
 
               <div
@@ -828,6 +814,33 @@ export function SequenceEditor({
                   data-cell={`${key}:shape`}
                   onChange={(next) => onChange(setStepShape(data, index, next), null)}
                   onFieldKeyDown={(e) => onShapeKeyDown(e, index)}
+                />
+              </div>
+
+              {/* Tab 順は視覚順（レール→図→ガター）に合わせ、from/to/種別のあとに置く。
+                  実機フィードバックによる確定事項——実機確認前は文言が先頭で、
+                  from/to は既定値が入っているため打つ必要が薄いにもかかわらず
+                  最初に Tab が止まっていた */}
+              <div
+                className="pointer-events-auto absolute"
+                style={{
+                  left: labelLeft,
+                  top: labelTop,
+                  width: view.label.width,
+                  height: view.label.height,
+                }}
+              >
+                <CellInput
+                  multiline
+                  autoSize={false}
+                  className={`h-full w-full resize-none overflow-hidden whitespace-pre-wrap break-all rounded-sm ${
+                    isSelf ? `${SELF_BOX_CLASS} border-rule` : LABEL_BOX_CLASS
+                  } ${labelFace} text-center text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
+                  aria-label={`ステップ${index + 1}の文言`}
+                  data-cell={`${key}:label`}
+                  value={step.label}
+                  onValueChange={(next) => onChange(setStepLabel(data, index, next), `${key}:label`)}
+                  onFieldKeyDown={(e, state) => onLabelKeyDown(e, index, state)}
                 />
               </div>
 
