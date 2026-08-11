@@ -18,6 +18,7 @@ function ctx(over: Partial<KeyContext> = {}): KeyContext {
     arrowsOwnedByField: false,
     reorderEnabled: true,
     hierarchical: false,
+    horizontal: false,
     ...over,
   }
 }
@@ -80,9 +81,16 @@ describe('resolveCommand: 階層・リスト系ファミリー標準', () => {
     expect(resolveCommand(key({ key: 'Enter' }), ctx())).toBe('insert-item-after')
   })
 
-  it('修飾つき Enter は取らない', () => {
+  it('Shift/Alt つき Enter は取らない（用語集のセル内改行が生きる）', () => {
     expect(resolveCommand(key({ key: 'Enter', shiftKey: true }), ctx())).toBeNull()
-    expect(resolveCommand(key({ key: 'Enter', ctrlKey: true }), ctx())).toBeNull()
+    expect(resolveCommand(key({ key: 'Enter', altKey: true }), ctx())).toBeNull()
+  })
+
+  it('主修飾キー＋Enter は toggle-item-state（design-notes 論点9）', () => {
+    expect(resolveCommand(key({ key: 'Enter', ctrlKey: true }), ctx())).toBe('toggle-item-state')
+    expect(
+      resolveCommand(key({ key: 'Enter', metaKey: true }), ctx({ platform: 'mac' })),
+    ).toBe('toggle-item-state')
   })
 
   it('Tab はセル間移動（用語集に「子」が無いためファミリー標準の子追加には使わない）', () => {
@@ -283,5 +291,109 @@ describe('toKeyEventLike', () => {
       isComposing: false,
     }
     expect(toKeyEventLike(e).isComposing).toBe(false)
+  })
+})
+
+// ---- sequence M1 で足した分: horizontal / toggle-item-state / ←→ の arrowsOwnedByField ----
+
+describe('horizontal（横リスト＝参加者ヘッダ）', () => {
+  it('Alt+← は move-item-up（前へ）、Alt+→ は move-item-down（次へ）', () => {
+    expect(resolveCommand(key({ key: 'ArrowLeft', altKey: true }), ctx({ horizontal: true }))).toBe(
+      'move-item-up',
+    )
+    expect(resolveCommand(key({ key: 'ArrowRight', altKey: true }), ctx({ horizontal: true }))).toBe(
+      'move-item-down',
+    )
+  })
+
+  it('素の ←→ はキャレット端でだけ focus-prev / focus-next', () => {
+    expect(
+      resolveCommand(key({ key: 'ArrowLeft' }), ctx({ horizontal: true, caretAtStart: true })),
+    ).toBe('focus-prev')
+    expect(
+      resolveCommand(key({ key: 'ArrowLeft' }), ctx({ horizontal: true, caretAtStart: false })),
+    ).toBeNull()
+    expect(
+      resolveCommand(key({ key: 'ArrowRight' }), ctx({ horizontal: true, caretAtEnd: true })),
+    ).toBe('focus-next')
+    expect(
+      resolveCommand(key({ key: 'ArrowRight' }), ctx({ horizontal: true, caretAtEnd: false })),
+    ).toBeNull()
+  })
+
+  it('horizontal では Alt+↑↓ は並び替えにならない（縦の意味が無い）', () => {
+    expect(resolveCommand(key({ key: 'ArrowUp', altKey: true }), ctx({ horizontal: true }))).toBeNull()
+    expect(resolveCommand(key({ key: 'ArrowDown', altKey: true }), ctx({ horizontal: true }))).toBeNull()
+  })
+
+  it('horizontal では素の（Alt 無し）↑↓ も関与しない（↑↓の horizontal ガードの変異耐性: キャレット端でも focus-prev/next にならない）', () => {
+    expect(
+      resolveCommand(key({ key: 'ArrowUp' }), ctx({ horizontal: true, caretAtStart: true })),
+    ).toBeNull()
+    expect(
+      resolveCommand(key({ key: 'ArrowDown' }), ctx({ horizontal: true, caretAtEnd: true })),
+    ).toBeNull()
+  })
+
+  it('reorderEnabled: false なら Alt+←→ も無効', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft', altKey: true }),
+        ctx({ horizontal: true, reorderEnabled: false }),
+      ),
+    ).toBeNull()
+  })
+})
+
+describe('toggle-item-state（主修飾キー＋Enter）', () => {
+  it('Ctrl+Enter で toggle-item-state', () => {
+    expect(resolveCommand(key({ key: 'Enter', ctrlKey: true }), ctx())).toBe('toggle-item-state')
+  })
+
+  it('mac では Cmd+Enter', () => {
+    expect(
+      resolveCommand(key({ key: 'Enter', metaKey: true }), ctx({ platform: 'mac' })),
+    ).toBe('toggle-item-state')
+  })
+
+  it('Shift や Alt が付いたら関与しない', () => {
+    expect(
+      resolveCommand(key({ key: 'Enter', ctrlKey: true, shiftKey: true }), ctx()),
+    ).toBeNull()
+    expect(
+      resolveCommand(key({ key: 'Enter', ctrlKey: true, altKey: true }), ctx()),
+    ).toBeNull()
+  })
+})
+
+describe('←→ と arrowsOwnedByField（open-issues の穴の解消）', () => {
+  it('hierarchical でも欄が矢印を使うなら ←→ は欄のもの（キャレット端でも構造移動に化けない＝ガードの変異耐性）', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft' }),
+        ctx({ hierarchical: true, arrowsOwnedByField: true, caretAtStart: true }),
+      ),
+    ).toBeNull()
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight' }),
+        ctx({ hierarchical: true, arrowsOwnedByField: true, caretAtEnd: true }),
+      ),
+    ).toBeNull()
+  })
+
+  it('horizontal でも同様（キャレット端でも focus-prev/next に化けない＝ガードの変異耐性）', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft' }),
+        ctx({ horizontal: true, arrowsOwnedByField: true, caretAtStart: true }),
+      ),
+    ).toBeNull()
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight' }),
+        ctx({ horizontal: true, arrowsOwnedByField: true, caretAtEnd: true }),
+      ),
+    ).toBeNull()
   })
 })

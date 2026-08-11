@@ -248,6 +248,7 @@ export function LogicTreeEditor({
       reorderEnabled: true,
       // 子を持てる構造。Tab＝子追加、←→＝親子移動になる
       hierarchical: true,
+      horizontal: false,
     }
     const cmd = resolveCommand(toKeyEventLike(e), context)
     if (cmd === null) return

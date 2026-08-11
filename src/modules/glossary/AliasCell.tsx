@@ -138,6 +138,7 @@ export function AliasCell(props: AliasCellProps) {
       reorderEnabled,
       // 別名パネルも用語集と同じフラットなリストで「子」が存在しない
       hierarchical: false,
+      horizontal: false,
     })
     if (cmd === null) return
     switch (cmd) {

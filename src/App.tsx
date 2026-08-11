@@ -92,6 +92,7 @@ function globalKeyContext(modalOpen: boolean): KeyContext {
     // 額縁のグローバル層はどのツールでも Undo/Redo だけを扱う。「子」という
     // 概念が及ばない層なので false 固定でよい
     hierarchical: false,
+    horizontal: false,
   }
 }
 
