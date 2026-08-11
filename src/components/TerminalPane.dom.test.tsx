@@ -39,6 +39,7 @@ describe('TerminalPane', () => {
   it('タブが1本も無いときは開く動線だけを出す', () => {
     setup(emptyTerminalState)
     expect(screen.getByRole('button', { name: 'Claude Code を開く' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'タブを追加' })).toBeNull()
   })
 
   it('＋でタブの追加を要求する', () => {
@@ -50,7 +51,7 @@ describe('TerminalPane', () => {
   it('タブを押すとアクティブの切替を要求する', () => {
     const two = openSession(openSession(emptyTerminalState))
     const h = setup(two)
-    fireEvent.click(screen.getByRole('tab', { name: 'Claude 1' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Claude 1' }))
     expect(h.onActivate).toHaveBeenCalledWith(two.sessions[0]?.id)
   })
 
@@ -68,10 +69,18 @@ describe('TerminalPane', () => {
     expect(screen.getByTestId('tab-body-Claude 2').dataset['hidden']).toBe('false')
   })
 
-  it('アクティブなタブに aria-selected を付ける', () => {
+  it('アクティブなタブに aria-pressed を付ける', () => {
     setup(openSession(openSession(emptyTerminalState)))
-    expect(screen.getByRole('tab', { name: 'Claude 1' }).getAttribute('aria-selected')).toBe('false')
-    expect(screen.getByRole('tab', { name: 'Claude 2' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Claude 1' }).getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('button', { name: 'Claude 2' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('タブが多くてもタブバーからボタンが消えない', () => {
+    let state = emptyTerminalState
+    for (let i = 0; i < 5; i += 1) state = openSession(state)
+    setup(state)
+    expect(screen.getByRole('button', { name: 'タブを追加' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Claude 1' })).toBeTruthy()
   })
 
   it('**ペインを畳んでいる間もタブは生きていて、隠れているだけ**', () => {

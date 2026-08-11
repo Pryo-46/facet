@@ -35,13 +35,17 @@ export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
-      <div role="tablist" className="flex shrink-0 items-center gap-1 border-b border-rule px-2 py-1">
+      {/*
+       * role="tablist"/"tab" は名乗らない。スクリーンリーダー利用者は考慮しない
+       * という依頼者判断のもと、対応する tabpanel も矢印キー移動も持たない
+       * 中途半端な ARIA を残すより、素の button + aria-pressed の方が実態に合う
+       */}
+      <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-rule px-2 py-1">
         {state.sessions.map((session) => (
-          <span key={session.id} className="flex items-center">
+          <span key={session.id} className="flex shrink-0 items-center">
             <button
               type="button"
-              role="tab"
-              aria-selected={state.activeId === session.id}
+              aria-pressed={state.activeId === session.id}
               className={`${buttonBase} px-2 py-1 text-xs ${
                 state.activeId === session.id ? 'bg-surface-accent text-ink' : 'text-ink-muted'
               }`}
@@ -59,14 +63,16 @@ export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
             </button>
           </span>
         ))}
-        <button
-          type="button"
-          aria-label="タブを追加"
-          className={`${buttonBase} ml-1 p-1 text-ink-muted`}
-          onClick={onOpen}
-        >
-          <Plus aria-hidden className="size-4" />
-        </button>
+        {state.sessions.length > 0 && (
+          <button
+            type="button"
+            aria-label="タブを追加"
+            className={`${buttonBase} ml-1 shrink-0 p-1 text-ink-muted`}
+            onClick={onOpen}
+          >
+            <Plus aria-hidden className="size-4" />
+          </button>
+        )}
       </div>
 
       {state.sessions.length === 0 ? (
