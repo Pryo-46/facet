@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { PanelLeft, PanelRight } from 'lucide-react'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ExportMenu } from '@/components/ExportMenu'
+import { PaneSplitter } from '@/components/PaneSplitter'
+import { TerminalPane } from '@/components/TerminalPane'
 import { buttonBase } from '@/components/button-styles'
 import { FileList } from '@/components/FileList'
 import { ToastStack } from '@/components/Toast'
@@ -15,6 +18,7 @@ import {
 } from '@/core/app-controller'
 import { createAutoSaver } from '@/core/autosave'
 import { createCoalescer } from '@/core/coalesce'
+import { createColumnWidthStore } from '@/core/column-resize'
 import { canCreateFileOfType } from '@/core/file-ops'
 import {
   canRedo,
@@ -30,6 +34,17 @@ import { currentPlatform } from '@/core/keyboard/platform'
 import { dropModal, pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
 import type { ProjectFile } from '@/core/project-file'
 import { scanFolder } from '@/core/scan'
+import { BUNDLED_SKILLS, syncBundledSkills } from '@/core/skill-sync'
+import {
+  activateSession,
+  closeSession,
+  emptyTerminalState,
+  markExited,
+  markFailed,
+  markRunning,
+  openSession,
+  type TerminalState,
+} from '@/core/terminal/sessions'
 import { dismissToast, dismissToastByKey, pushToast, type ToastItem } from '@/core/toasts'
 import { forceClose, interceptClose } from '@/fs/app-window'
 import { copyToClipboard } from '@/fs/clipboard'
@@ -44,9 +59,17 @@ import {
   watchFolder,
   writeProjectFile,
 } from '@/fs/project-fs'
+import { tauriPtyIo } from '@/fs/pty'
+import { tauriSkillSyncIo } from '@/fs/skill-resources'
 import { appRegistry } from '@/modules'
 
 const AUTOSAVE_DELAY_MS = 500
+
+/**
+ * 端末ペインの既定幅。**永続化しない**——「アプリを閉じるまで」が
+ * モジュールの生存期間とちょうど一致する（M8 決定7 と同じ扱い）
+ */
+const paneWidthStore = createColumnWidthStore([420])
 
 /**
  * 監視イベントを束ねる窓。fs プラグイン側のデバウンス（300ms）とは別に、
@@ -98,6 +121,40 @@ function globalKeyContext(modalOpen: boolean): KeyContext {
 
 function App() {
   const [dark, setDark] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [paneOpen, setPaneOpen] = useState(false)
+  const [terminals, setTerminals] = useState<TerminalState>(emptyTerminalState)
+  const paneWidth = useSyncExternalStore(paneWidthStore.subscribe, paneWidthStore.getSnapshot)
+  const splitRef = useRef<HTMLDivElement | null>(null)
+
+  /**
+   * タブを1本足す。**開く直前に必ず Skill を同期する**（設計 決定10）——
+   * Skill の更新・追加が黙って取り残されないようにするため。
+   * 同期に失敗しても起動は続ける（Skill が無くても端末は使える。設計 決定13）
+   */
+  const openTerminal = async () => {
+    const dir = projectDir
+    if (dir === null) return
+    try {
+      await syncBundledSkills(dir, tauriSkillSyncIo, BUNDLED_SKILLS)
+    } catch (err: unknown) {
+      showToast({
+        message: `Skill をプロジェクトへ配置できませんでした（Skill 無しで起動します）: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+        key: 'skill-sync',
+      })
+    }
+    setTerminals((prev) => openSession(prev))
+  }
+
+  const closeTerminal = (id: number) => {
+    // **updater の外で殺す。** setState の updater は純粋でなければならない
+    //（StrictMode の二重実行で kill が2回飛ぶ。showToast の id 採番と同じ理由）
+    const target = terminals.sessions.find((s) => s.id === id)
+    if (target !== undefined && target.ptyId !== null) void tauriPtyIo.kill(target.ptyId)
+    setTerminals((prev) => closeSession(prev, id))
+  }
   const [projectDir, setProjectDir] = useState<string | null>(null)
   const [files, setFiles] = useState<ProjectFile[]>([])
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
@@ -317,7 +374,33 @@ function App() {
         {projectDir && <span className="text-sm text-ink-muted">{projectDir}</span>}
         <button
           type="button"
-          className={`${buttonBase} ml-auto text-sm text-ink-muted underline`}
+          aria-label={sidebarOpen ? 'ファイル一覧を畳む' : 'ファイル一覧を開く'}
+          aria-pressed={sidebarOpen}
+          className={`${buttonBase} ml-auto p-1 text-ink-muted`}
+          onClick={() => setSidebarOpen((v) => !v)}
+        >
+          <PanelLeft aria-hidden className="size-4" />
+        </button>
+        {/* **ラベルを `Claude Code を開く` にしないこと。** TerminalPane の
+            空状態のボタンと accessible name が衝突し、テストの getByRole が
+            2つ拾って落ちる */}
+        <button
+          type="button"
+          aria-label={paneOpen ? 'Claude Code ペインを畳む' : 'Claude Code ペインを開く'}
+          aria-pressed={paneOpen}
+          disabled={projectDir === null}
+          className={`${buttonBase} p-1 text-ink-muted`}
+          onClick={() => {
+            const next = !paneOpen
+            setPaneOpen(next)
+            if (next && terminals.sessions.length === 0) void openTerminal()
+          }}
+        >
+          <PanelRight aria-hidden className="size-4" />
+        </button>
+        <button
+          type="button"
+          className={`${buttonBase} text-sm text-ink-muted underline`}
           onClick={toggleTheme}
         >
           {dark ? 'ライト' : 'ダーク'}
@@ -332,19 +415,21 @@ function App() {
         ),
       )}
 
-      <div className="flex min-h-0 flex-1">
-        <aside className="w-64 shrink-0 overflow-y-auto border-r border-rule bg-surface">
-          <FileList
-            files={files}
-            selectedPath={selectedPath}
-            modules={appRegistry.list()}
-            existingTypes={existingTypes}
-            projectOpen={projectDir !== null}
-            onSelect={(file) => void controller.selectFile(file.path)}
-            onCreate={(module) => void controller.createNewFile(module)}
-            onDelete={(file) => controller.requestDelete(file)}
-          />
-        </aside>
+      <div ref={splitRef} className="flex min-h-0 flex-1">
+        {sidebarOpen && (
+          <aside className="w-64 shrink-0 overflow-y-auto border-r border-rule bg-surface">
+            <FileList
+              files={files}
+              selectedPath={selectedPath}
+              modules={appRegistry.list()}
+              existingTypes={existingTypes}
+              projectOpen={projectDir !== null}
+              onSelect={(file) => void controller.selectFile(file.path)}
+              onCreate={(module) => void controller.createNewFile(module)}
+              onDelete={(file) => controller.requestDelete(file)}
+            />
+          </aside>
+        )}
 
         <section className="min-w-0 flex-1 overflow-auto">
           {selected === null && (
@@ -404,6 +489,34 @@ function App() {
             />
           )}
         </section>
+
+        {paneOpen && projectDir !== null && (
+          <PaneSplitter containerRef={splitRef} store={paneWidthStore} />
+        )}
+        {projectDir !== null && (
+          <aside
+            // **`paneOpen && <aside>` にしないこと。** アンマウントすると
+            // xterm のスクロールバックが消え、開き直すたびに新しい claude が
+            // 立ち上がる（設計 決定6）。畳む＝隠すだけ。
+            // display は排他なので三項で切り替える（`hidden` と `flex` を
+            // 並べてもどちらが勝つかは出力順まかせになる）
+            className={`${paneOpen ? 'flex' : 'hidden'} shrink-0 flex-col border-l border-rule`}
+            style={{ width: paneWidth[0] }}
+          >
+            <TerminalPane
+              state={terminals}
+              cwd={projectDir}
+              ptyIo={tauriPtyIo}
+              paneVisible={paneOpen}
+              onOpen={() => void openTerminal()}
+              onClose={closeTerminal}
+              onActivate={(id) => setTerminals((prev) => activateSession(prev, id))}
+              onRunning={(id, ptyId) => setTerminals((prev) => markRunning(prev, id, ptyId))}
+              onExited={(id, message) => setTerminals((prev) => markExited(prev, id, message))}
+              onFailed={(id, message) => setTerminals((prev) => markFailed(prev, id, message))}
+            />
+          </aside>
+        )}
       </div>
 
       <ToastStack toasts={toasts} onDismiss={dismiss} modalOpen={modalOpen} />
