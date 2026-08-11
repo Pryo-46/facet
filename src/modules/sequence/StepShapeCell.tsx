@@ -26,6 +26,7 @@ export function StepShapeCell(props: StepShapeCellProps) {
       className="w-full rounded-sm border border-rule bg-surface px-1.5 py-0.5 text-left text-sm text-ink-muted outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
       aria-label={props['aria-label']}
       data-cell={props['data-cell']}
+      onClick={() => cycle(1)}
       onKeyDown={(e) => {
         // 修飾キー付きの矢印は操作言語のもの（Alt+↑↓＝並び替え）。素の ↑↓ だけが循環
         if (

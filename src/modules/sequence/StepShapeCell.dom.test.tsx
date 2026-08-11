@@ -48,4 +48,22 @@ describe('StepShapeCell', () => {
     expect(onChange).not.toHaveBeenCalled()
     expect(onFieldKeyDown).toHaveBeenCalledOnce()
   })
+
+  it('クリックで形が1歩進む（↓ と同じ巡回）', () => {
+    const onChange = vi.fn()
+    render(
+      <StepShapeCell value="call-sync" aria-label="ステップ1の形" data-cell="k:shape" onChange={onChange} />,
+    )
+    fireEvent.click(screen.getByLabelText('ステップ1の形'))
+    expect(onChange).toHaveBeenCalledWith('call-async')
+  })
+
+  it('末尾の形のクリックは先頭に戻る', () => {
+    const onChange = vi.fn()
+    render(
+      <StepShapeCell value="self" aria-label="ステップ1の形" data-cell="k:shape" onChange={onChange} />,
+    )
+    fireEvent.click(screen.getByLabelText('ステップ1の形'))
+    expect(onChange).toHaveBeenCalledWith('call-sync')
+  })
 })
