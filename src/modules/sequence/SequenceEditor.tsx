@@ -36,6 +36,7 @@ import { GutterSlot, type SlotState } from './GutterSlot'
 import {
   ARROW_GAP,
   DIAGRAM_MARGIN,
+  GUTTER_HEADING_HEIGHT,
   layoutSequence,
   QUESTION_LABEL_WIDTH,
   RAIL_WIDTH,
@@ -191,6 +192,9 @@ export function SequenceEditor({
 
   // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
   const [pendingFocus, setPendingFocus] = useState<string | null>(null)
+
+  // ガターのブラケット強調用。どの行のセルにフォーカスがあるか（ガター外は null）
+  const [focusedRow, setFocusedRow] = useState<number | null>(null)
 
   // Web フォントの読み込みで canvas の measureText の結果は変わるが、
   // getComputedStyle が返す値は変わらない（宣言されたファミリ列を返すだけで、
@@ -604,6 +608,13 @@ export function SequenceEditor({
       className={`relative h-full w-full overflow-hidden bg-canvas bg-grid-paper ${
         spaceHeld ? 'cursor-grab' : ''
       }`}
+      onBlurCapture={(e) => {
+        // フォーカスがエディタ外へ出たときだけ消す。行内・行間の移動は
+        // 次の onFocusCapture が上書きするので、ここでは早まって消さない
+        if (!(e.relatedTarget instanceof Node) || !e.currentTarget.contains(e.relatedTarget)) {
+          setFocusedRow(null)
+        }
+      }}
     >
       {/* 測定用の見本。**描画される文字と同じフォントのクラスを持たせる**ことで、
           測定と描画が同一の情報源を見る（rev 9章）。opacity-0 で見せないだけに
@@ -784,7 +795,7 @@ export function SequenceEditor({
           // 定位置に出るし、細い図でガターに被ることもない
           const railTop = row.top + RAIL_TOP_INSET
           return (
-            <div key={key}>
+            <div key={key} onFocusCapture={() => setFocusedRow(index)}>
               {/* レールの通し番号。aria-hidden にするのは、各セルの aria-label が
                   すでに「ステップN の…」と名乗っており、二重に読ませないため */}
               <div
@@ -879,14 +890,42 @@ export function SequenceEditor({
                 />
               </div>
 
+              {/* ガターの行ブラケット＋行見出し（ブレスト決定9）。答えスロットが
+                  どのステップの行かを、図の番号と縦線で括って見せる */}
+              {(() => {
+                const slotsBottom =
+                  view.answers.length === 0
+                    ? row.top + GUTTER_HEADING_HEIGHT + 18
+                    : row.slotTops[row.slotTops.length - 1] +
+                      view.answers[view.answers.length - 1].height
+                return (
+                  <>
+                    <div
+                      aria-hidden="true"
+                      className={`absolute border-l-2 ${focusedRow === index ? 'border-ink-muted' : 'border-rule'}`}
+                      style={{ left: layout.gutterX - 8, top: row.top, height: slotsBottom - row.top }}
+                    />
+                    <div
+                      aria-hidden="true"
+                      className="absolute truncate text-xs text-ink-muted"
+                      style={{ left: layout.gutterX, top: row.top, width: layout.gutterWidth }}
+                    >
+                      {step.label === '' ? `#${index + 1}` : `#${index + 1} ${step.label}`}
+                    </div>
+                  </>
+                )
+              })()}
+
               {/* ガター: 立っている問いのスロット群。reply は問いが無いので、
                   空白にせず「呼出側が扱う」ことを言う（design-notes 論点3） */}
               {view.answers.length === 0 ? (
                 <div
                   className="absolute text-xs text-ink-muted"
-                  style={{ left: layout.gutterX, top: row.top, width: layout.gutterWidth }}
+                  style={{ left: layout.gutterX, top: row.top + GUTTER_HEADING_HEIGHT, width: layout.gutterWidth }}
                 >
-                  {view.shape === 'reply' ? '─ 応答の失敗は呼出側の「結果不明」が扱う' : '─ 問いは立たない'}
+                  {view.shape === 'reply'
+                    ? '─ 応答が返らないケースは、呼び出した側の「結果不明だったら？」に書く'
+                    : '─ 問いは立たない'}
                 </div>
               ) : (
                 view.answers.map((answer, slotIndex) => (

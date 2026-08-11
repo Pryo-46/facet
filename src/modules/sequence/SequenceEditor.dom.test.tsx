@@ -205,7 +205,9 @@ describe('問いスロット（ガター）', () => {
 
   it('reply の行には「問いは呼出側」の説明が出る（空白にしない）', () => {
     setup()
-    expect(screen.getByText('─ 応答の失敗は呼出側の「結果不明」が扱う')).toBeDefined()
+    expect(
+      screen.getByText('─ 応答が返らないケースは、呼び出した側の「結果不明だったら？」に書く'),
+    ).toBeDefined()
   })
 
   it('答えを打つと handled で書かれる', () => {
@@ -231,6 +233,28 @@ describe('問いスロット（ガター）', () => {
   it('未回答の集計が出る（doc() は failed/unknown/ifExecuted ＋ self の failed の計4問が未回答）', () => {
     setup()
     expect(screen.getByText(/未定義 4/)).toBeDefined()
+  })
+})
+
+describe('ガターの行見出し（ブレスト決定9）', () => {
+  it('ガターに行見出し #N 文言 が出る', () => {
+    const d = doc()
+    d.steps = [
+      { id: 'step_Aaaaaaaaa1', kind: 'call', from: 'actor_Aaaaaaaaa1', to: 'actor_Aaaaaaaaa2', label: '与信依頼', awaitsReply: true },
+      { id: 'step_Aaaaaaaaa2', kind: 'reply', from: 'actor_Aaaaaaaaa2', to: 'actor_Aaaaaaaaa1', label: '与信結果' },
+    ]
+    setup(d)
+    expect(screen.getByText('#1 与信依頼')).toBeDefined()
+    expect(screen.getByText('#2 与信結果')).toBeDefined()
+  })
+
+  it('文言が空のステップの行見出しは #N だけ', () => {
+    const d = doc()
+    d.steps[0] = { ...d.steps[0], label: '' }
+    setup(d)
+    // レールの通し番号も「#1」を出すので、単数 getByText は複数ヒットで throw する。
+    // レール1つ＋ガター見出し1つ＝ちょうど2つであることを固定する
+    expect(screen.getAllByText('#1')).toHaveLength(2)
   })
 })
 
