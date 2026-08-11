@@ -1,3 +1,5 @@
+mod pty;
+
 /// ファイルを OS のゴミ箱へ移す。
 ///
 /// このアプリで唯一の自前コマンド。Tauri の fs プラグインにゴミ箱 API が無く、
@@ -22,7 +24,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .invoke_handler(tauri::generate_handler![move_to_trash])
+        .manage(pty::PtyState::default())
+        .invoke_handler(tauri::generate_handler![
+            move_to_trash,
+            pty::pty_spawn,
+            pty::pty_write,
+            pty::pty_resize,
+            pty::pty_kill
+        ])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
