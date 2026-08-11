@@ -125,6 +125,13 @@ describe('ステップ行', () => {
     expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ2の送り手')
   })
 
+  it('「ステップを追加」ボタンで新ステップの from にフォーカスが移る', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={doc()} onChange={onChange} />)
+    fireEvent.click(screen.getByText('ステップを追加'))
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ4の送り手')
+  })
+
   it('IME 変換確定の Enter ではステップが増えない（最重要）', () => {
     const { onChange } = setup()
     fireEvent.keyDown(screen.getByLabelText('ステップ1の文言'), { key: 'Enter', isComposing: true })
