@@ -27,11 +27,24 @@ function decodeBase64(base64: string): Uint8Array {
 export const tauriPtyIo: PtyIo = {
   async spawn(spec: PtySpawnSpec): Promise<number> {
     const channel = new Channel<PtyEvent>()
+    // pty_spawn 呼び出し前は id が無いので、後で束縛する（下の invoke の結果を待つ）
+    let id: number | undefined
     channel.onmessage = (message) => {
-      if (message.event === 'data') spec.onData(decodeBase64(message.data.base64))
-      else spec.onExit(message.data.code)
+      if (message.event === 'data') {
+        spec.onData(decodeBase64(message.data.base64))
+        return
+      }
+      // **自然終了でも台帳を片付ける。** Rust 側は流すだけで `sessions` から
+      // 除去しない（判断を置かない設計）ので、ここで消さないと `kill` が
+      // 呼ばれない限りハンドルが残り続ける。`pty_kill` は既に死んだ id に
+      // 対して呼んでも無害（`sessions.remove` が None を返すだけ）
+      if (id !== undefined) {
+        live.delete(id)
+        void invoke('pty_kill', { id }).catch(() => undefined)
+      }
+      spec.onExit(message.data.code)
     }
-    const id = await invoke<number>('pty_spawn', {
+    id = await invoke<number>('pty_spawn', {
       program: spec.program,
       args: spec.args,
       cwd: spec.cwd,
