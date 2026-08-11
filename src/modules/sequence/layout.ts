@@ -15,6 +15,8 @@ export const ARROW_GAP = 8
 export const SLOT_GAP = 4
 export const ROW_GAP = 8
 export const GUTTER_GAP = 48
+/** ガターの行見出し（#N 文言）の1行分。スロット群はこの下から積む */
+export const GUTTER_HEADING_HEIGHT = 18
 export const QUESTION_LABEL_WIDTH = 104
 export const DIAGRAM_MARGIN = 8
 /**
@@ -107,10 +109,14 @@ export function layoutSequence(input: SeqLayoutInput): SeqLayoutResult {
       m.slotHeights.length === 0
         ? 0
         : m.slotHeights.reduce((a, b) => a + b, 0) + SLOT_GAP * (m.slotHeights.length - 1)
-    const height = Math.max(MIN_ROW_HEIGHT, m.labelHeight + ARROW_GAP * 2, slotsHeight)
+    const height = Math.max(
+      MIN_ROW_HEIGHT,
+      m.labelHeight + ARROW_GAP * 2,
+      GUTTER_HEADING_HEIGHT + slotsHeight,
+    )
     const arrowY = top + m.labelHeight + ARROW_GAP
     const slotTops: number[] = []
-    let slotTop = top
+    let slotTop = top + GUTTER_HEADING_HEIGHT
     for (const h of m.slotHeights) {
       slotTops.push(slotTop)
       slotTop += h + SLOT_GAP
