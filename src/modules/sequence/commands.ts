@@ -259,7 +259,15 @@ function cleanupFailures(step: SequenceStep, failures: Failures): SequenceStep {
   return Object.keys(next).length === 0 ? rest : { ...rest, failures: next }
 }
 
-function readSlot(
+/**
+ * スロットの生の値（decision / text）を読む。
+ *
+ * **同じ読み方が3箇所にある**（ここ・`SequenceEditor.tsx` の `readAnswer`・
+ * `consistency.ts` の `presentAnswers`）。M2 の申し送りに既知の負債として
+ * 記録されている。**4本目を作らないため**に export した——出力（`markdown.ts`）は
+ * これを使うこと
+ */
+export function readSlot(
   step: SequenceStep,
   path: AnswerPath,
 ): { decision?: 'handled' | 'notApplicable'; text?: string } {
