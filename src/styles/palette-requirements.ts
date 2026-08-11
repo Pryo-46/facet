@@ -73,6 +73,19 @@ export const REQUIREMENTS = [
 export const BACKGROUNDS = ['canvas', 'surface'] as const
 
 /**
+ * warning / ok を面として使うときに載せる文字色の要件。
+ *
+ * **`REQUIREMENTS` には無い。** warning-fg / ok-fg は自分の面（warning /
+ * ok）の上にしか載らない専用の文字色で、`BACKGROUNDS`（canvas / surface）に
+ * 対して測る意味が無い。`REQUIREMENTS` の形（token, min, use）に、載る面を
+ * 指す `face` を足しただけで、意味は同じ
+ */
+export const FACE_REQUIREMENTS = [
+  { token: 'warning-fg', face: 'warning', min: 4.5, use: '警告・削除の面の文字' },
+  { token: 'ok-fg', face: 'ok', min: 4.5, use: '確定・応答の面の文字' },
+] as const
+
+/**
  * 半透明の重ね合わせ（M8 決定11）。**値は GlossaryEditor.tsx の
  * errorCell / warnCell と一致していなければならない**（下の紐づき検査が見る）
  */
@@ -92,3 +105,21 @@ export const OVERLAY_FOREGROUNDS = [
 
 /** 閾値ちょうどを置かない（M7 の教訓）。本文 4.5:1 に3%の余裕 */
 export const OVERLAY_MIN = 4.5 * 1.03
+
+/**
+ * 見出しの面（テーブルのカラム名）。
+ *
+ * **`BACKGROUNDS` に入れないのは意図的。** あちらは「あらゆる役割トークンが
+ * 載りうる汎用の面」（地とカードの面）の集合で、`surface-accent` の上に載るのは
+ * カラム名の文字だけである。`warning` や `ok` や `rule` をこの面の上で
+ * 要件を満たすよう縛ると、淡い緑を選べなくなる（この面より暗い色でしか
+ * 3:1 / 4.5:1 を作れないため）。**載らないものを検証しない**代わりに、
+ * 載るものは両モードで必ず検証する
+ */
+export const HEADING_FACE = 'surface-accent' as const
+
+/** `HEADING_FACE` の上に置く文字。載るのはカラム名の文字だけ */
+export const HEADING_FACE_FOREGROUNDS = [
+  { token: 'ink', min: 4.5, use: '本文・見出し' },
+  { token: 'ink-muted', min: 4.5, use: '抑えた文字' },
+] as const

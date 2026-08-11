@@ -15,6 +15,9 @@ import {
 } from './contrast'
 import {
   BACKGROUNDS,
+  FACE_REQUIREMENTS,
+  HEADING_FACE,
+  HEADING_FACE_FOREGROUNDS,
   MODES,
   OVERLAY_FOREGROUNDS,
   OVERLAY_MIN,
@@ -77,13 +80,10 @@ for (const mode of MODES) {
       }
     }
 
-    for (const [fg, face] of [
-      ['warning-fg', 'warning'],
-      ['ok-fg', 'ok'],
-    ] as const) {
-      it(`${fg} が ${face} の面の上で 4.5:1 以上`, () => {
-        const ratio = contrastRatio(palette[fg], palette[face])
-        expect(ratio, `${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
+    for (const req of FACE_REQUIREMENTS) {
+      it(`${req.token} が ${req.face} の面の上で ${req.min}:1 以上`, () => {
+        const ratio = contrastRatio(palette[req.token], palette[req.face])
+        expect(ratio, `${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(req.min)
       })
     }
 
@@ -104,26 +104,18 @@ for (const mode of MODES) {
   })
 }
 
-/**
- * 見出しの面（テーブルのカラム名）。
- *
- * **`BACKGROUNDS` に入れないのは意図的。** あちらは「あらゆる役割トークンが
- * 載りうる汎用の面」（地とカードの面）の集合で、`surface-accent` の上に載るのは
- * カラム名の文字だけである。`warning` や `ok` や `rule` をこの面の上で
- * 要件を満たすよう縛ると、淡い緑を選べなくなる（この面より暗い色でしか
- * 3:1 / 4.5:1 を作れないため）。**載らないものを検証しない**代わりに、
- * 載るものは両モードで必ず検証する
- */
+// 要件本体（「なぜ BACKGROUNDS に入れないか」のコメント含む）は
+// palette-requirements.ts の HEADING_FACE / HEADING_FACE_FOREGROUNDS へ
 describe('見出しの面（surface-accent）', () => {
   for (const mode of MODES) {
     const palette = toPalette(mode.pattern, mode.label)
-    for (const token of ['ink', 'ink-muted'] as const) {
-      it(`${mode.label}の ${token} が surface-accent の上で 4.5:1 以上`, () => {
-        const ratio = contrastRatio(palette[token], palette['surface-accent'])
+    for (const req of HEADING_FACE_FOREGROUNDS) {
+      it(`${mode.label}の ${req.token} が ${HEADING_FACE} の上で ${req.min}:1 以上`, () => {
+        const ratio = contrastRatio(palette[req.token], palette[HEADING_FACE])
         expect(
           ratio,
-          `${toHex(palette[token])} / ${toHex(palette['surface-accent'])} = ${ratio.toFixed(2)}:1`,
-        ).toBeGreaterThanOrEqual(4.5)
+          `${toHex(palette[req.token])} / ${toHex(palette[HEADING_FACE])} = ${ratio.toFixed(2)}:1`,
+        ).toBeGreaterThanOrEqual(req.min)
       })
     }
   }

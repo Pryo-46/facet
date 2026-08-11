@@ -33,6 +33,9 @@ import {
 } from '../../../../src/styles/contrast.ts'
 import {
   BACKGROUNDS,
+  FACE_REQUIREMENTS,
+  HEADING_FACE,
+  HEADING_FACE_FOREGROUNDS,
   MODES,
   OVERLAY_FOREGROUNDS,
   OVERLAY_MIN,
@@ -225,6 +228,31 @@ for (const mode of MODE_KEYS) {
   }
   lines.push('')
 
+  // -- 面の文字 --------------------------------------------------------------
+  // warning-fg / ok-fg は自分の面（warning / ok）にしか載らないので、
+  // 条件はその面1つだけ。動かせるのは他に何にも縛られていない fg 自身なので、
+  // コントラストと同じく提案を出す
+  lines.push('  面の文字')
+  for (const req of FACE_REQUIREMENTS) {
+    const ratio = contrastRatio(linear[mode.key][req.token], linear[mode.key][req.face])
+    const ok = ratio >= req.min
+    const mark = ok ? '✓' : '✗'
+    let suffix = ''
+    if (!ok) {
+      failCount += 1
+      const conditions = [{ against: linear[mode.key][req.face], min: req.min * 1.03 }]
+      const suggestion = fitLightness(oklch[mode.key][req.token], conditions)
+      suffix =
+        suggestion === null
+          ? '  → この色相・彩度では満たせない（彩度を下げるか色を変える必要がある）'
+          : `  → L を ${oklch[mode.key][req.token].L.toFixed(3)} から ${suggestion.L.toFixed(3)} へ`
+    }
+    lines.push(
+      `    ${mark} ${pad(req.token, 12)}/ ${pad(req.face, 9)}${fmtRatio(ratio).padStart(8)}  (>= ${req.min.toFixed(2)})${suffix}`,
+    )
+  }
+  lines.push('')
+
   // -- 重ね合わせ ------------------------------------------------------------
   // ここは提案を出さない。面の色は warning から来るので、直すべきは
   // warning か ink-muted であり、どちらを動かすかは人の判断
@@ -243,6 +271,22 @@ for (const mode of MODE_KEYS) {
         )
       }
     }
+  }
+  lines.push('')
+
+  // -- 見出しの面 ------------------------------------------------------------
+  // ink / ink-muted は他の全要件で明度が縛られているので動かせない。
+  // 動かすとすれば surface-accent 自身であり、それは人の判断なので
+  // 重ね合わせと同じく提案を出さない
+  lines.push(`  見出しの面（${HEADING_FACE}）`)
+  for (const req of HEADING_FACE_FOREGROUNDS) {
+    const ratio = contrastRatio(linear[mode.key][req.token], linear[mode.key][HEADING_FACE])
+    const ok = ratio >= req.min
+    const mark = ok ? '✓' : '✗'
+    if (!ok) failCount += 1
+    lines.push(
+      `    ${mark} ${pad(req.token, 12)}/ ${pad(HEADING_FACE, 15)}${fmtRatio(ratio).padStart(8)}  (>= ${req.min.toFixed(2)})`,
+    )
   }
   lines.push('')
 }
