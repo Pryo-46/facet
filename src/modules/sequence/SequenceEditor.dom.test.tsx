@@ -118,6 +118,13 @@ describe('ステップ行', () => {
     expect(steps[1].to).toBe('actor_Aaaaaaaaa1')
   })
 
+  it('Enter でステップを追加すると新ステップの from にフォーカスが移る', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={doc()} onChange={onChange} />)
+    fireEvent.keyDown(screen.getByLabelText('ステップ1の文言'), { key: 'Enter' })
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ2の送り手')
+  })
+
   it('IME 変換確定の Enter ではステップが増えない（最重要）', () => {
     const { onChange } = setup()
     fireEvent.keyDown(screen.getByLabelText('ステップ1の文言'), { key: 'Enter', isComposing: true })
@@ -140,6 +147,18 @@ describe('ステップ行', () => {
     const { onChange } = setup()
     fireEvent.keyDown(screen.getByLabelText('ステップ2の形'), { key: 'ArrowDown', altKey: true })
     expect(last(onChange).steps.map((s) => s.label)).toEqual(['注文を確定', '在庫を引当', '注文番号'])
+  })
+
+  it('from セルからの Alt+↓ の後、フォーカスは動かした行の from に残る', () => {
+    render(<Harness initial={doc()} />)
+    fireEvent.keyDown(screen.getByLabelText('ステップ2の送り手'), { key: 'ArrowDown', altKey: true })
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ3の送り手')
+  })
+
+  it('形セルからの Alt+↓ の後、フォーカスは動かした行の形に残る', () => {
+    render(<Harness initial={doc()} />)
+    fireEvent.keyDown(screen.getByLabelText('ステップ2の形'), { key: 'ArrowDown', altKey: true })
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ3の形')
   })
 
   it('答えスロットからの Alt+↓ ではステップが並び替わらない', () => {

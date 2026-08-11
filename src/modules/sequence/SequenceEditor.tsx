@@ -172,7 +172,7 @@ function slotStateOf(decision: 'handled' | 'notApplicable' | undefined): SlotSta
 type CellTarget =
   | { kind: 'actor'; index: number }
   | { kind: 'label'; index: number }
-  | { kind: 'ref'; index: number }
+  | { kind: 'ref'; index: number; field: 'from' | 'to' }
   | { kind: 'shape'; index: number }
   | { kind: 'answer'; index: number; path: AnswerPath }
 
@@ -379,8 +379,9 @@ export function SequenceEditor({
     for (const answer of view.answers) tally[answer.state] += 1
   }
 
-  /** 編集結果を額縁へ渡し、次に編集させたいセルへフォーカスを予約する */
-  const apply = (result: SeqEditResult): void => {
+  /** 編集結果を額縁へ渡し、次に編集させたいセルへフォーカスを予約する。
+      focusField は data-cell の接尾辞。省略時は actor→name / step→label */
+  const apply = (result: SeqEditResult, focusField?: string): void => {
     // 動かなかった編集は同じ参照を返す（commands.ts の契約）。
     // ここで落とさないと内容が同じコミットが積まれ、Undo が空振りする
     if (result.data === data) return
@@ -393,7 +394,8 @@ export function SequenceEditor({
     }
     const keys = computeRowKeys(focus.kind === 'actor' ? result.data.actors : result.data.steps)
     const key = keys[focus.index]
-    setPendingFocus(key === undefined ? null : `${key}:${focus.kind === 'actor' ? 'name' : 'label'}`)
+    const fallback = focus.kind === 'actor' ? 'name' : 'label'
+    setPendingFocus(key === undefined ? null : `${key}:${focusField ?? fallback}`)
   }
 
   /** data-cell 鍵のセルへ移る。戻り値 true＝移った（＝キーを消費した） */
@@ -429,20 +431,30 @@ export function SequenceEditor({
   /** コマンドをシーケンスの構造へ写像する。戻り値 true＝消費した（既定動作を止める） */
   const runCommand = (cmd: Command, target: CellTarget): boolean => {
     const index = target.index
+    /** 並び替えの後もフォーカスを同じ欄に残すための接尾辞 */
+    const fieldOf = (t: CellTarget): string | undefined => {
+      if (t.kind === 'ref') return t.field
+      if (t.kind === 'shape') return 'shape'
+      return undefined // actor→name / label→label は apply の既定に任せる
+    }
     switch (cmd) {
       case 'insert-item-after':
-        // 答えを打った後の Enter も「次のステップへ進む」＝会議の流れ
-        apply(target.kind === 'actor' ? addActorAfter(data, index) : addStepAfter(data, index))
+        // 答えを打った後の Enter も「次のステップへ進む」＝会議の流れ。
+        // 新ステップの初期フォーカスは from（Tab 順の先頭＝レール左端。ブレスト決定1）
+        apply(
+          target.kind === 'actor' ? addActorAfter(data, index) : addStepAfter(data, index),
+          target.kind === 'actor' ? undefined : 'from',
+        )
         return true
       case 'delete-item':
         // deletableField を立てている欄（参加者名・ステップ文言）からしか来ない
         apply(target.kind === 'actor' ? removeActor(data, index) : removeStep(data, index))
         return true
       case 'move-item-up':
-        apply(target.kind === 'actor' ? moveActor(data, index, -1) : moveStep(data, index, -1))
+        apply(target.kind === 'actor' ? moveActor(data, index, -1) : moveStep(data, index, -1), fieldOf(target))
         return true
       case 'move-item-down':
-        apply(target.kind === 'actor' ? moveActor(data, index, 1) : moveStep(data, index, 1))
+        apply(target.kind === 'actor' ? moveActor(data, index, 1) : moveStep(data, index, 1), fieldOf(target))
         return true
       case 'focus-prev':
         if (target.kind === 'actor') return focusActorAt(index - 1)
@@ -514,8 +526,13 @@ export function SequenceEditor({
     })
   }
 
-  const onRefKeyDown = (e: React.KeyboardEvent, index: number, state: FieldState): void => {
-    handleKey(e, { kind: 'ref', index }, {
+  const onRefKeyDown = (
+    e: React.KeyboardEvent,
+    index: number,
+    field: 'from' | 'to',
+    state: FieldState,
+  ): void => {
+    handleKey(e, { kind: 'ref', index, field }, {
       editing: true,
       fieldEmpty: state.empty,
       // **参照セルの空欄 Backspace で行を消さない。** 参照欄の空は
@@ -604,7 +621,7 @@ export function SequenceEditor({
           <button
             type="button"
             className={`${buttonBase} pointer-events-auto m-2 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
-            onClick={() => apply(addStepLast(data))}
+            onClick={() => apply(addStepLast(data), 'from')}
           >
             ステップを追加
           </button>
@@ -781,7 +798,7 @@ export function SequenceEditor({
                   data-cell={`${key}:from`}
                   onSelect={(actorId) => onChange(setStepActor(data, index, 'from', actorId), null)}
                   onCreate={(name) => onChange(createActorAndAssign(data, index, 'from', name), null)}
-                  onFieldKeyDown={(e, state) => onRefKeyDown(e, index, state)}
+                  onFieldKeyDown={(e, state) => onRefKeyDown(e, index, 'from', state)}
                 />
               </div>
               {/* 向きのグリフと受け手は self では出さない（宛先が無い）。
@@ -808,7 +825,7 @@ export function SequenceEditor({
                       data-cell={`${key}:to`}
                       onSelect={(actorId) => onChange(setStepActor(data, index, 'to', actorId), null)}
                       onCreate={(name) => onChange(createActorAndAssign(data, index, 'to', name), null)}
-                      onFieldKeyDown={(e, state) => onRefKeyDown(e, index, state)}
+                      onFieldKeyDown={(e, state) => onRefKeyDown(e, index, 'to', state)}
                     />
                   </div>
                 </>
