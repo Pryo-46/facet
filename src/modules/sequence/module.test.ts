@@ -11,8 +11,32 @@ describe('sequenceModule', () => {
     expect(sequenceModule.checkConsistency(empty)).toEqual([])
   })
 
-  it('outputs は0本（額縁は出力ボタンを押せなくする）', () => {
-    expect(sequenceModule.outputs).toEqual([])
+  it('出力プロファイルは1本（図と表を1つの Markdown にまとめる）', () => {
+    expect(sequenceModule.outputs).toHaveLength(1)
+    expect(sequenceModule.outputs[0].id).toBe('default')
+    expect(sequenceModule.outputs[0].fileSuffix).toBe('')
+  })
+
+  it('出力は h2 の見出し・Mermaid ブロック・表を含む', () => {
+    const md = sequenceModule.outputs[0].toMarkdown({
+      schemaVersion: 1,
+      type: 'sequence',
+      title: 'サンプル',
+      actors: [
+        { id: 'actor_Aaaaaaaaa1', name: '画面' },
+        { id: 'actor_Aaaaaaaaa2', name: 'API' },
+      ],
+      steps: [
+        { id: 'step_Aaaaaaaaa1', kind: 'call', from: 'actor_Aaaaaaaaa1', to: 'actor_Aaaaaaaaa2', label: '注文', awaitsReply: true },
+      ],
+    })
+    expect(md).toContain('## サンプル')
+    expect(md).toContain('```mermaid')
+    expect(md).toContain('| No | from → to |')
+  })
+
+  it('describeIssueEffect を持つ（額縁の確認ダイアログが使う）', () => {
+    expect(sequenceModule.outputs[0].describeIssueEffect).toBeTypeOf('function')
   })
 
   it('migrate は現行版に対して恒等', () => {
