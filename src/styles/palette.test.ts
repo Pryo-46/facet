@@ -13,91 +13,26 @@ import {
   type LinearRgb,
   type Vision,
 } from './contrast'
+import {
+  BACKGROUNDS,
+  MODES,
+  OVERLAY_FOREGROUNDS,
+  OVERLAY_MIN,
+  OVERLAYS,
+  readTokenBlock,
+  REQUIREMENTS,
+  stripCssComments,
+  TOKENS,
+} from './palette-requirements'
 
-/** コメントを落としてから読む（`}` を含むコメントがブロック抽出を壊さないように） */
-const stripComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, '')
-
-const paletteCss = stripComments(readFileSync(new URL('./palette.css', import.meta.url), 'utf8'))
-
-/** `:root { ... }` / `.dark { ... }` から `--name: value` を拾う */
-function readBlock(selectorPattern: string, label: string): Record<string, string> {
-  const m = new RegExp(`${selectorPattern}\\s*\\{([^}]*)\\}`).exec(paletteCss)
-  if (m === null) throw new Error(`${label} のブロックが palette.css に見つからない`)
-  const out: Record<string, string> = {}
-  for (const line of m[1].split('\n')) {
-    const d = /^\s*--([a-z-]+)\s*:\s*([^;]+);/.exec(line)
-    if (d !== null) out[d[1]] = d[2].trim()
-  }
-  return out
-}
-
-const TOKENS = [
-  'canvas',
-  'surface',
-  'surface-accent',
-  'ink',
-  'ink-muted',
-  'rule',
-  'grid',
-  'warning',
-  'ok',
-  'warning-fg',
-  'ok-fg',
-] as const
-
-const MODES = [
-  { label: 'ライト', pattern: ':root' },
-  { label: 'ダーク', pattern: '\\.dark' },
-] as const
+const paletteCss = stripCssComments(
+  readFileSync(new URL('./palette.css', import.meta.url), 'utf8'),
+)
 
 const VISIONS = ['normal', 'protan', 'deutan'] as const satisfies readonly Vision[]
 
-/**
- * 背景に対して満たすべきコントラスト。
- *
- * **`grid` がここに無いのは意図的。** 方眼紙の線は純粋な装飾であり、
- * WCAG 1.4.11（情報を伝える非テキスト UI 要素は 3:1）の対象外。
- * むしろ薄いことに意味がある（設計スペック 決定2）
- */
-const REQUIREMENTS = [
-  { token: 'ink', min: 4.5, use: '本文・見出し' },
-  { token: 'ink-muted', min: 4.5, use: '抑えた文字' },
-  { token: 'rule', min: 3.0, use: 'セル境界・入力枠' },
-  { token: 'warning', min: 4.5, use: '未定義・削除' },
-  { token: 'ok', min: 4.5, use: '確定・応答' },
-] as const
-
-/**
- * **背景は canvas と surface の両方を見る。**
- * テーブルもカードもモーダルも surface の上に乗るので、canvas だけで
- * 満たしても足りない（実際、ダークの rule を canvas だけ見て決めたとき
- * surface 上で 2.997:1 と 3:1 を割った）
- */
-const BACKGROUNDS = ['canvas', 'surface'] as const
-
-/**
- * 半透明の重ね合わせ（M8 決定11）。**値は GlossaryEditor.tsx の
- * errorCell / warnCell と一致していなければならない**（下の紐づき検査が見る）
- */
-const OVERLAYS = [
-  { label: 'エラーセル', alpha: 0.2, className: 'bg-warning/20' },
-  { label: '未定義・未分類セル', alpha: 0.1, className: 'bg-warning/10' },
-] as const
-
-/**
- * これらの面の上に置く文字。**warning は置かない**（M8 決定12）——
- * 測ると warning/10 の面の上で 4.59:1 しか出ず、同系色が重なって読みにくい
- */
-const OVERLAY_FOREGROUNDS = [
-  { token: 'ink', use: '本文' },
-  { token: 'ink-muted', use: 'プレースホルダ「未定義」' },
-] as const
-
-/** 閾値ちょうどを置かない（M7 の教訓）。本文 4.5:1 に3%の余裕 */
-const OVERLAY_MIN = 4.5 * 1.03
-
 function toPalette(pattern: string, label: string): Record<string, LinearRgb> {
-  const block = readBlock(pattern, label)
+  const block = readTokenBlock(paletteCss, pattern, label)
   const out: Record<string, LinearRgb> = {}
   for (const name of TOKENS) {
     const raw = block[name]
@@ -114,7 +49,7 @@ function toPalette(pattern: string, label: string): Record<string, LinearRgb> {
 describe('palette.css の形式', () => {
   for (const mode of MODES) {
     it(`${mode.label}に全トークンがあり、すべて不透明な oklch である`, () => {
-      const block = readBlock(mode.pattern, mode.label)
+      const block = readTokenBlock(paletteCss, mode.pattern, mode.label)
       for (const name of TOKENS) {
         expect(block[name], `--${name} が無い`).toBeDefined()
         expect(
@@ -219,7 +154,7 @@ describe('warning と ok の識別（記録のみ。失敗させない）', () =
   }
 })
 
-const indexCss = stripComments(readFileSync(new URL('../index.css', import.meta.url), 'utf8'))
+const indexCss = stripCssComments(readFileSync(new URL('../index.css', import.meta.url), 'utf8'))
 
 describe('index.css', () => {
   it('destructive が warning に紐づいている', () => {
