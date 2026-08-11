@@ -9,6 +9,7 @@ import {
   moveActor,
   moveStep,
   removeActor,
+  removeAnswer,
   removeStep,
   setActorDomain,
   setActorName,
@@ -247,5 +248,38 @@ describe('答えスロット', () => {
     setAnswerText(d, 0, 'failed', 'x')
     setStepShape(d, 0, 'self')
     expect(JSON.stringify(d)).toBe(before)
+  })
+})
+
+describe('removeAnswer', () => {
+  it('failed を消すとキーごと消える（未定義に戻る）', () => {
+    const d = data()
+    const withAnswer = setAnswerText(d, 0, 'failed', '再試行')
+    const removed = removeAnswer(withAnswer, 0, 'failed')
+    expect(removed.steps[0].failures?.failed).toBeUndefined()
+  })
+
+  it('ifExecuted だけ消しても unknown の答えは残る', () => {
+    const d = setAnswerText(setAnswerText(data(), 0, 'unknown', 'リトライ'), 0, 'ifExecuted', '冪等性')
+    const removed = removeAnswer(d, 0, 'ifExecuted')
+    expect(removed.steps[0].failures?.unknown?.decision).toBe('handled')
+    expect(removed.steps[0].failures?.unknown?.ifExecuted).toBeUndefined()
+  })
+
+  it('最後の答えを消すと failures キー自体が消える', () => {
+    const d = setAnswerText(data(), 0, 'failed', '再試行')
+    const removed = removeAnswer(d, 0, 'failed')
+    expect('failures' in removed.steps[0]).toBe(false)
+  })
+
+  it('notApplicable の答えも消せる', () => {
+    const d = toggleNotApplicable(data(), 0, 'failed')
+    const removed = removeAnswer(d, 0, 'failed')
+    expect(removed.steps[0].failures?.failed).toBeUndefined()
+  })
+
+  it('範囲外 index では同じ参照を返す', () => {
+    const d = data()
+    expect(removeAnswer(d, 99, 'failed')).toBe(d)
   })
 })

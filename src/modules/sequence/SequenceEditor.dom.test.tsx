@@ -118,6 +118,20 @@ describe('ステップ行', () => {
     expect(steps[1].to).toBe('actor_Aaaaaaaaa1')
   })
 
+  it('Enter でステップを追加すると新ステップの from にフォーカスが移る', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={doc()} onChange={onChange} />)
+    fireEvent.keyDown(screen.getByLabelText('ステップ1の文言'), { key: 'Enter' })
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ2の送り手')
+  })
+
+  it('「ステップを追加」ボタンで新ステップの from にフォーカスが移る', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={doc()} onChange={onChange} />)
+    fireEvent.click(screen.getByText('ステップを追加'))
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ4の送り手')
+  })
+
   it('IME 変換確定の Enter ではステップが増えない（最重要）', () => {
     const { onChange } = setup()
     fireEvent.keyDown(screen.getByLabelText('ステップ1の文言'), { key: 'Enter', isComposing: true })
@@ -128,6 +142,41 @@ describe('ステップ行', () => {
     const { onChange } = setup()
     fireEvent.keyDown(screen.getByLabelText('ステップ2の文言'), { key: 'ArrowDown', altKey: true })
     expect(last(onChange).steps.map((s) => s.label)).toEqual(['注文を確定', '在庫を引当', '注文番号'])
+  })
+
+  it('送り手セルからの Alt+↓ でもステップが並び替わる', () => {
+    const { onChange } = setup()
+    fireEvent.keyDown(screen.getByLabelText('ステップ2の送り手'), { key: 'ArrowDown', altKey: true })
+    expect(last(onChange).steps.map((s) => s.label)).toEqual(['注文を確定', '在庫を引当', '注文番号'])
+  })
+
+  it('形セルからの Alt+↓ でもステップが並び替わる', () => {
+    const { onChange } = setup()
+    fireEvent.keyDown(screen.getByLabelText('ステップ2の形'), { key: 'ArrowDown', altKey: true })
+    expect(last(onChange).steps.map((s) => s.label)).toEqual(['注文を確定', '在庫を引当', '注文番号'])
+  })
+
+  it('from セルからの Alt+↓ の後、フォーカスは動かした行の from に残る', () => {
+    render(<Harness initial={doc()} />)
+    fireEvent.keyDown(screen.getByLabelText('ステップ2の送り手'), { key: 'ArrowDown', altKey: true })
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ3の送り手')
+  })
+
+  it('形セルからの Alt+↓ の後、フォーカスは動かした行の形に残る', () => {
+    render(<Harness initial={doc()} />)
+    fireEvent.keyDown(screen.getByLabelText('ステップ2の形'), { key: 'ArrowDown', altKey: true })
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ3の形')
+  })
+
+  it('答えスロットからの Alt+↓ ではステップが並び替わらない', () => {
+    // doc() のステップ2は reply で答えスロットが無い（0件）ので、
+    // 答えスロットを持つステップ1のスロットで検査する
+    const { onChange } = setup()
+    fireEvent.keyDown(screen.getByLabelText('ステップ1の答え: 失敗が確定したら？'), {
+      key: 'ArrowDown',
+      altKey: true,
+    })
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('空欄 Backspace でステップが消える', () => {
@@ -163,7 +212,9 @@ describe('問いスロット（ガター）', () => {
 
   it('reply の行には「問いは呼出側」の説明が出る（空白にしない）', () => {
     setup()
-    expect(screen.getByText('─ 応答の失敗は呼出側の「結果不明」が扱う')).toBeDefined()
+    expect(
+      screen.getByText('─ 応答が返らないケースは、呼び出した側の「結果不明だったら？」に書く'),
+    ).toBeDefined()
   })
 
   it('答えを打つと handled で書かれる', () => {
@@ -189,6 +240,87 @@ describe('問いスロット（ガター）', () => {
   it('未回答の集計が出る（doc() は failed/unknown/ifExecuted ＋ self の failed の計4問が未回答）', () => {
     setup()
     expect(screen.getByText(/未定義 4/)).toBeDefined()
+  })
+})
+
+describe('ガターの行見出し（ブレスト決定9）', () => {
+  it('ガターに行見出し #N 文言 が出る', () => {
+    const d = doc()
+    d.steps = [
+      { id: 'step_Aaaaaaaaa1', kind: 'call', from: 'actor_Aaaaaaaaa1', to: 'actor_Aaaaaaaaa2', label: '与信依頼', awaitsReply: true },
+      { id: 'step_Aaaaaaaaa2', kind: 'reply', from: 'actor_Aaaaaaaaa2', to: 'actor_Aaaaaaaaa1', label: '与信結果' },
+    ]
+    setup(d)
+    expect(screen.getByText('#1 与信依頼')).toBeDefined()
+    expect(screen.getByText('#2 与信結果')).toBeDefined()
+  })
+
+  it('文言が空のステップの行見出しは #N だけ', () => {
+    const d = doc()
+    d.steps[0] = { ...d.steps[0], label: '' }
+    setup(d)
+    // レールの通し番号も「#1」を出すので、単数 getByText は複数ヒットで throw する。
+    // レール1つ＋ガター見出し1つ＝ちょうど2つであることを固定する
+    expect(screen.getAllByText('#1')).toHaveLength(2)
+  })
+})
+
+describe('ステップ0件のとき末尾アクターの Tab', () => {
+  /** アクター2人・ステップ0件のフィクスチャ（doc() は常にステップ有りなので別建て） */
+  function twoActorsNoSteps(): SequenceSchemaVersion1 {
+    return {
+      schemaVersion: 1,
+      type: 'sequence',
+      title: 't',
+      actors: [
+        { id: 'actor_Aaaaaaaaa1', name: '画面', domain: '自社' },
+        { id: 'actor_Aaaaaaaaa2', name: 'API', domain: '自社' },
+      ],
+      steps: [],
+    }
+  }
+
+  /** アクター2人・ステップ1件のフィクスチャ */
+  function twoActorsOneStep(): SequenceSchemaVersion1 {
+    return {
+      ...twoActorsNoSteps(),
+      steps: [
+        {
+          id: 'step_Aaaaaaaaa1',
+          kind: 'call',
+          from: 'actor_Aaaaaaaaa1',
+          to: 'actor_Aaaaaaaaa2',
+          label: '注文を確定',
+          awaitsReply: true,
+        },
+      ],
+    }
+  }
+
+  it('ステップ 0 件のとき、末尾アクターの Tab で最初のステップが生えて from にフォーカスする', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={twoActorsNoSteps()} onChange={onChange} />)
+    fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'Tab' })
+    expect(last(onChange).steps).toHaveLength(1)
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ1の送り手')
+  })
+
+  it('ステップ 0 件でも、末尾でないアクターの Tab では生えない', () => {
+    const { onChange } = setup(twoActorsNoSteps())
+    fireEvent.keyDown(screen.getByLabelText('参加者1の名前'), { key: 'Tab' })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('ステップが 1 件でもあれば、末尾アクターの Tab では生えない（既定動作のまま）', () => {
+    const { onChange } = setup(twoActorsOneStep())
+    fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'Tab' })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('Shift+Tab では生えない', () => {
+    const { onChange } = setup(twoActorsNoSteps())
+    fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'Tab', shiftKey: true })
+    expect(onChange).not.toHaveBeenCalled()
   })
 })
 
@@ -310,6 +442,115 @@ describe('操作ヒントとラベルの面', () => {
   it('通常時のラベルセルは不透明の面（bg-surface）を持つ（入力できる見た目のため）', () => {
     setup()
     expect(screen.getByLabelText('ステップ1の文言').className).toContain('bg-surface')
+  })
+})
+
+describe('立っていない答えのグレースロット', () => {
+  /**
+   * call-sync（awaitsReply: true）で failed に「再試行する」を回答済みのまま
+   * 投げっぱなし（awaitsReply: false）へ切替、のフィクスチャ。
+   * 投げっぱなしは unknown だけが立つ（poseQuestions）ので、failed は
+   * 立っていない答え（ghost）になる
+   */
+  function ghostDoc(): SequenceSchemaVersion1 {
+    return {
+      schemaVersion: 1,
+      type: 'sequence',
+      title: 't',
+      actors: [
+        { id: 'actor_Bbbbbbbbb1', name: '画面' },
+        { id: 'actor_Bbbbbbbbb2', name: 'API' },
+      ],
+      steps: [
+        {
+          id: 'step_Bbbbbbbbb1',
+          kind: 'call',
+          from: 'actor_Bbbbbbbbb1',
+          to: 'actor_Bbbbbbbbb2',
+          label: '通知',
+          awaitsReply: false,
+          failures: { failed: { decision: 'handled', text: '再試行する' } },
+        },
+      ],
+    }
+  }
+
+  it('立っていない答えがグレースロットとして描画される', () => {
+    setup(ghostDoc())
+    expect(screen.getByText('再試行する')).toBeDefined()
+    expect(screen.getByText('失敗が確定したら？')).toBeDefined() // 打ち消し線付きの問いラベル
+  })
+
+  it('✕ を押すと確認ダイアログが出て、削除で failures から消える', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={ghostDoc()} onChange={onChange} />)
+    fireEvent.click(screen.getByLabelText(/この答えを削除/))
+    fireEvent.click(screen.getByText('削除する'))
+    expect(last(onChange).steps[0].failures?.failed).toBeUndefined()
+  })
+
+  it('確認ダイアログでキャンセルすると何も変わらない', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={ghostDoc()} onChange={onChange} />)
+    fireEvent.click(screen.getByLabelText(/この答えを削除/))
+    fireEvent.click(screen.getByText('キャンセル'))
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByText('再試行する')).toBeDefined()
+  })
+
+  it('notApplicable の立っていない答えは「─ 考慮不要」で見える', () => {
+    const d = ghostDoc()
+    d.steps[0] = {
+      ...d.steps[0],
+      failures: { failed: { decision: 'notApplicable' } },
+    }
+    setup(d)
+    expect(screen.getByText('─ 考慮不要')).toBeDefined()
+  })
+
+  it('reply 行でも立っていない答えがグレースロットで出る（行内表示＝ブレスト決定7）', () => {
+    const d = ghostDoc()
+    d.steps[0] = {
+      id: 'step_Bbbbbbbbb1',
+      kind: 'reply',
+      from: 'actor_Bbbbbbbbb1',
+      to: 'actor_Bbbbbbbbb2',
+      label: '通知結果',
+      failures: { failed: { decision: 'handled', text: '再試行する' } },
+    }
+    setup(d)
+    // reply の一般文言は、ghost があるこの行では省略する（brief (c) の選択。報告に記載）
+    expect(screen.queryByText(/^─ 応答が返らない/)).toBeNull()
+    expect(screen.getByText('再試行する')).toBeDefined()
+    expect(screen.getByLabelText(/この答えを削除/)).toBeDefined()
+  })
+
+  it('種別を元に戻すと答えは通常スロットに復活する', () => {
+    // 投げっぱなし→（形セルで）call-sync に戻す → 「再試行する」が編集可能なスロットに居る。
+    // 既存の setStepShape が failures を消さないことの画面側の固定
+    render(<Harness initial={ghostDoc()} />)
+    // STEP_SHAPE_ORDER は [call-sync, call-async, reply, self]。
+    // 投げっぱなし（call-async）から ArrowUp 1回で call-sync に戻る
+    fireEvent.keyDown(screen.getByLabelText('ステップ1の形'), { key: 'ArrowUp' })
+    const slot = screen.getByLabelText('ステップ1の答え: 失敗が確定したら？') as HTMLInputElement
+    expect(slot.value).toBe('再試行する')
+    expect(screen.queryByLabelText(/この答えを削除/)).toBeNull()
+  })
+})
+
+describe('self の to-mismatch は行の帯になる', () => {
+  it('self なのに to があるステップは行の帯（row）扱いになる', () => {
+    const d = doc()
+    d.steps[2] = { ...d.steps[2], to: 'actor_Aaaaaaaaa1' }
+    const { container } = setup(d, [
+      {
+        rule: 'to-mismatch',
+        message: 'x',
+        locations: [{ entityId: 'step_Aaaaaaaaa3', entityIndex: 2, field: 'to' }],
+      },
+    ])
+    const bands = container.querySelectorAll<HTMLElement>('[data-layer="background"] .bg-warning\\/20')
+    expect(bands).toHaveLength(1)
   })
 })
 

@@ -341,6 +341,21 @@ export function setAnswerText(
 }
 
 /**
+ * 答えスロットを未定義へ戻す（decision も text もキーごと消す）。
+ * setAnswerText(d, i, path, '') と結果は同じだが、「立っていない答えの削除」
+ * という操作の意味を名前で残す（ghost スロットの ✕ が呼ぶ）
+ */
+export function removeAnswer(
+  d: SequenceSchemaVersion1,
+  index: number,
+  path: AnswerPath,
+): SequenceSchemaVersion1 {
+  const step = d.steps[index]
+  if (step === undefined) return d
+  return replaceStep(d, index, writeSlot(step, path, undefined))
+}
+
+/**
  * Ctrl+Enter のトグル（design-notes 論点9）。
  * 未定義 → notApplicable ／ notApplicable → text があれば handled・無ければ未定義
  * ／ handled → notApplicable（text は理由メモとして温存）

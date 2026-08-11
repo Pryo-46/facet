@@ -3,6 +3,7 @@ import {
   ARROW_GAP,
   DIAGRAM_MARGIN,
   GUTTER_GAP,
+  GUTTER_HEADING_HEIGHT,
   HEADER_HEIGHT,
   layoutSequence,
   MIN_COL_GAP,
@@ -140,8 +141,43 @@ describe('layoutSequence', () => {
   it('slotTops はスロットの数だけ、行の中で上から積まれる', () => {
     const r = layoutSequence(input())
     expect(r.rows[1].slotTops).toHaveLength(3)
-    expect(r.rows[1].slotTops[0]).toBe(r.rows[1].top)
-    expect(r.rows[1].slotTops[1]).toBe(r.rows[1].top + 28 + SLOT_GAP)
+    expect(r.rows[1].slotTops[0]).toBe(r.rows[1].top + GUTTER_HEADING_HEIGHT)
+    expect(r.rows[1].slotTops[1]).toBe(r.rows[1].top + GUTTER_HEADING_HEIGHT + 28 + SLOT_GAP)
+  })
+
+  it('slotTops は行見出しのぶん下がった位置から積まれる', () => {
+    const result = layoutSequence({
+      actorWidths: [80, 80],
+      domains: [undefined, undefined],
+      steps: [
+        { fromIndex: 0, toIndex: 1, metrics: { labelWidth: 60, labelHeight: 20, slotHeights: [30, 30, 30] } },
+      ],
+    })
+    const row = result.rows[0]
+    expect(row.slotTops[0]).toBe(row.top + GUTTER_HEADING_HEIGHT)
+    expect(row.slotTops[1]).toBe(row.top + GUTTER_HEADING_HEIGHT + 30 + SLOT_GAP)
+    expect(row.slotTops[2]).toBe(row.top + GUTTER_HEADING_HEIGHT + (30 + SLOT_GAP) * 2)
+  })
+
+  it('行高は見出し込みのスロット群がラベルより高ければそちらで決まる', () => {
+    const result = layoutSequence({
+      actorWidths: [80, 80],
+      domains: [undefined, undefined],
+      steps: [
+        { fromIndex: 0, toIndex: 1, metrics: { labelWidth: 60, labelHeight: 20, slotHeights: [30, 30, 30] } },
+      ],
+    })
+    // 30*3 + SLOT_GAP*2 = 98、見出し 18 を足して 116（MIN_ROW_HEIGHT 44 とラベル 20+8*2=36 に勝つ）
+    expect(result.rows[0].height).toBe(GUTTER_HEADING_HEIGHT + 98)
+  })
+
+  it('スロットが無い行の行高は MIN_ROW_HEIGHT のまま（見出し 18 は 44 に届かない）', () => {
+    const result = layoutSequence({
+      actorWidths: [80, 80],
+      domains: [undefined, undefined],
+      steps: [{ fromIndex: 0, toIndex: 1, metrics: { labelWidth: 60, labelHeight: 20, slotHeights: [] } }],
+    })
+    expect(result.rows[0].height).toBe(MIN_ROW_HEIGHT)
   })
 
   it('境界線: 双方が指定済みかつ異なる隣接間だけに出る', () => {

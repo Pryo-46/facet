@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { CellInput } from '@/components/CellInput'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { buttonBase } from '@/components/button-styles'
 import {
   resolveCommand,
@@ -22,6 +23,7 @@ import {
   moveActor,
   moveStep,
   removeActor,
+  removeAnswer,
   removeStep,
   setActorName,
   setAnswerText,
@@ -32,10 +34,12 @@ import {
   toggleNotApplicable,
   type SeqEditResult,
 } from './commands'
+import { GhostSlot } from './GhostSlot'
 import { GutterSlot, type SlotState } from './GutterSlot'
 import {
   ARROW_GAP,
   DIAGRAM_MARGIN,
+  GUTTER_HEADING_HEIGHT,
   layoutSequence,
   QUESTION_LABEL_WIDTH,
   RAIL_WIDTH,
@@ -63,7 +67,7 @@ import {
   type WrappedBlock,
   type WrapOptions,
 } from './measure'
-import { poseQuestions, questionLabels, type AnswerPath } from './questions'
+import { poseQuestions, questionLabels, unposedAnswers, type AnswerPath } from './questions'
 import { createSeqMeasurer, FALLBACK_SEQ_FONT, readSeqFont, sameFont, type SeqFont } from './seq-font'
 import { SequenceEdges, type EdgeStep } from './SequenceEdges'
 import { StepShapeCell } from './StepShapeCell'
@@ -83,6 +87,18 @@ const PLATFORM = currentPlatform()
  * ifExecuted は unknown の下位問い**なので入れ替えないこと
  */
 const QUESTION_ORDER: readonly AnswerPath[] = ['failed', 'unknown', 'ifExecuted']
+
+/**
+ * ガターのグレースロット（ブレスト決定4）が使う、問いの汎用文言。
+ * 種別切替後は元の種別が分からない（answer は残っているが、どの類型で
+ * 立っていた問いかは失われている）ので、call-sync（応答待ちの呼出）の
+ * 文言を汎用として使う。GhostSlot は文字列を受け取るだけで意味を知らない
+ */
+const GHOST_QUESTION_LABEL: Record<AnswerPath, string> = {
+  failed: '失敗が確定したら？',
+  unknown: '結果不明だったら？',
+  ifExecuted: '実行済みだったら？',
+}
 
 /** 答えセルの外形幅（内容幅＋左右の inset）。ガターの幅も layout がこれで導出する */
 const ANSWER_BOX_WIDTH = ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2
@@ -172,7 +188,7 @@ function slotStateOf(decision: 'handled' | 'notApplicable' | undefined): SlotSta
 type CellTarget =
   | { kind: 'actor'; index: number }
   | { kind: 'label'; index: number }
-  | { kind: 'ref'; index: number }
+  | { kind: 'ref'; index: number; field: 'from' | 'to' }
   | { kind: 'shape'; index: number }
   | { kind: 'answer'; index: number; path: AnswerPath }
 
@@ -185,12 +201,24 @@ export function SequenceEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const [font, setFont] = useState<SeqFont>(FALLBACK_SEQ_FONT)
+
+  // ガターのグレースロットの削除確認（Undo で戻せるとはいえ、削除は確認を挟む）
+  const [confirmTarget, setConfirmTarget] = useState<{ index: number; path: AnswerPath } | null>(
+    null,
+  )
+  // エディタ内ダイアログが開いている間も操作言語を止める（rev 10章 境界規則）。
+  // 額縁由来の modalOpen と OR を取る——どちらか一方が開いていれば止まる
+  const anyModalOpen = modalOpen || confirmTarget !== null
+
   // ズーム・パン（Ctrl+ホイール／Space・中ボタンのドラッグ）と新しい行への追従。
   // モーダルが開いている間は止める（キーはモーダルが取る。rev 10章 境界規則）
-  const { transform, spaceHeld, ensureVisible } = useViewport(containerRef, !modalOpen)
+  const { transform, spaceHeld, ensureVisible } = useViewport(containerRef, !anyModalOpen)
 
   // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
   const [pendingFocus, setPendingFocus] = useState<string | null>(null)
+
+  // ガターのブラケット強調用。どの行のセルにフォーカスがあるか（ガター外は null）
+  const [focusedRow, setFocusedRow] = useState<number | null>(null)
 
   // Web フォントの読み込みで canvas の measureText の結果は変わるが、
   // getComputedStyle が返す値は変わらない（宣言されたファミリ列を返すだけで、
@@ -288,10 +316,20 @@ export function SequenceEditor({
       const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
       return { path, question: labels[path], state: slotStateOf(slot.decision), text, height: block.height }
     })
+    // 立っていない問いへの答え（種別切替の残骸）。ガターにグレースロットで見せる
+    const ghosts = unposedAnswers(step).map((path) => {
+      const slot = readAnswer(step, path)
+      const text =
+        slot.decision === 'notApplicable' && (slot.text === undefined || slot.text === '')
+          ? '─ 考慮不要'
+          : (slot.text ?? '')
+      const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
+      return { path, text, height: block.height }
+    })
     // 参照切れは -1 のまま layout へ渡す（layout は範囲外を読み飛ばす契約）
     const fromIndex = data.actors.findIndex((a) => a.id === step.from)
     const toIndex = step.to === undefined ? null : data.actors.findIndex((a) => a.id === step.to)
-    return { shape, label, answers, fromIndex, toIndex }
+    return { shape, label, answers, ghosts, fromIndex, toIndex }
   })
 
   const layoutInput: SeqLayoutInput = {
@@ -303,7 +341,7 @@ export function SequenceEditor({
       metrics: {
         labelWidth: view.label.width,
         labelHeight: view.label.height,
-        slotHeights: view.answers.map((answer) => answer.height),
+        slotHeights: [...view.answers.map((a) => a.height), ...view.ghosts.map((g) => g.height)],
       },
     })),
   }
@@ -360,10 +398,13 @@ export function SequenceEditor({
         continue
       }
       if (!location.entityId.startsWith('step_')) continue
-      const field =
+      const rawField =
         location.field === 'from' || location.field === 'to' || location.field === 'failures'
           ? location.field
           : 'row'
+      // self は to セルを描画しないので、to への指摘は行の帯で見せる（ブレスト決定7）
+      const field =
+        rawField === 'to' && data.steps[location.entityIndex]?.kind === 'self' ? 'row' : rawField
       const fields = invalidStepFields.get(location.entityIndex) ?? new Set<string>()
       fields.add(field)
       invalidStepFields.set(location.entityIndex, fields)
@@ -379,8 +420,9 @@ export function SequenceEditor({
     for (const answer of view.answers) tally[answer.state] += 1
   }
 
-  /** 編集結果を額縁へ渡し、次に編集させたいセルへフォーカスを予約する */
-  const apply = (result: SeqEditResult): void => {
+  /** 編集結果を額縁へ渡し、次に編集させたいセルへフォーカスを予約する。
+      focusField は data-cell の接尾辞。省略時は actor→name / step→label */
+  const apply = (result: SeqEditResult, focusField?: string): void => {
     // 動かなかった編集は同じ参照を返す（commands.ts の契約）。
     // ここで落とさないと内容が同じコミットが積まれ、Undo が空振りする
     if (result.data === data) return
@@ -393,7 +435,8 @@ export function SequenceEditor({
     }
     const keys = computeRowKeys(focus.kind === 'actor' ? result.data.actors : result.data.steps)
     const key = keys[focus.index]
-    setPendingFocus(key === undefined ? null : `${key}:${focus.kind === 'actor' ? 'name' : 'label'}`)
+    const fallback = focus.kind === 'actor' ? 'name' : 'label'
+    setPendingFocus(key === undefined ? null : `${key}:${focusField ?? fallback}`)
   }
 
   /** data-cell 鍵のセルへ移る。戻り値 true＝移った（＝キーを消費した） */
@@ -429,20 +472,30 @@ export function SequenceEditor({
   /** コマンドをシーケンスの構造へ写像する。戻り値 true＝消費した（既定動作を止める） */
   const runCommand = (cmd: Command, target: CellTarget): boolean => {
     const index = target.index
+    /** 並び替えの後もフォーカスを同じ欄に残すための接尾辞 */
+    const fieldOf = (t: CellTarget): string | undefined => {
+      if (t.kind === 'ref') return t.field
+      if (t.kind === 'shape') return 'shape'
+      return undefined // actor→name / label→label は apply の既定に任せる
+    }
     switch (cmd) {
       case 'insert-item-after':
-        // 答えを打った後の Enter も「次のステップへ進む」＝会議の流れ
-        apply(target.kind === 'actor' ? addActorAfter(data, index) : addStepAfter(data, index))
+        // 答えを打った後の Enter も「次のステップへ進む」＝会議の流れ。
+        // 新ステップの初期フォーカスは from（Tab 順の先頭＝レール左端。ブレスト決定1）
+        apply(
+          target.kind === 'actor' ? addActorAfter(data, index) : addStepAfter(data, index),
+          target.kind === 'actor' ? undefined : 'from',
+        )
         return true
       case 'delete-item':
         // deletableField を立てている欄（参加者名・ステップ文言）からしか来ない
         apply(target.kind === 'actor' ? removeActor(data, index) : removeStep(data, index))
         return true
       case 'move-item-up':
-        apply(target.kind === 'actor' ? moveActor(data, index, -1) : moveStep(data, index, -1))
+        apply(target.kind === 'actor' ? moveActor(data, index, -1) : moveStep(data, index, -1), fieldOf(target))
         return true
       case 'move-item-down':
-        apply(target.kind === 'actor' ? moveActor(data, index, 1) : moveStep(data, index, 1))
+        apply(target.kind === 'actor' ? moveActor(data, index, 1) : moveStep(data, index, 1), fieldOf(target))
         return true
       case 'focus-prev':
         if (target.kind === 'actor') return focusActorAt(index - 1)
@@ -457,6 +510,15 @@ export function SequenceEditor({
         if (target.kind !== 'answer') return false
         onChange(toggleNotApplicable(data, index, target.path), null)
         return true
+      case 'focus-next-field':
+        // ステップ 0 件のとき、末尾アクターの Tab には「次の欄」が無く額縁の外へ
+        // 抜けてしまう。移動先を生やして from へ置く（ブレスト決定2）。
+        // 1件以上あるときは従来どおり DOM 順の Tab に任せる（消費しない）
+        if (target.kind === 'actor' && index === data.actors.length - 1 && data.steps.length === 0) {
+          apply(addStepLast(data), 'from')
+          return true
+        }
+        return false
       case 'cancel':
         // 編集の打ち切り。フォーカスを外すと CellInput が確定値に戻す
         ;(document.activeElement as HTMLElement | null)?.blur()
@@ -472,13 +534,11 @@ export function SequenceEditor({
   const handleKey = (
     e: React.KeyboardEvent,
     target: CellTarget,
-    context: Omit<KeyContext, 'platform' | 'modalOpen' | 'reorderEnabled'>,
+    context: Omit<KeyContext, 'platform' | 'modalOpen'>,
   ): void => {
     const cmd = resolveCommand(toKeyEventLike(e), {
       platform: PLATFORM,
-      modalOpen,
-      // M1 には導出表示（検索・フィルタ）が無いので並び替えは常に有効
-      reorderEnabled: true,
+      modalOpen: anyModalOpen,
       ...context,
     })
     if (cmd === null) return
@@ -494,6 +554,8 @@ export function SequenceEditor({
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
       arrowsOwnedByField: false,
+      // M1 には導出表示（検索・フィルタ）が無いので並び替えは常に有効
+      reorderEnabled: true,
       hierarchical: false,
       // ヘッダは横並びのリスト。Alt+←→ が並び替えになる（design-notes 論点9）
       horizontal: true,
@@ -508,13 +570,19 @@ export function SequenceEditor({
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
       arrowsOwnedByField: false,
+      reorderEnabled: true,
       hierarchical: false,
       horizontal: false,
     })
   }
 
-  const onRefKeyDown = (e: React.KeyboardEvent, index: number, state: FieldState): void => {
-    handleKey(e, { kind: 'ref', index }, {
+  const onRefKeyDown = (
+    e: React.KeyboardEvent,
+    index: number,
+    field: 'from' | 'to',
+    state: FieldState,
+  ): void => {
+    handleKey(e, { kind: 'ref', index, field }, {
       editing: true,
       fieldEmpty: state.empty,
       // **参照セルの空欄 Backspace で行を消さない。** 参照欄の空は
@@ -522,8 +590,11 @@ export function SequenceEditor({
       deletableField: false,
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
-      // ↑↓ は候補の切替に使う（ActorRefCell が自前で処理する）
+      // ↑↓ は候補の切替に使う（ActorRefCell が自前で処理する）。
+      // Alt+↑↓ は resolveCommand が arrowsOwnedByField より先に判定するため、
+      // これが true でも並び替えは通る（部品側が修飾キー付き矢印を委譲する）
       arrowsOwnedByField: true,
+      reorderEnabled: true,
       hierarchical: false,
       horizontal: false,
     })
@@ -537,8 +608,11 @@ export function SequenceEditor({
       deletableField: false,
       caretAtStart: false,
       caretAtEnd: false,
-      // ↑↓ は4値の循環に使う（StepShapeCell が自前で処理する）
+      // ↑↓ は4値の循環に使う（StepShapeCell が自前で処理する）。
+      // Alt+↑↓ は resolveCommand が arrowsOwnedByField より先に判定するため、
+      // これが true でも並び替えは通る（部品側が修飾キー付き矢印を委譲する）
       arrowsOwnedByField: true,
+      reorderEnabled: true,
       hierarchical: false,
       horizontal: false,
     })
@@ -558,6 +632,8 @@ export function SequenceEditor({
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
       arrowsOwnedByField: false,
+      // 答えを見比べている最中に図の時系列を動かさない。ガターは図と別の列
+      reorderEnabled: false,
       hierarchical: false,
       horizontal: false,
     })
@@ -569,6 +645,13 @@ export function SequenceEditor({
       className={`relative h-full w-full overflow-hidden bg-canvas bg-grid-paper ${
         spaceHeld ? 'cursor-grab' : ''
       }`}
+      onBlurCapture={(e) => {
+        // フォーカスがエディタ外へ出たときだけ消す。行内・行間の移動は
+        // 次の onFocusCapture が上書きするので、ここでは早まって消さない
+        if (!(e.relatedTarget instanceof Node) || !e.currentTarget.contains(e.relatedTarget)) {
+          setFocusedRow(null)
+        }
+      }}
     >
       {/* 測定用の見本。**描画される文字と同じフォントのクラスを持たせる**ことで、
           測定と描画が同一の情報源を見る（rev 9章）。opacity-0 で見せないだけに
@@ -595,7 +678,7 @@ export function SequenceEditor({
           <button
             type="button"
             className={`${buttonBase} pointer-events-auto m-2 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
-            onClick={() => apply(addStepLast(data))}
+            onClick={() => apply(addStepLast(data), 'from')}
           >
             ステップを追加
           </button>
@@ -749,7 +832,7 @@ export function SequenceEditor({
           // 定位置に出るし、細い図でガターに被ることもない
           const railTop = row.top + RAIL_TOP_INSET
           return (
-            <div key={key}>
+            <div key={key} onFocusCapture={() => setFocusedRow(index)}>
               {/* レールの通し番号。aria-hidden にするのは、各セルの aria-label が
                   すでに「ステップN の…」と名乗っており、二重に読ませないため */}
               <div
@@ -772,7 +855,7 @@ export function SequenceEditor({
                   data-cell={`${key}:from`}
                   onSelect={(actorId) => onChange(setStepActor(data, index, 'from', actorId), null)}
                   onCreate={(name) => onChange(createActorAndAssign(data, index, 'from', name), null)}
-                  onFieldKeyDown={(e, state) => onRefKeyDown(e, index, state)}
+                  onFieldKeyDown={(e, state) => onRefKeyDown(e, index, 'from', state)}
                 />
               </div>
               {/* 向きのグリフと受け手は self では出さない（宛先が無い）。
@@ -799,7 +882,7 @@ export function SequenceEditor({
                       data-cell={`${key}:to`}
                       onSelect={(actorId) => onChange(setStepActor(data, index, 'to', actorId), null)}
                       onCreate={(name) => onChange(createActorAndAssign(data, index, 'to', name), null)}
-                      onFieldKeyDown={(e, state) => onRefKeyDown(e, index, state)}
+                      onFieldKeyDown={(e, state) => onRefKeyDown(e, index, 'to', state)}
                     />
                   </div>
                 </>
@@ -844,14 +927,55 @@ export function SequenceEditor({
                 />
               </div>
 
+              {/* ガターの行ブラケット＋行見出し（ブレスト決定9）。答えスロットが
+                  どのステップの行かを、図の番号と縦線で括って見せる。
+                  M2: ghost スロットも同じ列に積むので、末尾は答え・ghost の
+                  どちらが最後に来ても正しく括れるよう ghost 込みで計算し直す */}
+              {(() => {
+                const lastIndex = view.answers.length + view.ghosts.length - 1
+                const lastHeight =
+                  view.ghosts.length > 0
+                    ? view.ghosts[view.ghosts.length - 1].height
+                    : view.answers.length > 0
+                      ? view.answers[view.answers.length - 1].height
+                      : 0
+                const slotsBottom =
+                  lastIndex < 0
+                    ? row.top + GUTTER_HEADING_HEIGHT + 18
+                    : row.slotTops[lastIndex] + lastHeight
+                return (
+                  <>
+                    <div
+                      aria-hidden="true"
+                      className={`absolute border-l-2 ${focusedRow === index ? 'border-ink-muted' : 'border-rule'}`}
+                      style={{ left: layout.gutterX - 8, top: row.top, height: slotsBottom - row.top }}
+                    />
+                    <div
+                      aria-hidden="true"
+                      className="absolute truncate text-xs text-ink-muted"
+                      style={{ left: layout.gutterX, top: row.top, width: layout.gutterWidth }}
+                    >
+                      {step.label === '' ? `#${index + 1}` : `#${index + 1} ${step.label}`}
+                    </div>
+                  </>
+                )
+              })()}
+
               {/* ガター: 立っている問いのスロット群。reply は問いが無いので、
-                  空白にせず「呼出側が扱う」ことを言う（design-notes 論点3） */}
-              {view.answers.length === 0 ? (
+                  空白にせず「呼出側が扱う」ことを言う（design-notes 論点3）。
+                  **一般文言は answers も ghosts も無いときだけ出す。** ghosts が
+                  あるときに一般文言まで出すと、どちらもガターの同じ先頭位置
+                  （row.top + GUTTER_HEADING_HEIGHT）を取り合って重なる
+                  （layout.ts は一般文言の分の高さを知らない）。ghost は
+                  残骸そのものを見せる情報量が上位なので、一般文言側を省く */}
+              {view.answers.length === 0 && view.ghosts.length === 0 ? (
                 <div
                   className="absolute text-xs text-ink-muted"
-                  style={{ left: layout.gutterX, top: row.top, width: layout.gutterWidth }}
+                  style={{ left: layout.gutterX, top: row.top + GUTTER_HEADING_HEIGHT, width: layout.gutterWidth }}
                 >
-                  {view.shape === 'reply' ? '─ 応答の失敗は呼出側の「結果不明」が扱う' : '─ 問いは立たない'}
+                  {view.shape === 'reply'
+                    ? '─ 応答が返らないケースは、呼び出した側の「結果不明だったら？」に書く'
+                    : '─ 問いは立たない'}
                 </div>
               ) : (
                 view.answers.map((answer, slotIndex) => (
@@ -879,28 +1003,42 @@ export function SequenceEditor({
                 ))
               )}
 
-              {/* 答えの欄そのものは3状態の面を持つので、赤は枠を重ねて見せる
-                  （GutterSlot の状態表示と食い合わせない） */}
-              {stepHas(index, 'failures') && view.answers.length > 0 && (
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute rounded-sm border border-warning"
-                  style={{
-                    left: layout.gutterX - 2,
-                    top: row.top - 2,
-                    width: layout.gutterWidth + 4,
-                    height:
-                      row.slotTops[row.slotTops.length - 1] +
-                      view.answers[view.answers.length - 1].height -
-                      row.top +
-                      4,
-                  }}
+              {/* ガター: 立っていない答え（種別切替の残骸）のグレースロット
+                  （ブレスト決定4）。通常スロットの後、ghosts の順で積む */}
+              {view.ghosts.map((ghost, ghostIndex) => (
+                <GhostSlot
+                  key={`${key}:ghost:${ghost.path}`}
+                  question={GHOST_QUESTION_LABEL[ghost.path]}
+                  text={ghost.text}
+                  aria-label={`ステップ${index + 1}の立っていない答え「${GHOST_QUESTION_LABEL[ghost.path]}」: この答えを削除`}
+                  x={layout.gutterX}
+                  y={row.slotTops[view.answers.length + ghostIndex]}
+                  labelWidth={QUESTION_LABEL_WIDTH}
+                  answerWidth={ANSWER_BOX_WIDTH}
+                  height={ghost.height}
+                  onDelete={() => setConfirmTarget({ index, path: ghost.path })}
                 />
-              )}
+              ))}
             </div>
           )
         })}
       </div>
+
+      <ConfirmDialog
+        open={confirmTarget !== null}
+        title="答えを削除しますか？"
+        description={
+          confirmTarget === null
+            ? ''
+            : `「${GHOST_QUESTION_LABEL[confirmTarget.path]}」への答えを削除します。削除後は Undo で戻せます。削除せず種別を元に戻せば、答えはそのまま復活します。`
+        }
+        confirmLabel="削除する"
+        onConfirm={() => {
+          if (confirmTarget !== null) onChange(removeAnswer(data, confirmTarget.index, confirmTarget.path), null)
+          setConfirmTarget(null)
+        }}
+        onCancel={() => setConfirmTarget(null)}
+      />
     </div>
   )
 }

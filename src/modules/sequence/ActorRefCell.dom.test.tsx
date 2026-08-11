@@ -146,4 +146,13 @@ describe('ActorRefCell', () => {
     fireEvent.keyDown(input, { key: 'ArrowDown', isComposing: true })
     expect(onSelect).not.toHaveBeenCalled()
   })
+
+  it('Alt+↓ は候補を切り替えず、onFieldKeyDown へ委譲する', () => {
+    // 参加者3人のフィクスチャで検査する——2人だと「切替が起きない」と
+    // 「委譲された」の区別が実装によっては付かない
+    const { onSelect, onFieldKeyDown, input } = setup()
+    fireEvent.keyDown(input, { key: 'ArrowDown', altKey: true })
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(onFieldKeyDown).toHaveBeenCalledOnce()
+  })
 })

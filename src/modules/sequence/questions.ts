@@ -49,6 +49,27 @@ export interface QuestionLabels {
   ifExecuted: string
 }
 
+/**
+ * 答えが「在る」パスの列挙（順序は QUESTION_ORDER と同じ failed → unknown → ifExecuted）。
+ * text だけの unknown は数えない（decision があって初めて「答えた」）——
+ * consistency.ts の unposed 判定と同一の規則で、判定の正はここ1箇所に置く
+ */
+export function presentAnswers(step: Pick<SequenceStep, 'failures'>): AnswerPath[] {
+  const f = step.failures
+  if (f === undefined) return []
+  const present: AnswerPath[] = []
+  if (f.failed !== undefined) present.push('failed')
+  if (f.unknown?.decision !== undefined) present.push('unknown')
+  if (f.unknown?.ifExecuted !== undefined) present.push('ifExecuted')
+  return present
+}
+
+/** 在るのに問いが立っていない答え（種別切替の残骸）。ガターのグレースロットと整合性検証が使う */
+export function unposedAnswers(step: SequenceStep): AnswerPath[] {
+  const posed = poseQuestions(step)
+  return presentAnswers(step).filter((path) => !posed[path])
+}
+
 /** ガターに出す問いの文言。キーは共通・文言だけ種別で変える */
 export function questionLabels(step: StepShape): QuestionLabels {
   if (step.kind === 'self') {
