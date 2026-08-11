@@ -60,6 +60,18 @@ export function linearToOklab(rgb: LinearRgb): readonly [number, number, number]
   ]
 }
 
+/**
+ * 線形 sRGB → oklch。`oklchToLinear` の逆。
+ *
+ * **H は 0..360 に正規化する**（`atan2` は -π..π を返す）。C が 0 に近い
+ * 無彩色では H は意味を持たないが、値としては返す
+ */
+export function linearToOklch(rgb: LinearRgb): Oklch {
+  const [L, a, b] = linearToOklab(rgb)
+  const deg = (Math.atan2(b, a) * 180) / Math.PI
+  return { L, C: Math.hypot(a, b), H: deg < 0 ? deg + 360 : deg }
+}
+
 /** WCAG 2.x の相対輝度 */
 export function relativeLuminance(rgb: LinearRgb): number {
   return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]

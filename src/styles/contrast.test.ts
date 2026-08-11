@@ -6,6 +6,7 @@ import {
   deltaEok,
   encodeSrgb,
   type LinearRgb,
+  linearToOklch,
   oklchToLinear,
   parseOklch,
   relativeLuminance,
@@ -56,6 +57,42 @@ describe('oklchToLinear と toHex', () => {
   it('色域外はクランプする（負の成分で NaN や範囲外を出さない）', () => {
     const hex = toHex(oklchToLinear({ L: 0.5, C: 0.4, H: 140 }))
     expect(hex).toMatch(/^#[0-9a-f]{6}$/)
+  })
+})
+
+describe('linearToOklch', () => {
+  it('oklchToLinear の逆になる', () => {
+    // **C=0 の色を使わない。** 無彩色では H が意味を持たず復元されないので、
+    // 往復の検査には向かない（INK は C=0 なのでここでは使えない）
+    for (const c of [WARNING, OK, CANVAS]) {
+      const back = linearToOklch(oklchToLinear(c))
+      expect(back.L, `L ${JSON.stringify(c)}`).toBeCloseTo(c.L, 3)
+      expect(back.C, `C ${JSON.stringify(c)}`).toBeCloseTo(c.C, 3)
+      expect(back.H, `H ${JSON.stringify(c)}`).toBeCloseTo(c.H, 1)
+    }
+  })
+
+  it('無彩色は C が 0 になる', () => {
+    expect(linearToOklch([0.5, 0.5, 0.5]).C).toBeCloseTo(0, 3)
+  })
+
+  it('H を 0..360 で返す', () => {
+    // atan2 は -π..π を返すので、度へ直しただけでは負の色相が出る。
+    // palette.css に負の色相を書いても CSS としては有効だが、既存の値
+    // （34.6 / 96.4 / 126）と並べたとき読み手が比較できなくなる
+    const corners: LinearRgb[] = [
+      [0.6, 0.2, 0.2],
+      [0.2, 0.6, 0.2],
+      [0.2, 0.2, 0.6],
+      [0.6, 0.6, 0.2],
+      [0.2, 0.6, 0.6],
+      [0.6, 0.2, 0.6],
+    ]
+    for (const rgb of corners) {
+      const h = linearToOklch(rgb).H
+      expect(h, `${toHex(rgb)} の色相`).toBeGreaterThanOrEqual(0)
+      expect(h, `${toHex(rgb)} の色相`).toBeLessThan(360)
+    }
   })
 })
 
