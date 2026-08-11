@@ -4,13 +4,13 @@
 >
 > ここに載るのは「**いつでもよいが、忘れると実害化するもの**」。いま着手すべきものはマイルストーンの計画に入れる。マイルストーン完了時にこのファイルを更新するのは義務（[`../CLAUDE.md`](../CLAUDE.md) 参照）。
 >
-> 最終更新: sequence M1 完了時点（2026-08-11）
+> 最終更新: sequence M2 完了時点（2026-08-11）
 
 各項目の末尾の `[MN]` は**最初に記録されたマイルストーン**。長く開いているものほど「踏まないから残っている」のか「踏むけど後回しにしている」のかを見分ける手がかりになる。**採番は3系統**（コア・用語集・エラーカタログの `MN`、ロジックツリーの `logic-tree-mN`、シーケンスの `sequence-mN`）。
 
 ## テストが無い箇所
 
-- **sequence の変異耐性に穴が残っているテストが3箇所**: `schema.test.ts`（`additionalProperties` の拒否・`unknownSlot` の `decision` enum・`const` / `from`-`to` のパターン）／`consistency.test.ts`（**actor 側の ID 重複ケースが無い**ので実装の actor ループを消しても全緑、**reply の `to` 欠落ケースが無い**ので `to-mismatch` を call だけに絞っても全緑）。いずれも最終レビューが実害小と判断して繰り越したもので、**この層に触るときの宿題** `[sequence-m1]`
+- **`schema.test.ts` の変異耐性に穴が3箇所残っている**: `additionalProperties` の拒否・`unknownSlot` の `decision` enum・`const` / `from`-`to` のパターン。最終レビューが実害小と判断して繰り越したもので、**この層に触るときの宿題**（`consistency.test.ts` にあった2穴——actor 側の ID 重複ケース・reply の `to` 欠落ケース——は sequence M2 Task 2 で解消した） `[sequence-m1]`
 - **interleaving を要する3分岐にテストが無い**（`src/core/app-controller.ts`）: `rescan` の `switchingFolder > 0` ガード（フォルダ切替中に届いた旧フォルダのイベントが新しい一覧を上書きする）、`rescan` の `token !== scanSeq || projectDir !== dir` ガード（遅れて着地した古い走査結果が新しい一覧を上書きする）、`handleSelectedGone` の `selectSeq++`（進行中の `selectFile` が着地して消えたファイルを選び直す）。**コントローラは I/O を注入しているので `io.scan` に手動 Promise を挟めば書ける。** この層に触るときの宿題 `[M6]`
 - **`currentDocument()` の「未選択」分岐を明示的に踏むテストが無い**（`src/core/app-controller.ts`）。「編集中データなし」分岐と観測が重なる `[M6]`
 - **`FLUSH_MAX_ROUNDS` の打ち切りパスに直接テストが無い**（`src/core/autosave.ts`）。戻り値は安全側の false なので後回し可 `[M5]`
@@ -28,12 +28,8 @@
 
 ## 挙動の穴（実害は小さいが残っている）
 
-- **`StepShapeCell` で形を変えられるのは `↑↓` だけ**（`src/modules/sequence/StepShapeCell.tsx`）: 形（呼出／投げっぱなし／応答／内部処理）を変える手段は `↑↓` に限られる——`Enter` は行追加に消費され、`Space` は無反応。**マウスだけで操作する人には形を変える手段が無い**。rev 10章「キーでしか到達できない『意味』を残さない」に対する未達で、M8 の実機確認で発覚した用語集の「行を増やす手段が無い」と同じ形である。`<button>` なので `onClick` を1本足すだけで塞がる `[sequence-m1]`
-- **答えスロットで `Alt+↑↓` を押すとステップが並び替わる**（`src/modules/sequence/SequenceEditor.tsx`）: 答えのセルはガターの中で1本の列として `↑↓` で動くが、`Alt+↑↓` は `move-item-up/down` を素通りさせてステップ本体の並び替えになる。**写像表に無い挙動**であり、答えを見比べている最中に図の時系列が動く。答えスロットでは `reorderEnabled: false` にするか、答えの入れ替えという意味を与えるかの判断が要る `[sequence-m1]`
-- **`reply` の行に `unposed-answer` の赤が出ない**（`src/modules/sequence/SequenceEditor.tsx`）: 整合性検証は「`reply` に答えがある」を検出してバナーに出すが、**行のガターは一般文言（`─ 応答の失敗は呼出側の「結果不明」が扱う`）のまま**なので、どの行が指摘されているのかが図の上で分からない。指摘の場所と表示の場所が繋がっていない。同型で、**self の to-mismatch（`field: 'to'`）も to セルが無いためバナーにしか出ない** `[sequence-m1]`
 - **`replyTo`（応答と呼出の対応）が無く、`reply` 行の説明が一般文言である**（`schemas/sequence.schema.json` / `src/modules/sequence/`）: 「この応答はどの呼出への応答か」をデータが持たないため、行の説明は誰に対しても同じ文になる。design-notes 論点3 は**意図的に持たない**と決めた（対応の明示が要ると分かってから入れる）ので欠陥ではないが、**呼出が入れ子になるシナリオを実際に書いたときに読めるか**は実使用でしか分からない。ホバーで対の呼出をハイライトする等を検討するなら、まずこのフィールドが要る `[sequence-m1]`
-- **種別を切り替えると「立っていない問いへの答え」の警告が出るが、その答えを画面から直接消す手段が無い**（`src/modules/sequence/SequenceEditor.tsx`）: 種別切替で `failures` を消さないのは意図した仕様（黙って消さない。`↑↓` の巡回で答えが破壊されないため）で、警告は矛盾の可視化として正しい。ただし実機確認で2つの弱さが判明: (a) **入力中の切替で直前に打った自分の答えが即座に赤バナーになる**——検証として正しいが驚かせ方が乱暴、(b) **スロットは立っている問いしか描画しないため、立っていない答えは種別を往復しないと消せない**——「人間がアプリ内で直せる状態で見せる」（rev 5章）に対して動線が弱い。M2 で「立っていない答えのグレー畳み表示＋削除動線」を設計する `[sequence-m1]`
-- **`from === to` の call は線も整合性指摘も出ず、矢印の無い浮いたラベルになる**（`src/modules/sequence/SequenceEditor.tsx` / `consistency.ts`）: `from` と `to` が同じ参加者を指す call を作れてしまうが、自己呼び出しとして矢印を引く描画もなければ「self にすべき」といった指摘も出ない。ラベルだけが宙に浮いて見える。**self への変更を促すレベル2指摘を足すか要判断** `[sequence-m1]`
+- **`GhostSlot` の ✕ が `layout.totalWidth` の外に約20px はみ出す**（`src/modules/sequence/GhostSlot.tsx` / `layout.ts`）: 図の幅の帳簿（`layout.totalWidth`）と実描画がずれている——ghost の削除ボタンは `layout.totalWidth` を考慮せず配置されるため、右端に固定幅ぶんはみ出す。sequence M2 の実機確認では崩れとして問題視されなかったが、**構造的なずれなのでガターに列を足す等、図の右端を扱う変更をするとき必ず踏む** `[sequence-m2]`
 - **`resolveCommand` の細かい非対称**（`src/core/keyboard/keymap.ts`）: macOS の `Ctrl+Backspace`（主修飾キーは Cmd なので素の Backspace として通る）と `Alt+Shift+↑↓`（`altKey` を先に見るため並び替えになる） `[M3]`
 - **モーダルが開いている間もキャンバスのホイール／ドラッグが生きている**（`src/modules/logic-tree/useViewport.ts`）: rev 10章の境界規則は「モーダル中はエディタの操作言語を停止する」と定めており、キー監視（Space）は `enabled` で止めているが、**d3-zoom の `filter` は `enabled` を見ていない**。モーダルの裏で `Ctrl+ホイール` を回すとズームし、閉じたときに視点が変わっている。**規約に対する未達なので、いずれ塞ぐ。** 直し方は `filter` の先頭に `enabled` の ref を見る1行を足すだけ（`enabled` を ref に写す必要がある。d3 のハンドラはマウント時に1回しか張らないため） `[logic-tree-m1]`
 - **ID が重複しているファイルでは、その ID を親に指すノードが先頭の1つにだけ付く**（`src/modules/logic-tree/tree.ts`）: 挙動は決めてあるが、**画面に出るのは「ID が重複しています」だけ**で、木の形が想定と違って見える理由が読み手に繋がらない。ID 重複を直せば解消するので実害は小さいが、原因の説明が要る `[logic-tree-m1]`
@@ -59,10 +55,8 @@
   - **sequence M1 が最初の使いどころだったが、使わなかった**（`src/modules/sequence/GutterSlot.tsx`）: scope は答えスロットの色を「未定義＝warning／handled＝ok 系／notApplicable＝弱い ok 系」と書いていたが、**`ok` の面（`bg-ok/α`）は濃さの検算が済んでいない**ため、`handled` と `notApplicable` はどちらも無地（`border-rule bg-surface`、文字色だけ差をつける）にした。**「回答済み」と「考慮不要」の区別が、面の色ではなく文言に頼っている**状態である。上の色差の再検討（P型・D型）と一緒に、`ok` の半透明の濃さを検算するときに入れる `[sequence-m1]`
 - **行全体の指摘と `from`/`to` の指摘が同時に出ると `warning` の面が二重になりうる**（`src/modules/sequence/SequenceEditor.tsx`）: 行の帯と文言セルの面は排他にしたが（M8「面は片方だけ」）、`from`/`to` の参照切れが指すセルは `bg-surface` の上に枠を出す形なので今は重ならない。**`from`/`to` のセルに面を与えた瞬間、行の帯と2枚になる。** 排他の判定は `stepHas(index,'row')` の1箇所にあるので、面を増やすときはそこを通すこと `[sequence-m1]`
 - **方眼背景がキャンバスのズームに追従しない**（`src/modules/logic-tree/LogicTreeEditor.tsx`）: `bg-grid-paper` はビューポート（transform を当てる要素）の**外側**に敷いてあるので、拡大しても升目の大きさが変わらない。**rev 9章「地は方眼、作業する面は無地」の意図には合っている**（方眼は地の模様であって図の一部ではない）が、キャンバスとしては**倍率の手がかりを失っている**——どれだけ拡大しているかが画面から読めない。倍率表示を出すか方眼を内側へ移すかは、実機で「今どれくらいの倍率か分からない」と感じたときに決める `[logic-tree-m1]`
-- **アクター行の `Tab`=追加・`Enter`=移動という案が実機で出た**（`src/modules/sequence/SequenceEditor.tsx`）: ヘッダは横並びのリストだが、現行は縦のリスト（ステップ）と同じ `Enter`=追加・`Tab`=次の欄の写像を共有している。ヘッダ特有の割り当てを望む声が出たが、**ファミリー標準（rev 10章）との衝突があるため操作言語全体の議題として持ち越す。** 詳細は [`history/sequence-m1-keyboard-editor.md`](history/sequence-m1-keyboard-editor.md) の「実機確認で出た観察」① `[sequence-m1]`
-- **空欄 `Backspace` のステップ削除に誤爆の不安があると実機で観察された**（`src/modules/sequence/SequenceEditor.tsx`）: 設計は「消しても `Undo` が受け皿」で確定済みだが、体感として不安が先に立つ場面があった。確定設計を変える理由にはならないが、体感と設計判断の差として記録する。詳細は同「観察」② `[sequence-m1]`
+- **空欄 `Backspace` のステップ削除に誤爆の不安があると実機で観察された**（`src/modules/sequence/SequenceEditor.tsx`）: 設計は「消しても `Undo` が受け皿」で確定済みだが、体感として不安が先に立つ場面があった。確定設計を変える理由にはならないが、体感と設計判断の差として記録する。詳細は [`history/sequence-m1-keyboard-editor.md`](history/sequence-m1-keyboard-editor.md) の「実機確認で出た観察」② `[sequence-m1]`
 - **actor / kind セルをドロップダウン化する案**（`src/modules/sequence/ActorRefCell.tsx` / `StepShapeCell.tsx`）: マウス操作でも迷わず選べる形にしたいという声が実機で出た。**M3 のマウス操作の回に合流させる。** 詳細は同「観察」③ `[sequence-m1]`
-- **ガターの行境界・対象範囲が見えにくい**（`src/modules/sequence/GutterSlot.tsx`）: 答えスロットがどのステップの行に属しているか、隣接行との境界が画面上で読み取りにくい場面があった。詳細は同「観察」④ `[sequence-m1]`
 - **「図を作る」→「失敗考慮を打つ」の二段階ワークフローと `Tab` の2ゾーン化**（`src/modules/sequence/SequenceEditor.tsx`）: 骨格（from/to/種別/ラベル）を打ち切ってからガターの答えを埋め直す使い方が多く観察された。`Tab` を骨格ゾーン→答えゾーンの2ゾーンに分けられると自然という提案。**答えへのキーボード到達は必須のまま崩さないこと。** 詳細は同「観察」⑤ `[sequence-m1]`
 
 ## 小さな負債
