@@ -75,7 +75,11 @@ export function ActorRefCell(props: ActorRefCellProps) {
           (e.nativeEvent as { isComposing?: boolean }).isComposing ??
           (e as unknown as { isComposing?: boolean }).isComposing ??
           false
-        if (!composing && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        if (
+          !composing &&
+          (e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
+          !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey
+        ) {
           e.preventDefault()
           cycle(e.key === 'ArrowUp' ? -1 : 1)
           return

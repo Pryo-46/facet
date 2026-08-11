@@ -27,7 +27,11 @@ export function StepShapeCell(props: StepShapeCellProps) {
       aria-label={props['aria-label']}
       data-cell={props['data-cell']}
       onKeyDown={(e) => {
-        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        // 修飾キー付きの矢印は操作言語のもの（Alt+↑↓＝並び替え）。素の ↑↓ だけが循環
+        if (
+          (e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
+          !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey
+        ) {
           e.preventDefault()
           cycle(e.key === 'ArrowUp' ? -1 : 1)
           return

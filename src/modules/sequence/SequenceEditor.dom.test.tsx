@@ -130,6 +130,29 @@ describe('ステップ行', () => {
     expect(last(onChange).steps.map((s) => s.label)).toEqual(['注文を確定', '在庫を引当', '注文番号'])
   })
 
+  it('送り手セルからの Alt+↓ でもステップが並び替わる', () => {
+    const { onChange } = setup()
+    fireEvent.keyDown(screen.getByLabelText('ステップ2の送り手'), { key: 'ArrowDown', altKey: true })
+    expect(last(onChange).steps.map((s) => s.label)).toEqual(['注文を確定', '在庫を引当', '注文番号'])
+  })
+
+  it('形セルからの Alt+↓ でもステップが並び替わる', () => {
+    const { onChange } = setup()
+    fireEvent.keyDown(screen.getByLabelText('ステップ2の形'), { key: 'ArrowDown', altKey: true })
+    expect(last(onChange).steps.map((s) => s.label)).toEqual(['注文を確定', '在庫を引当', '注文番号'])
+  })
+
+  it('答えスロットからの Alt+↓ ではステップが並び替わらない', () => {
+    // doc() のステップ2は reply で答えスロットが無い（0件）ので、
+    // 答えスロットを持つステップ1のスロットで検査する
+    const { onChange } = setup()
+    fireEvent.keyDown(screen.getByLabelText('ステップ1の答え: 失敗が確定したら？'), {
+      key: 'ArrowDown',
+      altKey: true,
+    })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
   it('空欄 Backspace でステップが消える', () => {
     const d = doc()
     d.steps[1] = { ...d.steps[1], label: '' }

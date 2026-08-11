@@ -31,4 +31,21 @@ describe('StepShapeCell', () => {
     fireEvent.keyDown(screen.getByLabelText('形'), { key: 'ArrowDown' })
     expect(onChange).toHaveBeenLastCalledWith('call-sync')
   })
+
+  it('Alt+↓ は形を変えず、onFieldKeyDown へ委譲する', () => {
+    const onChange = vi.fn()
+    const onFieldKeyDown = vi.fn()
+    render(
+      <StepShapeCell
+        value="call-sync"
+        aria-label="形"
+        data-cell="s1:shape"
+        onChange={onChange}
+        onFieldKeyDown={onFieldKeyDown}
+      />,
+    )
+    fireEvent.keyDown(screen.getByLabelText('形'), { key: 'ArrowDown', altKey: true })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(onFieldKeyDown).toHaveBeenCalledOnce()
+  })
 })

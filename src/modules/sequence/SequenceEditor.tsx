@@ -472,13 +472,11 @@ export function SequenceEditor({
   const handleKey = (
     e: React.KeyboardEvent,
     target: CellTarget,
-    context: Omit<KeyContext, 'platform' | 'modalOpen' | 'reorderEnabled'>,
+    context: Omit<KeyContext, 'platform' | 'modalOpen'>,
   ): void => {
     const cmd = resolveCommand(toKeyEventLike(e), {
       platform: PLATFORM,
       modalOpen,
-      // M1 には導出表示（検索・フィルタ）が無いので並び替えは常に有効
-      reorderEnabled: true,
       ...context,
     })
     if (cmd === null) return
@@ -494,6 +492,8 @@ export function SequenceEditor({
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
       arrowsOwnedByField: false,
+      // M1 には導出表示（検索・フィルタ）が無いので並び替えは常に有効
+      reorderEnabled: true,
       hierarchical: false,
       // ヘッダは横並びのリスト。Alt+←→ が並び替えになる（design-notes 論点9）
       horizontal: true,
@@ -508,6 +508,7 @@ export function SequenceEditor({
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
       arrowsOwnedByField: false,
+      reorderEnabled: true,
       hierarchical: false,
       horizontal: false,
     })
@@ -522,8 +523,11 @@ export function SequenceEditor({
       deletableField: false,
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
-      // ↑↓ は候補の切替に使う（ActorRefCell が自前で処理する）
+      // ↑↓ は候補の切替に使う（ActorRefCell が自前で処理する）。
+      // Alt+↑↓ は resolveCommand が arrowsOwnedByField より先に判定するため、
+      // これが true でも並び替えは通る（部品側が修飾キー付き矢印を委譲する）
       arrowsOwnedByField: true,
+      reorderEnabled: true,
       hierarchical: false,
       horizontal: false,
     })
@@ -537,8 +541,11 @@ export function SequenceEditor({
       deletableField: false,
       caretAtStart: false,
       caretAtEnd: false,
-      // ↑↓ は4値の循環に使う（StepShapeCell が自前で処理する）
+      // ↑↓ は4値の循環に使う（StepShapeCell が自前で処理する）。
+      // Alt+↑↓ は resolveCommand が arrowsOwnedByField より先に判定するため、
+      // これが true でも並び替えは通る（部品側が修飾キー付き矢印を委譲する）
       arrowsOwnedByField: true,
+      reorderEnabled: true,
       hierarchical: false,
       horizontal: false,
     })
@@ -558,6 +565,8 @@ export function SequenceEditor({
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
       arrowsOwnedByField: false,
+      // 答えを見比べている最中に図の時系列を動かさない。ガターは図と別の列
+      reorderEnabled: false,
       hierarchical: false,
       horizontal: false,
     })
