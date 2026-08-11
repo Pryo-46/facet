@@ -29,6 +29,11 @@ export const tauriPtyIo: PtyIo = {
     const channel = new Channel<PtyEvent>()
     // pty_spawn 呼び出し前は id が無いので、後で束縛する（下の invoke の結果を待つ）
     let id: number | undefined
+    // **exit が invoke の解決より先に届くことがある。** 子がほぼ即座に落ちる場合
+    // （認証切れ・引数違いなど）、Rust 側は spawn 直後に reader/wait スレッドを
+    // 起動して Ok(id) を返す前に Exit を送りうる。id が無い間に来た exit は
+    // このフラグに記録し、invoke が解決した後で後始末するかどうかを分岐する
+    let exited = false
     channel.onmessage = (message) => {
       if (message.event === 'data') {
         spec.onData(decodeBase64(message.data.base64))
@@ -41,6 +46,8 @@ export const tauriPtyIo: PtyIo = {
       if (id !== undefined) {
         live.delete(id)
         void invoke('pty_kill', { id }).catch(() => undefined)
+      } else {
+        exited = true
       }
       spec.onExit(message.data.code)
     }
@@ -52,7 +59,10 @@ export const tauriPtyIo: PtyIo = {
       rows: spec.rows,
       channel,
     })
-    live.add(id)
+    // exit が先着していたら live に入れず、Rust 側の台帳もその場で片付ける
+    // （先着していなければ通常どおり生存扱いにする）
+    if (exited) void invoke('pty_kill', { id }).catch(() => undefined)
+    else live.add(id)
     return id
   },
   async write(id, data) {
