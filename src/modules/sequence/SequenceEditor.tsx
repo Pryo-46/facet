@@ -672,13 +672,23 @@ export function SequenceEditor({
           </ul>
         )}
         {data.actors.length > 0 && (
-          <button
-            type="button"
-            className={`${buttonBase} pointer-events-auto m-2 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
-            onClick={() => apply(addStepLast(data), 'from')}
-          >
-            ステップを追加
-          </button>
+          <div className="pointer-events-none m-2 flex gap-2">
+            <button
+              type="button"
+              className={`${buttonBase} pointer-events-auto border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+              onClick={() => apply(addStepLast(data), 'from')}
+            >
+              ステップを追加
+            </button>
+            {/* マウスだけの人の唯一の参加者追加手段（sequence M3 で from/to のインライン作成を外したため） */}
+            <button
+              type="button"
+              className={`${buttonBase} pointer-events-auto border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+              onClick={() => apply(addActorAfter(data, data.actors.length - 1))}
+            >
+              参加者を追加
+            </button>
+          </div>
         )}
         {/* 操作ヒント。**額縁の帯の中に置き、self-end で右寄せする**——
             transform の外側なのでズームと独立に読め、フローに乗せているので

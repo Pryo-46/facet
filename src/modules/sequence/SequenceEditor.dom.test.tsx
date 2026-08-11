@@ -79,6 +79,37 @@ describe('空状態', () => {
   })
 })
 
+describe('参加者を追加ボタン', () => {
+  it('参加者がいるとき「参加者を追加」ボタンが出て、末尾に1人増える', () => {
+    const { onChange } = setup()
+    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
+    expect(last(onChange).actors).toHaveLength(4)
+    expect(last(onChange).actors[3].name).toBe('')
+  })
+
+  it('「参加者を追加」ボタンは既存の参加者を1人も動かさない', () => {
+    // **末尾に足す**（途中に差し込まない）。配列順＝横の並びの正本なので、
+    // 差し込むと既存のステップの見え方が動く
+    const before = doc().actors
+    const { onChange } = setup()
+    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
+    expect(last(onChange).actors.slice(0, 3).map((a) => a.id)).toEqual(before.map((a) => a.id))
+  })
+
+  it('「参加者を追加」ボタンで新しい参加者の名前欄にフォーカスが移る', () => {
+    // ボタン経路のフォーカスを固定する（M2 の最終レビューが「ステップを追加」
+    // ボタンで同じ穴を見つけている——キー経路だけ固定してボタン経路を放置しない）
+    render(<Harness initial={doc()} />)
+    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('参加者4の名前')
+  })
+
+  it('参加者が0人のときは「参加者を追加」ボタンを出さない（「クリックして開始」が入口）', () => {
+    setup({ ...doc(), actors: [], steps: [] })
+    expect(screen.queryByRole('button', { name: '参加者を追加' })).toBeNull()
+  })
+})
+
 describe('参加者ヘッダ', () => {
   it('Enter で直後に参加者が増える', () => {
     const { onChange } = setup()
