@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, waitFor } from '@testing-library/react'
+import { StrictMode } from 'react'
 import type { PtyIo } from '@/core/terminal/pty-io'
 import type { TerminalSession } from '@/core/terminal/sessions'
 
@@ -54,6 +55,29 @@ function fakePty() {
     kill: vi.fn(async () => undefined),
   }
   return { io, spawned, resized, emit: (b: Uint8Array) => onData?.(b), exit: (c: number | null) => onExit?.(c) }
+}
+
+/**
+ * StrictMode の二重マウント検証専用。呼び出しごとに違う PTY ID を返す
+ * ——「生き残った側」と「捨てられた側」を ID で区別するため
+ */
+function fakePtyMultiSpawn() {
+  const issuedIds: number[] = []
+  const killedIds: number[] = []
+  let nextId = 100
+  const io: PtyIo = {
+    spawn: async () => {
+      const id = nextId++
+      issuedIds.push(id)
+      return id
+    },
+    write: vi.fn(async () => undefined),
+    resize: vi.fn(async () => undefined),
+    kill: vi.fn(async (id: number) => {
+      killedIds.push(id)
+    }),
+  }
+  return { io, issuedIds, killedIds }
 }
 
 beforeEach(() => {
@@ -178,5 +202,41 @@ describe('TerminalTab', () => {
       />,
     )
     expect(getByText('終了しました（コード 0）')).toBeTruthy()
+  })
+
+  it('StrictMode の二重マウントでも running は生き残った1本だけに通知し、捨てた側は kill で回収する', async () => {
+    // 開発時の StrictMode は effect を「実行 → 後片付け → 再実行」で二重に
+    // 走らせる。spawn は2回起きるが、台帳に2本登録されては困る
+    // （＝孤児 PTY が残る）。生き残った側だけ onRunning、捨てた側は
+    // ptyIo.kill() で回収されるはず
+    const pty = fakePtyMultiSpawn()
+    const onRunning = vi.fn()
+    render(
+      <StrictMode>
+        <TerminalTab
+          session={session()}
+          cwd="/proj"
+          ptyIo={pty.io}
+          hidden={false}
+          onRunning={onRunning}
+          onExited={vi.fn()}
+          onFailed={vi.fn()}
+        />
+      </StrictMode>,
+    )
+
+    // 二重マウントで spawn が2回呼ばれるのを待つ
+    await waitFor(() => expect(pty.issuedIds).toHaveLength(2))
+    // running の通知は1回だけ（台帳に2本登録されない）
+    await waitFor(() => expect(onRunning).toHaveBeenCalledTimes(1))
+    // 捨てられた側は kill で回収される（孤児が残らない）
+    await waitFor(() => expect(pty.killedIds).toHaveLength(1))
+
+    const survivedId = onRunning.mock.calls[0]?.[1] as number
+    const killedId = pty.killedIds[0]
+    // running に通知された ID と kill された ID は別物で、
+    // 合わせると発行された2本と一致する(取りこぼしも重複もない)
+    expect(survivedId).not.toBe(killedId)
+    expect([survivedId, killedId].sort()).toEqual([...pty.issuedIds].sort())
   })
 })
