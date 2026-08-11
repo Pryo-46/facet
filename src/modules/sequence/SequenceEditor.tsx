@@ -206,9 +206,12 @@ export function SequenceEditor({
   const [confirmTarget, setConfirmTarget] = useState<{ index: number; path: AnswerPath } | null>(
     null,
   )
+  // セルのドロップダウンが開いている間はキャンバスを止める。**Radix は
+  // transform の変化を追わない**ので、開いたままズームすると位置がずれる
+  const [menuOpen, setMenuOpen] = useState(false)
   // エディタ内ダイアログが開いている間も操作言語を止める（rev 10章 境界規則）。
-  // 額縁由来の modalOpen と OR を取る——どちらか一方が開いていれば止まる
-  const anyModalOpen = modalOpen || confirmTarget !== null
+  // 額縁由来の modalOpen と OR を取る——どれか一つが開いていれば止まる
+  const anyModalOpen = modalOpen || confirmTarget !== null || menuOpen
 
   // ズーム・パン（Ctrl+ホイール／Space・中ボタンのドラッグ）と新しい行への追従。
   // モーダルが開いている間は止める（キーはモーダルが取る。rev 10章 境界規則）
@@ -896,6 +899,7 @@ export function SequenceEditor({
                   aria-label={`ステップ${index + 1}の形`}
                   data-cell={`${key}:shape`}
                   onChange={(next) => onChange(setStepShape(data, index, next), null)}
+                  onOpenChange={setMenuOpen}
                   onFieldKeyDown={(e) => onShapeKeyDown(e, index)}
                 />
               </div>
