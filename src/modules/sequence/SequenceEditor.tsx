@@ -704,7 +704,7 @@ export function SequenceEditor({
       )}
 
       {/* 背景レイヤ: ライフライン・責任境界の縦線・行全体の赤表示
-          （M2 のゾーンの帯もこの層に載る） */}
+          （ゾーン導入時はその帯もこの層に載る） */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 origin-top-left"
