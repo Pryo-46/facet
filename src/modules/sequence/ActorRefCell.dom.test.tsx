@@ -88,7 +88,21 @@ describe('ActorRefCell: キーボード（M2 までと同じ）', () => {
 
   it('参加者が0人のときの ↑↓ は何も起こさない', () => {
     const { onSelect, cell } = setup({ actors: [], value: undefined })
+    // **例外を投げないことも「何も起こさない」の一部として検査する。**
+    // cycle が early return を失うと actors[NaN] を読んで例外を投げるが、
+    // それは onSelect を呼ぶ**前**に起きるため、onSelect の非呼び出しだけを
+    // 見るアサーションは通ってしまう。しかも React は event handler 内の
+    // 例外を synchronous throw で fireEvent へ返さない（内部で guarded
+    // callback にくるんでいる）ので `expect(() => fireEvent(...)).toThrow()`
+    // でも捕まえられない。React が投げ直す先は `window` の error イベント
+    // （実測: fireEvent の呼び出し中に同期的に発火する）なので、ここで拾う
+    const onWindowError = vi.fn((e: Event) => {
+      e.preventDefault()
+    })
+    window.addEventListener('error', onWindowError)
     fireEvent.keyDown(cell, { key: 'ArrowDown' })
+    window.removeEventListener('error', onWindowError)
+    expect(onWindowError).not.toHaveBeenCalled()
     expect(onSelect).not.toHaveBeenCalled()
   })
 })
