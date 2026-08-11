@@ -220,10 +220,10 @@ describe('fitLightness', () => {
   it('要件を満たす範囲で元に最も近い L を選ぶ', () => {
     // **「動かしすぎる実装」と取り違えられないための検査。**
     // 走査の向きだけ間違えて「最初に見つかった解」を返す実装は
-    // L=0(真っ黒)を返すが、それでも上の3つは緑のままである
+    // L=0（真っ黒）を返すが、それでも上の3つは緑のままである
     const fitted = fitLightness(WARNING, [{ against: canvas, min: 7 }])!
     expect(fitted.L).toBeCloseTo(0.424, 3)
-    // 1刻みだけ元へ戻すと要件を割る(＝これ以上近い解は無い)
+    // 1刻みだけ元へ戻すと要件を割る（＝これ以上近い解は無い）
     const nearer = { ...WARNING, L: fitted.L + 0.001 }
     expect(contrastRatio(oklchToLinear(nearer), canvas)).toBeLessThan(7)
   })
@@ -243,7 +243,7 @@ describe('fitLightness', () => {
     // **背景と元の色をこの値にしてあるのは偶然ではない。**
     // oklch(0.56 0.02 120) は白と 4.63:1、黒と 4.54:1 で、暗い側にも
     // 明るい側にも解がある稀な明度である。元を L=0.54 に置くと
-    // 「明るい側へ飛ばす解(L≈0.989)」の方が元の L に近くなるので、
+    // 「明るい側へ飛ばす解（L≈0.989）」の方が元の L に近くなるので、
     // 反転を禁じていない実装はそちらを返す。禁じていれば暗い側を返す
     const against = oklchToLinear({ L: 0.56, C: 0.02, H: 120 })
     const fitted = fitLightness({ L: 0.54, C: 0.02, H: 120 }, [{ against, min: 4.5 }])!
