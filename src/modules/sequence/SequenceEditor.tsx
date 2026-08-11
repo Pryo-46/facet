@@ -469,6 +469,15 @@ export function SequenceEditor({
         if (target.kind !== 'answer') return false
         onChange(toggleNotApplicable(data, index, target.path), null)
         return true
+      case 'focus-next-field':
+        // ステップ 0 件のとき、末尾アクターの Tab には「次の欄」が無く額縁の外へ
+        // 抜けてしまう。移動先を生やして from へ置く（ブレスト決定2）。
+        // 1件以上あるときは従来どおり DOM 順の Tab に任せる（消費しない）
+        if (target.kind === 'actor' && index === data.actors.length - 1 && data.steps.length === 0) {
+          apply(addStepLast(data), 'from')
+          return true
+        }
+        return false
       case 'cancel':
         // 編集の打ち切り。フォーカスを外すと CellInput が確定値に戻す
         ;(document.activeElement as HTMLElement | null)?.blur()

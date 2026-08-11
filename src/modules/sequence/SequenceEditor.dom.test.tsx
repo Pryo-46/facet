@@ -234,6 +234,65 @@ describe('問いスロット（ガター）', () => {
   })
 })
 
+describe('ステップ0件のとき末尾アクターの Tab', () => {
+  /** アクター2人・ステップ0件のフィクスチャ（doc() は常にステップ有りなので別建て） */
+  function twoActorsNoSteps(): SequenceSchemaVersion1 {
+    return {
+      schemaVersion: 1,
+      type: 'sequence',
+      title: 't',
+      actors: [
+        { id: 'actor_Aaaaaaaaa1', name: '画面', domain: '自社' },
+        { id: 'actor_Aaaaaaaaa2', name: 'API', domain: '自社' },
+      ],
+      steps: [],
+    }
+  }
+
+  /** アクター2人・ステップ1件のフィクスチャ */
+  function twoActorsOneStep(): SequenceSchemaVersion1 {
+    return {
+      ...twoActorsNoSteps(),
+      steps: [
+        {
+          id: 'step_Aaaaaaaaa1',
+          kind: 'call',
+          from: 'actor_Aaaaaaaaa1',
+          to: 'actor_Aaaaaaaaa2',
+          label: '注文を確定',
+          awaitsReply: true,
+        },
+      ],
+    }
+  }
+
+  it('ステップ 0 件のとき、末尾アクターの Tab で最初のステップが生えて from にフォーカスする', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={twoActorsNoSteps()} onChange={onChange} />)
+    fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'Tab' })
+    expect(last(onChange).steps).toHaveLength(1)
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ1の送り手')
+  })
+
+  it('ステップ 0 件でも、末尾でないアクターの Tab では生えない', () => {
+    const { onChange } = setup(twoActorsNoSteps())
+    fireEvent.keyDown(screen.getByLabelText('参加者1の名前'), { key: 'Tab' })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('ステップが 1 件でもあれば、末尾アクターの Tab では生えない（既定動作のまま）', () => {
+    const { onChange } = setup(twoActorsOneStep())
+    fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'Tab' })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('Shift+Tab では生えない', () => {
+    const { onChange } = setup(twoActorsNoSteps())
+    fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'Tab', shiftKey: true })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+})
+
 describe('参照セルの確定', () => {
   it('未登録名を打っての Enter は参加者を足すだけ（ステップは増えない）', () => {
     // **1打鍵で確定と行追加が両方走ると、後から届いた行追加が
