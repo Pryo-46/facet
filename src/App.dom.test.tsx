@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 /**
@@ -9,6 +9,21 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
  * open-issues が「全ツールの Undo が同時に静かに壊れうる唯一の穴」と
  * 記録していた層で、ここに初めてテストが入る（M11）
  */
+
+/**
+ * `interceptClose` に渡された beforeClose コールバックを掴んでおくための共有状態。
+ * `killAllPtysMock` は同じ理由でスパイ化する。`requestCloseOverride` は
+ * 「閉じる／閉じない」を直接テストから制御するための差し込み口——
+ * 実際に flush 失敗や回答待ちの二択を仕込んで false を再現すると、この
+ * ファイルが読み込みを一切モックしていない（`listJsonFiles` が常に `[]`）
+ * 前提と噛み合わず遠回りになる。`vi.mock` はホイストされるので、
+ * ファクトリから参照する可変状態は `vi.hoisted` で作る
+ */
+const { closeState, killAllPtysMock, requestCloseOverride } = vi.hoisted(() => ({
+  closeState: { callback: null as (() => Promise<boolean>) | null },
+  killAllPtysMock: vi.fn(async () => undefined),
+  requestCloseOverride: { value: null as boolean | null },
+}))
 
 vi.mock('@/fs/project-fs', () => ({
   pickProjectFolder: async () => '/proj',
@@ -22,7 +37,10 @@ vi.mock('@/fs/project-fs', () => ({
   askSaveMarkdownPath: async () => null,
 }))
 vi.mock('@/fs/app-window', () => ({
-  interceptClose: async () => () => undefined,
+  interceptClose: async (beforeClose: () => Promise<boolean>) => {
+    closeState.callback = beforeClose
+    return () => undefined
+  },
   forceClose: async () => undefined,
 }))
 vi.mock('@/fs/clipboard', () => ({ copyToClipboard: async () => undefined }))
@@ -33,13 +51,32 @@ vi.mock('@/fs/pty', () => ({
     resize: async () => undefined,
     kill: async () => undefined,
   },
-  killAllPtys: async () => undefined,
+  killAllPtys: killAllPtysMock,
 }))
 vi.mock('@/fs/skill-resources', () => ({ tauriSkillSyncIo: {} }))
 vi.mock('@/core/skill-sync', async (orig) => ({
   ...(await orig<typeof import('@/core/skill-sync')>()),
   syncBundledSkills: async () => undefined,
 }))
+// `requestClose` の結果をテストから直接差し込むための薄いラッパー。
+// **他のメソッドは実物のまま**——フォルダ切替テストが依存する openFolder の
+// 挙動まで差し替えると、この1点のためにそちら側のテストが壊れる
+vi.mock('@/core/app-controller', async (orig) => {
+  const mod = await orig<typeof import('@/core/app-controller')>()
+  return {
+    ...mod,
+    createAppController: (...args: Parameters<typeof mod.createAppController>) => {
+      const controller = mod.createAppController(...args)
+      return {
+        ...controller,
+        requestClose: async (): Promise<boolean> => {
+          if (requestCloseOverride.value !== null) return requestCloseOverride.value
+          return controller.requestClose()
+        },
+      }
+    },
+  }
+})
 // xterm は canvas を使うので jsdom では動かない。
 // **アロー関数ではなく function式にすること**——TerminalTab は `new Terminal(...)`
 // と `new FitAddon()` の形で呼ぶ。アロー関数は construct できないため、
@@ -126,5 +163,35 @@ describe('フォルダ切替', () => {
     fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
     fireEvent.click(await screen.findByRole('button', { name: 'キャンセル' }))
     expect(screen.getByRole('button', { name: 'Claude 1' })).toBeTruthy()
+  })
+})
+
+describe('アプリ終了', () => {
+  // **beforeEach で消すこと。** 「フォルダ切替」側のテストも実フォルダ切替を
+  // 経由して killAllPtys（このファイル共通のモック）を呼ぶので、afterEach
+  // だけだと他 describe から漏れてきた呼び出し回数が最初のテストに残る
+  beforeEach(() => {
+    killAllPtysMock.mockClear()
+  })
+  afterEach(() => {
+    requestCloseOverride.value = null
+  })
+
+  it('閉じると決まったら端末も全部殺す（通常の終了経路。ウィンドウの × を含む）', async () => {
+    render(<App />)
+    await waitFor(() => expect(closeState.callback).not.toBeNull())
+    requestCloseOverride.value = true
+    const ok = await closeState.callback!()
+    expect(ok).toBe(true)
+    expect(killAllPtysMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('閉じないと決まったら端末を殺さない（未保存編集がある等で閉じられない経路）', async () => {
+    render(<App />)
+    await waitFor(() => expect(closeState.callback).not.toBeNull())
+    requestCloseOverride.value = false
+    const ok = await closeState.callback!()
+    expect(ok).toBe(false)
+    expect(killAllPtysMock).not.toHaveBeenCalled()
   })
 })

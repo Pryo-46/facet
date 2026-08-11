@@ -87,7 +87,8 @@ export interface AppHost {
 }
 
 export interface AppController {
-  openFolder(dir: string): Promise<void>
+  /** true＝切り替えられた。false＝失敗（走査失敗など）で元のフォルダのまま */
+  openFolder(dir: string): Promise<boolean>
   selectFile(path: string): Promise<void>
   /** 編集・Undo・Redo の共通後処理（自動保存へ渡し、整合性検証をやり直す） */
   applyEdit(path: string, module: AnyToolModule, next: unknown): void
@@ -216,7 +217,7 @@ export function createAppController(
     return true
   }
 
-  const openFolder = async (dir: string): Promise<void> => {
+  const openFolder = async (dir: string): Promise<boolean> => {
     const token = ++selectSeq
     // 進行中の再走査の結果を捨てさせる（別フォルダの走査結果を新しい一覧へ混ぜない）
     scanSeq++
@@ -224,13 +225,13 @@ export function createAppController(
     try {
       // 先に現在のファイルを閉じる（flush 後の内容で走査するため）。
       // flush が失敗したらフォルダ切替を中断する（書けていない編集を捨てない）
-      if (!(await closeCurrentFile())) return
+      if (!(await closeCurrentFile())) return false
       const scan = await io.scan(dir)
-      if (token !== selectSeq) return
+      if (token !== selectSeq) return false
       // 一部でも読めなければ入れ替えない（途中失敗で新旧が混ざった状態を作らない。M1 で確定）
       if (scan.unreadable.length > 0) {
         host.setBanner('io', `読み込めないファイルがあるため開けませんでした: ${scan.unreadable.join(' / ')}`)
-        return
+        return false
       }
       // 前のフォルダへのモーダル要求（二択・削除確認）は新しい一覧に対して意味を失う
       host.clearModals()
@@ -244,10 +245,12 @@ export function createAppController(
       for (const entry of scan.entries) knownDisk.set(entry.path, entry.text)
       host.setBanner('io', null)
       host.setBanner('scan', null)
+      return true
     } catch (err) {
-      if (token !== selectSeq) return
+      if (token !== selectSeq) return false
       // 旧フォルダの一覧はそのまま残す。選択は closeCurrentFile 済みなので選び直せる
       host.setBanner('io', `フォルダの読み込みに失敗しました: ${describeError(err)}`)
+      return false
     } finally {
       switchingFolder--
     }

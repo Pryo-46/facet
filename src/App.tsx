@@ -247,9 +247,16 @@ function App() {
     return () => controller.dispose()
   }, [controller])
 
-  // ウィンドウ close を横取りしてコントローラのゲートに委ねる
+  // ウィンドウ close を横取りしてコントローラのゲートに委ねる。
   useEffect(() => {
-    const unlisten = interceptClose(() => controller.requestClose())
+    const unlisten = interceptClose(async () => {
+      const ok = await controller.requestClose()
+      // **閉じると決まってから殺す。** false（閉じない）のときに殺すと、
+      // 閉じ損ねたのに端末だけ失う。ここが通常のアプリ終了の唯一の経路
+      //（`appIo.forceClose` は「破棄して閉じる」の脱出口だけを通る、別経路）
+      if (ok) await killAllPtys()
+      return ok
+    })
     return () => {
       void unlisten.then((f) => f())
     }
@@ -259,13 +266,20 @@ function App() {
    * 端末を全部終了してからフォルダを切り替える。**作業ディレクトリが
    * プロジェクトフォルダに固定されている**ので、残すと「別フォルダを見ている
    * Claude」が古い cwd のまま居座り、Skill も新しいフォルダ側に置かれる
-   *（設計 決定12）
+   *（設計 決定12）。
+   *
+   * **`openFolder` が成功したときだけ端末を殺す。** 走査失敗などでフォルダを
+   * 切り替えられなかった場合に先に端末を殺すと、ユーザーは元のフォルダに
+   * 留まったまま Claude Code セッションだけを失う。cwd は TerminalTab の
+   * 起動 effect がマウント時にしか読まないので、先に openFolder を待っても
+   * 生きている端末が古い cwd のまま化けることはない（設計 決定12）
    */
   const switchFolder = async (dir: string) => {
+    const opened = await controller.openFolder(dir)
+    if (!opened) return
     await killAllPtys()
     setTerminals((prev) => closeAll(prev))
     setPaneOpen(false)
-    await controller.openFolder(dir)
   }
 
   const openFolder = async () => {
