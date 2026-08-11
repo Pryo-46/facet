@@ -29,6 +29,7 @@ import {
   undo as undoHistory,
   type HistoryState,
 } from '@/core/history'
+import { isOutsideGlobalLayer } from '@/core/keyboard/global-layer'
 import { resolveCommand, toKeyEventLike, type KeyContext } from '@/core/keyboard/keymap'
 import { currentPlatform } from '@/core/keyboard/platform'
 import { dropModal, pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
@@ -126,6 +127,9 @@ function App() {
   const [terminals, setTerminals] = useState<TerminalState>(emptyTerminalState)
   const paneWidth = useSyncExternalStore(paneWidthStore.subscribe, paneWidthStore.getSnapshot)
   const splitRef = useRef<HTMLDivElement | null>(null)
+  // window リスナーはマウント時に1回しか張らないので、最新値は ref から読む
+  //（**state 直読みに「簡潔化」しないこと**。常に初期値になる）
+  const terminalPaneRef = useRef<HTMLElement | null>(null)
 
   /**
    * タブを1本足す。**開く直前に必ず Skill を同期する**（設計 決定10）——
@@ -288,6 +292,9 @@ function App() {
   // テキスト編集中もアプリの履歴に一本化する（境界規則への明示的な例外）
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      // 端末ペインは操作言語の管轄外（rev 10章）。ここを通さないと
+      // 端末の Ctrl+Z が Claude Code に届かず facet の Undo になる
+      if (isOutsideGlobalLayer(e.target, terminalPaneRef.current)) return
       const cmd = resolveCommand(toKeyEventLike(e), globalKeyContext(modalOpenRef.current))
       if (cmd !== 'undo' && cmd !== 'redo') return
       e.preventDefault()
@@ -498,6 +505,7 @@ function App() {
           )}
           {projectDir !== null && (
             <aside
+              ref={terminalPaneRef}
               // **`paneOpen && <aside>` にしないこと。** アンマウントすると
               // xterm のスクロールバックが消え、開き直すたびに新しい claude が
               // 立ち上がる（設計 決定6）。畳む＝隠すだけ。
