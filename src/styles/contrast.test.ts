@@ -113,6 +113,22 @@ describe('parseAnyCssColor', () => {
     }
   })
 
+  it('rgb() の範囲外はガンマ空間でクランプする（ブラウザに合わせる）', () => {
+    // rgb(300 300 300) は有効な CSS で、ブラウザは 255 にクランプして
+    // 描画する。クランプしない実装は 1 を超えた線形値を返し、実際より
+    // 高いコントラスト比を報告してしまう（Important 3）
+    expect(parseAnyCssColor('rgb(300 300 300)')!.rgb).toEqual([1, 1, 1])
+  })
+
+  it('hsl() は s / l に % が無ければ null を返す', () => {
+    // CSS として % 無しの s / l は無効。フラクションとして読むと数値上は
+    // 動いてしまうが、それは「もっともらしい間違った色」になるだけなので、
+    // 正直に null を返す（Important 3）
+    expect(parseAnyCssColor('hsl(210 50 40)')).toBeNull()
+    expect(parseAnyCssColor('hsl(210 50% 40)')).toBeNull()
+    expect(parseAnyCssColor('hsl(210 50 40%)')).toBeNull()
+  })
+
   it('厳格な parseOklch は緩んでいない', () => {
     // **この検査がこのタスクの安全装置である。** 緩いパーサを足すついでに
     // 既存の門番を広げてしまうと、palette.css に % 表記やアルファが

@@ -28,6 +28,7 @@ import {
   fitLightness,
   linearToOklch,
   parseAnyCssColor,
+  parseOklch,
   simulate,
   toHex,
 } from '../../../../src/styles/contrast.ts'
@@ -36,6 +37,7 @@ import {
   FACE_REQUIREMENTS,
   HEADING_FACE,
   HEADING_FACE_FOREGROUNDS,
+  MARGIN,
   MODES,
   OVERLAY_FOREGROUNDS,
   OVERLAY_MIN,
@@ -93,12 +95,18 @@ try {
 
 // == Step 2: { light, dark } へ正規化する ===================================
 
-// MODES は [ライト, ダーク] の順で固定（palette-requirements.ts）。
-// JSON 下書きの "light" / "dark" キーとここで対応づける
-const MODE_KEYS = [
-  { key: 'light', ...MODES[0] },
-  { key: 'dark', ...MODES[1] },
-]
+// JSON 下書きの "light" / "dark" キーと MODES を対応づける。
+// **`pattern` の中身で判定する**（MODES の並び順には依存しない）。
+// 配列の位置（MODES[0] / MODES[1]）で対応づけると、MODES を並び替えた
+// だけで JSON のキーと中身が黙って入れ替わる
+const PATTERN_TO_JSON_KEY = { ':root': 'light', '\\.dark': 'dark' }
+const MODE_KEYS = MODES.map((mode) => {
+  const key = PATTERN_TO_JSON_KEY[mode.pattern]
+  if (key === undefined) {
+    die(2, `MODES に未知の pattern があります（palette-requirements.ts を確認してください）: ${mode.pattern}`)
+  }
+  return { key, ...mode }
+})
 
 /** @type {Record<'light' | 'dark', Record<string, string>>} */
 const raw = { light: {}, dark: {} }
@@ -192,16 +200,66 @@ for (const mode of MODE_KEYS) {
   }
   lines.push('')
 
+  // -- 書式（.css のみ） -----------------------------------------------------
+  // 上の parseAnyCssColor は意図的に緩い（下書き JSON は hex / % 表記 /
+  // アルファ付きも許す）。だが palette.css に書けるのは「不透明な
+  // oklch(L C H)」だけ（palette.test.ts の門番は parseOklch）。.css を
+  // 読んでいるときだけ、同じ厳格パーサでもう一度読み直して確認する——
+  // ここを見落とすと、% 表記が紛れた palette.css でもこのスクリプトは
+  // 0 を返し、npm test だけが落ちる（SKILL.md「終了コードが 0 なら
+  // npm test も通る」を裏切る）。.json の下書きはそもそも自由形式が
+  // 前提なので対象外
+  if (ext === '.css') {
+    lines.push('  書式（palette.css に書ける形か）')
+    let formatOk = true
+    for (const token of TOKENS) {
+      const value = raw[mode.key][token]
+      if (parseOklch(value) === null) {
+        failCount += 1
+        formatOk = false
+        lines.push(
+          `    ✗ ${pad(token, 12)}${value}  → 不透明な oklch(L C H) ではない（% 表記やアルファは不可）`,
+        )
+      }
+    }
+    if (formatOk) lines.push('    ✓ すべて不透明な oklch(L C H) です')
+    lines.push('')
+  }
+
   // -- コントラスト --------------------------------------------------------
   lines.push('  コントラスト')
   for (const req of REQUIREMENTS) {
-    // 「あるトークンが満たすべき条件」は canvas / surface の両方に対して
-    // 同時に成り立たなければならない。1つずつ直すと片方がもう片方を割るので、
-    // fitLightness には両方の条件を1回でまとめて渡す
+    // 「あるトークンが満たすべき条件」は、このトークンを縛る**すべての表**に
+    // 対して同時に成り立たなければならない。canvas / surface だけを見て
+    // 提案すると、重ね合わせや見出しの面で縛られているトークン（ink-muted
+    // など）では提案どおりに直しても他の面を割ったままになる
+    // （Important 2。「1つずつ直すと片方がもう片方を割る」の一段上）
     const conditions = BACKGROUNDS.map((bg) => ({
       against: linear[mode.key][bg],
-      min: req.min * 1.03, // 閾値ちょうどを置かない
+      min: req.min * MARGIN, // 閾値ちょうどを置かない
     }))
+    // この面は前景（このトークン）が動く一方、背景側は固定——重ね合わせの
+    // 面は warning から、見出しの面は surface-accent 自身から来る。
+    // 「動かせるのはこのトークンだけ」という点で BACKGROUNDS と同じ
+    // 種類の制約なので、提案を出す条件集合に合流させる
+    const overlayEntry = OVERLAY_FOREGROUNDS.find((f) => f.token === req.token)
+    if (overlayEntry !== undefined) {
+      for (const bg of BACKGROUNDS) {
+        for (const overlay of OVERLAYS) {
+          conditions.push({
+            against: composite(linear[mode.key].warning, linear[mode.key][bg], overlay.alpha),
+            min: OVERLAY_MIN,
+          })
+        }
+      }
+    }
+    const headingEntry = HEADING_FACE_FOREGROUNDS.find((f) => f.token === req.token)
+    if (headingEntry !== undefined) {
+      conditions.push({
+        against: linear[mode.key][HEADING_FACE],
+        min: headingEntry.min * MARGIN,
+      })
+    }
     let suggestion // 遅延評価。全 bg が通っていれば要らない
     let suggestionComputed = false
 
@@ -240,7 +298,7 @@ for (const mode of MODE_KEYS) {
     let suffix = ''
     if (!ok) {
       failCount += 1
-      const conditions = [{ against: linear[mode.key][req.face], min: req.min * 1.03 }]
+      const conditions = [{ against: linear[mode.key][req.face], min: req.min * MARGIN }]
       const suggestion = fitLightness(oklch[mode.key][req.token], conditions)
       suffix =
         suggestion === null

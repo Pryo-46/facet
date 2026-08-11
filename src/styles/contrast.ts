@@ -3,6 +3,11 @@
  *
  * 依存を足さない方針（M7 設計スペック 決定4）のため、oklch → 線形 sRGB →
  * 相対輝度の変換を自前で持つ。変換式は CSS Color 4 の定義そのまま。
+ *
+ * **このファイルは `.claude/skills/palette-retheme/scripts/palette-fit.mjs` から
+ * Node の型ストリップで直接 import される**（設計スペック 決定H）。だから
+ * 消去可能な構文だけで書くこと——`enum` やコンストラクタのパラメータ
+ * プロパティを入れると型ストリップが落ちる。
  */
 
 /** `oklch(L C H)` の3値。L は 0..1、C は 0 以上、H は度 */
@@ -62,7 +67,10 @@ export function parseAnyCssColor(value: string): ParsedColor | null {
     else if (d.length === 6 || d.length === 8) parts = (d.match(/../g) ?? []).slice()
     else return null
     const [r, g, b, a] = parts.map((p) => parseInt(p, 16) / 255)
-    return { rgb: [decodeSrgb(r), decodeSrgb(g), decodeSrgb(b)], alpha: a ?? 1 }
+    return {
+      rgb: [decodeSrgb(clamp01(r)), decodeSrgb(clamp01(g)), decodeSrgb(clamp01(b))],
+      alpha: a ?? 1,
+    }
   }
 
   // 関数記法は「名前(引数列)」で共通に割る。区切りはカンマでも空白でも
@@ -96,25 +104,38 @@ export function parseAnyCssColor(value: string): ParsedColor | null {
   if (!Number.isFinite(alpha)) return null
 
   if (fn[1].startsWith('rgb')) {
-    // rgb() の数値は 0..255、パーセントなら 0..100%
-    const ch = (s: string): number => decodeSrgb(s.endsWith('%') ? num(s) : Number(s) / 255)
+    // rgb() の数値は 0..255、パーセントなら 0..100%。
+    // **範囲外はクランプする**（`rgb(300 300 300)` は有効な CSS で、
+    // ブラウザは 255 にクランプして描画する。クランプしないと 1 を
+    // 超えた線形値が出て、コントラスト比が実際より高く出る。Important 3）
+    const ch = (s: string): number =>
+      decodeSrgb(clamp01(s.endsWith('%') ? num(s) : Number(s) / 255))
     return { rgb: [ch(args[0]), ch(args[1]), ch(args[2])], alpha }
   }
 
   if (fn[1].startsWith('hsl')) {
-    // CSS Color 4 の変換。h は度、s と l は 0..1
+    // CSS Color 4 の変換。h は度、s と l は 0..1。
+    // **s / l は `%` が無ければ無効な CSS。** フラクションとして読むと
+    // 数値上は動いてしまうが、それは「もっともらしい間違った色」になる
+    // だけなので、正直に null を返す（Important 3）
+    if (!args[1].endsWith('%') || !args[2].endsWith('%')) return null
     const h = ((Number.parseFloat(args[0]) % 360) + 360) % 360
     const s = num(args[1])
     const l = num(args[2])
     const c = s * Math.min(l, 1 - l)
     const at = (n: number): number => {
       const k = (n + h / 30) % 12
-      return decodeSrgb(l - c * Math.max(-1, Math.min(k - 3, 9 - k, 1)))
+      return decodeSrgb(clamp01(l - c * Math.max(-1, Math.min(k - 3, 9 - k, 1))))
     }
     return { rgb: [at(0), at(8), at(4)], alpha }
   }
 
-  // oklch。L は 0..1 の小数でも 0..100% でもよい
+  // oklch。L は 0..1 の小数でも 0..100% でもよい。
+  //
+  // **既知の制限:** C の `%` 表記（例 `oklch(70% 20% 30)`）は CSS Color 4
+  // では 0.4 を 100% として解釈する（20% → 0.08）が、ここでは L と同じ
+  // 「100% = 1.0」として読むため 0.20 になる。配布テーマで C を `%` 表記
+  // する例は稀なため、実装はせずここに記録するだけに留める
   return {
     rgb: oklchToLinear({ L: num(args[0]), C: num(args[1]), H: Number(args[2]) }),
     alpha,
