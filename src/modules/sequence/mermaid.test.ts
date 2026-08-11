@@ -167,6 +167,23 @@ describe('sequenceToMermaid', () => {
     expect(out).toContain('a1->>a1: 処理')
   })
 
+  it('self は to を持っていても無視して from へ向ける（外部ファイル等が持ちうる部分状態）', () => {
+    const out = sequenceToMermaid(
+      doc({
+        steps: [
+          {
+            id: 'step_Aaaaaaaaa1',
+            kind: 'self',
+            from: 'actor_Aaaaaaaaa2',
+            to: 'actor_Aaaaaaaaa3',
+            label: '在庫引当',
+          },
+        ],
+      }),
+    )
+    expect(out).toContain('a2->>a2: 在庫引当')
+  })
+
   it('参加者もステップも無いときは sequenceDiagram の1行だけ', () => {
     expect(sequenceToMermaid(doc({ actors: [], steps: [] }))).toBe('sequenceDiagram')
   })
