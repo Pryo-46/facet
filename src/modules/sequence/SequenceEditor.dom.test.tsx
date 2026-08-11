@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SequenceSchemaVersion1 } from '@/types/sequence'
 import { DIAGRAM_MARGIN, RAIL_WIDTH } from './layout'
-import { SequenceEditor } from './SequenceEditor'
+import { nextMenuOpenCount, SequenceEditor } from './SequenceEditor'
 
 afterEach(cleanup)
 
@@ -226,6 +226,75 @@ describe('ステップ行', () => {
     })
     expect(result).toBe(true) // preventDefault されていない
     expect(onChange).not.toHaveBeenCalled()
+  })
+})
+
+describe('メニューの複数オープン（Task 11a）', () => {
+  // from/to/種別 の3セルは同じ onOpenChange ハンドラを共有している
+  // （SequenceEditor.tsx）。このハンドラは anyModalOpen 経由で
+  // useViewport の enabled とキーボードの操作言語（resolveCommand の
+  // modalOpen ゲート）の両方を止める。単一の boolean だと「2つ以上開いた
+  // 状態から1つだけ閉じる」ときに誤って false に落ち、まだ開いているメニューが
+  // あるのにキャンバスと操作言語が復活してしまう
+  // （investigation-multi-menu.md で実証済み）。
+  //
+  // 実ブラウザでは開いている間 document.body.style.pointerEvents が
+  // "none" になり素のクリックは他セルへ届かないが、fireEvent.pointerDown は
+  // 指定した要素へ直接 dispatchEvent するためこの経路を経由せず、
+  // 前のメニューを閉じずに複数開いた状態を作れる（同ファイルの調査手法と同じ）
+  // **Radix の DropdownMenuContent は Portal で document.body 直下に出る**
+  // （render() が返す container の外）。だから生DOM数は container ではなく
+  // document から数える
+  function openMenus(...triggers: HTMLElement[]): void {
+    for (const trigger of triggers) {
+      fireEvent.pointerDown(trigger, { button: 0 })
+    }
+  }
+  function rawMenus(): NodeListOf<Element> {
+    return document.querySelectorAll('[data-slot="dropdown-menu-content"]')
+  }
+
+  it('2つ開いた状態で1つ閉じても、キーボードの操作言語は止まったまま（対照実験: 全部閉じれば増える）', () => {
+    const { onChange } = setup()
+    const from = screen.getByLabelText('ステップ1の送り手')
+    const to = screen.getByLabelText('ステップ1の受け手')
+    const label = screen.getByLabelText('ステップ1の文言')
+
+    openMenus(from, to)
+    expect(rawMenus()).toHaveLength(2)
+
+    // Escape は「最後に開いたメニュー」（=to）を閉じる。from はまだ開いたまま
+    fireEvent.keyDown(rawMenus()[rawMenus().length - 1], { key: 'Escape' })
+    expect(rawMenus()).toHaveLength(1)
+
+    // 本命: from がまだ開いている＝anyModalOpen が真であるべきなので、
+    // ラベル欄への Enter は resolveCommand の modalOpen ゲート（keymap.ts）で
+    // ブロックされ、ステップは増えないはず
+    fireEvent.keyDown(label, { key: 'Enter' })
+    expect(onChange).not.toHaveBeenCalled()
+
+    // 対照実験: 残りの1つ（from）も閉じれば、同じ Enter でステップが増える。
+    // これが無いと「そもそも別の理由で常にブロックされている」だけかもしれない
+    fireEvent.keyDown(rawMenus()[rawMenus().length - 1], { key: 'Escape' })
+    expect(rawMenus()).toHaveLength(0)
+    fireEvent.keyDown(label, { key: 'Enter' })
+    expect(last(onChange).steps).toHaveLength(4)
+  })
+
+  it('カウンタは負にならない（false が余分に来ても、その後 true 1回で正しく止まる）', () => {
+    // **DOM 経由では「余分な false」を再現できない**——Escape 等のリスナーは
+    // 開いているメニューがある間しか登録されないので、閉じたあとにいくら
+    // キー入力を送っても onOpenChange(false) 相当は呼ばれない（試した上での
+    // 確認）。「false が余分に来ても壊れない」という防御的な性質を検査するには、
+    // その値を直接動かす算術（SequenceEditor.tsx の nextMenuOpenCount。
+    // handleMenuOpenChange が setOpenMenuCount へ渡す本体そのもの）を
+    // 直接呼ぶしかない
+    expect(nextMenuOpenCount(0, false)).toBe(0) // 余分な false でも負にならない
+    // その後 true 1回で正しく 1（＝ menuOpen = count > 0 が真になる値）に戻る
+    expect(nextMenuOpenCount(nextMenuOpenCount(0, false), true)).toBe(1)
+    // 通常の増減も崩さない
+    expect(nextMenuOpenCount(1, true)).toBe(2)
+    expect(nextMenuOpenCount(1, false)).toBe(0)
   })
 })
 

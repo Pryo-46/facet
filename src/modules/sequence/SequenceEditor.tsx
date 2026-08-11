@@ -183,6 +183,23 @@ function slotStateOf(decision: 'handled' | 'notApplicable' | undefined): SlotSta
   return 'unanswered'
 }
 
+/**
+ * 開いているセルのドロップダウンメニュー数の更新（Task 11a）。
+ * `open` が `true` なら +1、`false` なら -1。**`false` が余分に来ても
+ * 0 未満にしない**——Radix 側の呼び出し回数の前提が崩れても、開いている
+ * メニューが無い状態を「負」にせず「0」に留める安全弁
+ * （0 未満のままだと、次に1つ開いてもカウントが 0 に戻るだけで
+ * 「開いている」判定にならず、操作言語が止まらなくなる）
+ *
+ * DOM からは「余分な false」を再現できない（開いているメニューが無いと
+ * Escape 等のリスナー自体が無い）ため、この算術だけを単体で検査できるよう
+ * 関数として切り出し、export している
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- 上記の理由でテストから直接呼ぶための純関数 export。コンポーネントは1つだけの他ルールと衝突するが実害は無い
+export function nextMenuOpenCount(count: number, open: boolean): number {
+  return open ? count + 1 : Math.max(0, count - 1)
+}
+
 /** キー処理の宛先。resolveCommand が返した意味をどの構造へ写すかを決める */
 type CellTarget =
   | { kind: 'actor'; index: number }
@@ -206,8 +223,17 @@ export function SequenceEditor({
     null,
   )
   // セルのドロップダウンが開いている間はキャンバスを止める。**Radix は
-  // transform の変化を追わない**ので、開いたままズームすると位置がずれる
-  const [menuOpen, setMenuOpen] = useState(false)
+  // transform の変化を追わない**ので、開いたままズームすると位置がずれる。
+  // from/to/種別の複数セルが同じハンドラを共有するため、単一の boolean だと
+  // 「2つ以上開いている状態から1つだけ閉じる」ときに誤って false へ落ちる
+  // （2026-08-12 investigation-multi-menu.md で実証済み）。開いている数を
+  // 数え、0 より大きいかで判定する。複数オープン自体を防ぐ制御コンポーネント化は
+  // 別の残件（open-issues.md）とし、ここでは取りこぼしの解消だけを行う
+  const [openMenuCount, setOpenMenuCount] = useState(0)
+  const menuOpen = openMenuCount > 0
+  const handleMenuOpenChange = (open: boolean): void => {
+    setOpenMenuCount((n) => nextMenuOpenCount(n, open))
+  }
   // エディタ内ダイアログが開いている間も操作言語を止める（rev 10章 境界規則）。
   // 額縁由来の modalOpen と OR を取る——どれか一つが開いていれば止まる
   const anyModalOpen = modalOpen || confirmTarget !== null || menuOpen
@@ -861,7 +887,7 @@ export function SequenceEditor({
                   aria-label={`ステップ${index + 1}の送り手`}
                   data-cell={`${key}:from`}
                   onSelect={(actorId) => onChange(setStepActor(data, index, 'from', actorId), null)}
-                  onOpenChange={setMenuOpen}
+                  onOpenChange={handleMenuOpenChange}
                   onFieldKeyDown={(e) => onRefKeyDown(e, index, 'from')}
                 />
               </div>
@@ -888,7 +914,7 @@ export function SequenceEditor({
                       aria-label={`ステップ${index + 1}の受け手`}
                       data-cell={`${key}:to`}
                       onSelect={(actorId) => onChange(setStepActor(data, index, 'to', actorId), null)}
-                      onOpenChange={setMenuOpen}
+                      onOpenChange={handleMenuOpenChange}
                       onFieldKeyDown={(e) => onRefKeyDown(e, index, 'to')}
                     />
                   </div>
@@ -903,7 +929,7 @@ export function SequenceEditor({
                   aria-label={`ステップ${index + 1}の形`}
                   data-cell={`${key}:shape`}
                   onChange={(next) => onChange(setStepShape(data, index, next), null)}
-                  onOpenChange={setMenuOpen}
+                  onOpenChange={handleMenuOpenChange}
                   onFieldKeyDown={(e) => onShapeKeyDown(e, index)}
                 />
               </div>
