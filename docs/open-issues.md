@@ -10,7 +10,6 @@
 
 ## テストが無い箇所
 
-- **sequence M1 の実機確認が未実施**（計画 Task 13）: `npm test` / `tsc` / `lint` / `vite build` はすべて緑だが、**jsdom が持たないもの——実フォントの解決、ヒットテスト、IME の変換確定、ブラウザの既定動作——は1つも検証されていない**。チェックリストは [`history/sequence-m1-keyboard-editor.md`](history/sequence-m1-keyboard-editor.md) に空のまま置いてある。**実施したらこの項目を消し、申し送りのチェックを埋めるコミットを入れる** `[sequence-m1]`
 - **sequence の変異耐性に穴が残っているテストが3箇所**: `schema.test.ts`（`additionalProperties` の拒否・`unknownSlot` の `decision` enum・`const` / `from`-`to` のパターン）／`consistency.test.ts`（**actor 側の ID 重複ケースが無い**ので実装の actor ループを消しても全緑、**reply の `to` 欠落ケースが無い**ので `to-mismatch` を call だけに絞っても全緑）。いずれも最終レビューが実害小と判断して繰り越したもので、**この層に触るときの宿題** `[sequence-m1]`
 - **interleaving を要する3分岐にテストが無い**（`src/core/app-controller.ts`）: `rescan` の `switchingFolder > 0` ガード（フォルダ切替中に届いた旧フォルダのイベントが新しい一覧を上書きする）、`rescan` の `token !== scanSeq || projectDir !== dir` ガード（遅れて着地した古い走査結果が新しい一覧を上書きする）、`handleSelectedGone` の `selectSeq++`（進行中の `selectFile` が着地して消えたファイルを選び直す）。**コントローラは I/O を注入しているので `io.scan` に手動 Promise を挟めば書ける。** この層に触るときの宿題 `[M6]`
 - **`currentDocument()` の「未選択」分岐を明示的に踏むテストが無い**（`src/core/app-controller.ts`）。「編集中データなし」分岐と観測が重なる `[M6]`
@@ -59,6 +58,11 @@
   - **sequence M1 が最初の使いどころだったが、使わなかった**（`src/modules/sequence/GutterSlot.tsx`）: scope は答えスロットの色を「未定義＝warning／handled＝ok 系／notApplicable＝弱い ok 系」と書いていたが、**`ok` の面（`bg-ok/α`）は濃さの検算が済んでいない**ため、`handled` と `notApplicable` はどちらも無地（`border-rule bg-surface`、文字色だけ差をつける）にした。**「回答済み」と「考慮不要」の区別が、面の色ではなく文言に頼っている**状態である。上の色差の再検討（P型・D型）と一緒に、`ok` の半透明の濃さを検算するときに入れる `[sequence-m1]`
 - **行全体の指摘と `from`/`to` の指摘が同時に出ると `warning` の面が二重になりうる**（`src/modules/sequence/SequenceEditor.tsx`）: 行の帯と文言セルの面は排他にしたが（M8「面は片方だけ」）、`from`/`to` の参照切れが指すセルは `bg-surface` の上に枠を出す形なので今は重ならない。**`from`/`to` のセルに面を与えた瞬間、行の帯と2枚になる。** 排他の判定は `stepHas(index,'row')` の1箇所にあるので、面を増やすときはそこを通すこと `[sequence-m1]`
 - **方眼背景がキャンバスのズームに追従しない**（`src/modules/logic-tree/LogicTreeEditor.tsx`）: `bg-grid-paper` はビューポート（transform を当てる要素）の**外側**に敷いてあるので、拡大しても升目の大きさが変わらない。**rev 9章「地は方眼、作業する面は無地」の意図には合っている**（方眼は地の模様であって図の一部ではない）が、キャンバスとしては**倍率の手がかりを失っている**——どれだけ拡大しているかが画面から読めない。倍率表示を出すか方眼を内側へ移すかは、実機で「今どれくらいの倍率か分からない」と感じたときに決める `[logic-tree-m1]`
+- **アクター行の `Tab`=追加・`Enter`=移動という案が実機で出た**（`src/modules/sequence/SequenceEditor.tsx`）: ヘッダは横並びのリストだが、現行は縦のリスト（ステップ）と同じ `Enter`=追加・`Tab`=次の欄の写像を共有している。ヘッダ特有の割り当てを望む声が出たが、**ファミリー標準（rev 10章）との衝突があるため操作言語全体の議題として持ち越す。** 詳細は [`history/sequence-m1-keyboard-editor.md`](history/sequence-m1-keyboard-editor.md) の「実機確認で出た観察」① `[sequence-m1]`
+- **空欄 `Backspace` のステップ削除に誤爆の不安があると実機で観察された**（`src/modules/sequence/SequenceEditor.tsx`）: 設計は「消しても `Undo` が受け皿」で確定済みだが、体感として不安が先に立つ場面があった。確定設計を変える理由にはならないが、体感と設計判断の差として記録する。詳細は同「観察」② `[sequence-m1]`
+- **actor / kind セルをドロップダウン化する案**（`src/modules/sequence/ActorRefCell.tsx` / `StepShapeCell.tsx`）: マウス操作でも迷わず選べる形にしたいという声が実機で出た。**M3 のマウス操作の回に合流させる。** 詳細は同「観察」③ `[sequence-m1]`
+- **ガターの行境界・対象範囲が見えにくい**（`src/modules/sequence/GutterSlot.tsx`）: 答えスロットがどのステップの行に属しているか、隣接行との境界が画面上で読み取りにくい場面があった。詳細は同「観察」④ `[sequence-m1]`
+- **「図を作る」→「失敗考慮を打つ」の二段階ワークフローと `Tab` の2ゾーン化**（`src/modules/sequence/SequenceEditor.tsx`）: 骨格（from/to/種別/ラベル）を打ち切ってからガターの答えを埋め直す使い方が多く観察された。`Tab` を骨格ゾーン→答えゾーンの2ゾーンに分けられると自然という提案。**答えへのキーボード到達は必須のまま崩さないこと。** 詳細は同「観察」⑤ `[sequence-m1]`
 
 ## 小さな負債
 
