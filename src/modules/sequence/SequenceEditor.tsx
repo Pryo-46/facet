@@ -463,7 +463,7 @@ export function SequenceEditor({
         return true
       default:
         // undo / redo は額縁（App）のグローバル層が取る。Tab のセル間移動は
-        // DOM の順序（＝ラベル→from→to→形→答え）に委ねる。どちらも消費しない
+        // DOM の順序（＝from→to→形→ラベル→答え）に委ねる。どちらも消費しない
         return false
     }
   }
