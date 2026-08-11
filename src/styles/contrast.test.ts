@@ -5,6 +5,7 @@ import {
   decodeSrgb,
   deltaEok,
   encodeSrgb,
+  fitLightness,
   type LinearRgb,
   linearToOklch,
   oklchToLinear,
@@ -193,6 +194,66 @@ describe('contrastRatio', () => {
 
   it('ink と canvas は 14.19:1', () => {
     expect(contrastRatio(ink, canvas)).toBeCloseTo(14.19, 1)
+  })
+})
+
+describe('fitLightness', () => {
+  const canvas = oklchToLinear(CANVAS)
+  const surface = oklchToLinear({ L: 0.961, C: 0.007, H: 88.6 })
+
+  it('既に満たしている色は動かさない', () => {
+    // ink は canvas 上 14.19:1 なので、4.5 を課しても動かす理由がない
+    expect(fitLightness(INK, [{ against: canvas, min: 4.5 }])!.L).toBeCloseTo(INK.L, 3)
+  })
+
+  it('色相と彩度を動かさない', () => {
+    const fitted = fitLightness(WARNING, [{ against: canvas, min: 7 }])!
+    expect(fitted.C).toBe(WARNING.C)
+    expect(fitted.H).toBe(WARNING.H)
+  })
+
+  it('要件を満たすところまで L を動かす', () => {
+    const fitted = fitLightness(WARNING, [{ against: canvas, min: 7 }])!
+    expect(contrastRatio(oklchToLinear(fitted), canvas)).toBeGreaterThanOrEqual(7)
+  })
+
+  it('要件を満たす範囲で元に最も近い L を選ぶ', () => {
+    // **「動かしすぎる実装」と取り違えられないための検査。**
+    // 走査の向きだけ間違えて「最初に見つかった解」を返す実装は
+    // L=0(真っ黒)を返すが、それでも上の3つは緑のままである
+    const fitted = fitLightness(WARNING, [{ against: canvas, min: 7 }])!
+    expect(fitted.L).toBeCloseTo(0.424, 3)
+    // 1刻みだけ元へ戻すと要件を割る(＝これ以上近い解は無い)
+    const nearer = { ...WARNING, L: fitted.L + 0.001 }
+    expect(contrastRatio(oklchToLinear(nearer), canvas)).toBeLessThan(7)
+  })
+
+  it('複数の条件を同時に満たす', () => {
+    // canvas より surface の方が明るいので、両方を satisfy するには
+    // 明るい方に合わせる必要がある
+    const fitted = fitLightness({ L: 0.7, C: 0.068, H: 126 }, [
+      { against: canvas, min: 4.5 },
+      { against: surface, min: 4.5 },
+    ])!
+    expect(contrastRatio(oklchToLinear(fitted), canvas)).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(oklchToLinear(fitted), surface)).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('明暗の関係を反転させる解を採らない', () => {
+    // **背景と元の色をこの値にしてあるのは偶然ではない。**
+    // oklch(0.56 0.02 120) は白と 4.63:1、黒と 4.54:1 で、暗い側にも
+    // 明るい側にも解がある稀な明度である。元を L=0.54 に置くと
+    // 「明るい側へ飛ばす解(L≈0.989)」の方が元の L に近くなるので、
+    // 反転を禁じていない実装はそちらを返す。禁じていれば暗い側を返す
+    const against = oklchToLinear({ L: 0.56, C: 0.02, H: 120 })
+    const fitted = fitLightness({ L: 0.54, C: 0.02, H: 120 }, [{ against, min: 4.5 }])!
+    expect(fitted.L).toBeLessThan(0.54)
+  })
+
+  it('どの明度でも満たせなければ null を返す', () => {
+    // 白と黒の比は 21:1 が上限なので、25:1 は誰にも作れない
+    const white = oklchToLinear({ L: 1, C: 0, H: 0 })
+    expect(fitLightness(INK, [{ against: white, min: 25 }])).toBeNull()
   })
 })
 

@@ -172,6 +172,53 @@ export function contrastRatio(a: LinearRgb, b: LinearRgb): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
 }
 
+/** `fitLightness` に渡す条件。「`against` に対して `min`:1 以上」 */
+export interface FitCondition {
+  against: LinearRgb
+  min: number
+}
+
+/**
+ * 色相と彩度を保ったまま、全条件を満たす明度を探す。
+ *
+ * **二分探索を使わない。** `oklchToLinear` は色域外をクランプするため、
+ * 彩度が高い色では L に対するコントラストが単調でなくなり、平坦域が
+ * できる。二分探索は単調性を前提にするのでそこで誤った答えを返す。
+ * 総当たりなら仮定が要らず、色は高々11個×2モードなので実行時間も問題にならない。
+ *
+ * **明暗の関係を反転させる解は採らない。** 地より暗い文字を「地より
+ * 明るくすれば要件を満たす」と解くのは数値的には正しいが、配色の
+ * 意味が変わる。元の色が相手より暗ければ暗い側だけを探す。
+ *
+ * 満たす明度が無ければ `null`。
+ */
+export function fitLightness(
+  color: Oklch,
+  conditions: readonly FitCondition[],
+  options: { step?: number } = {},
+): Oklch | null {
+  const step = options.step ?? 0.001
+  // 整数で回す。`L += step` を千回足すと誤差が溜まる
+  const steps = Math.round(1 / step)
+  const baseLuminance = relativeLuminance(oklchToLinear(color))
+  const wasDarker = conditions.map((c) => baseLuminance < relativeLuminance(c.against))
+
+  let best: number | null = null
+  for (let i = 0; i <= steps; i++) {
+    const L = i / steps
+    const rgb = oklchToLinear({ ...color, L })
+    const luminance = relativeLuminance(rgb)
+    const satisfies = conditions.every(
+      (c, k) =>
+        luminance < relativeLuminance(c.against) === wasDarker[k] &&
+        contrastRatio(rgb, c.against) >= c.min,
+    )
+    if (!satisfies) continue
+    if (best === null || Math.abs(L - color.L) < Math.abs(best - color.L)) best = L
+  }
+  return best === null ? null : { ...color, L: best }
+}
+
 /**
  * OKLab 空間のユークリッド距離。知覚的にほぼ均等なので「見分けられるか」の
  * 目安に使える。0.10 を下回ると「同じ色の濃淡」に見え始める
