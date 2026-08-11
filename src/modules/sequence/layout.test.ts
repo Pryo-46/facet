@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   ARROW_GAP,
+  DIAGRAM_MARGIN,
   GUTTER_GAP,
   HEADER_HEIGHT,
   layoutSequence,
   MIN_COL_GAP,
   MIN_ROW_HEIGHT,
   QUESTION_LABEL_WIDTH,
+  RAIL_WIDTH,
   SLOT_GAP,
   type SeqLayoutInput,
 } from './layout'
@@ -34,6 +36,21 @@ function input(over: Partial<SeqLayoutInput> = {}): SeqLayoutInput {
 describe('layoutSequence', () => {
   it('純粋関数: 同じ入力から同じ出力（2回呼んで一致）', () => {
     expect(layoutSequence(input())).toEqual(layoutSequence(input()))
+  })
+
+  it('図はレールの右から始まる（編集セル列とガターを横方向で分ける）', () => {
+    const r = layoutSequence(input())
+    // 先頭のライフラインの左端（actorX[0] - 幅/2）がレールの右端以上にあること。
+    // ここが崩れると編集セルが図に潜り、細い図ではガターとも衝突する
+    expect(r.actorX[0] - 96 / 2).toBeGreaterThanOrEqual(RAIL_WIDTH + DIAGRAM_MARGIN)
+    expect(r.actorX[0]).toBeGreaterThanOrEqual(RAIL_WIDTH + DIAGRAM_MARGIN)
+    // 参加者1人・ステップ1件の最も細い図でも、ガターはレールの右に来る
+    const thin = layoutSequence({
+      actorWidths: [96],
+      domains: [undefined],
+      steps: [{ fromIndex: 0, toIndex: null, metrics: metrics() }],
+    })
+    expect(thin.gutterX).toBeGreaterThan(RAIL_WIDTH + DIAGRAM_MARGIN)
   })
 
   it('列間隔は最小値を下回らない', () => {

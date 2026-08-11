@@ -17,6 +17,16 @@ export const ROW_GAP = 8
 export const GUTTER_GAP = 48
 export const QUESTION_LABEL_WIDTH = 104
 export const DIAGRAM_MARGIN = 8
+/**
+ * 行の左端に置く編集セル列（レール）の幅。**図はこの右から始まる。**
+ *
+ * 内訳: 左pad8 + #n24 + 隙4 + from100 + 矢印グリフ12 + to100 + 隙4 + 種別88 + 右pad8。
+ *
+ * 編集セルを「矢印の脇」に置くと、図が細いとき（参加者1人など）に
+ * ガターの問いラベル列と横方向で衝突する（実機確認の第一報）。
+ * 横の帯域を [レール][図][ガター] に分離し、衝突を構造ごと無くす
+ */
+export const RAIL_WIDTH = 348
 /** ラベルが矢印より広いときに列間へ足す左右の逃げ */
 const LABEL_SIDE_PAD = 24
 
@@ -70,7 +80,9 @@ export function layoutSequence(input: SeqLayoutInput): SeqLayoutResult {
     gaps[g] = Math.max(gaps[g], need)
   }
   const actorX: number[] = []
-  let x = DIAGRAM_MARGIN + (input.actorWidths[0] ?? 0) / 2
+  // 図の左端はレールの右。以降の導出（gap・境界線・ガター）はすべて
+  // actorX からの相対なので、起点をずらすだけで帯域が分かれる
+  let x = DIAGRAM_MARGIN + RAIL_WIDTH + (input.actorWidths[0] ?? 0) / 2
   for (let i = 0; i < n; i++) {
     actorX.push(x)
     x += gaps[i] ?? 0

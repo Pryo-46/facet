@@ -38,6 +38,7 @@ import {
   DIAGRAM_MARGIN,
   layoutSequence,
   QUESTION_LABEL_WIDTH,
+  RAIL_WIDTH,
   type SeqLayoutInput,
 } from './layout'
 import {
@@ -86,20 +87,36 @@ const QUESTION_ORDER: readonly AnswerPath[] = ['failed', 'unknown', 'ifExecuted'
 /** 答えセルの外形幅（内容幅＋左右の inset）。ガターの幅も layout がこれで導出する */
 const ANSWER_BOX_WIDTH = ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2
 
-/** from / to の参照セルと形セルの寸法（編集の足場であって図の一部ではない） */
-const REF_CELL_WIDTH = 76
-const SHAPE_CELL_WIDTH = 116
 const CELL_GAP = 4
+
 /**
- * 参照セル群の高さの見込み（text-sm 1行＋padding＋枠）。
+ * レール（行の左端の編集セル列。編集の足場であって図の一部ではない）の内訳。
  *
- * **矢印線の上に載せるのではなく、線を中心に上下へ振り分ける**。
- * layout の行の帯は `MIN_ROW_HEIGHT` 44 に対して矢印が `labelHeight + ARROW_GAP`
- * ＝約36の位置に来るので、矢印の下端から置くと約21px が次の行へ食い込む
- * （layout は編集セルのぶんの高さを取っていない。Task 6 の契約）。
- * 中心を線に合わせると帯＋行間（52）の内側に収まる
+ * **編集セルは矢印の脇に置かない。** 脇に置くと、図が細いとき（参加者1人など）に
+ * ガターの問いラベル列と横方向で衝突する（実機確認の第一報。「呼出」チップが
+ * 「結果不明だったら？」に重なった）。行の左端に固定幅の列を切り、
+ * 横の帯域を [レール][図][ガター] に分けることで衝突を構造ごと無くす。
+ *
+ * x は行に依らず固定なので、モジュールの定数として1回だけ積む。
+ * 合計が layout の `RAIL_WIDTH` と一致していることは下の RAIL_SPAN で押さえる
  */
-const CONTROL_HEIGHT = 30
+const RAIL_PAD_X = 8
+const RAIL_NUM_WIDTH = 24
+const RAIL_CELL_GAP = 4
+const RAIL_REF_WIDTH = 100
+const RAIL_ARROW_WIDTH = 12
+const RAIL_SHAPE_WIDTH = 88
+const RAIL_NUM_X = DIAGRAM_MARGIN + RAIL_PAD_X
+const RAIL_FROM_X = RAIL_NUM_X + RAIL_NUM_WIDTH + RAIL_CELL_GAP
+const RAIL_ARROW_X = RAIL_FROM_X + RAIL_REF_WIDTH
+const RAIL_TO_X = RAIL_ARROW_X + RAIL_ARROW_WIDTH
+const RAIL_SHAPE_X = RAIL_TO_X + RAIL_REF_WIDTH + RAIL_CELL_GAP
+/**
+ * レールのセルを行の上端からどれだけ下げるか。
+ * 行の帯は `max(ラベル高, ガタースロット群)` で決まりレールのぶんを含まないので、
+ * 上端寄りに置いて `MIN_ROW_HEIGHT` 44 の中に収める（下端から置くと次の行へ食い込む）
+ */
+const RAIL_TOP_INSET = 4
 
 const ACTOR_WRAP: WrapOptions = {
   maxWidth: ACTOR_MAX_WIDTH,
@@ -708,28 +725,32 @@ export function SequenceEditor({
           const labelFace = stepHas(index, 'row') ? 'bg-transparent' : 'bg-canvas'
           // 文言は矢印の真上に置く（layout の arrowY は文言の高さから決まっている）
           const labelTop = row.arrowY - ARROW_GAP - view.label.height
-          const anchorX = view.fromIndex < 0 ? DIAGRAM_MARGIN : layout.actorX[view.fromIndex]
+          // 参照が引けない行の逃げ場は「図の左端」＝レールの右。
+          // DIAGRAM_MARGIN に置くとレールのセルの上に文言が乗る
+          const diagramLeft = DIAGRAM_MARGIN + RAIL_WIDTH
+          const anchorX = view.fromIndex < 0 ? diagramLeft : layout.actorX[view.fromIndex]
           const labelLeft = isSelf
             ? anchorX
             : view.toIndex === null || view.toIndex < 0 || view.fromIndex < 0
-              ? DIAGRAM_MARGIN
+              ? diagramLeft
               : (layout.actorX[view.fromIndex] + layout.actorX[view.toIndex]) / 2 -
                 view.label.width / 2
-          // 編集の足場（from / to / 形）は矢印の起点側の脇へ、線を中心に振り分ける。
-          // **右端の参加者が起点のときはガターに被る**ので、そこで止める
-          //（被ると答えのセルが押せなくなる。ガターは問いの列であって図の一部ではない）
-          const controlWidth =
-            (isSelf ? REF_CELL_WIDTH : REF_CELL_WIDTH * 2 + CELL_GAP) + CELL_GAP + SHAPE_CELL_WIDTH
-          const controlLeft = Math.max(
-            DIAGRAM_MARGIN,
-            Math.min(
-              (isSelf ? anchorX + view.label.width : anchorX) + CELL_GAP * 2,
-              layout.gutterX - CELL_GAP * 2 - controlWidth,
-            ),
-          )
-          const controlTop = row.arrowY - CONTROL_HEIGHT / 2
+          // 編集の足場（#番号 / from / to / 形）はレールの中の固定 x に置く。
+          // **矢印の位置も参加者の数も見ない**——だから from==to の呼出（線が引けない）でも
+          // 定位置に出るし、細い図でガターに被ることもない
+          const railTop = row.top + RAIL_TOP_INSET
           return (
             <div key={key}>
+              {/* レールの通し番号。aria-hidden にするのは、各セルの aria-label が
+                  すでに「ステップN の…」と名乗っており、二重に読ませないため */}
+              <div
+                aria-hidden="true"
+                className="absolute select-none text-right text-xs text-ink-muted"
+                style={{ left: RAIL_NUM_X, top: railTop + 4, width: RAIL_NUM_WIDTH }}
+              >
+                {`#${index + 1}`}
+              </div>
+
               <div
                 className="pointer-events-auto absolute"
                 style={{
@@ -754,23 +775,36 @@ export function SequenceEditor({
               </div>
 
               <div
-                className="pointer-events-auto absolute flex items-start gap-1"
-                style={{ left: controlLeft, top: controlTop }}
+                className="pointer-events-auto absolute"
+                style={{ left: RAIL_FROM_X, top: railTop, width: RAIL_REF_WIDTH }}
               >
-                <div style={{ width: REF_CELL_WIDTH }}>
-                  <ActorRefCell
-                    value={step.from}
-                    actors={data.actors}
-                    invalid={stepHas(index, 'from')}
-                    aria-label={`ステップ${index + 1}の送り手`}
-                    data-cell={`${key}:from`}
-                    onSelect={(actorId) => onChange(setStepActor(data, index, 'from', actorId), null)}
-                    onCreate={(name) => onChange(createActorAndAssign(data, index, 'from', name), null)}
-                    onFieldKeyDown={(e, state) => onRefKeyDown(e, index, state)}
-                  />
-                </div>
-                {!isSelf && (
-                  <div style={{ width: REF_CELL_WIDTH }}>
+                <ActorRefCell
+                  value={step.from}
+                  actors={data.actors}
+                  invalid={stepHas(index, 'from')}
+                  aria-label={`ステップ${index + 1}の送り手`}
+                  data-cell={`${key}:from`}
+                  onSelect={(actorId) => onChange(setStepActor(data, index, 'from', actorId), null)}
+                  onCreate={(name) => onChange(createActorAndAssign(data, index, 'from', name), null)}
+                  onFieldKeyDown={(e, state) => onRefKeyDown(e, index, state)}
+                />
+              </div>
+              {/* 向きのグリフと受け手は self では出さない（宛先が無い）。
+                  空けたぶんだけ種別セルの x は動かない——**列が揃っていることが
+                  レールの値打ち**なので、詰めない */}
+              {!isSelf && (
+                <>
+                  <div
+                    aria-hidden="true"
+                    className="absolute select-none text-center text-xs text-ink-muted"
+                    style={{ left: RAIL_ARROW_X, top: railTop + 4, width: RAIL_ARROW_WIDTH }}
+                  >
+                    →
+                  </div>
+                  <div
+                    className="pointer-events-auto absolute"
+                    style={{ left: RAIL_TO_X, top: railTop, width: RAIL_REF_WIDTH }}
+                  >
                     <ActorRefCell
                       value={step.to}
                       actors={data.actors}
@@ -782,16 +816,19 @@ export function SequenceEditor({
                       onFieldKeyDown={(e, state) => onRefKeyDown(e, index, state)}
                     />
                   </div>
-                )}
-                <div style={{ width: SHAPE_CELL_WIDTH }}>
-                  <StepShapeCell
-                    value={view.shape}
-                    aria-label={`ステップ${index + 1}の形`}
-                    data-cell={`${key}:shape`}
-                    onChange={(next) => onChange(setStepShape(data, index, next), null)}
-                    onFieldKeyDown={(e) => onShapeKeyDown(e, index)}
-                  />
-                </div>
+                </>
+              )}
+              <div
+                className="pointer-events-auto absolute"
+                style={{ left: RAIL_SHAPE_X, top: railTop, width: RAIL_SHAPE_WIDTH }}
+              >
+                <StepShapeCell
+                  value={view.shape}
+                  aria-label={`ステップ${index + 1}の形`}
+                  data-cell={`${key}:shape`}
+                  onChange={(next) => onChange(setStepShape(data, index, next), null)}
+                  onFieldKeyDown={(e) => onShapeKeyDown(e, index)}
+                />
               </div>
 
               {/* ガター: 立っている問いのスロット群。reply は問いが無いので、

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SequenceSchemaVersion1 } from '@/types/sequence'
+import { DIAGRAM_MARGIN, RAIL_WIDTH } from './layout'
 import { SequenceEditor } from './SequenceEditor'
 
 afterEach(cleanup)
@@ -211,6 +212,76 @@ describe('参照セルの確定', () => {
     const afterInsert = last(onChange)
     expect(afterInsert.steps).toHaveLength(4)
     expect(afterInsert.actors).toHaveLength(4)
+  })
+})
+
+describe('レール（行の左端の編集セル列）', () => {
+  /** 絶対配置のセルの矩形を style から読む（jsdom はレイアウトを計算しない） */
+  function box(el: HTMLElement): { left: number; right: number } {
+    const left = Number.parseFloat(el.style.left)
+    return { left, right: left + Number.parseFloat(el.style.width) }
+  }
+  /** ラベル・参照セルは w-full の中身なので、位置を持つのは親 */
+  const cellBox = (labelText: string) => box(screen.getByLabelText(labelText).parentElement!)
+  /** ガターのスロットは「ラベル列＋答え」を包む2つ上の div が位置を持つ */
+  const gutterLeft = (labelText: string): number =>
+    Number.parseFloat(
+      (screen.getByLabelText(labelText).parentElement!.parentElement as HTMLElement).style.left,
+    )
+
+  it('編集セルはレールの中に収まり、図にもガターにも侵入しない', () => {
+    const { container } = setup()
+    const from = cellBox('ステップ1の送り手')
+    const shape = cellBox('ステップ1の形')
+    expect(from.left).toBeGreaterThanOrEqual(DIAGRAM_MARGIN)
+    expect(from.right).toBeLessThan(DIAGRAM_MARGIN + RAIL_WIDTH)
+    // レールの最後のセル（種別）まで含めてレールの中で終わる
+    expect(shape.right).toBeLessThanOrEqual(DIAGRAM_MARGIN + RAIL_WIDTH)
+    // ガター: 問いラベル列の左端より手前で終わる（ここが崩れると重なる）
+    expect(shape.right).toBeLessThanOrEqual(gutterLeft('ステップ1の答え: 失敗が確定したら？'))
+    // 図: 先頭のライフラインより手前で終わる
+    const life = container.querySelector<HTMLElement>('[data-layer="background"] .border-l')
+    expect(shape.right).toBeLessThanOrEqual(Number.parseFloat(life!.style.left))
+  })
+
+  it('参加者1人・ステップ1本（図が最も細い形）でもガターと重ならない', () => {
+    // **この形が実機で崩れた**——編集セルを矢印の脇に置いていたため、
+    // 図が細いとガターの問いラベル列と横方向で衝突した
+    setup({
+      ...doc(),
+      actors: [{ id: 'actor_Aaaaaaaaa1', name: '画面', domain: '自社' }],
+      steps: [
+        {
+          id: 'step_Aaaaaaaaa1',
+          kind: 'self',
+          from: 'actor_Aaaaaaaaa1',
+          label: '在庫を引当',
+        },
+      ],
+    })
+    const shape = cellBox('ステップ1の形')
+    expect(shape.right).toBeLessThanOrEqual(gutterLeft('ステップ1の答え: 処理失敗したら？'))
+  })
+
+  it('行が違っても同じ列に並ぶ（self の行・矢印の無い呼出でも定位置）', () => {
+    const d = doc()
+    // from === to の呼出は矢印が引けない（線を描かない契約）。それでもセルは出る
+    d.steps[1] = {
+      id: 'step_Aaaaaaaaa2',
+      kind: 'call',
+      from: 'actor_Aaaaaaaaa2',
+      to: 'actor_Aaaaaaaaa2',
+      label: '注文番号',
+      awaitsReply: true,
+    }
+    setup(d)
+    const shapes = [1, 2, 3].map((n) => cellBox(`ステップ${n}の形`))
+    expect(shapes[1].left).toBe(shapes[0].left)
+    // ステップ3は self（受け手セルが無い）だが、種別セルの x は動かない
+    expect(shapes[2].left).toBe(shapes[0].left)
+    expect(screen.getByLabelText('ステップ2の送り手')).toBeDefined()
+    expect(cellBox('ステップ2の送り手').left).toBe(cellBox('ステップ1の送り手').left)
+    expect(screen.queryByLabelText('ステップ3の受け手')).toBeNull()
   })
 })
 
