@@ -66,6 +66,7 @@ import {
   type WrappedBlock,
   type WrapOptions,
 } from './measure'
+import { nextMenuOpenCount } from './menu-open-count'
 import { poseQuestions, questionLabels, unposedAnswers, type AnswerPath } from './questions'
 import { createSeqMeasurer, FALLBACK_SEQ_FONT, readSeqFont, sameFont, type SeqFont } from './seq-font'
 import { SequenceEdges, type EdgeStep } from './SequenceEdges'
@@ -181,23 +182,6 @@ function slotStateOf(decision: 'handled' | 'notApplicable' | undefined): SlotSta
   if (decision === 'handled') return 'handled'
   if (decision === 'notApplicable') return 'notApplicable'
   return 'unanswered'
-}
-
-/**
- * 開いているセルのドロップダウンメニュー数の更新（Task 11a）。
- * `open` が `true` なら +1、`false` なら -1。**`false` が余分に来ても
- * 0 未満にしない**——Radix 側の呼び出し回数の前提が崩れても、開いている
- * メニューが無い状態を「負」にせず「0」に留める安全弁
- * （0 未満のままだと、次に1つ開いてもカウントが 0 に戻るだけで
- * 「開いている」判定にならず、操作言語が止まらなくなる）
- *
- * DOM からは「余分な false」を再現できない（開いているメニューが無いと
- * Escape 等のリスナー自体が無い）ため、この算術だけを単体で検査できるよう
- * 関数として切り出し、export している
- */
-// eslint-disable-next-line react-refresh/only-export-components -- 上記の理由でテストから直接呼ぶための純関数 export。コンポーネントは1つだけの他ルールと衝突するが実害は無い
-export function nextMenuOpenCount(count: number, open: boolean): number {
-  return open ? count + 1 : Math.max(0, count - 1)
 }
 
 /** キー処理の宛先。resolveCommand が返した意味をどの構造へ写すかを決める */

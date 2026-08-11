@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SequenceSchemaVersion1 } from '@/types/sequence'
 import { DIAGRAM_MARGIN, RAIL_WIDTH } from './layout'
-import { nextMenuOpenCount, SequenceEditor } from './SequenceEditor'
+import { SequenceEditor } from './SequenceEditor'
 
 afterEach(cleanup)
 
@@ -280,22 +280,8 @@ describe('メニューの複数オープン（Task 11a）', () => {
     fireEvent.keyDown(label, { key: 'Enter' })
     expect(last(onChange).steps).toHaveLength(4)
   })
-
-  it('カウンタは負にならない（false が余分に来ても、その後 true 1回で正しく止まる）', () => {
-    // **DOM 経由では「余分な false」を再現できない**——Escape 等のリスナーは
-    // 開いているメニューがある間しか登録されないので、閉じたあとにいくら
-    // キー入力を送っても onOpenChange(false) 相当は呼ばれない（試した上での
-    // 確認）。「false が余分に来ても壊れない」という防御的な性質を検査するには、
-    // その値を直接動かす算術（SequenceEditor.tsx の nextMenuOpenCount。
-    // handleMenuOpenChange が setOpenMenuCount へ渡す本体そのもの）を
-    // 直接呼ぶしかない
-    expect(nextMenuOpenCount(0, false)).toBe(0) // 余分な false でも負にならない
-    // その後 true 1回で正しく 1（＝ menuOpen = count > 0 が真になる値）に戻る
-    expect(nextMenuOpenCount(nextMenuOpenCount(0, false), true)).toBe(1)
-    // 通常の増減も崩さない
-    expect(nextMenuOpenCount(1, true)).toBe(2)
-    expect(nextMenuOpenCount(1, false)).toBe(0)
-  })
+  // 「カウンタが負にならない」の単体テストは ./menu-open-count.test.ts へ移した
+  // （DOM 経由では「余分な false」を再現できないため、算術を直接検査する）
 })
 
 describe('問いスロット（ガター）', () => {
