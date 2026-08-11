@@ -755,7 +755,9 @@ it('reply 行の一般文言が平易な形で出る', () => {
 - [ ] **Step 4: 検証** — `npm test && npx tsc -b && npm run lint` すべて緑。`border-ink-muted` が生成 CSS に出ることを `npx vite build` 後の CSS で grep 確認（`--color-ink-muted` トークンからの自動生成を期待しているが、**カスケード関連は生成物を見るまで検証したことにならない**——lessons）。出ていなければ強調は `border-ink` 等の実在するクラスで代替し、計画の矛盾として報告
 - [ ] **Step 5: コミット** — `feat(sequence): ガターに行ブラケットと行見出しを足し reply 文言を平易にする`
 
----### Task 9: 立っていない答えのグレースロットと確認付き削除
+---
+
+### Task 9: 立っていない答えのグレースロットと確認付き削除
 
 **Files:**
 - Create: `src/modules/sequence/GhostSlot.tsx`
