@@ -19,7 +19,6 @@ import {
   addFirstActor,
   addStepAfter,
   addStepLast,
-  createActorAndAssign,
   moveActor,
   moveStep,
   removeActor,
@@ -579,20 +578,15 @@ export function SequenceEditor({
     })
   }
 
-  const onRefKeyDown = (
-    e: React.KeyboardEvent,
-    index: number,
-    field: 'from' | 'to',
-    state: FieldState,
-  ): void => {
+  const onRefKeyDown = (e: React.KeyboardEvent, index: number, field: 'from' | 'to'): void => {
     handleKey(e, { kind: 'ref', index, field }, {
-      editing: true,
-      fieldEmpty: state.empty,
-      // **参照セルの空欄 Backspace で行を消さない。** 参照欄の空は
-      // 「入力中」であって「消したい」ではない
+      // 選択専用のボタンであって文字を編集する欄ではない（sequence M3）
+      editing: false,
+      fieldEmpty: false,
+      // **参照セルの Backspace で行を消さない。** M2 までと同じ判断
       deletableField: false,
-      caretAtStart: state.caretAtStart,
-      caretAtEnd: state.caretAtEnd,
+      caretAtStart: false,
+      caretAtEnd: false,
       // ↑↓ は候補の切替に使う（ActorRefCell が自前で処理する）。
       // Alt+↑↓ は resolveCommand が arrowsOwnedByField より先に判定するため、
       // これが true でも並び替えは通る（部品側が修飾キー付き矢印を委譲する）
@@ -857,8 +851,8 @@ export function SequenceEditor({
                   aria-label={`ステップ${index + 1}の送り手`}
                   data-cell={`${key}:from`}
                   onSelect={(actorId) => onChange(setStepActor(data, index, 'from', actorId), null)}
-                  onCreate={(name) => onChange(createActorAndAssign(data, index, 'from', name), null)}
-                  onFieldKeyDown={(e, state) => onRefKeyDown(e, index, 'from', state)}
+                  onOpenChange={setMenuOpen}
+                  onFieldKeyDown={(e) => onRefKeyDown(e, index, 'from')}
                 />
               </div>
               {/* 向きのグリフと受け手は self では出さない（宛先が無い）。
@@ -884,8 +878,8 @@ export function SequenceEditor({
                       aria-label={`ステップ${index + 1}の受け手`}
                       data-cell={`${key}:to`}
                       onSelect={(actorId) => onChange(setStepActor(data, index, 'to', actorId), null)}
-                      onCreate={(name) => onChange(createActorAndAssign(data, index, 'to', name), null)}
-                      onFieldKeyDown={(e, state) => onRefKeyDown(e, index, 'to', state)}
+                      onOpenChange={setMenuOpen}
+                      onFieldKeyDown={(e) => onRefKeyDown(e, index, 'to')}
                     />
                   </div>
                 </>

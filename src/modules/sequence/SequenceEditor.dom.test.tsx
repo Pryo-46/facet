@@ -324,29 +324,6 @@ describe('ステップ0件のとき末尾アクターの Tab', () => {
   })
 })
 
-describe('参照セルの確定', () => {
-  it('未登録名を打っての Enter は参加者を足すだけ（ステップは増えない）', () => {
-    // **1打鍵で確定と行追加が両方走ると、後から届いた行追加が
-    // 古い data から作られていて確定を消す**（インライン作成した参加者ごと）
-    const onChange = vi.fn()
-    render(<Harness initial={doc()} onChange={onChange} />)
-    const cell = screen.getByLabelText('ステップ1の受け手')
-    fireEvent.change(cell, { target: { value: 'メール基盤' } })
-    fireEvent.keyDown(cell, { key: 'Enter' })
-    const afterCommit = last(onChange)
-    expect(afterCommit.actors).toHaveLength(4)
-    expect(afterCommit.actors[3].name).toBe('メール基盤')
-    expect(afterCommit.steps).toHaveLength(3)
-    expect(afterCommit.steps[0].to).toBe(afterCommit.actors[3].id)
-
-    // 確定済み（ドラフト無し）のセルで押せば、従来どおりステップが増える
-    fireEvent.keyDown(screen.getByLabelText('ステップ1の受け手'), { key: 'Enter' })
-    const afterInsert = last(onChange)
-    expect(afterInsert.steps).toHaveLength(4)
-    expect(afterInsert.actors).toHaveLength(4)
-  })
-})
-
 describe('レール（行の左端の編集セル列）', () => {
   /** 絶対配置のセルの矩形を style から読む（jsdom はレイアウトを計算しない） */
   function box(el: HTMLElement): { left: number; right: number } {
