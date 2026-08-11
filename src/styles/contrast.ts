@@ -33,6 +33,94 @@ export function parseOklch(value: string): Oklch | null {
   return { L: Number(m[1]), C: Number(m[2]), H: Number(m[3]) }
 }
 
+/** `parseAnyCssColor` の結果。`alpha` は 0..1（指定が無ければ 1） */
+export interface ParsedColor {
+  rgb: LinearRgb
+  alpha: number
+}
+
+/**
+ * テーマの配布物に現れる色をひととおり読む**緩いパーサ**。
+ *
+ * **`parseOklch` と役割が違う。** あちらは palette.css の門番で、
+ * 「不透明な `oklch(L C H)`」以外を弾くのが仕事である。こちらは
+ * 外から持ち込まれた値を受け取る入口なので、hex も hsl も `%` 表記も
+ * アルファ付きも読む。**門番の方を緩めてはいけない。**
+ *
+ * 名前付き色（`red` / `chartreuse`）は読まない。テーマが使うことは稀で、
+ * 148 色の対応表を持ち込む価値がない。
+ */
+export function parseAnyCssColor(value: string): ParsedColor | null {
+  const v = value.trim().toLowerCase()
+
+  const hex = /^#([0-9a-f]{3,8})$/.exec(v)
+  if (hex !== null) {
+    const d = hex[1]
+    const expand = (s: string): string => (s.length === 1 ? s + s : s)
+    let parts: string[]
+    if (d.length === 3 || d.length === 4) parts = d.split('').map(expand)
+    else if (d.length === 6 || d.length === 8) parts = (d.match(/../g) ?? []).slice()
+    else return null
+    const [r, g, b, a] = parts.map((p) => parseInt(p, 16) / 255)
+    return { rgb: [decodeSrgb(r), decodeSrgb(g), decodeSrgb(b)], alpha: a ?? 1 }
+  }
+
+  // 関数記法は「名前(引数列)」で共通に割る。区切りはカンマでも空白でも
+  // よく、アルファは `/` の後ろ（CSS Color 4）かカンマの4つ目に来る
+  const fn = /^(rgba?|hsla?|oklch)\(([^)]*)\)$/.exec(v)
+  if (fn === null) return null
+  const [rawArgs, rawAlpha] = fn[2].split('/')
+  const args = rawArgs.trim().split(/[\s,]+/).filter((s) => s !== '')
+  const alphaText = rawAlpha ?? (args.length === 4 ? args[3] : undefined)
+  // パーセント表記を小数へ。`Number(s) / 100` は演算による丸め誤差で
+  // 小数点直書き（例: 0.921）と1ビットずれることがある（92.1 / 100 は
+  // 0.9209999999999999 になる）。文字列のまま小数点を2桁左へ動かしてから
+  // 数値化すれば、リテラルを書いたときと同じ変換経路を通るのでずれない
+  const percentToFraction = (s: string): number => {
+    const neg = s.startsWith('-')
+    const body = neg ? s.slice(1) : s
+    const dot = body.indexOf('.')
+    const intPart = dot === -1 ? body : body.slice(0, dot)
+    const fracPart = dot === -1 ? '' : body.slice(dot + 1)
+    const digits = intPart + fracPart
+    const pointPos = intPart.length - 2
+    const shifted =
+      pointPos <= 0
+        ? `0.${'0'.repeat(-pointPos)}${digits}`
+        : `${digits.slice(0, pointPos)}.${digits.slice(pointPos)}`
+    return Number(`${neg ? '-' : ''}${shifted}`)
+  }
+  const num = (s: string): number => (s.endsWith('%') ? percentToFraction(s.slice(0, -1)) : Number(s))
+  const alpha = alphaText === undefined ? 1 : num(alphaText.trim())
+  if (args.length < 3 || !args.slice(0, 3).every((s) => Number.isFinite(num(s)))) return null
+  if (!Number.isFinite(alpha)) return null
+
+  if (fn[1].startsWith('rgb')) {
+    // rgb() の数値は 0..255、パーセントなら 0..100%
+    const ch = (s: string): number => decodeSrgb(s.endsWith('%') ? num(s) : Number(s) / 255)
+    return { rgb: [ch(args[0]), ch(args[1]), ch(args[2])], alpha }
+  }
+
+  if (fn[1].startsWith('hsl')) {
+    // CSS Color 4 の変換。h は度、s と l は 0..1
+    const h = ((Number.parseFloat(args[0]) % 360) + 360) % 360
+    const s = num(args[1])
+    const l = num(args[2])
+    const c = s * Math.min(l, 1 - l)
+    const at = (n: number): number => {
+      const k = (n + h / 30) % 12
+      return decodeSrgb(l - c * Math.max(-1, Math.min(k - 3, 9 - k, 1)))
+    }
+    return { rgb: [at(0), at(8), at(4)], alpha }
+  }
+
+  // oklch。L は 0..1 の小数でも 0..100% でもよい
+  return {
+    rgb: oklchToLinear({ L: num(args[0]), C: num(args[1]), H: Number(args[2]) }),
+    alpha,
+  }
+}
+
 /** oklch → 線形 sRGB。色域外はクランプする */
 export function oklchToLinear(color: Oklch): LinearRgb {
   const h = (color.H * Math.PI) / 180

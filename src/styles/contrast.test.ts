@@ -8,6 +8,7 @@ import {
   type LinearRgb,
   linearToOklch,
   oklchToLinear,
+  parseAnyCssColor,
   parseOklch,
   relativeLuminance,
   simulate,
@@ -42,6 +43,81 @@ describe('parseOklch', () => {
 
   it('var 参照は null を返す', () => {
     expect(parseOklch('var(--warning)')).toBeNull()
+  })
+})
+
+describe('parseAnyCssColor', () => {
+  it('#rrggbb を読む', () => {
+    // toHex は encodeSrgb を通すので、8bit の色は厳密に往復する
+    expect(toHex(parseAnyCssColor('#3c6e47')!.rgb)).toBe('#3c6e47')
+  })
+
+  it('#rgb を #rrggbb と同じに読む', () => {
+    expect(parseAnyCssColor('#3a7')!.rgb).toEqual(parseAnyCssColor('#33aa77')!.rgb)
+  })
+
+  it('rgb() を空白区切りでもカンマ区切りでも読む', () => {
+    const spaced = parseAnyCssColor('rgb(60 110 71)')!.rgb
+    expect(toHex(spaced)).toBe('#3c6e47')
+    expect(parseAnyCssColor('rgb(60, 110, 71)')!.rgb).toEqual(spaced)
+  })
+
+  it('hsl() の色相がチャンネルに正しく対応する', () => {
+    // 赤と青の取り違えのような配線ミスを捕まえる。
+    // 純色（S=100% L=50%）を避けて中間の彩度で見る
+    const maxChannelAt = (h: number): number => {
+      const rgb = parseAnyCssColor(`hsl(${h} 60% 45%)`)!.rgb
+      return rgb.indexOf(Math.max(...rgb))
+    }
+    expect(maxChannelAt(0), 'H=0 は赤が最大').toBe(0)
+    expect(maxChannelAt(120), 'H=120 は緑が最大').toBe(1)
+    expect(maxChannelAt(240), 'H=240 は青が最大').toBe(2)
+  })
+
+  it('hsl() が既知の対応に一致する', () => {
+    // hsl(210 50% 40%) = #336699。**3チャンネルとも 8bit の整数
+    // （51 / 102 / 153）にちょうど乗る値を選んである**——127.5 のような
+    // 丸めの境界に期待値を置かない（M8 の教訓）
+    expect(toHex(parseAnyCssColor('hsl(210 50% 40%)')!.rgb)).toBe('#336699')
+  })
+
+  it('彩度 0 の hsl は無彩色になる', () => {
+    const [r, g, b] = parseAnyCssColor('hsl(200 0% 40%)')!.rgb
+    expect(r).toBeCloseTo(g, 10)
+    expect(g).toBeCloseTo(b, 10)
+  })
+
+  it('oklch のパーセント表記を小数と同じに読む', () => {
+    // ここが Morphos や tweakcn の配布物をそのまま貼ったときに効く
+    expect(parseAnyCssColor('oklch(92.1% 0.012 96.4)')!.rgb).toEqual(
+      oklchToLinear({ L: 0.921, C: 0.012, H: 96.4 }),
+    )
+  })
+
+  it('アルファを落として値で返す', () => {
+    const parsed = parseAnyCssColor('oklch(0.518 0.132 34.6 / 0.13)')!
+    expect(parsed.alpha).toBeCloseTo(0.13, 10)
+    expect(parsed.rgb).toEqual(oklchToLinear(WARNING))
+  })
+
+  it('アルファが無ければ 1 を返す', () => {
+    expect(parseAnyCssColor('#3c6e47')!.alpha).toBe(1)
+  })
+
+  it('読めないものは null を返す', () => {
+    // 名前付き色（chartreuse）は意図的に非対応。テーマが使うことは稀で、
+    // 148 色の表を持ち込む価値がない。読めなければ人が直せばよい
+    for (const v of ['var(--warning)', 'transparent', 'chartreuse', '', 'oklch()', '#12']) {
+      expect(parseAnyCssColor(v), v).toBeNull()
+    }
+  })
+
+  it('厳格な parseOklch は緩んでいない', () => {
+    // **この検査がこのタスクの安全装置である。** 緩いパーサを足すついでに
+    // 既存の門番を広げてしまうと、palette.css に % 表記やアルファが
+    // 入り込めるようになり、palette.test.ts が守っていたものが消える
+    expect(parseOklch('oklch(92.1% 0.012 96.4)')).toBeNull()
+    expect(parseOklch('oklch(0.518 0.132 34.6 / 0.13)')).toBeNull()
   })
 })
 
