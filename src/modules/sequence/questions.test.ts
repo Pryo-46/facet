@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { poseQuestions, questionLabels } from './questions'
+import type { SequenceStep } from '@/types/sequence'
+import { poseQuestions, presentAnswers, questionLabels, unposedAnswers } from './questions'
 
 const call = (awaitsReply: boolean) =>
   ({ kind: 'call', awaitsReply }) as const
@@ -48,5 +49,54 @@ describe('questionLabels', () => {
     expect(labels.failed).not.toBe('')
     expect(labels.unknown).not.toBe('')
     expect(labels.ifExecuted).not.toBe('')
+  })
+})
+
+describe('presentAnswers / unposedAnswers', () => {
+  const answered: SequenceStep = {
+    id: 'step_Aaaaaaaaaa',
+    kind: 'call',
+    from: 'actor_Aaaaaaaaaa',
+    to: 'actor_Bbbbbbbbbb',
+    label: '与信依頼',
+    awaitsReply: true,
+    failures: {
+      failed: { decision: 'handled', text: '画面にエラー' },
+      unknown: {
+        decision: 'handled',
+        text: 'リトライ',
+        ifExecuted: { decision: 'handled', text: '冪等性' },
+      },
+    },
+  }
+
+  it('3スロット回答済みの call は3つとも present', () => {
+    expect(presentAnswers(answered)).toEqual(['failed', 'unknown', 'ifExecuted'])
+  })
+
+  it('text だけの unknown は present に数えない（decision があって初めて答え）', () => {
+    const step = { ...answered, failures: { unknown: { text: 'メモ' } } }
+    expect(presentAnswers(step)).toEqual([])
+  })
+
+  it('call-sync で3スロット回答済みなら unposed は無い', () => {
+    expect(unposedAnswers(answered)).toEqual([])
+  })
+
+  it('投げっぱなしに切り替えると failed と ifExecuted が unposed になる', () => {
+    const step = { ...answered, awaitsReply: false }
+    expect(unposedAnswers(step)).toEqual(['failed', 'ifExecuted'])
+  })
+
+  it('reply に切り替えると3つとも unposed になる', () => {
+    const { awaitsReply: _aw, ...rest } = answered
+    const step: SequenceStep = { ...rest, kind: 'reply' }
+    expect(unposedAnswers(step)).toEqual(['failed', 'unknown', 'ifExecuted'])
+  })
+
+  it('failures が無いステップは何も返さない', () => {
+    const { failures: _f, ...bare } = answered
+    expect(presentAnswers(bare as SequenceStep)).toEqual([])
+    expect(unposedAnswers(bare as SequenceStep)).toEqual([])
   })
 })

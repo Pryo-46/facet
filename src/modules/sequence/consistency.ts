@@ -1,6 +1,6 @@
 import type { ConsistencyIssue, ConsistencyLocation } from '@/core/consistency'
 import type { SequenceSchemaVersion1, SequenceStep } from '@/types/sequence'
-import { poseQuestions, type AnswerPath } from './questions'
+import { poseQuestions, presentAnswers, type AnswerPath } from './questions'
 
 const KIND_LABEL: Record<SequenceStep['kind'], string> = {
   call: '呼出',
@@ -91,15 +91,7 @@ export function checkSequenceConsistency(data: SequenceSchemaVersion1): Consiste
     // 立っていない問いへの答え
     if (step.failures !== undefined) {
       const posed = poseQuestions(step)
-      const present: AnswerPath[] = []
-      if (step.failures.failed !== undefined) present.push('failed')
-      if (step.failures.unknown !== undefined) {
-        // unknown 自体は decision があって初めて「答えた」とみなす。text だけの
-        // 部分メモは未回答扱い（unposed 判定にも数えない——posed でなくても赤にならない）。
-        // ifExecuted だけの部分回答でも unknown 自体は未回答（未定義のまま）
-        if (step.failures.unknown.decision !== undefined) present.push('unknown')
-        if (step.failures.unknown.ifExecuted !== undefined) present.push('ifExecuted')
-      }
+      const present = presentAnswers(step)
       for (const path of present) {
         if (posed[path]) continue
         const reason =
