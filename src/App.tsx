@@ -415,7 +415,7 @@ function App() {
         ),
       )}
 
-      <div ref={splitRef} className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1">
         {sidebarOpen && (
           <aside className="w-64 shrink-0 overflow-y-auto border-r border-rule bg-surface">
             <FileList
@@ -431,92 +431,96 @@ function App() {
           </aside>
         )}
 
-        <section className="min-w-0 flex-1 overflow-auto">
-          {selected === null && (
-            <div className="p-6">
-              <p className="text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
-              {projectDir !== null && canCreateGlossary && glossaryModule !== undefined && (
-                <div className="mt-4">
-                  <p className="text-sm text-ink-muted">
-                    このプロジェクトにはまだ用語集がありません（新規プロジェクトでは正常な状態です）。
-                  </p>
-                  <button
-                    type="button"
-                    className={`${buttonBase} mt-2 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
-                    onClick={() => void controller.ensureFileOfType(glossaryModule)}
-                  >
-                    用語集を作る
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-          {selected && selected.result.status !== 'editable' && selected.issues.length > 0 && (
-            <ul className="list-disc px-6 pt-4 pl-10 text-sm text-warning">
-              {selected.issues.map((issue, i) => (
-                <li key={`${issue.rule}-${i}`}>{issue.message}</li>
-              ))}
-            </ul>
-          )}
-          {selected?.result.status === 'rejected' && (
-            <div className="p-6">
-              <h2 className="mb-2 font-bold text-warning">
-                このファイルは開けません（{selected.result.reason}）
-              </h2>
-              <ul className="list-disc pl-5 text-sm text-ink">
-                {selected.result.errors.map((err) => (
-                  <li key={err}>{err}</li>
+        {/* 幅を測る対象はエディタとペインの区間だけ（サイドバーの開閉に幅の
+            上限計算が影響されないよう、splitRef はこの内側の div に置く） */}
+        <div ref={splitRef} className="flex min-h-0 min-w-0 flex-1">
+          <section className="min-w-0 flex-1 overflow-auto">
+            {selected === null && (
+              <div className="p-6">
+                <p className="text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
+                {projectDir !== null && canCreateGlossary && glossaryModule !== undefined && (
+                  <div className="mt-4">
+                    <p className="text-sm text-ink-muted">
+                      このプロジェクトにはまだ用語集がありません（新規プロジェクトでは正常な状態です）。
+                    </p>
+                    <button
+                      type="button"
+                      className={`${buttonBase} mt-2 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
+                      onClick={() => void controller.ensureFileOfType(glossaryModule)}
+                    >
+                      用語集を作る
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {selected && selected.result.status !== 'editable' && selected.issues.length > 0 && (
+              <ul className="list-disc px-6 pt-4 pl-10 text-sm text-warning">
+                {selected.issues.map((issue, i) => (
+                  <li key={`${issue.rule}-${i}`}>{issue.message}</li>
                 ))}
               </ul>
-              <p className="mt-3 text-sm text-ink-muted">
-                外部エディタで修正してからフォルダを開き直してください。
-              </p>
-            </div>
-          )}
-          {selected?.result.status === 'listOnly' && (
-            <p className="p-6 text-sm text-ink-muted">{selected.result.reason}</p>
-          )}
-          {selected?.result.status === 'editable' && selectedModule && editingData !== null && (
-            <selectedModule.Editor
-              key={selected.path}
-              data={editingData}
-              issues={selected.issues}
-              modalOpen={modalOpen}
-              onChange={(next: unknown, mergeKey?: string | null) => {
-                setHistory((h) => (h === null ? h : record(h, next, mergeKey ?? null, Date.now())))
-                controller.applyEdit(selected.path, selectedModule, next)
-              }}
-            />
-          )}
-        </section>
+            )}
+            {selected?.result.status === 'rejected' && (
+              <div className="p-6">
+                <h2 className="mb-2 font-bold text-warning">
+                  このファイルは開けません（{selected.result.reason}）
+                </h2>
+                <ul className="list-disc pl-5 text-sm text-ink">
+                  {selected.result.errors.map((err) => (
+                    <li key={err}>{err}</li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-sm text-ink-muted">
+                  外部エディタで修正してからフォルダを開き直してください。
+                </p>
+              </div>
+            )}
+            {selected?.result.status === 'listOnly' && (
+              <p className="p-6 text-sm text-ink-muted">{selected.result.reason}</p>
+            )}
+            {selected?.result.status === 'editable' && selectedModule && editingData !== null && (
+              <selectedModule.Editor
+                key={selected.path}
+                data={editingData}
+                issues={selected.issues}
+                modalOpen={modalOpen}
+                onChange={(next: unknown, mergeKey?: string | null) => {
+                  setHistory((h) => (h === null ? h : record(h, next, mergeKey ?? null, Date.now())))
+                  controller.applyEdit(selected.path, selectedModule, next)
+                }}
+              />
+            )}
+          </section>
 
-        {paneOpen && projectDir !== null && (
-          <PaneSplitter containerRef={splitRef} store={paneWidthStore} />
-        )}
-        {projectDir !== null && (
-          <aside
-            // **`paneOpen && <aside>` にしないこと。** アンマウントすると
-            // xterm のスクロールバックが消え、開き直すたびに新しい claude が
-            // 立ち上がる（設計 決定6）。畳む＝隠すだけ。
-            // display は排他なので三項で切り替える（`hidden` と `flex` を
-            // 並べてもどちらが勝つかは出力順まかせになる）
-            className={`${paneOpen ? 'flex' : 'hidden'} shrink-0 flex-col border-l border-rule`}
-            style={{ width: paneWidth[0] }}
-          >
-            <TerminalPane
-              state={terminals}
-              cwd={projectDir}
-              ptyIo={tauriPtyIo}
-              paneVisible={paneOpen}
-              onOpen={() => void openTerminal()}
-              onClose={closeTerminal}
-              onActivate={(id) => setTerminals((prev) => activateSession(prev, id))}
-              onRunning={(id, ptyId) => setTerminals((prev) => markRunning(prev, id, ptyId))}
-              onExited={(id, message) => setTerminals((prev) => markExited(prev, id, message))}
-              onFailed={(id, message) => setTerminals((prev) => markFailed(prev, id, message))}
-            />
-          </aside>
-        )}
+          {paneOpen && projectDir !== null && (
+            <PaneSplitter containerRef={splitRef} store={paneWidthStore} />
+          )}
+          {projectDir !== null && (
+            <aside
+              // **`paneOpen && <aside>` にしないこと。** アンマウントすると
+              // xterm のスクロールバックが消え、開き直すたびに新しい claude が
+              // 立ち上がる（設計 決定6）。畳む＝隠すだけ。
+              // display は排他なので三項で切り替える（`hidden` と `flex` を
+              // 並べてもどちらが勝つかは出力順まかせになる）
+              className={`${paneOpen ? 'flex' : 'hidden'} shrink-0 flex-col border-l border-rule`}
+              style={{ width: paneWidth[0] }}
+            >
+              <TerminalPane
+                state={terminals}
+                cwd={projectDir}
+                ptyIo={tauriPtyIo}
+                paneVisible={paneOpen}
+                onOpen={() => void openTerminal()}
+                onClose={closeTerminal}
+                onActivate={(id) => setTerminals((prev) => activateSession(prev, id))}
+                onRunning={(id, ptyId) => setTerminals((prev) => markRunning(prev, id, ptyId))}
+                onExited={(id, message) => setTerminals((prev) => markExited(prev, id, message))}
+                onFailed={(id, message) => setTerminals((prev) => markFailed(prev, id, message))}
+              />
+            </aside>
+          )}
+        </div>
       </div>
 
       <ToastStack toasts={toasts} onDismiss={dismiss} modalOpen={modalOpen} />
