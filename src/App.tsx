@@ -38,8 +38,10 @@ import { scanFolder } from '@/core/scan'
 import { BUNDLED_SKILLS, syncBundledSkills } from '@/core/skill-sync'
 import {
   activateSession,
+  closeAll,
   closeSession,
   emptyTerminalState,
+  hasRunning,
   markExited,
   markFailed,
   markRunning,
@@ -60,7 +62,7 @@ import {
   watchFolder,
   writeProjectFile,
 } from '@/fs/project-fs'
-import { tauriPtyIo } from '@/fs/pty'
+import { killAllPtys, tauriPtyIo } from '@/fs/pty'
 import { tauriSkillSyncIo } from '@/fs/skill-resources'
 import { appRegistry } from '@/modules'
 
@@ -94,7 +96,12 @@ const appIo: AppIo = {
   join: joinPath,
   copyText: copyToClipboard,
   askSavePath: askSaveMarkdownPath,
-  forceClose,
+  // **アプリを閉じるときに端末も全部殺す。** Windows では ConPTY の子は
+  // ホストプロセスの終了で自動的には死なず、claude が孤児として残る
+  forceClose: async () => {
+    await killAllPtys()
+    await forceClose()
+  },
   createSaver: (spec) => createAutoSaver({ delayMs: AUTOSAVE_DELAY_MS, ...spec }),
 }
 
@@ -248,10 +255,37 @@ function App() {
     }
   }, [controller])
 
+  /**
+   * 端末を全部終了してからフォルダを切り替える。**作業ディレクトリが
+   * プロジェクトフォルダに固定されている**ので、残すと「別フォルダを見ている
+   * Claude」が古い cwd のまま居座り、Skill も新しいフォルダ側に置かれる
+   *（設計 決定12）
+   */
+  const switchFolder = async (dir: string) => {
+    await killAllPtys()
+    setTerminals((prev) => closeAll(prev))
+    setPaneOpen(false)
+    await controller.openFolder(dir)
+  }
+
   const openFolder = async () => {
     const dir = await pickProjectFolder()
     if (dir === null) return
-    await controller.openFolder(dir)
+    if (!hasRunning(terminals)) {
+      await controller.openFolder(dir)
+      return
+    }
+    setModals((prev) =>
+      pushModal(prev, {
+        kind: 'confirm',
+        key: 'switch-folder',
+        title: 'Claude Code のタブを終了してフォルダを切り替えますか？',
+        description:
+          '端末の作業フォルダは開いているプロジェクトに固定されています。会話は Claude Code 側に残るので、--resume で戻せます。',
+        confirmLabel: '終了して切り替える',
+        onConfirm: () => switchFolder(dir),
+      }),
+    )
   }
 
   const selected = files.find((f) => f.path === selectedPath) ?? null

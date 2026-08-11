@@ -101,3 +101,30 @@ describe('グローバル層と端末ペインの境界', () => {
     expect(notPrevented).toBe(true)
   })
 })
+
+describe('フォルダ切替', () => {
+  it('実行中のタブがあれば確認してから切り替える', async () => {
+    await openPane()
+    await screen.findByRole('button', { name: 'Claude 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    expect(
+      await screen.findByText('Claude Code のタブを終了してフォルダを切り替えますか？'),
+    ).toBeTruthy()
+  })
+
+  it('承認するとタブが消える', async () => {
+    await openPane()
+    await screen.findByRole('button', { name: 'Claude 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '終了して切り替える' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
+  })
+
+  it('取り消すとタブが残る', async () => {
+    await openPane()
+    await screen.findByRole('button', { name: 'Claude 1' })
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'キャンセル' }))
+    expect(screen.getByRole('button', { name: 'Claude 1' })).toBeTruthy()
+  })
+})
