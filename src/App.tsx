@@ -34,6 +34,7 @@ import { resolveCommand, toKeyEventLike, type KeyContext } from '@/core/keyboard
 import { currentPlatform } from '@/core/keyboard/platform'
 import { dropModal, pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
 import type { ProjectFile } from '@/core/project-file'
+import { READING_GUIDE_FILENAME, syncReadingGuide } from '@/core/reading-guide'
 import { scanFolder } from '@/core/scan'
 import { BUNDLED_SKILLS, syncBundledSkills } from '@/core/skill-sync'
 import {
@@ -64,6 +65,7 @@ import {
   writeProjectFile,
 } from '@/fs/project-fs'
 import { killAllPtys, tauriPtyIo } from '@/fs/pty'
+import { tauriReadingGuideIo } from '@/fs/reading-guide-io'
 import { tauriSkillSyncIo } from '@/fs/skill-resources'
 import { appRegistry } from '@/modules'
 
@@ -348,6 +350,28 @@ function App() {
   }, [controller])
 
   /**
+   * フォルダを開き、開けたときだけ読み方ガイドを配る（スペック設計2）。
+   * ガイドを書けなくても開くこと自体は成立させる——Skill 同期と同じ姿勢
+   *（設計 決定13）。開けなかったフォルダには書かない（開けない場所へ
+   * ファイルを増やさない）
+   */
+  const openProject = async (dir: string): Promise<boolean> => {
+    const opened = await controller.openFolder(dir)
+    if (!opened) return false
+    try {
+      await syncReadingGuide(dir, tauriReadingGuideIo)
+    } catch (err: unknown) {
+      showToast({
+        message: `読み方ガイド（${READING_GUIDE_FILENAME}）を配置できませんでした: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+        key: 'reading-guide-sync',
+      })
+    }
+    return true
+  }
+
+  /**
    * 端末を全部終了してからフォルダを切り替える。**作業ディレクトリが
    * プロジェクトフォルダに固定されている**ので、残すと「別フォルダを見ている
    * Claude」が古い cwd のまま居座り、Skill も新しいフォルダ側に置かれる
@@ -360,7 +384,7 @@ function App() {
    * 生きている端末が古い cwd のまま化けることはない（設計 決定12）
    */
   const switchFolder = async (dir: string) => {
-    const opened = await controller.openFolder(dir)
+    const opened = await openProject(dir)
     if (!opened) return
     await killAllPtys()
     setTerminals((prev) => closeAll(prev))
@@ -371,7 +395,7 @@ function App() {
     const dir = await pickProjectFolder()
     if (dir === null) return
     if (!hasRunning(terminals)) {
-      await controller.openFolder(dir)
+      await openProject(dir)
       return
     }
     setModals((prev) =>
