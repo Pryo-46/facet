@@ -15,6 +15,41 @@ const COPIES = [
   { app: 'src/core/canonical.ts', skill: '.claude/skills/sequence-register/scripts/canonical.ts' },
 ]
 
+/**
+ * ソース中の import 文を1つずつ切り出す（複数行にまたがるものも含む）。
+ * `import` で始まる行から、最初に現れる `from '...'` 節までを1文とみなす。
+ */
+function extractImportStatements(src: string): string[] {
+  return [...src.matchAll(/^import\b[\s\S]*?from\s+['"][^'"]*['"]\s*;?/gm)].map((m) => m[0])
+}
+
+/**
+ * import 文が実行時に値の解決を要する「値 import」かどうかを判定する。
+ *
+ * `import type ...` と、名前付き specifier が全て `type` 修飾された
+ * `import { type X, type Y } from ...` は型ストリップで消えるので値 import ではない。
+ * 一方 `import { type X, y } from ...` のように type 修飾と値 specifier が
+ * 混在する場合は、`y` の解決が必要なので値 import として扱う（見落とすと
+ * コピー側で相対解決できず sequence-write.mjs が実行時に落ちる）。
+ */
+function isValueImportStatement(statement: string): boolean {
+  const trimmed = statement.trim()
+  if (/^import\s+type\s/.test(trimmed)) return false
+
+  const bracesMatch = trimmed.match(/\{([\s\S]*)\}/)
+  if (!bracesMatch) return true // default / namespace / side-effect import はすべて値 import
+
+  const before = trimmed.slice(0, bracesMatch.index)
+  if (/import\s+\w/.test(before)) return true // `import Foo, { ... }` の Foo は値 specifier
+
+  const specifiers = bracesMatch[1]
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+
+  return specifiers.some((spec) => !/^type\s/.test(spec))
+}
+
 describe.each(COPIES)('sequence-register 同梱の $app', ({ app, skill }) => {
   it('アプリ側とバイト一致する', () => {
     expect(readFileSync(skill)).toEqual(readFileSync(app))
@@ -22,11 +57,8 @@ describe.each(COPIES)('sequence-register 同梱の $app', ({ app, skill }) => {
 
   it('値 import を持たない（コピーが Node で相対解決できる条件）', () => {
     // 値 import があるとコピー側で解決できず、sequence-write.mjs が落ちる。
-    // `import type ...` と `import { type X } from` は型ストリップで消えるので許す
     const src = readFileSync(app, 'utf8')
-    const valueImports = [...src.matchAll(/^import\s+(?!type\s)(.*)$/gm)]
-      .map((m) => m[0])
-      .filter((line) => !/^import\s*\{\s*type\s/.test(line))
+    const valueImports = extractImportStatements(src).filter(isValueImportStatement)
     expect(valueImports).toEqual([])
   })
 
@@ -35,5 +67,20 @@ describe.each(COPIES)('sequence-register 同梱の $app', ({ app, skill }) => {
     const src = readFileSync(app, 'utf8')
     expect(src).not.toMatch(/^\s*(export\s+)?(const\s+)?enum\s/m)
     expect(src).not.toMatch(/constructor\s*\([^)]*\b(public|private|protected|readonly)\s/)
+  })
+})
+
+describe('isValueImportStatement', () => {
+  const cases: [name: string, statement: string, expected: boolean][] = [
+    ['単純な named import', "import { foo } from './bar'", true],
+    ['複数行の named import', "import {\n  foo,\n} from './bar'", true],
+    ['type 修飾と値 specifier の混在（回帰ケース）', "import { type Foo, bar } from './bar'", true],
+    ['import type 節', "import type { Foo } from './bar'", false],
+    ['単一の type 修飾 specifier', "import { type Foo } from './bar'", false],
+    ['全て type 修飾された複数 specifier', "import { type Foo, type Bar } from './bar'", false],
+  ]
+
+  it.each(cases)('%s → %s', (_name, statement, expected) => {
+    expect(isValueImportStatement(statement)).toBe(expected)
   })
 })
