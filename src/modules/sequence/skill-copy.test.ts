@@ -17,10 +17,11 @@ const COPIES = [
 
 /**
  * ソース中の import 文を1つずつ切り出す（複数行にまたがるものも含む）。
- * `import` で始まる行から、最初に現れる `from '...'` 節までを1文とみなす。
+ * `import` で始まる行から、最初に現れる `from '...'` 節、または
+ * `from` を伴わない副作用 import（`import './x'`）の引用符節までを1文とみなす。
  */
 function extractImportStatements(src: string): string[] {
-  return [...src.matchAll(/^import\b[\s\S]*?from\s+['"][^'"]*['"]\s*;?/gm)].map((m) => m[0])
+  return [...src.matchAll(/^import\b[\s\S]*?(?:from\s+['"][^'"]*['"]|['"][^'"]*['"])\s*;?/gm)].map((m) => m[0])
 }
 
 /**
@@ -78,6 +79,8 @@ describe('isValueImportStatement', () => {
     ['import type 節', "import type { Foo } from './bar'", false],
     ['単一の type 修飾 specifier', "import { type Foo } from './bar'", false],
     ['全て type 修飾された複数 specifier', "import { type Foo, type Bar } from './bar'", false],
+    ['副作用 import（引用符のみ）', "import './side-effect'", true],
+    ['副作用 import（セミコロン付き）', 'import "./side-effect";', true],
   ]
 
   it.each(cases)('%s → %s', (_name, statement, expected) => {
