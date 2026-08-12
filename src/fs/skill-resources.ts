@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core'
 import { join, resolveResource } from '@tauri-apps/api/path'
 import { exists, mkdir, readDir, readTextFile, remove, writeTextFile } from '@tauri-apps/plugin-fs'
 import type { SkillSyncIo } from '@/core/skill-sync'
@@ -18,6 +19,16 @@ import type { SkillSyncIo } from '@/core/skill-sync'
  * なったらこの前提が崩れるので、そのときは readTextFile / writeTextFile を
  * readFile / writeFile に替えること
  */
+
+/**
+ * プロジェクトフォルダの `.claude/` を fs の実行時 scope へ入れる。
+ * **`syncBundledSkills` の前に必ず呼ぶ。** これが無いと mac では最初の
+ * `exists` が「forbidden path」で落ちる（理由は `src-tauri/src/lib.rs` の
+ * `allow_skill_dir`）。自前コマンドなので capabilities への追記は要らない
+ */
+export async function allowSkillDir(dir: string): Promise<void> {
+  await invoke('allow_skill_dir', { dir })
+}
 
 /** `dir` 配下のファイルを再帰的に集める（`base` からの相対パスで返す） */
 async function collect(dir: string, base: string): Promise<Array<{ path: string; text: string }>> {

@@ -64,7 +64,7 @@ import {
   writeProjectFile,
 } from '@/fs/project-fs'
 import { killAllPtys, tauriPtyIo } from '@/fs/pty'
-import { tauriSkillSyncIo } from '@/fs/skill-resources'
+import { allowSkillDir, tauriSkillSyncIo } from '@/fs/skill-resources'
 import { appRegistry } from '@/modules'
 
 const AUTOSAVE_DELAY_MS = 500
@@ -202,6 +202,9 @@ function App() {
     const dir = projectDir
     if (dir === null) return
     try {
+      // scope の付与を先に。mac では `.claude/` がダイアログ由来の scope に
+      // 入らないので、これが無いと同期の最初の exists で落ちる
+      await allowSkillDir(dir)
       await syncBundledSkills(dir, tauriSkillSyncIo, BUNDLED_SKILLS)
     } catch (err: unknown) {
       showToast({
