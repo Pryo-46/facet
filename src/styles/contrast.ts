@@ -3,6 +3,11 @@
  *
  * 依存を足さない方針（M7 設計スペック 決定4）のため、oklch → 線形 sRGB →
  * 相対輝度の変換を自前で持つ。変換式は CSS Color 4 の定義そのまま。
+ *
+ * **このファイルは `.claude/skills/palette-retheme/scripts/palette-fit.mjs` から
+ * Node の型ストリップで直接 import される**（設計スペック 決定H）。だから
+ * 消去可能な構文だけで書くこと——`enum` やコンストラクタのパラメータ
+ * プロパティを入れると型ストリップが落ちる。
  */
 
 /** `oklch(L C H)` の3値。L は 0..1、C は 0 以上、H は度 */
@@ -33,6 +38,110 @@ export function parseOklch(value: string): Oklch | null {
   return { L: Number(m[1]), C: Number(m[2]), H: Number(m[3]) }
 }
 
+/** `parseAnyCssColor` の結果。`alpha` は 0..1（指定が無ければ 1） */
+export interface ParsedColor {
+  rgb: LinearRgb
+  alpha: number
+}
+
+/**
+ * テーマの配布物に現れる色をひととおり読む**緩いパーサ**。
+ *
+ * **`parseOklch` と役割が違う。** あちらは palette.css の門番で、
+ * 「不透明な `oklch(L C H)`」以外を弾くのが仕事である。こちらは
+ * 外から持ち込まれた値を受け取る入口なので、hex も hsl も `%` 表記も
+ * アルファ付きも読む。**門番の方を緩めてはいけない。**
+ *
+ * 名前付き色（`red` / `chartreuse`）は読まない。テーマが使うことは稀で、
+ * 148 色の対応表を持ち込む価値がない。
+ */
+export function parseAnyCssColor(value: string): ParsedColor | null {
+  const v = value.trim().toLowerCase()
+
+  const hex = /^#([0-9a-f]{3,8})$/.exec(v)
+  if (hex !== null) {
+    const d = hex[1]
+    const expand = (s: string): string => (s.length === 1 ? s + s : s)
+    let parts: string[]
+    if (d.length === 3 || d.length === 4) parts = d.split('').map(expand)
+    else if (d.length === 6 || d.length === 8) parts = (d.match(/../g) ?? []).slice()
+    else return null
+    const [r, g, b, a] = parts.map((p) => parseInt(p, 16) / 255)
+    return {
+      rgb: [decodeSrgb(clamp01(r)), decodeSrgb(clamp01(g)), decodeSrgb(clamp01(b))],
+      alpha: a ?? 1,
+    }
+  }
+
+  // 関数記法は「名前(引数列)」で共通に割る。区切りはカンマでも空白でも
+  // よく、アルファは `/` の後ろ（CSS Color 4）かカンマの4つ目に来る
+  const fn = /^(rgba?|hsla?|oklch)\(([^)]*)\)$/.exec(v)
+  if (fn === null) return null
+  const [rawArgs, rawAlpha] = fn[2].split('/')
+  const args = rawArgs.trim().split(/[\s,]+/).filter((s) => s !== '')
+  const alphaText = rawAlpha ?? (args.length === 4 ? args[3] : undefined)
+  // パーセント表記を小数へ。`Number(s) / 100` は演算による丸め誤差で
+  // 小数点直書き（例: 0.921）と1ビットずれることがある（92.1 / 100 は
+  // 0.9209999999999999 になる）。文字列のまま小数点を2桁左へ動かしてから
+  // 数値化すれば、リテラルを書いたときと同じ変換経路を通るのでずれない
+  const percentToFraction = (s: string): number => {
+    const neg = s.startsWith('-')
+    const body = neg ? s.slice(1) : s
+    const dot = body.indexOf('.')
+    const intPart = dot === -1 ? body : body.slice(0, dot)
+    const fracPart = dot === -1 ? '' : body.slice(dot + 1)
+    const digits = intPart + fracPart
+    const pointPos = intPart.length - 2
+    const shifted =
+      pointPos <= 0
+        ? `0.${'0'.repeat(-pointPos)}${digits}`
+        : `${digits.slice(0, pointPos)}.${digits.slice(pointPos)}`
+    return Number(`${neg ? '-' : ''}${shifted}`)
+  }
+  const num = (s: string): number => (s.endsWith('%') ? percentToFraction(s.slice(0, -1)) : Number(s))
+  const alpha = alphaText === undefined ? 1 : num(alphaText.trim())
+  if (args.length < 3 || !args.slice(0, 3).every((s) => Number.isFinite(num(s)))) return null
+  if (!Number.isFinite(alpha)) return null
+
+  if (fn[1].startsWith('rgb')) {
+    // rgb() の数値は 0..255、パーセントなら 0..100%。
+    // **範囲外はクランプする**（`rgb(300 300 300)` は有効な CSS で、
+    // ブラウザは 255 にクランプして描画する。クランプしないと 1 を
+    // 超えた線形値が出て、コントラスト比が実際より高く出る。Important 3）
+    const ch = (s: string): number =>
+      decodeSrgb(clamp01(s.endsWith('%') ? num(s) : Number(s) / 255))
+    return { rgb: [ch(args[0]), ch(args[1]), ch(args[2])], alpha }
+  }
+
+  if (fn[1].startsWith('hsl')) {
+    // CSS Color 4 の変換。h は度、s と l は 0..1。
+    // **s / l は `%` が無ければ無効な CSS。** フラクションとして読むと
+    // 数値上は動いてしまうが、それは「もっともらしい間違った色」になる
+    // だけなので、正直に null を返す（Important 3）
+    if (!args[1].endsWith('%') || !args[2].endsWith('%')) return null
+    const h = ((Number.parseFloat(args[0]) % 360) + 360) % 360
+    const s = num(args[1])
+    const l = num(args[2])
+    const c = s * Math.min(l, 1 - l)
+    const at = (n: number): number => {
+      const k = (n + h / 30) % 12
+      return decodeSrgb(clamp01(l - c * Math.max(-1, Math.min(k - 3, 9 - k, 1))))
+    }
+    return { rgb: [at(0), at(8), at(4)], alpha }
+  }
+
+  // oklch。L は 0..1 の小数でも 0..100% でもよい。
+  //
+  // **既知の制限:** C の `%` 表記（例 `oklch(70% 20% 30)`）は CSS Color 4
+  // では 0.4 を 100% として解釈する（20% → 0.08）が、ここでは L と同じ
+  // 「100% = 1.0」として読むため 0.20 になる。配布テーマで C を `%` 表記
+  // する例は稀なため、実装はせずここに記録するだけに留める
+  return {
+    rgb: oklchToLinear({ L: num(args[0]), C: num(args[1]), H: Number(args[2]) }),
+    alpha,
+  }
+}
+
 /** oklch → 線形 sRGB。色域外はクランプする */
 export function oklchToLinear(color: Oklch): LinearRgb {
   const h = (color.H * Math.PI) / 180
@@ -60,6 +169,18 @@ export function linearToOklab(rgb: LinearRgb): readonly [number, number, number]
   ]
 }
 
+/**
+ * 線形 sRGB → oklch。`oklchToLinear` の逆。
+ *
+ * **H は 0..360 に正規化する**（`atan2` は -π..π を返す）。C が 0 に近い
+ * 無彩色では H は意味を持たないが、値としては返す
+ */
+export function linearToOklch(rgb: LinearRgb): Oklch {
+  const [L, a, b] = linearToOklab(rgb)
+  const deg = (Math.atan2(b, a) * 180) / Math.PI
+  return { L, C: Math.hypot(a, b), H: deg < 0 ? deg + 360 : deg }
+}
+
 /** WCAG 2.x の相対輝度 */
 export function relativeLuminance(rgb: LinearRgb): number {
   return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
@@ -70,6 +191,53 @@ export function contrastRatio(a: LinearRgb, b: LinearRgb): number {
   const la = relativeLuminance(a)
   const lb = relativeLuminance(b)
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+/** `fitLightness` に渡す条件。「`against` に対して `min`:1 以上」 */
+export interface FitCondition {
+  against: LinearRgb
+  min: number
+}
+
+/**
+ * 色相と彩度を保ったまま、全条件を満たす明度を探す。
+ *
+ * **二分探索を使わない。** `oklchToLinear` は色域外をクランプするため、
+ * 彩度が高い色では L に対するコントラストが単調でなくなり、平坦域が
+ * できる。二分探索は単調性を前提にするのでそこで誤った答えを返す。
+ * 総当たりなら仮定が要らず、色は高々11個×2モードなので実行時間も問題にならない。
+ *
+ * **明暗の関係を反転させる解は採らない。** 地より暗い文字を「地より
+ * 明るくすれば要件を満たす」と解くのは数値的には正しいが、配色の
+ * 意味が変わる。元の色が相手より暗ければ暗い側だけを探す。
+ *
+ * 満たす明度が無ければ `null`。
+ */
+export function fitLightness(
+  color: Oklch,
+  conditions: readonly FitCondition[],
+  options: { step?: number } = {},
+): Oklch | null {
+  const step = options.step ?? 0.001
+  // 整数で回す。`L += step` を千回足すと誤差が溜まる
+  const steps = Math.round(1 / step)
+  const baseLuminance = relativeLuminance(oklchToLinear(color))
+  const wasDarker = conditions.map((c) => baseLuminance < relativeLuminance(c.against))
+
+  let best: number | null = null
+  for (let i = 0; i <= steps; i++) {
+    const L = i / steps
+    const rgb = oklchToLinear({ ...color, L })
+    const luminance = relativeLuminance(rgb)
+    const satisfies = conditions.every(
+      (c, k) =>
+        luminance < relativeLuminance(c.against) === wasDarker[k] &&
+        contrastRatio(rgb, c.against) >= c.min,
+    )
+    if (!satisfies) continue
+    if (best === null || Math.abs(L - color.L) < Math.abs(best - color.L)) best = L
+  }
+  return best === null ? null : { ...color, L: best }
 }
 
 /**
