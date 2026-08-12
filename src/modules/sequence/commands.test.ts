@@ -5,7 +5,6 @@ import {
   addFirstActor,
   addStepAfter,
   addStepLast,
-  createActorAndAssign,
   moveActor,
   moveStep,
   removeActor,
@@ -121,12 +120,6 @@ describe('step 操作', () => {
     expect(r.focus).toEqual({ kind: 'step', index: 2 })
   })
 
-  it('createActorAndAssign は参加者を末尾に足して参照を差し替える（1操作）', () => {
-    const next = createActorAndAssign(data(), 0, 'to', 'メール基盤')
-    expect(next.actors).toHaveLength(4)
-    expect(next.actors[3].name).toBe('メール基盤')
-    expect(next.steps[0].to).toBe(next.actors[3].id)
-  })
 })
 
 describe('setStepShape', () => {
@@ -176,7 +169,6 @@ describe('範囲外 index は何もしない（グローバル制約）', () => 
     expect(setStepLabel(d, 99, 'x')).toBe(d)
     expect(setStepActor(d, 99, 'from', 'actor_Aaaaaaaaa1')).toBe(d)
     expect(setStepShape(d, 99, 'self')).toBe(d)
-    expect(createActorAndAssign(d, 99, 'from', '新規')).toBe(d)
   })
 })
 

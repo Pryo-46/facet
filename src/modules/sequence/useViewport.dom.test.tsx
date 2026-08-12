@@ -259,6 +259,12 @@ describe('useViewport（パン）', () => {
     expect(t.k).toBe(1)
   })
 
+  it('enabled が false の間は中ボタンドラッグでもパンしない', () => {
+    render(<Harness enabled={false} />)
+    drag(canvas(), { button: 1 })
+    expect(read()).toEqual(INITIAL_TRANSFORM)
+  })
+
   it('Space を押しながらの左ドラッグでパンする', () => {
     render(<Harness />)
     fireEvent.keyDown(window, { code: 'Space', key: ' ' })
@@ -323,5 +329,25 @@ describe('useViewport（新ノードへの追従）', () => {
     fireEvent.wheel(canvas(), { deltaY: -100, ctrlKey: true })
     // 追従後（x=-448）を起点に拡大した値。内部状態が古いと +45.9 付近になる
     expect(read().x).toBeCloseTo(-448 * ONE_NOTCH, 5)
+  })
+})
+
+describe('useViewport（enabled: モーダル・ポップアップ中の停止）', () => {
+  it('enabled が false の間は Ctrl+ホイールでズームしない', () => {
+    // rev 10章の境界規則。**キー監視だけでなく d3-zoom の filter も止める**——
+    // 止めないと、Radix のポップアップが開いたままズームして位置がずれる
+    //（Radix は scroll と resize は追うが transform の変化は追わない）
+    render(<Harness enabled={false} />)
+    fireEvent.wheel(canvas(), { deltaY: -100, ctrlKey: true })
+    expect(read()).toEqual(INITIAL_TRANSFORM)
+  })
+
+  it('enabled を true に戻すとズームできる（最初の値で凍らせない）', () => {
+    // **filter はマウント時に1回しか張らない。** enabled を素の値で閉じ込めると
+    // 最初の値で凍り、モーダルを閉じてもキャンバスが死んだままになる
+    const { rerender } = render(<Harness enabled={false} />)
+    rerender(<Harness enabled />)
+    fireEvent.wheel(canvas(), { deltaY: -100, ctrlKey: true })
+    expect(read().k).toBeCloseTo(ONE_NOTCH, 5)
   })
 })

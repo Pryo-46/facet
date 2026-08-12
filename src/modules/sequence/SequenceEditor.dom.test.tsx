@@ -79,6 +79,37 @@ describe('空状態', () => {
   })
 })
 
+describe('参加者を追加ボタン', () => {
+  it('参加者がいるとき「参加者を追加」ボタンが出て、末尾に1人増える', () => {
+    const { onChange } = setup()
+    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
+    expect(last(onChange).actors).toHaveLength(4)
+    expect(last(onChange).actors[3].name).toBe('')
+  })
+
+  it('「参加者を追加」ボタンは既存の参加者を1人も動かさない', () => {
+    // **末尾に足す**（途中に差し込まない）。配列順＝横の並びの正本なので、
+    // 差し込むと既存のステップの見え方が動く
+    const before = doc().actors
+    const { onChange } = setup()
+    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
+    expect(last(onChange).actors.slice(0, 3).map((a) => a.id)).toEqual(before.map((a) => a.id))
+  })
+
+  it('「参加者を追加」ボタンで新しい参加者の名前欄にフォーカスが移る', () => {
+    // ボタン経路のフォーカスを固定する（M2 の最終レビューが「ステップを追加」
+    // ボタンで同じ穴を見つけている——キー経路だけ固定してボタン経路を放置しない）
+    render(<Harness initial={doc()} />)
+    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('参加者4の名前')
+  })
+
+  it('参加者が0人のときは「参加者を追加」ボタンを出さない（「クリックして開始」が入口）', () => {
+    setup({ ...doc(), actors: [], steps: [] })
+    expect(screen.queryByRole('button', { name: '参加者を追加' })).toBeNull()
+  })
+})
+
 describe('参加者ヘッダ', () => {
   it('Enter で直後に参加者が増える', () => {
     const { onChange } = setup()
@@ -194,6 +225,91 @@ describe('ステップ行', () => {
       ctrlKey: true,
     })
     expect(result).toBe(true) // preventDefault されていない
+    expect(onChange).not.toHaveBeenCalled()
+  })
+})
+
+describe('セルのドロップダウンは同時に1つだけ（Task 11b）', () => {
+  // from/to/種別 の3セルは SequenceEditor が持つ単一の `openCell` で
+  // 制御される（各セルの `open` prop に `openCell === 自分の鍵` を渡す）。
+  // これにより2つ目を開いた瞬間に1つ目が閉じる——複数同時オープン自体を
+  // 構造的に禁止する（経緯は docs/history/sequence-m3-mouse-and-output.md の
+  // 「Task 11b」。Task 11a のカウンタ化はこのタスクで巻き戻した）。
+  //
+  // **退化ケースを避ける**（docs/lessons-for-planning.md）——from と種別のような
+  // 別種の部品を組ませる。同じ部品同士（例: from と to）だと、部品をまたぐ
+  // 制御が効いていない実装でも「たまたま」通ってしまう可能性がある
+  //
+  // **Radix の DropdownMenuContent は Portal で document.body 直下に出る**
+  // （render() が返す container の外）。だから生DOM数は container ではなく
+  // document から数える
+  function rawMenus(): NodeListOf<Element> {
+    return document.querySelectorAll('[data-slot="dropdown-menu-content"]')
+  }
+
+  it('2つ目のセル（種別）のメニューを開くと、1つ目のセル（送り手）が閉じる', () => {
+    setup()
+    const from = screen.getByLabelText('ステップ1の送り手')
+    const shape = screen.getByLabelText('ステップ1の形')
+
+    fireEvent.pointerDown(from, { button: 0 })
+    expect(rawMenus()).toHaveLength(1)
+
+    fireEvent.pointerDown(shape, { button: 0 })
+    // 常に「同時に開いているメニューは1つ以下」——2つ目を開いても3つにも
+    // 2つにもならず、常に1つのまま
+    expect(rawMenus()).toHaveLength(1)
+    // 開いているのは種別のメニューであって、送り手のメニューではない
+    // （STEP_SHAPE_LABEL の項目が見えているはず。送り手のメニューなら参加者名が出る）
+    expect(screen.getByRole('menuitem', { name: '呼出' })).toBeDefined()
+    expect(screen.queryByRole('menuitem', { name: '画面' })).toBeNull()
+  })
+
+  it('1つ目が2つ目に押し出されて閉じたあと、別のセル（受け手）をまた開ける', () => {
+    // openCell が null に戻らず固まる実装（例: 2つ目を開いたときに前の鍵を
+    // クリアし忘れる）を弾く
+    setup()
+    const from = screen.getByLabelText('ステップ1の送り手')
+    const shape = screen.getByLabelText('ステップ1の形')
+    const to = screen.getByLabelText('ステップ1の受け手')
+
+    fireEvent.pointerDown(from, { button: 0 })
+    fireEvent.pointerDown(shape, { button: 0 })
+    expect(rawMenus()).toHaveLength(1)
+
+    fireEvent.pointerDown(to, { button: 0 })
+    expect(rawMenus()).toHaveLength(1)
+    // 受け手のメニュー（参加者名の項目）が開いているはず
+    expect(screen.getByRole('menuitem', { name: '画面' })).toBeDefined()
+  })
+
+  it('メニューが1つ開いている状態では、ラベル欄へ実際にフォーカスが移らず、Enter もステップを増やさない（Radix の focus trap の確認）', () => {
+    // Task 11a を巻き戻すと anyModalOpen はメニューの開閉に反応しなくなる。
+    // それでも実ブラウザでは Radix の FocusScope（modal 既定）がメニュー内に
+    // キーボードフォーカスを閉じ込めるので、ラベル欄へ Enter が届く経路自体が
+    // 生じないはず。**実ブラウザのキーボードイベントは常に
+    // document.activeElement へ届く**——`fireEvent.keyDown(label, ...)` の
+    // ように任意の要素へ直接送るのは、実際にはユーザーが起こせない操作になる
+    // （target を選べるのは合成イベントだけ）。そこで、まず label.focus() で
+    // 「メニュー外へ逃げようとする」動きを模し、それが Radix の focus trap に
+    // 押し戻されて失敗すること（= activeElement が label にならないこと）を
+    // 確認したうえで、実際に focus が残っている要素（トラップ内）へ Enter を
+    // 送ってもステップが増えないことを見る。もし label.focus() が成功して
+    // しまう（トラップが効かない）なら、それは Task 11b で作り込んだ穴なので
+    // 報告すべき懸念になる
+    const { onChange } = setup()
+    const from = screen.getByLabelText('ステップ1の送り手')
+    const label = screen.getByLabelText('ステップ1の文言')
+
+    fireEvent.pointerDown(from, { button: 0 })
+    expect(rawMenus()).toHaveLength(1)
+
+    label.focus()
+    expect(document.activeElement).not.toBe(label)
+
+    if (document.activeElement !== null) {
+      fireEvent.keyDown(document.activeElement, { key: 'Enter' })
+    }
     expect(onChange).not.toHaveBeenCalled()
   })
 })
@@ -321,29 +437,6 @@ describe('ステップ0件のとき末尾アクターの Tab', () => {
     const { onChange } = setup(twoActorsNoSteps())
     fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'Tab', shiftKey: true })
     expect(onChange).not.toHaveBeenCalled()
-  })
-})
-
-describe('参照セルの確定', () => {
-  it('未登録名を打っての Enter は参加者を足すだけ（ステップは増えない）', () => {
-    // **1打鍵で確定と行追加が両方走ると、後から届いた行追加が
-    // 古い data から作られていて確定を消す**（インライン作成した参加者ごと）
-    const onChange = vi.fn()
-    render(<Harness initial={doc()} onChange={onChange} />)
-    const cell = screen.getByLabelText('ステップ1の受け手')
-    fireEvent.change(cell, { target: { value: 'メール基盤' } })
-    fireEvent.keyDown(cell, { key: 'Enter' })
-    const afterCommit = last(onChange)
-    expect(afterCommit.actors).toHaveLength(4)
-    expect(afterCommit.actors[3].name).toBe('メール基盤')
-    expect(afterCommit.steps).toHaveLength(3)
-    expect(afterCommit.steps[0].to).toBe(afterCommit.actors[3].id)
-
-    // 確定済み（ドラフト無し）のセルで押せば、従来どおりステップが増える
-    fireEvent.keyDown(screen.getByLabelText('ステップ1の受け手'), { key: 'Enter' })
-    const afterInsert = last(onChange)
-    expect(afterInsert.steps).toHaveLength(4)
-    expect(afterInsert.actors).toHaveLength(4)
   })
 })
 

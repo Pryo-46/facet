@@ -3,6 +3,7 @@ import type { ToolModule } from '@/core/registry'
 import type { SequenceSchemaVersion1 } from '@/types/sequence'
 import sequenceSchema from '../../../schemas/sequence.schema.json'
 import { checkSequenceConsistency } from './consistency'
+import { describeSequenceIssueEffect, sequenceToMarkdown } from './markdown'
 import { migrateSequence } from './migrate'
 import { SequenceEditor } from './SequenceEditor'
 
@@ -11,12 +12,22 @@ export const sequenceModule: ToolModule<SequenceSchemaVersion1> = {
   displayName: 'シーケンス',
   schemaVersion: 1,
   schema: sequenceSchema as JsonSchema,
-  // zone は M2 で足す
+  // zone は M4 で足す
   idPrefixes: ['actor', 'step'],
   Editor: SequenceEditor,
   checkConsistency: checkSequenceConsistency,
-  // 規約5: 出力は0本で開始（rev 6章）。Markdown / Mermaid は会議で使うと確定してから
-  outputs: [],
+  // 規約5: 図（Mermaid）と失敗考慮の表を1本の Markdown にまとめる（sequence M3）。
+  // fileSuffix は ''（プロファイル1本なので用語集と同形。書き出し名は
+  // <ファイル名>.md になる）
+  outputs: [
+    {
+      id: 'default',
+      label: 'Markdown',
+      fileSuffix: '',
+      toMarkdown: sequenceToMarkdown,
+      describeIssueEffect: describeSequenceIssueEffect,
+    },
+  ],
   // プロジェクトにシーケンスは何本あってもよい（機能ごとに分けるのが普通の使い方）
   singleton: false,
   migrate: migrateSequence,

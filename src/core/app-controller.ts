@@ -1,5 +1,6 @@
 import type { AutoSaver } from './autosave'
 import { serialize } from './canonical'
+import type { ConsistencyIssue } from './consistency'
 import { planExternalChange } from './external-change'
 import { createFile, ensureFileOfType as ensureFileOnDisk, trashFile, type CreatedFile } from './file-ops'
 import { createKnownDisk } from './known-disk'
@@ -729,7 +730,12 @@ export function createAppController(
   }
 
   /** 出力の対象。editable な選択中ファイルと、額縁が持つ編集中データが揃ったときだけ */
-  const currentDocument = (): { path: string; module: AnyToolModule; data: unknown } | null => {
+  const currentDocument = (): {
+    path: string
+    module: AnyToolModule
+    data: unknown
+    issues: ConsistencyIssue[]
+  } | null => {
     if (selectedPath === null) return null
     const entry = files.find((f) => f.path === selectedPath)
     if (entry === undefined || entry.result.status !== 'editable') return null
@@ -737,10 +743,52 @@ export function createAppController(
     if (module === undefined) return null
     const data = host.getEditingData()
     if (data === null) return null
-    return { path: selectedPath, module, data }
+    return { path: selectedPath, module, data, issues: entry.issues }
   }
 
-  const copyMarkdown = async (profile: OutputProfile<unknown>): Promise<void> => {
+  /** 確認ダイアログに並べる指摘の上限。**残りは件数で言う**——黙って隠さない */
+  const ISSUE_PREVIEW_LIMIT = 5
+
+  /**
+   * 整合性エラー（レベル2の赤）があるまま出力しようとしたときの確認の本文。
+   *
+   * **未定義には出さない。** 未定義は出力に `（未定義）` として残すのが規約で、
+   * 正常な「まだ決めていない」状態である。確認を挟むのは赤だけ
+   */
+  const exportConfirmDescription = (
+    issues: readonly ConsistencyIssue[],
+    profile: OutputProfile<unknown>,
+  ): string => {
+    const shown = issues.slice(0, ISSUE_PREVIEW_LIMIT).map((i) => `・${i.message}`)
+    const rest = issues.length - shown.length
+    if (rest > 0) shown.push(`・ほか ${rest} 件`)
+    const effect =
+      profile.describeIssueEffect?.(issues) ??
+      'このまま出力すると、指摘のある箇所もそのまま出力に含まれます。'
+    return [`このファイルには整合性エラーが ${issues.length} 件あります。`, shown.join('\n'), effect].join(
+      '\n\n',
+    )
+  }
+
+  /**
+   * 赤が出ているファイルの出力に確認を挟む（sequence M3。**4ツール共通**）。
+   * 通してよければ run() を呼ぶ。key を固定して、押し直しで積み上がらないようにする
+   */
+  const guardIssues = (run: () => Promise<void>, profile: OutputProfile<unknown>): boolean => {
+    const doc = currentDocument()
+    if (doc === null || doc.issues.length === 0) return true
+    host.showModal({
+      kind: 'confirm',
+      key: 'export',
+      title: '整合性エラーのあるファイルを出力します',
+      description: exportConfirmDescription(doc.issues, profile),
+      confirmLabel: '出力する',
+      onConfirm: run,
+    })
+    return false
+  }
+
+  const doCopyMarkdown = async (profile: OutputProfile<unknown>): Promise<void> => {
     const doc = currentDocument()
     if (doc === null) return
     try {
@@ -752,7 +800,12 @@ export function createAppController(
     }
   }
 
-  const exportMarkdown = async (profile: OutputProfile<unknown>): Promise<void> => {
+  const copyMarkdown = async (profile: OutputProfile<unknown>): Promise<void> => {
+    if (!guardIssues(() => doCopyMarkdown(profile), profile)) return
+    await doCopyMarkdown(profile)
+  }
+
+  const doExportMarkdown = async (profile: OutputProfile<unknown>): Promise<void> => {
     const doc = currentDocument()
     if (doc === null) return
     try {
@@ -787,6 +840,11 @@ export function createAppController(
     } catch (err) {
       host.setBanner('io', `Markdown を書き出せませんでした: ${describeError(err)}`)
     }
+  }
+
+  const exportMarkdown = async (profile: OutputProfile<unknown>): Promise<void> => {
+    if (!guardIssues(() => doExportMarkdown(profile), profile)) return
+    await doExportMarkdown(profile)
   }
 
   return {

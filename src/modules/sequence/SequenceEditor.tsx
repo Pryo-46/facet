@@ -19,7 +19,6 @@ import {
   addFirstActor,
   addStepAfter,
   addStepLast,
-  createActorAndAssign,
   moveActor,
   moveStep,
   removeActor,
@@ -206,8 +205,26 @@ export function SequenceEditor({
   const [confirmTarget, setConfirmTarget] = useState<{ index: number; path: AnswerPath } | null>(
     null,
   )
+  // from/to/種別のセルのドロップダウンは同時に1つだけ開く。**開いている
+  // セルの鍵（data-cell の値）を1つだけ持つ**ことで構造的に複数オープンを
+  // 禁止する（2026-08-12 実機確認で見つかった欠陥の修正。経緯は
+  // docs/history/sequence-m3-mouse-and-output.md の「Task 11b」）。あるセルを
+  // 開くと他のセルの `open` が自動的に false になり、Radix が閉じる。
+  // （非表示のセルの `open` は常に false なので DropdownMenuContent が
+  // マウントされず、そのセルから onOpenChange(false) が飛んでくることは
+  // 無い——false は常に「いま開いている当のセルが閉じた」ことを意味する）
+  const [openCell, setOpenCell] = useState<string | null>(null)
+  /** セル鍵ごとの open props。data-cell の値をそのまま鍵に使う */
+  const menuPropsFor = (cell: string): { open: boolean; onOpenChange: (open: boolean) => void } => ({
+    open: openCell === cell,
+    onOpenChange: (open) => setOpenCell(open ? cell : null),
+  })
   // エディタ内ダイアログが開いている間も操作言語を止める（rev 10章 境界規則）。
-  // 額縁由来の modalOpen と OR を取る——どちらか一方が開いていれば止まる
+  // 額縁由来の modalOpen と OR を取る——どれか一つが開いていれば止まる。
+  // **セルのドロップダウンはここに含めない**（Task 11b でカウンタごと
+  // 巻き戻した）。同時に1つしか開かなくなり、Radix の FocusScope
+  // （modal 既定）がメニュー内にキーを閉じ込めるため、操作言語への漏れは
+  // 起きない（SequenceEditor.dom.test.tsx で検証済み）
   const anyModalOpen = modalOpen || confirmTarget !== null
 
   // ズーム・パン（Ctrl+ホイール／Space・中ボタンのドラッグ）と新しい行への追従。
@@ -576,20 +593,15 @@ export function SequenceEditor({
     })
   }
 
-  const onRefKeyDown = (
-    e: React.KeyboardEvent,
-    index: number,
-    field: 'from' | 'to',
-    state: FieldState,
-  ): void => {
+  const onRefKeyDown = (e: React.KeyboardEvent, index: number, field: 'from' | 'to'): void => {
     handleKey(e, { kind: 'ref', index, field }, {
-      editing: true,
-      fieldEmpty: state.empty,
-      // **参照セルの空欄 Backspace で行を消さない。** 参照欄の空は
-      // 「入力中」であって「消したい」ではない
+      // 選択専用のボタンであって文字を編集する欄ではない（sequence M3）
+      editing: false,
+      fieldEmpty: false,
+      // **参照セルの Backspace で行を消さない。** M2 までと同じ判断
       deletableField: false,
-      caretAtStart: state.caretAtStart,
-      caretAtEnd: state.caretAtEnd,
+      caretAtStart: false,
+      caretAtEnd: false,
       // ↑↓ は候補の切替に使う（ActorRefCell が自前で処理する）。
       // Alt+↑↓ は resolveCommand が arrowsOwnedByField より先に判定するため、
       // これが true でも並び替えは通る（部品側が修飾キー付き矢印を委譲する）
@@ -675,13 +687,23 @@ export function SequenceEditor({
           </ul>
         )}
         {data.actors.length > 0 && (
-          <button
-            type="button"
-            className={`${buttonBase} pointer-events-auto m-2 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
-            onClick={() => apply(addStepLast(data), 'from')}
-          >
-            ステップを追加
-          </button>
+          <div className="pointer-events-none m-2 flex gap-2">
+            <button
+              type="button"
+              className={`${buttonBase} pointer-events-auto border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+              onClick={() => apply(addStepLast(data), 'from')}
+            >
+              ステップを追加
+            </button>
+            {/* マウスだけの人の唯一の参加者追加手段（sequence M3 で from/to のインライン作成を外したため） */}
+            <button
+              type="button"
+              className={`${buttonBase} pointer-events-auto border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+              onClick={() => apply(addActorAfter(data, data.actors.length - 1))}
+            >
+              参加者を追加
+            </button>
+          </div>
         )}
         {/* 操作ヒント。**額縁の帯の中に置き、self-end で右寄せする**——
             transform の外側なのでズームと独立に読め、フローに乗せているので
@@ -854,8 +876,8 @@ export function SequenceEditor({
                   aria-label={`ステップ${index + 1}の送り手`}
                   data-cell={`${key}:from`}
                   onSelect={(actorId) => onChange(setStepActor(data, index, 'from', actorId), null)}
-                  onCreate={(name) => onChange(createActorAndAssign(data, index, 'from', name), null)}
-                  onFieldKeyDown={(e, state) => onRefKeyDown(e, index, 'from', state)}
+                  {...menuPropsFor(`${key}:from`)}
+                  onFieldKeyDown={(e) => onRefKeyDown(e, index, 'from')}
                 />
               </div>
               {/* 向きのグリフと受け手は self では出さない（宛先が無い）。
@@ -881,8 +903,8 @@ export function SequenceEditor({
                       aria-label={`ステップ${index + 1}の受け手`}
                       data-cell={`${key}:to`}
                       onSelect={(actorId) => onChange(setStepActor(data, index, 'to', actorId), null)}
-                      onCreate={(name) => onChange(createActorAndAssign(data, index, 'to', name), null)}
-                      onFieldKeyDown={(e, state) => onRefKeyDown(e, index, 'to', state)}
+                      {...menuPropsFor(`${key}:to`)}
+                      onFieldKeyDown={(e) => onRefKeyDown(e, index, 'to')}
                     />
                   </div>
                 </>
@@ -896,6 +918,7 @@ export function SequenceEditor({
                   aria-label={`ステップ${index + 1}の形`}
                   data-cell={`${key}:shape`}
                   onChange={(next) => onChange(setStepShape(data, index, next), null)}
+                  {...menuPropsFor(`${key}:shape`)}
                   onFieldKeyDown={(e) => onShapeKeyDown(e, index)}
                 />
               </div>
