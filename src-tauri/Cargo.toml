@@ -34,3 +34,10 @@ tauri-plugin-clipboard-manager = "2"
 # OS のゴミ箱への移動。Tauri の fs プラグインは完全削除しか持たないため、
 # rev 6章「完全削除はしない」を満たすにはこのクレートが要る
 trash = "5"
+# PTY（擬似端末）。Claude Code は raw mode の TUI なので、
+# tauri-plugin-shell の stdout ストリームでは描画も入力も成立しない。
+# Windows では ConPTY を使う
+portable-pty = "0.9.0"
+# PTY の出力を Channel へ載せるため。生バイトを JSON の数値配列で送ると
+# 4倍に膨らむので base64 の文字列にする（デコードは xterm 側）
+base64 = "0.23.1"

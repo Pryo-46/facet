@@ -23,17 +23,20 @@
 
 ## Rust と capabilities
 
-**Rust は原則書かない**（[`overview-rev.md`](overview-rev.md) 7章）。ロジックは全て TypeScript 側。例外は次の2つだけ。
+**Rust は原則書かない**（[`overview-rev.md`](overview-rev.md) 7章）。ロジックは全て TypeScript 側。例外は次の3つだけ。
 
 - **自前の Tauri コマンドは `move_to_trash` の1本**（OS のゴミ箱へ移す。fs プラグインは完全削除しか持たない）。判断は置かず `trash` クレートを呼ぶだけ。**自前コマンドは ACL 対象外なので capabilities への追記は要らない**
+- **PTY（擬似端末）のコマンド4本**（`pty_spawn` / `pty_write` / `pty_resize` / `pty_kill`。M11。Claude Code の端末ペインを本物の端末として動かすため）。判断は置かず、実行ファイル名も引数も TypeScript が渡す。**こちらも自前コマンドなので ACL 対象外**
 - **プラグインの登録**（`lib.rs` の `.plugin(...)` 1行と Cargo 依存1行）。判断もロジックも持たないので原則の例外ではない
 
-**新しい Tauri の JS API を使うたびに `src-tauri/capabilities/default.json` を確認すること。** 権限が無いと**実行時に静かに動かない**。これまでに3回踏んでいる:
+**新しい Tauri の JS API を使うたびに `src-tauri/capabilities/default.json` を確認すること。** 権限が無いと**実行時に静かに動かない**。これまでに5回踏んでいる:
 
 | API | 必要だったもの | 欠けたときの症状 |
 | --- | --- | --- |
 | `window.destroy()`（close 横取り） | `core:window:allow-destroy` | ウィンドウが閉じなくなる |
 | `watch()`（フォルダ監視） | Cargo feature `watch` ＋ `fs:allow-watch` | 監視が静かに始まらない |
 | `exists()`（新規作成の名前解決） | `fs:allow-exists` | — |
+| `mkdir()` / `remove()`（M11。同梱 Skill をプロジェクトフォルダの `.claude/skills/` へ置き直す） | `fs:allow-mkdir` / `fs:allow-remove` | Skill が置かれず、端末で Skill が見つからない |
+| `resolveResource()` ＋ `readDir()`（M11。同梱 Skill の読み出し） | `fs:allow-read-dir` / `fs:allow-read-text-file` の `$RESOURCE/skills/**` scope | 同上 |
 
 `dialog:default` は `allow-save` を含むので保存ダイアログに追記は不要。**`save()` で選んだパスは dialog プラグインが fs の実行時 scope へ入れる**ので、プロジェクトフォルダの外へも書ける。
