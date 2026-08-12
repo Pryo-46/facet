@@ -140,20 +140,21 @@ function assertionsFor(evalId, dir) {
   return A;
 }
 
-// ---- run ディレクトリを回って grading.json を書く ----
+const results = [];
+for (const evalDir of fs.readdirSync(ITER).filter((d) => d.startsWith("eval-"))) {
+  const evalId = Number(evalDir.split("-")[1]);
+  for (const variant of ["with_skill", "without_skill"]) {
+    const runDir = path.join(ITER, evalDir, variant);
+    if (!fs.existsSync(runDir)) continue;
+    const expectations = assertionsFor(evalId, runDir);
+    const passed = expectations.filter((e) => e.passed).length;
+    const grading = { run_id: `${evalDir}-${variant}`, expectations, passed, total: expectations.length };
+    fs.writeFileSync(path.join(runDir, "grading.json"), JSON.stringify(grading, null, 2) + "\n", "utf8");
+    results.push(grading);
+  }
+}
 
-for (const entry of fs.readdirSync(ITER, { withFileTypes: true })) {
-  if (!entry.isDirectory()) continue;
-  const runDir = path.join(ITER, entry.name);
-  const m = /(\d+)/.exec(entry.name);
-  if (!m) continue;
-  const evalId = Number(m[1]);
-  const assertions = assertionsFor(evalId, runDir);
-  const passed = assertions.filter((a) => a.passed).length;
-  fs.writeFileSync(
-    path.join(runDir, "grading.json"),
-    JSON.stringify({ eval_id: evalId, passed, total: assertions.length, assertions }, null, 2) + "\n",
-    "utf8"
-  );
-  console.log(`${entry.name}: ${passed}/${assertions.length}`);
+for (const r of results.sort((a, b) => a.run_id.localeCompare(b.run_id))) {
+  console.log(`${r.run_id}: ${r.passed}/${r.total}`);
+  for (const e of r.expectations.filter((x) => !x.passed)) console.log(`   ✗ ${e.text} — ${e.evidence}`);
 }
