@@ -62,6 +62,9 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
       const ptyId = ptyIdRef.current
       if (ptyId !== null) {
         void ptyIo.write(ptyId, SHIFT_ENTER_SEQUENCE).catch((err: unknown) => {
+          // **disposed で守る**——StrictMode で捨てられた側のハンドラが
+          // 書き込みに失敗しても、生きているセッションを failed にしない
+          if (disposed) return
           cb.current.onFailed(
             session.id,
             `端末へ書き込めませんでした: ${err instanceof Error ? err.message : String(err)}`,
@@ -105,6 +108,10 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
           // 書き込みの失敗もタブの中に出す（設計 決定13）。握り潰すと
           // 「打っても何も起きない端末」になり、原因が画面から読めない
           void ptyIo.write(ptyId, data).catch((err: unknown) => {
+            // **disposed で守る**——StrictMode で捨てられた側の Terminal に
+            // 残った onData 経由の書き込みが失敗しても、生きているセッション
+            // を failed にしない
+            if (disposed) return
             cb.current.onFailed(
               session.id,
               `端末へ書き込めませんでした: ${err instanceof Error ? err.message : String(err)}`,

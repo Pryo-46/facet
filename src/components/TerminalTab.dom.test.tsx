@@ -480,4 +480,131 @@ describe('TerminalTab', () => {
     expect(result).toBe(true)
     expect(pty.io.write).not.toHaveBeenCalled()
   })
+
+  it('アンマウント後に term.onData 経由の書き込みが遅れて失敗しても onFailed は呼ばれない（disposed で守る）', async () => {
+    // レビュー指摘: term.onData の中の write().catch() が disposed で
+    // 守られていなかった。書き込みが「アンマウント後に」失敗する経路を、
+    // write() の解決を手元で握って再現する
+    const pty = fakePty()
+    let rejectWrite: (err: unknown) => void = () => undefined
+    pty.io.write = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectWrite = reject
+        }),
+    )
+    const onRunning = vi.fn()
+    const onFailed = vi.fn()
+    const { unmount } = render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={onFailed}
+      />,
+    )
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+
+    // term.onData に登録されたコールバック（xterm からのキー入力を PTY へ
+    // 書き込む経路）を取り出し、書き込みを開始させる。write() はまだ解決しない
+    const registeredOnData = term.onData.mock.calls.at(-1)?.[0] as (data: string) => void
+    expect(registeredOnData).toBeDefined()
+    registeredOnData('a')
+
+    // ここでアンマウント（disposed = true, term.dispose()）。この時点では
+    // 書き込みの失敗はまだ届いていない
+    unmount()
+
+    // 遅れて書き込みが失敗する
+    rejectWrite(new Error('boom'))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(onFailed).not.toHaveBeenCalled()
+  })
+
+  it('（対照）アンマウントしていなければ term.onData 経由の書き込み失敗で onFailed を呼ぶ', async () => {
+    // 上のテストと対にして、disposed ガードが「守りすぎ」ではないことを確認する
+    const pty = fakePty()
+    pty.io.write = vi.fn(async () => {
+      throw new Error('boom')
+    })
+    const onRunning = vi.fn()
+    const onFailed = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={onFailed}
+      />,
+    )
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+
+    const registeredOnData = term.onData.mock.calls.at(-1)?.[0] as (data: string) => void
+    registeredOnData('a')
+
+    await waitFor(() =>
+      expect(onFailed).toHaveBeenCalledWith(1, '端末へ書き込めませんでした: boom'),
+    )
+  })
+
+  it('StrictMode で捨てられた側の Shift+Enter ハンドラの書き込みが失敗しても onFailed は呼ばれない（生き残った側は呼ばれる）', async () => {
+    // レビュー指摘: attachCustomKeyEventHandler は起動 effect の中で無条件に
+    // 呼ばれるため、StrictMode の二重マウントで2回登録される。ptyIdRef は
+    // コンポーネント本体の useRef で両方の effect クロージャから共有されて
+    // いるので、捨てられた側のハンドラが発火しても書き込み先は「生き残った
+    // 側」の実在する ptyId になる。session.id も共有なので、ここで disposed
+    // ガードが無いと生きているセッションが誤って failed に落ちる
+    const pty = fakePtyMultiSpawn()
+    const onRunning = vi.fn()
+    const onFailed = vi.fn()
+    render(
+      <StrictMode>
+        <TerminalTab
+          session={session()}
+          cwd="/proj"
+          ptyIo={pty.io}
+          hidden={false}
+          onRunning={onRunning}
+          onExited={vi.fn()}
+          onFailed={onFailed}
+        />
+      </StrictMode>,
+    )
+
+    await waitFor(() => expect(pty.issuedIds).toHaveLength(2))
+    await waitFor(() => expect(onRunning).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(pty.killedIds).toHaveLength(1))
+
+    expect(term.attachCustomKeyEventHandler).toHaveBeenCalledTimes(2)
+    const discardedHandler = term.attachCustomKeyEventHandler.mock.calls[0]?.[0] as (
+      event: KeyboardEvent,
+    ) => boolean
+    const survivedHandler = term.attachCustomKeyEventHandler.mock.calls[1]?.[0] as (
+      event: KeyboardEvent,
+    ) => boolean
+
+    pty.io.write = vi.fn(async () => {
+      throw new Error('boom')
+    })
+    const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true })
+
+    // 1. 捨てられた側のハンドラの書き込みが失敗しても onFailed は呼ばれない
+    discardedHandler(event)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(onFailed).not.toHaveBeenCalled()
+
+    // 2. 生き残った側のハンドラの書き込みが失敗したら onFailed が呼ばれる
+    //    （守りすぎて本物の失敗まで落としていないこと）
+    survivedHandler(event)
+    await waitFor(() =>
+      expect(onFailed).toHaveBeenCalledWith(1, '端末へ書き込めませんでした: boom'),
+    )
+  })
 })
