@@ -88,3 +88,24 @@ export function questionLabels(step: StepShape): QuestionLabels {
     ifExecuted: '実行済みだったら？',
   }
 }
+
+/**
+ * 答えスロット1つの読み出し。`unknown` は下位の `ifExecuted` を内包する形なので
+ * 素直なプロパティアクセスにならない——その差を吸収するのがこの関数の仕事。
+ *
+ * **読み方の正はここ1箇所。** かつては commands.ts に置き、SequenceEditor.tsx が
+ * ローカルに複製していた（M2 の申し送りの既知の負債）。同梱 Skill の
+ * sequence-write.mjs がこのファイルをバイト一致コピーして使うため、
+ * 値 import を持たないこのファイルへ集約した
+ */
+export function readSlot(
+  step: Pick<SequenceStep, 'failures'>,
+  path: AnswerPath,
+): { decision?: 'handled' | 'notApplicable'; text?: string } {
+  if (path === 'failed') return step.failures?.failed ?? {}
+  if (path === 'unknown') {
+    const u = step.failures?.unknown
+    return u === undefined ? {} : { decision: u.decision, text: u.text }
+  }
+  return step.failures?.unknown?.ifExecuted ?? {}
+}

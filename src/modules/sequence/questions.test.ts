@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SequenceStep } from '@/types/sequence'
-import { poseQuestions, presentAnswers, questionLabels, unposedAnswers } from './questions'
+import { poseQuestions, presentAnswers, questionLabels, readSlot, unposedAnswers } from './questions'
 
 const call = (awaitsReply: boolean) =>
   ({ kind: 'call', awaitsReply }) as const
@@ -98,5 +98,31 @@ describe('presentAnswers / unposedAnswers', () => {
     const { failures: _f, ...bare } = answered
     expect(presentAnswers(bare as SequenceStep)).toEqual([])
     expect(unposedAnswers(bare as SequenceStep)).toEqual([])
+  })
+})
+
+describe('readSlot', () => {
+  const base = { id: 'step_Ab3xK9mP2q', kind: 'call', from: 'actor_Xp2mQ9rT4k', label: '与信依頼', awaitsReply: true } as const
+
+  it('キーが無いスロットは空オブジェクトを返す（未定義＝キー欠落）', () => {
+    expect(readSlot({ ...base } as SequenceStep, 'failed')).toEqual({})
+    expect(readSlot({ ...base } as SequenceStep, 'unknown')).toEqual({})
+    expect(readSlot({ ...base } as SequenceStep, 'ifExecuted')).toEqual({})
+  })
+
+  it('unknown は ifExecuted を含めず decision と text だけを返す', () => {
+    const step = {
+      ...base,
+      failures: {
+        unknown: { decision: 'handled', text: 'リトライする', ifExecuted: { decision: 'handled', text: '取引IDで冪等性を担保' } },
+      },
+    } as const
+    expect(readSlot(step, 'unknown')).toEqual({ decision: 'handled', text: 'リトライする' })
+    expect(readSlot(step, 'ifExecuted')).toEqual({ decision: 'handled', text: '取引IDで冪等性を担保' })
+  })
+
+  it('notApplicable は text を持たないまま返す（空文字を補わない）', () => {
+    const step = { ...base, failures: { failed: { decision: 'notApplicable' } } } as const
+    expect(readSlot(step, 'failed')).toEqual({ decision: 'notApplicable' })
   })
 })

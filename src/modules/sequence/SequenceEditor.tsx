@@ -12,7 +12,7 @@ import {
 import { currentPlatform } from '@/core/keyboard/platform'
 import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
-import type { SequenceSchemaVersion1, SequenceStep } from '@/types/sequence'
+import type { SequenceSchemaVersion1 } from '@/types/sequence'
 import { ActorRefCell } from './ActorRefCell'
 import {
   addActorAfter,
@@ -66,7 +66,7 @@ import {
   type WrappedBlock,
   type WrapOptions,
 } from './measure'
-import { poseQuestions, questionLabels, unposedAnswers, type AnswerPath } from './questions'
+import { poseQuestions, questionLabels, readSlot, unposedAnswers, type AnswerPath } from './questions'
 import { createSeqMeasurer, FALLBACK_SEQ_FONT, readSeqFont, sameFont, type SeqFont } from './seq-font'
 import { SequenceEdges, type EdgeStep } from './SequenceEdges'
 import { StepShapeCell } from './StepShapeCell'
@@ -158,23 +158,6 @@ const ANSWER_WRAP: WrapOptions = {
   minWidth: ANSWER_BOX_WIDTH,
   insetX: ANSWER_INSET_X,
   insetY: ANSWER_INSET_Y,
-}
-
-/**
- * スロットの現在値を読む（commands.ts の writeSlot と対になる読み手）。
- * ifExecuted だけの部分回答では unknown 自体は未回答である、という
- * consistency.ts と同じ読み方をする
- */
-function readAnswer(
-  step: SequenceStep,
-  path: AnswerPath,
-): { decision?: 'handled' | 'notApplicable'; text?: string } {
-  if (path === 'failed') return step.failures?.failed ?? {}
-  if (path === 'unknown') {
-    const u = step.failures?.unknown
-    return u === undefined ? {} : { decision: u.decision, text: u.text }
-  }
-  return step.failures?.unknown?.ifExecuted ?? {}
 }
 
 function slotStateOf(decision: 'handled' | 'notApplicable' | undefined): SlotState {
@@ -327,7 +310,7 @@ export function SequenceEditor({
     const labels = questionLabels(step)
     const label = wrap(shape === 'self' ? 'self' : 'label', step.label, shape === 'self' ? SELF_WRAP : LABEL_WRAP)
     const answers = QUESTION_ORDER.filter((path) => posed[path]).map((path) => {
-      const slot = readAnswer(step, path)
+      const slot = readSlot(step, path)
       const text = slot.text ?? ''
       // 未回答の枠は placeholder の「未定義」が入る高さを確保する（空だと潰れる）
       const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
@@ -335,7 +318,7 @@ export function SequenceEditor({
     })
     // 立っていない問いへの答え（種別切替の残骸）。ガターにグレースロットで見せる
     const ghosts = unposedAnswers(step).map((path) => {
-      const slot = readAnswer(step, path)
+      const slot = readSlot(step, path)
       const text =
         slot.decision === 'notApplicable' && (slot.text === undefined || slot.text === '')
           ? '─ 考慮不要'
