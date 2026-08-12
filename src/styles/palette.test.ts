@@ -13,91 +13,29 @@ import {
   type LinearRgb,
   type Vision,
 } from './contrast'
+import {
+  BACKGROUNDS,
+  FACE_REQUIREMENTS,
+  HEADING_FACE,
+  HEADING_FACE_FOREGROUNDS,
+  MODES,
+  OVERLAY_FOREGROUNDS,
+  OVERLAY_MIN,
+  OVERLAYS,
+  readTokenBlock,
+  REQUIREMENTS,
+  stripCssComments,
+  TOKENS,
+} from './palette-requirements'
 
-/** コメントを落としてから読む（`}` を含むコメントがブロック抽出を壊さないように） */
-const stripComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, '')
-
-const paletteCss = stripComments(readFileSync(new URL('./palette.css', import.meta.url), 'utf8'))
-
-/** `:root { ... }` / `.dark { ... }` から `--name: value` を拾う */
-function readBlock(selectorPattern: string, label: string): Record<string, string> {
-  const m = new RegExp(`${selectorPattern}\\s*\\{([^}]*)\\}`).exec(paletteCss)
-  if (m === null) throw new Error(`${label} のブロックが palette.css に見つからない`)
-  const out: Record<string, string> = {}
-  for (const line of m[1].split('\n')) {
-    const d = /^\s*--([a-z-]+)\s*:\s*([^;]+);/.exec(line)
-    if (d !== null) out[d[1]] = d[2].trim()
-  }
-  return out
-}
-
-const TOKENS = [
-  'canvas',
-  'surface',
-  'surface-accent',
-  'ink',
-  'ink-muted',
-  'rule',
-  'grid',
-  'warning',
-  'ok',
-  'warning-fg',
-  'ok-fg',
-] as const
-
-const MODES = [
-  { label: 'ライト', pattern: ':root' },
-  { label: 'ダーク', pattern: '\\.dark' },
-] as const
+const paletteCss = stripCssComments(
+  readFileSync(new URL('./palette.css', import.meta.url), 'utf8'),
+)
 
 const VISIONS = ['normal', 'protan', 'deutan'] as const satisfies readonly Vision[]
 
-/**
- * 背景に対して満たすべきコントラスト。
- *
- * **`grid` がここに無いのは意図的。** 方眼紙の線は純粋な装飾であり、
- * WCAG 1.4.11（情報を伝える非テキスト UI 要素は 3:1）の対象外。
- * むしろ薄いことに意味がある（設計スペック 決定2）
- */
-const REQUIREMENTS = [
-  { token: 'ink', min: 4.5, use: '本文・見出し' },
-  { token: 'ink-muted', min: 4.5, use: '抑えた文字' },
-  { token: 'rule', min: 3.0, use: 'セル境界・入力枠' },
-  { token: 'warning', min: 4.5, use: '未定義・削除' },
-  { token: 'ok', min: 4.5, use: '確定・応答' },
-] as const
-
-/**
- * **背景は canvas と surface の両方を見る。**
- * テーブルもカードもモーダルも surface の上に乗るので、canvas だけで
- * 満たしても足りない（実際、ダークの rule を canvas だけ見て決めたとき
- * surface 上で 2.997:1 と 3:1 を割った）
- */
-const BACKGROUNDS = ['canvas', 'surface'] as const
-
-/**
- * 半透明の重ね合わせ（M8 決定11）。**値は GlossaryEditor.tsx の
- * errorCell / warnCell と一致していなければならない**（下の紐づき検査が見る）
- */
-const OVERLAYS = [
-  { label: 'エラーセル', alpha: 0.2, className: 'bg-warning/20' },
-  { label: '未定義・未分類セル', alpha: 0.1, className: 'bg-warning/10' },
-] as const
-
-/**
- * これらの面の上に置く文字。**warning は置かない**（M8 決定12）——
- * 測ると warning/10 の面の上で 4.59:1 しか出ず、同系色が重なって読みにくい
- */
-const OVERLAY_FOREGROUNDS = [
-  { token: 'ink', use: '本文' },
-  { token: 'ink-muted', use: 'プレースホルダ「未定義」' },
-] as const
-
-/** 閾値ちょうどを置かない（M7 の教訓）。本文 4.5:1 に3%の余裕 */
-const OVERLAY_MIN = 4.5 * 1.03
-
 function toPalette(pattern: string, label: string): Record<string, LinearRgb> {
-  const block = readBlock(pattern, label)
+  const block = readTokenBlock(paletteCss, pattern, label)
   const out: Record<string, LinearRgb> = {}
   for (const name of TOKENS) {
     const raw = block[name]
@@ -114,7 +52,7 @@ function toPalette(pattern: string, label: string): Record<string, LinearRgb> {
 describe('palette.css の形式', () => {
   for (const mode of MODES) {
     it(`${mode.label}に全トークンがあり、すべて不透明な oklch である`, () => {
-      const block = readBlock(mode.pattern, mode.label)
+      const block = readTokenBlock(paletteCss, mode.pattern, mode.label)
       for (const name of TOKENS) {
         expect(block[name], `--${name} が無い`).toBeDefined()
         expect(
@@ -142,13 +80,10 @@ for (const mode of MODES) {
       }
     }
 
-    for (const [fg, face] of [
-      ['warning-fg', 'warning'],
-      ['ok-fg', 'ok'],
-    ] as const) {
-      it(`${fg} が ${face} の面の上で 4.5:1 以上`, () => {
-        const ratio = contrastRatio(palette[fg], palette[face])
-        expect(ratio, `${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5)
+    for (const req of FACE_REQUIREMENTS) {
+      it(`${req.token} が ${req.face} の面の上で ${req.min}:1 以上`, () => {
+        const ratio = contrastRatio(palette[req.token], palette[req.face])
+        expect(ratio, `${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(req.min)
       })
     }
 
@@ -169,26 +104,18 @@ for (const mode of MODES) {
   })
 }
 
-/**
- * 見出しの面（テーブルのカラム名）。
- *
- * **`BACKGROUNDS` に入れないのは意図的。** あちらは「あらゆる役割トークンが
- * 載りうる汎用の面」（地とカードの面）の集合で、`surface-accent` の上に載るのは
- * カラム名の文字だけである。`warning` や `ok` や `rule` をこの面の上で
- * 要件を満たすよう縛ると、淡い緑を選べなくなる（この面より暗い色でしか
- * 3:1 / 4.5:1 を作れないため）。**載らないものを検証しない**代わりに、
- * 載るものは両モードで必ず検証する
- */
+// 要件本体（「なぜ BACKGROUNDS に入れないか」のコメント含む）は
+// palette-requirements.ts の HEADING_FACE / HEADING_FACE_FOREGROUNDS へ
 describe('見出しの面（surface-accent）', () => {
   for (const mode of MODES) {
     const palette = toPalette(mode.pattern, mode.label)
-    for (const token of ['ink', 'ink-muted'] as const) {
-      it(`${mode.label}の ${token} が surface-accent の上で 4.5:1 以上`, () => {
-        const ratio = contrastRatio(palette[token], palette['surface-accent'])
+    for (const req of HEADING_FACE_FOREGROUNDS) {
+      it(`${mode.label}の ${req.token} が ${HEADING_FACE} の上で ${req.min}:1 以上`, () => {
+        const ratio = contrastRatio(palette[req.token], palette[HEADING_FACE])
         expect(
           ratio,
-          `${toHex(palette[token])} / ${toHex(palette['surface-accent'])} = ${ratio.toFixed(2)}:1`,
-        ).toBeGreaterThanOrEqual(4.5)
+          `${toHex(palette[req.token])} / ${toHex(palette[HEADING_FACE])} = ${ratio.toFixed(2)}:1`,
+        ).toBeGreaterThanOrEqual(req.min)
       })
     }
   }
@@ -219,7 +146,7 @@ describe('warning と ok の識別（記録のみ。失敗させない）', () =
   }
 })
 
-const indexCss = stripComments(readFileSync(new URL('../index.css', import.meta.url), 'utf8'))
+const indexCss = stripCssComments(readFileSync(new URL('../index.css', import.meta.url), 'utf8'))
 
 describe('index.css', () => {
   it('destructive が warning に紐づいている', () => {
@@ -266,7 +193,7 @@ describe('index.css', () => {
 /**
  * TSX のコメントを落とす。**行番号を保つ必要は無いので単純に消す。**
  *
- * 既存の `stripComments`（このファイルの先頭）は CSS 用で `/* *​/` しか
+ * 既存の `stripCssComments`（`palette-requirements.ts`）は CSS 用で `/* *​/` しか
  * 落とさない。TSX には `//` があるうえ、下の検査が読む GlossaryEditor.tsx は
  * コメントの中で `/25`（不採用にした濃さ）に言及している。コメントを
  * 落とさずに走査すると、説明文が違反として検出される——M7 の Task 5 が
