@@ -21,15 +21,32 @@ const STEP = 16
 export interface PaneSplitterProps {
   containerRef: React.RefObject<HTMLElement | null>
   store: ColumnWidthStore
+  /**
+   * いま画面に出している幅（App.tsx の `displayPaneWidth`）。**渡すとドラッグ／
+   * キーボードの基準がこちらになる。** store（意図）を直接基準にすると、
+   * ウィンドウが狭まって意図と表示が乖離した状態でハンドルに触れたときに
+   * デッドゾーンが生まれ、かつクランプ後の値をそのまま意図として書き戻して
+   * しまう（レビュー指摘。`column-resize.ts` の `referenceWidths` 参照）。
+   *
+   * **省略可能。** 省略すると `useColumnResize` が従来どおり store を基準に
+   * する——このコンポーネント単体のテスト（`PaneSplitter.dom.test.tsx`）は
+   * 意図と表示が乖離する状況を作らないので、渡さなくても挙動は変わらない
+   */
+  referenceWidth?: number
 }
 
-export function PaneSplitter({ containerRef, store }: PaneSplitterProps): React.JSX.Element {
+export function PaneSplitter({
+  containerRef,
+  store,
+  referenceWidth,
+}: PaneSplitterProps): React.JSX.Element {
   const { getHandleProps } = useColumnResize({
     store,
     minWidth: PANE_MIN_WIDTH,
     flexMinWidth: EDITOR_MIN_WIDTH,
     step: STEP,
     containerRef,
+    referenceWidths: referenceWidth === undefined ? undefined : [referenceWidth],
   })
   return (
     <div

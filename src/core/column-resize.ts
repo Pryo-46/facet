@@ -101,6 +101,22 @@ export interface ColumnResizeOptions {
   step: number
   /** 利用可能幅を測る要素。ドラッグ開始時に1度だけ clientWidth を読む */
   containerRef: React.RefObject<HTMLElement | null>
+  /**
+   * ドラッグ／キーボードの基準にする幅。**省略すると従来どおり
+   * `store.getSnapshot()`（意図）を基準にする**——表を持つツール（用語集・
+   * エラーカタログ）は渡さないので、挙動は1ビットも変わらない。
+   *
+   * 額縁のペイン（M11）だけが渡す。ペインは「意図した幅」（store）と
+   * 「実際に画面へ出している幅」（ウィンドウ幅に合わせてクランプ済み）が
+   * 分離しているため（レビュー指摘1の直し方）、`store.getSnapshot()` を
+   * 基準にするとハンドルの見た目の位置と操作の基準がずれる——ウィンドウを
+   * 狭めて意図(600)と表示(520)が乖離した状態でドラッグすると、80px分の
+   * デッドゾーン（動かない区間）が生まれ、かつ少し触れただけでクランプ後の
+   * 520 がそのまま意図として store へ書き戻ってしまう（意図が復元不能に
+   * なる症状の再発）。**基準を表示幅にすると、狭めた状態で触った時点で
+   * 「その大きさで意図を表明し直した」ことになり、デッドゾーンも消える**
+   */
+  referenceWidths?: readonly number[]
 }
 
 export interface HandleOptions {
@@ -146,7 +162,7 @@ export function useColumnResize(options: ColumnResizeOptions): {
   widths: readonly number[]
   getHandleProps: (index: number, handleOptions?: HandleOptions) => HandleProps
 } {
-  const { store, minWidth, flexMinWidth, step, containerRef } = options
+  const { store, minWidth, flexMinWidth, step, containerRef, referenceWidths } = options
   const widths = useSyncExternalStore(store.subscribe, store.getSnapshot)
   const drag = useRef<{
     index: number
@@ -192,7 +208,9 @@ export function useColumnResize(options: ColumnResizeOptions): {
           drag.current = {
             index,
             startX: e.clientX,
-            startWidths: store.getSnapshot(),
+            // **基準は「今見えている幅」。** `referenceWidths` が省略されて
+            // いれば従来どおり store（意図）を基準にする
+            startWidths: referenceWidths ?? store.getSnapshot(),
             available: containerRef.current?.clientWidth ?? 0,
           }
         },
@@ -220,14 +238,15 @@ export function useColumnResize(options: ColumnResizeOptions): {
           apply(
             index,
             invertDelta(e.key === 'ArrowLeft' ? -step : step, invert),
-            store.getSnapshot(),
+            // ドラッグと同じ理由で「今見えている幅」を基準にする
+            referenceWidths ?? store.getSnapshot(),
             containerRef.current?.clientWidth ?? 0,
           )
         },
         onDoubleClick: () => resetColumn(index),
       }
     },
-    [store, apply, resetColumn, step, containerRef],
+    [store, apply, resetColumn, step, containerRef, referenceWidths],
   )
 
   return { widths, getHandleProps }

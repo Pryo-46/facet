@@ -1,5 +1,14 @@
-import { describe, expect, it, vi } from 'vitest'
-import { createColumnWidthStore, invertDelta, resizeColumns } from './column-resize'
+// @vitest-environment jsdom
+import { createElement, useRef } from 'react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  createColumnWidthStore,
+  invertDelta,
+  resizeColumns,
+  useColumnResize,
+  type ColumnWidthStore,
+} from './column-resize'
 
 const base = { widths: [100, 100, 100], minWidth: 88, available: 1000, flexMinWidth: 200 }
 
@@ -126,5 +135,65 @@ describe('createColumnWidthStore', () => {
     unsubscribe()
     store.set([50, 60])
     expect(listener).toHaveBeenCalledTimes(1)
+  })
+})
+
+/**
+ * `useColumnResize` はハンドル1個だけの最小ハーネスで直接テストする
+ * （`PaneSplitter.dom.test.tsx` を経由しない。ここは `column-resize.ts`
+ * 自体の挙動——`referenceWidths` の有無で基準が変わること——を主張する）。
+ * JSX を使わないのは、このファイルを `.ts` のまま保つため
+ */
+function renderHandle(store: ColumnWidthStore, referenceWidths?: readonly number[]) {
+  function Handle() {
+    const containerRef = useRef<HTMLDivElement | null>(null)
+    const { getHandleProps } = useColumnResize({
+      store,
+      minWidth: 88,
+      flexMinWidth: 200,
+      step: 16,
+      containerRef,
+      referenceWidths,
+    })
+    return createElement('div', { ref: containerRef }, createElement('div', getHandleProps(0)))
+  }
+  render(createElement(Handle))
+  const handle = screen.getByRole('separator')
+  // jsdom は setPointerCapture を実装していない
+  handle.setPointerCapture = () => undefined
+  return handle
+}
+
+describe('useColumnResize の referenceWidths（M11 レビュー: ドラッグ／キーボードの基準）', () => {
+  afterEach(cleanup)
+
+  it('省略時は従来どおり store（意図）を基準に動く（表を持つツールの挙動が変わらないことの固定）', () => {
+    const store = createColumnWidthStore([100, 100, 100])
+    const handle = renderHandle(store)
+    fireEvent.pointerDown(handle, { clientX: 500, pointerId: 1 })
+    fireEvent.pointerMove(handle, { clientX: 550, pointerId: 1 })
+    // store(100) + 50 = 150。referenceWidths を渡していないので、
+    // これは resizeColumns の既存の挙動そのもの
+    expect(store.getSnapshot()).toEqual([150, 100, 100])
+  })
+
+  it('referenceWidths を渡すと、store の値とは無関係にそこからの差分で動く（ドラッグ）', () => {
+    const store = createColumnWidthStore([100, 100, 100])
+    // store（意図）は 100 のままだが、画面には既に 300 まで広がった状態で
+    // 出ている、という M11 のペイン（意図と表示の乖離）を模す
+    const handle = renderHandle(store, [300, 100, 100])
+    fireEvent.pointerDown(handle, { clientX: 500, pointerId: 1 })
+    fireEvent.pointerMove(handle, { clientX: 550, pointerId: 1 })
+    // 基準(300) + 50 = 350 が store へ書き戻る。store(100) を基準にしていたら
+    // 150 になっていたはず——ここがデッドゾーンと意図の巻き戻りを直した部分
+    expect(store.getSnapshot()).toEqual([350, 100, 100])
+  })
+
+  it('referenceWidths を渡すと、キーボード（→）も store の値とは無関係にそこからの差分で動く', () => {
+    const store = createColumnWidthStore([100, 100, 100])
+    const handle = renderHandle(store, [300, 100, 100])
+    fireEvent.keyDown(handle, { key: 'ArrowRight' })
+    // 基準(300) + step(16) = 316
+    expect(store.getSnapshot()).toEqual([316, 100, 100])
   })
 })

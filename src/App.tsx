@@ -634,7 +634,15 @@ function App() {
           </section>
 
           {paneOpen && projectDir !== null && (
-            <PaneSplitter containerRef={splitRef} store={paneWidthStore} />
+            <PaneSplitter
+              containerRef={splitRef}
+              store={paneWidthStore}
+              // ドラッグ／キーボードの基準を「いま画面に出している幅」にする
+              // （レビュー指摘。store の意図を直接基準にすると、狭めた状態で
+              // ハンドルに触れたときにデッドゾーンが生まれ、クランプ後の値を
+              // そのまま意図として書き戻してしまう）
+              referenceWidth={displayPaneWidth}
+            />
           )}
           {projectDir !== null && (
             <aside
