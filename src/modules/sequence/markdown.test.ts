@@ -167,6 +167,28 @@ describe('sequenceToMarkdown: 壊れたデータ', () => {
     expect(bodyRows(out)[0]).toContain('画面 → （未解決）')
   })
 
+  it('名前が空の参加者は表でも（未定義）（（未解決）ではない。参照は引けている）', () => {
+    const out = sequenceToMarkdown(
+      doc({
+        actors: [
+          { id: 'actor_Aaaaaaaaa1', name: '', domain: '自社' },
+          { id: 'actor_Aaaaaaaaa2', name: 'API', domain: '自社' },
+        ],
+        steps: [
+          {
+            id: 'step_Aaaaaaaaa1',
+            kind: 'call',
+            from: 'actor_Aaaaaaaaa1',
+            to: 'actor_Aaaaaaaaa2',
+            label: '与信依頼',
+            awaitsReply: true,
+          },
+        ],
+      }),
+    )
+    expect(bodyRows(out)[0]).toContain('（未定義） → API')
+  })
+
   it('to が無い call も表で（未解決）', () => {
     const out = sequenceToMarkdown(
       doc({

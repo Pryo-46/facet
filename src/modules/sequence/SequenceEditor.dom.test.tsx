@@ -233,8 +233,8 @@ describe('セルのドロップダウンは同時に1つだけ（Task 11b）', (
   // from/to/種別 の3セルは SequenceEditor が持つ単一の `openCell` で
   // 制御される（各セルの `open` prop に `openCell === 自分の鍵` を渡す）。
   // これにより2つ目を開いた瞬間に1つ目が閉じる——複数同時オープン自体を
-  // 構造的に禁止する（investigation-multi-menu.md 修正案B。Task 11a の
-  // カウンタ化はこのタスクで巻き戻した）。
+  // 構造的に禁止する（経緯は docs/history/sequence-m3-mouse-and-output.md の
+  // 「Task 11b」。Task 11a のカウンタ化はこのタスクで巻き戻した）。
   //
   // **退化ケースを避ける**（docs/lessons-for-planning.md）——from と種別のような
   // 別種の部品を組ませる。同じ部品同士（例: from と to）だと、部品をまたぐ

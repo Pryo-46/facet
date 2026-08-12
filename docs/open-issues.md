@@ -37,6 +37,7 @@
 - **ドラッグ中にアンマウントすると d3 が window に張ったリスナーが残る**（`src/modules/logic-tree/useViewport.ts`）: 体感とは無関係に成立し、実機確認を終えても解消しない `[logic-tree-m1]`
 - **`FOLLOW_MARGIN`(48) > `CANVAS_MARGIN`(40) で初回の追従が 8px ずれる**（`src/modules/logic-tree/useViewport.ts` / `viewport.ts`）: 完全に見えているノードでも初回の追従だけ 8px 余分に動く。**実機確認の前に載せておく必要がある**——載せておかないと、実機で「1回だけカクッと動く」を見た人が I-1（二重スクロール）の再発と誤診する `[logic-tree-m1]`
 - **`domain`（責任境界）が問いの導出に一切関与していない**（`schemas/sequence.schema.json` / `src/modules/sequence/layout.ts`）: design-notes 論点3 の当初構想では境界跨ぎが問いの導出に効くはずだったが、「`ifExecuted` は境界に関係なく常に立つ」と決めたため、論点4 が「**境界は問いの導出に一切関与しない**」と明記している。現在 `domain` は rev 2章の一行を裏切らないためだけに残る属性で、M3 の出力にも出していない。**UML のシーケンス図に「境界」という標準概念は無い**（スイムレーンはアクティビティ図）。存置するか廃止するかを決めること `[sequence-m3]`
+- **`describeSequenceIssueEffect` の `to-mismatch` 分岐が2条件を1つの説明文に束ねている**（`src/modules/sequence/markdown.ts`）: `to-mismatch` は「`self` に余分な `to`」と「非 `self` に `to` が無い」の2条件を1つの rule 名に束ねており、確認文はどちらでも「図には『（未解決）』という参加者が立ち、宛先を引けない矢印はそこへ向きます」と言う。**前者だけのファイルでは実際は（未解決）は1つも出ない。** また `missing-actor` が `from` 側だけのときも同じ文言が「宛先」と言うが、実際に（未解決）になるのは**送り手**の方である。到達性は低い（`setStepShape` が self 化のとき `to` を落とすため UI からは作れず、外部編集ファイル限定）。根治は rule を2つに割るか `describeIssueEffect` に data を渡す設計変更で、`markdown.test.ts` の「to-mismatch でも同じ説明になる」がこの粗い近似を固定している。M3 のスコープ外として繰り越し `[sequence-m3]`
 
 ## 性能
 

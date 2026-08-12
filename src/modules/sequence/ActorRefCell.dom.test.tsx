@@ -40,12 +40,12 @@ describe('ActorRefCell: 表示', () => {
     expect(setup({ value: undefined, invalid: true }).cell.textContent).toBe('（未解決）')
   })
 
-  it('名前が空の参加者を指しているときも（未解決）にはしない（参照は引けている）', () => {
+  it('名前が空の参加者を指しているときは（未定義）と表示する（参照は引けている。（未解決）ではない）', () => {
     const { cell } = setup({
       value: 'actor_Aaaaaaaaa9',
       actors: [{ id: 'actor_Aaaaaaaaa9', name: '' }],
     })
-    expect(cell.textContent).not.toBe('（未解決）')
+    expect(cell.textContent).toBe('（未定義）')
   })
 })
 
@@ -131,5 +131,14 @@ describe('ActorRefCell: マウス', () => {
     fireEvent.pointerDown(cell, { button: 0, ctrlKey: false })
     await screen.findByRole('menuitem', { name: '画面' })
     expect(onOpenChange).toHaveBeenCalledWith(true)
+  })
+
+  it('名前が空の参加者はメニュー項目でも（未定義）と表示する（空白の項目にしない）', async () => {
+    const { cell } = setup({
+      actors: [...actors, { id: 'actor_Aaaaaaaaa9', name: '' }],
+    })
+    fireEvent.pointerDown(cell, { button: 0, ctrlKey: false })
+    const item = await screen.findByRole('menuitem', { name: '（未定義）' })
+    expect(item.textContent).toBe('（未定義）')
   })
 })

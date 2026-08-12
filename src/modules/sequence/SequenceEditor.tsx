@@ -207,7 +207,8 @@ export function SequenceEditor({
   )
   // from/to/種別のセルのドロップダウンは同時に1つだけ開く。**開いている
   // セルの鍵（data-cell の値）を1つだけ持つ**ことで構造的に複数オープンを
-  // 禁止する（2026-08-12 investigation-multi-menu.md 修正案B）。あるセルを
+  // 禁止する（2026-08-12 実機確認で見つかった欠陥の修正。経緯は
+  // docs/history/sequence-m3-mouse-and-output.md の「Task 11b」）。あるセルを
   // 開くと他のセルの `open` が自動的に false になり、Radix が閉じる。
   // （非表示のセルの `open` は常に false なので DropdownMenuContent が
   // マウントされず、そのセルから onOpenChange(false) が飛んでくることは
