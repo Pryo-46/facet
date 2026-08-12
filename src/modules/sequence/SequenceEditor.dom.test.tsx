@@ -229,59 +229,89 @@ describe('ステップ行', () => {
   })
 })
 
-describe('メニューの複数オープン（Task 11a）', () => {
-  // from/to/種別 の3セルは同じ onOpenChange ハンドラを共有している
-  // （SequenceEditor.tsx）。このハンドラは anyModalOpen 経由で
-  // useViewport の enabled とキーボードの操作言語（resolveCommand の
-  // modalOpen ゲート）の両方を止める。単一の boolean だと「2つ以上開いた
-  // 状態から1つだけ閉じる」ときに誤って false に落ち、まだ開いているメニューが
-  // あるのにキャンバスと操作言語が復活してしまう
-  // （investigation-multi-menu.md で実証済み）。
+describe('セルのドロップダウンは同時に1つだけ（Task 11b）', () => {
+  // from/to/種別 の3セルは SequenceEditor が持つ単一の `openCell` で
+  // 制御される（各セルの `open` prop に `openCell === 自分の鍵` を渡す）。
+  // これにより2つ目を開いた瞬間に1つ目が閉じる——複数同時オープン自体を
+  // 構造的に禁止する（investigation-multi-menu.md 修正案B。Task 11a の
+  // カウンタ化はこのタスクで巻き戻した）。
   //
-  // 実ブラウザでは開いている間 document.body.style.pointerEvents が
-  // "none" になり素のクリックは他セルへ届かないが、fireEvent.pointerDown は
-  // 指定した要素へ直接 dispatchEvent するためこの経路を経由せず、
-  // 前のメニューを閉じずに複数開いた状態を作れる（同ファイルの調査手法と同じ）
+  // **退化ケースを避ける**（docs/lessons-for-planning.md）——from と種別のような
+  // 別種の部品を組ませる。同じ部品同士（例: from と to）だと、部品をまたぐ
+  // 制御が効いていない実装でも「たまたま」通ってしまう可能性がある
+  //
   // **Radix の DropdownMenuContent は Portal で document.body 直下に出る**
   // （render() が返す container の外）。だから生DOM数は container ではなく
   // document から数える
-  function openMenus(...triggers: HTMLElement[]): void {
-    for (const trigger of triggers) {
-      fireEvent.pointerDown(trigger, { button: 0 })
-    }
-  }
   function rawMenus(): NodeListOf<Element> {
     return document.querySelectorAll('[data-slot="dropdown-menu-content"]')
   }
 
-  it('2つ開いた状態で1つ閉じても、キーボードの操作言語は止まったまま（対照実験: 全部閉じれば増える）', () => {
-    const { onChange } = setup()
+  it('2つ目のセル（種別）のメニューを開くと、1つ目のセル（送り手）が閉じる', () => {
+    setup()
     const from = screen.getByLabelText('ステップ1の送り手')
-    const to = screen.getByLabelText('ステップ1の受け手')
-    const label = screen.getByLabelText('ステップ1の文言')
+    const shape = screen.getByLabelText('ステップ1の形')
 
-    openMenus(from, to)
-    expect(rawMenus()).toHaveLength(2)
-
-    // Escape は「最後に開いたメニュー」（=to）を閉じる。from はまだ開いたまま
-    fireEvent.keyDown(rawMenus()[rawMenus().length - 1], { key: 'Escape' })
+    fireEvent.pointerDown(from, { button: 0 })
     expect(rawMenus()).toHaveLength(1)
 
-    // 本命: from がまだ開いている＝anyModalOpen が真であるべきなので、
-    // ラベル欄への Enter は resolveCommand の modalOpen ゲート（keymap.ts）で
-    // ブロックされ、ステップは増えないはず
-    fireEvent.keyDown(label, { key: 'Enter' })
-    expect(onChange).not.toHaveBeenCalled()
-
-    // 対照実験: 残りの1つ（from）も閉じれば、同じ Enter でステップが増える。
-    // これが無いと「そもそも別の理由で常にブロックされている」だけかもしれない
-    fireEvent.keyDown(rawMenus()[rawMenus().length - 1], { key: 'Escape' })
-    expect(rawMenus()).toHaveLength(0)
-    fireEvent.keyDown(label, { key: 'Enter' })
-    expect(last(onChange).steps).toHaveLength(4)
+    fireEvent.pointerDown(shape, { button: 0 })
+    // 常に「同時に開いているメニューは1つ以下」——2つ目を開いても3つにも
+    // 2つにもならず、常に1つのまま
+    expect(rawMenus()).toHaveLength(1)
+    // 開いているのは種別のメニューであって、送り手のメニューではない
+    // （STEP_SHAPE_LABEL の項目が見えているはず。送り手のメニューなら参加者名が出る）
+    expect(screen.getByRole('menuitem', { name: '呼出' })).toBeDefined()
+    expect(screen.queryByRole('menuitem', { name: '画面' })).toBeNull()
   })
-  // 「カウンタが負にならない」の単体テストは ./menu-open-count.test.ts へ移した
-  // （DOM 経由では「余分な false」を再現できないため、算術を直接検査する）
+
+  it('1つ目が2つ目に押し出されて閉じたあと、別のセル（受け手）をまた開ける', () => {
+    // openCell が null に戻らず固まる実装（例: 2つ目を開いたときに前の鍵を
+    // クリアし忘れる）を弾く
+    setup()
+    const from = screen.getByLabelText('ステップ1の送り手')
+    const shape = screen.getByLabelText('ステップ1の形')
+    const to = screen.getByLabelText('ステップ1の受け手')
+
+    fireEvent.pointerDown(from, { button: 0 })
+    fireEvent.pointerDown(shape, { button: 0 })
+    expect(rawMenus()).toHaveLength(1)
+
+    fireEvent.pointerDown(to, { button: 0 })
+    expect(rawMenus()).toHaveLength(1)
+    // 受け手のメニュー（参加者名の項目）が開いているはず
+    expect(screen.getByRole('menuitem', { name: '画面' })).toBeDefined()
+  })
+
+  it('メニューが1つ開いている状態では、ラベル欄へ実際にフォーカスが移らず、Enter もステップを増やさない（Radix の focus trap の確認）', () => {
+    // Task 11a を巻き戻すと anyModalOpen はメニューの開閉に反応しなくなる。
+    // それでも実ブラウザでは Radix の FocusScope（modal 既定）がメニュー内に
+    // キーボードフォーカスを閉じ込めるので、ラベル欄へ Enter が届く経路自体が
+    // 生じないはず。**実ブラウザのキーボードイベントは常に
+    // document.activeElement へ届く**——`fireEvent.keyDown(label, ...)` の
+    // ように任意の要素へ直接送るのは、実際にはユーザーが起こせない操作になる
+    // （target を選べるのは合成イベントだけ）。そこで、まず label.focus() で
+    // 「メニュー外へ逃げようとする」動きを模し、それが Radix の focus trap に
+    // 押し戻されて失敗すること（= activeElement が label にならないこと）を
+    // 確認したうえで、実際に focus が残っている要素（トラップ内）へ Enter を
+    // 送ってもステップが増えないことを見る。もし label.focus() が成功して
+    // しまう（トラップが効かない）なら、それは Task 11b で作り込んだ穴なので
+    // 報告すべき懸念になる
+    const { onChange } = setup()
+    const from = screen.getByLabelText('ステップ1の送り手')
+    const label = screen.getByLabelText('ステップ1の文言')
+
+    fireEvent.pointerDown(from, { button: 0 })
+    expect(rawMenus()).toHaveLength(1)
+
+    label.focus()
+    expect(document.activeElement).not.toBe(label)
+
+    if (document.activeElement !== null) {
+      fireEvent.keyDown(document.activeElement, { key: 'Enter' })
+    }
+    expect(onChange).not.toHaveBeenCalled()
+  })
 })
 
 describe('問いスロット（ガター）', () => {

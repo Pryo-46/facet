@@ -66,7 +66,6 @@ import {
   type WrappedBlock,
   type WrapOptions,
 } from './measure'
-import { nextMenuOpenCount } from './menu-open-count'
 import { poseQuestions, questionLabels, unposedAnswers, type AnswerPath } from './questions'
 import { createSeqMeasurer, FALLBACK_SEQ_FONT, readSeqFont, sameFont, type SeqFont } from './seq-font'
 import { SequenceEdges, type EdgeStep } from './SequenceEdges'
@@ -206,21 +205,26 @@ export function SequenceEditor({
   const [confirmTarget, setConfirmTarget] = useState<{ index: number; path: AnswerPath } | null>(
     null,
   )
-  // セルのドロップダウンが開いている間はキャンバスを止める。**Radix は
-  // transform の変化を追わない**ので、開いたままズームすると位置がずれる。
-  // from/to/種別の複数セルが同じハンドラを共有するため、単一の boolean だと
-  // 「2つ以上開いている状態から1つだけ閉じる」ときに誤って false へ落ちる
-  // （2026-08-12 investigation-multi-menu.md で実証済み）。開いている数を
-  // 数え、0 より大きいかで判定する。複数オープン自体を防ぐ制御コンポーネント化は
-  // 別の残件（open-issues.md）とし、ここでは取りこぼしの解消だけを行う
-  const [openMenuCount, setOpenMenuCount] = useState(0)
-  const menuOpen = openMenuCount > 0
-  const handleMenuOpenChange = (open: boolean): void => {
-    setOpenMenuCount((n) => nextMenuOpenCount(n, open))
-  }
+  // from/to/種別のセルのドロップダウンは同時に1つだけ開く。**開いている
+  // セルの鍵（data-cell の値）を1つだけ持つ**ことで構造的に複数オープンを
+  // 禁止する（2026-08-12 investigation-multi-menu.md 修正案B）。あるセルを
+  // 開くと他のセルの `open` が自動的に false になり、Radix が閉じる。
+  // （非表示のセルの `open` は常に false なので DropdownMenuContent が
+  // マウントされず、そのセルから onOpenChange(false) が飛んでくることは
+  // 無い——false は常に「いま開いている当のセルが閉じた」ことを意味する）
+  const [openCell, setOpenCell] = useState<string | null>(null)
+  /** セル鍵ごとの open props。data-cell の値をそのまま鍵に使う */
+  const menuPropsFor = (cell: string): { open: boolean; onOpenChange: (open: boolean) => void } => ({
+    open: openCell === cell,
+    onOpenChange: (open) => setOpenCell(open ? cell : null),
+  })
   // エディタ内ダイアログが開いている間も操作言語を止める（rev 10章 境界規則）。
-  // 額縁由来の modalOpen と OR を取る——どれか一つが開いていれば止まる
-  const anyModalOpen = modalOpen || confirmTarget !== null || menuOpen
+  // 額縁由来の modalOpen と OR を取る——どれか一つが開いていれば止まる。
+  // **セルのドロップダウンはここに含めない**（Task 11b でカウンタごと
+  // 巻き戻した）。同時に1つしか開かなくなり、Radix の FocusScope
+  // （modal 既定）がメニュー内にキーを閉じ込めるため、操作言語への漏れは
+  // 起きない（SequenceEditor.dom.test.tsx で検証済み）
+  const anyModalOpen = modalOpen || confirmTarget !== null
 
   // ズーム・パン（Ctrl+ホイール／Space・中ボタンのドラッグ）と新しい行への追従。
   // モーダルが開いている間は止める（キーはモーダルが取る。rev 10章 境界規則）
@@ -871,7 +875,7 @@ export function SequenceEditor({
                   aria-label={`ステップ${index + 1}の送り手`}
                   data-cell={`${key}:from`}
                   onSelect={(actorId) => onChange(setStepActor(data, index, 'from', actorId), null)}
-                  onOpenChange={handleMenuOpenChange}
+                  {...menuPropsFor(`${key}:from`)}
                   onFieldKeyDown={(e) => onRefKeyDown(e, index, 'from')}
                 />
               </div>
@@ -898,7 +902,7 @@ export function SequenceEditor({
                       aria-label={`ステップ${index + 1}の受け手`}
                       data-cell={`${key}:to`}
                       onSelect={(actorId) => onChange(setStepActor(data, index, 'to', actorId), null)}
-                      onOpenChange={handleMenuOpenChange}
+                      {...menuPropsFor(`${key}:to`)}
                       onFieldKeyDown={(e) => onRefKeyDown(e, index, 'to')}
                     />
                   </div>
@@ -913,7 +917,7 @@ export function SequenceEditor({
                   aria-label={`ステップ${index + 1}の形`}
                   data-cell={`${key}:shape`}
                   onChange={(next) => onChange(setStepShape(data, index, next), null)}
-                  onOpenChange={handleMenuOpenChange}
+                  {...menuPropsFor(`${key}:shape`)}
                   onFieldKeyDown={(e) => onShapeKeyDown(e, index)}
                 />
               </div>

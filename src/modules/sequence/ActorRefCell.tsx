@@ -13,7 +13,10 @@ export interface ActorRefCellProps {
   'aria-label': string
   'data-cell': string
   onSelect: (actorId: string) => void
-  /** メニューの開閉。開いている間キャンバスのズーム・パンを止めるために親が使う */
+  /** メニューが開いているか。**省略可**——渡さなければ Radix は非制御モードで動く
+      （セル単体の DOM テストが親を介さず素で描画できるのはこのため） */
+  open?: boolean
+  /** メニューの開閉。同時に1つだけ開くように親が制御するために使う */
   onOpenChange?: (open: boolean) => void
   onFieldKeyDown?: (e: React.KeyboardEvent<HTMLButtonElement>) => void
 }
@@ -42,7 +45,7 @@ export function ActorRefCell(props: ActorRefCellProps) {
   }
   const face = props.invalid ? 'border-warning bg-warning/20' : 'border-rule bg-surface'
   return (
-    <DropdownMenu onOpenChange={props.onOpenChange}>
+    <DropdownMenu open={props.open} onOpenChange={props.onOpenChange}>
       <DropdownMenuTrigger
         type="button"
         className={`w-full truncate rounded-sm border px-1.5 py-0.5 text-left text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring ${face}`}
