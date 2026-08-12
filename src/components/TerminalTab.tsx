@@ -59,6 +59,12 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
       if (event.type !== 'keydown') return true
       if (event.key !== 'Enter' || !event.shiftKey) return true
       if (event.ctrlKey || event.altKey || event.metaKey) return true
+      // xterm は false を返しても preventDefault() を呼ばずに抜ける
+      // （node_modules/@xterm/xterm/lib/xterm.js）。ここで呼んでおかないと
+      // ブラウザの既定動作が生き残り、隠し textarea に本物の改行が挿入
+      // される。溜まった改行が次の入力で送出され、「1回目は改行できるが
+      // 2回目以降は改行されず送信されてしまう」症状になる
+      event.preventDefault()
       const ptyId = ptyIdRef.current
       if (ptyId !== null) {
         void ptyIo.write(ptyId, SHIFT_ENTER_SEQUENCE).catch((err: unknown) => {

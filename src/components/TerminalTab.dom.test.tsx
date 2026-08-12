@@ -419,15 +419,21 @@ describe('TerminalTab', () => {
     expect(handler).toBeDefined()
 
     const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true })
+    const preventDefault = vi.spyOn(event, 'preventDefault')
     const result = handler(event)
 
     expect(result).toBe(false)
+    // xterm は false を返しても preventDefault() を自分では呼ばない
+    // （node_modules/@xterm/xterm/lib/xterm.js）。呼んでおかないとブラウザの
+    // 既定動作が生き残り、隠し textarea に本物の改行が挿入されてしまう
+    // （1回目は改行できるが、2回目以降は改行されず送信される症状の原因）
+    expect(preventDefault).toHaveBeenCalledTimes(1)
     await waitFor(() =>
       expect(pty.io.write).toHaveBeenCalledWith(7, `${String.fromCharCode(27)}\r`),
     )
   })
 
-  it('素の Enter では書き込まない', async () => {
+  it('素の Enter では書き込まない（preventDefault も呼ばない）', async () => {
     const pty = fakePty()
     const onRunning = vi.fn()
     render(
@@ -447,13 +453,18 @@ describe('TerminalTab', () => {
       event: KeyboardEvent,
     ) => boolean
 
-    const result = handler(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: false }))
+    const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: false })
+    const preventDefault = vi.spyOn(event, 'preventDefault')
+    const result = handler(event)
 
     expect(result).toBe(true)
     expect(pty.io.write).not.toHaveBeenCalled()
+    // 素の Enter は xterm に通常どおり処理させる必要がある。ここで
+    // preventDefault してしまうと xterm 自身の Enter 処理まで止まる
+    expect(preventDefault).not.toHaveBeenCalled()
   })
 
-  it('Ctrl+Shift+Enter では書き込まない（修飾キーの取り違えを防ぐ）', async () => {
+  it('Ctrl+Shift+Enter では書き込まない（修飾キーの取り違えを防ぐ、preventDefault も呼ばない）', async () => {
     const pty = fakePty()
     const onRunning = vi.fn()
     render(
@@ -473,12 +484,13 @@ describe('TerminalTab', () => {
       event: KeyboardEvent,
     ) => boolean
 
-    const result = handler(
-      new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, ctrlKey: true }),
-    )
+    const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, ctrlKey: true })
+    const preventDefault = vi.spyOn(event, 'preventDefault')
+    const result = handler(event)
 
     expect(result).toBe(true)
     expect(pty.io.write).not.toHaveBeenCalled()
+    expect(preventDefault).not.toHaveBeenCalled()
   })
 
   it('アンマウント後に term.onData 経由の書き込みが遅れて失敗しても onFailed は呼ばれない（disposed で守る）', async () => {
