@@ -8,13 +8,19 @@
  */
 
 /**
- * アプリに同梱する Skill。**`src-tauri/tauri.conf.json` の
- * `bundle.resources` と一致していなければならない。**
- * Skill を増やすときは両方を直すこと
+ * アプリに同梱する Skill（ユーザーのデータを作るもの）。
+ *
+ * `src-tauri/tauri.conf.json` の `bundle.resources` は
+ * `".claude/skills": "skills"` とディレクトリごと同梱しているので、
+ * **Skill を増やしてもそちらの追従は要らない。ここに1行足すだけでよい。**
+ *
+ * ここに載せない Skill（`palette-retheme` など facet 自身のソースを触るもの）は
+ * ユーザーのプロジェクトフォルダには置かれない
  */
 export const BUNDLED_SKILLS: readonly string[] = [
   'glossary-term-register',
   'error-catalog-register',
+  'sequence-register',
 ]
 
 /**

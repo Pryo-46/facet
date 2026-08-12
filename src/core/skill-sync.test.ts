@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { shouldSyncSkillFile, syncBundledSkills, type SkillSyncIo } from './skill-sync'
+import { BUNDLED_SKILLS, shouldSyncSkillFile, syncBundledSkills, type SkillSyncIo } from './skill-sync'
 
 function fakeIo(existing: string[] = []) {
   const removed: string[] = []
@@ -121,5 +121,22 @@ describe('shouldSyncSkillFile', () => {
   it('references/ のような未知のディレクトリは同期する（除外リスト方式である固定）', () => {
     expect(shouldSyncSkillFile('references/style.md')).toBe(true)
     expect(shouldSyncSkillFile('assets/logo.png')).toBe(true)
+  })
+})
+
+describe('BUNDLED_SKILLS', () => {
+  it('ユーザーのデータを作る Skill が3本とも載っている', () => {
+    // アプリが置き直さない Skill は、プロジェクトフォルダで claude を起動した
+    // ユーザーには存在しない。ここから漏れると Skill が黙って使えなくなる
+    expect([...BUNDLED_SKILLS]).toEqual([
+      'glossary-term-register',
+      'error-catalog-register',
+      'sequence-register',
+    ])
+  })
+
+  it('アプリ自身のソースを触る Skill は載せない（palette-retheme）', () => {
+    // 配色差し替えは facet リポジトリで動かすもので、ユーザーのプロジェクトには不要
+    expect(BUNDLED_SKILLS).not.toContain('palette-retheme')
   })
 })
