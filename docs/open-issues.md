@@ -40,6 +40,10 @@
 - **ペインが壁に当たった状態でさらに広げようとすると、記憶している幅が縮む**（`src/core/column-resize.ts` / `src/components/PaneSplitter.tsx`）: `upper` に達している状態でドラッグすると、クランプ後の値が「意図」として書き戻される。ウィンドウを広げても元の幅に戻らない（ダブルクリック／`Home` で復帰可能）。**表エディタと共有しているモジュールなので、直すなら両方の挙動を見る必要がある** `[M11]`
 - **起動待ちの間に端末へ打った入力が無音で消える**（`src/components/TerminalTab.tsx`）: `term.onData` の登録が `spawn` の解決後のため。実害は起動までの約1秒 `[M11]`
 - **`killAllPtys` が `starting` 状態の PTY を取りこぼしうる**（`src/fs/pty.ts`）: `live` への登録が `pty_spawn` の解決後なので、invoke が in-flight の間に呼ばれると漏れる `[M11]`
+- **`syncBundledSkills` が読む前に消す**（`src/core/skill-sync.ts`）: 同梱 Skill を置き直す処理は `io.exists(root)` が真なら先に `io.removeDir(root)` を呼び、そのあと `io.readBundled(skill)` が失敗すると、プロジェクト側の Skill が消えたまま復旧しない。読んでから消す順にすれば直る `[M11]`
+- **`TerminalTab` がアンマウント時に自分の PTY を殺さない**（`src/components/TerminalTab.tsx`）: 起動 effect の cleanup（`disposed = true; term.dispose()`）は `ptyIdRef.current` を kill しない。プロセスの寿命は台帳（`ptyId` 経由）に一本化してあるため、`spawn` の解決と台帳への反映の隙間で閉じられると取りこぼす。ただし `src/fs/pty.ts` の `live` に載るのでアプリ終了時には必ず回収され、facet 終了後に `claude` が残る経路はない（5経路すべてを追って確認済み）。cleanup で `ptyIdRef.current` を殺せばこの狭いレースも消える `[M11]`
+- **実行中のタブが無いフォルダ切替では `closeAll` を通らない**（`src/App.tsx`）: `openFolder` は `hasRunning(terminals)` が false のとき確認ダイアログを出さず `controller.openFolder(dir)` だけ呼んで返る。`hasRunning` は「実行中」しか見ないため、`exited` / `failed` のタブが旧フォルダの残骸として画面に残る。プロセスは既に無いので実害は表示だけ `[M11]`
+- **`pty_write` が Mutex を保持したままブロッキング書き込みをする**（`src-tauri/src/pty.rs`）: `pty_write` は `state.sessions.lock()` を握ったまま `writer.write_all` / `flush` を呼ぶ。同じロックを取る `pty_kill` も待たされる——詰まった端末を殺せなくなる、という形で出る。キー入力程度のデータ量では問題にならないが、複数タブ運用時の設計上の留意点 `[M11]`
 
 ## 性能
 
@@ -65,6 +69,7 @@
 
 ## 小さな負債
 
+- **`TerminalTab` の根 div が `flex` と `hidden` を同時に出している**（`src/components/TerminalTab.tsx`）: `className={`flex min-h-0 flex-1 flex-col ${hidden ? 'hidden' : ''}`}` は非表示時に `flex` と `hidden` の両クラスを同時に持つ。`src/App.tsx` は同じ問題を三項（`` `${paneOpen ? 'flex' : 'hidden'} ...` ``）で避けており、「display は排他なので三項で切り替える（`hidden` と `flex` を並べてもどちらが勝つかは出力順まかせになる）」というコメントまで書いてある。`TerminalTab` はその警告どおりの形になっており、いまは Tailwind の出力順で `hidden` が勝って動いているだけ `[M11]`
 - **用語テーブルの `<th>` に `sticky` と `relative` が同時に付いている**（`src/modules/glossary/GlossaryEditor.tsx`）: どちらも `position` なので、カラム名が固定されているのは Tailwind が `sticky` を `relative` より後に出力しているからにすぎない。`sticky` 自体が絶対配置の包含ブロックになる（列幅ハンドルはそれに乗っている）ので `relative` は不要。**出力順が変わると固定が静かに外れ、原因は読み手に自明でない** `[M8]`
 - **エディタのキー処理が用語集とエラーカタログで二重化している**（`GlossaryEditor.tsx` / `ErrorCatalogEditor.tsx`）: `runCommand` の switch・`onCellKeyDown`・`textFieldContext`・セルの面のクラス定数（計 約80行）がほぼ同一。M10 は意図的に複製した——いま抽象を決めても、3本目（ロジックツリーは列を持たない図系）が必要とする形と一致する保証がないため（M9 決定1が万能フックを退けたのと同じ理由）。**3本目が列を持つツール（状態遷移の遷移表など）だったら、その時点で引き上げる。** 判断材料は「2本の差が3点（プロファイルトグル・列幅ストア2本・吸収列）に収まっているか」 `[M10]`
 - **キャンバスの土台が logic-tree と sequence で丸ごと複製されている**（`src/modules/sequence/viewport.ts` / `viewport.test.ts` / `useViewport.ts` / `useViewport.dom.test.tsx` / `seq-font.ts`、および `measure.ts` の折り返しアルゴリズム）: sequence M1 の scope が「一般化は2本目完成後の別マイルストーンで判断する」と定めた**意図的な複製**で、各ファイルの先頭にその旨のコメントがある。**2本目が完成したので、判断の材料は揃った**——ツリー（再帰の Reingold–Tilford 型）とシーケンス（X も Y も単純な積み上げ）でレイアウト関数の性質は大きく違うが、**その下のビューポート・測定・フォント読み取りは差が無い**（`viewport.ts` は先頭コメント3行以外 diff ゼロ）。`core/canvas` へ引き上げるかを別マイルストーンで決めること。**それまでは差分を作らない。直すときは両方を直す。** なお logic-tree 側の既知の穴（モーダル中もホイール／ドラッグが生きている・ドラッグ中のアンマウントでリスナーが残る・`FOLLOW_MARGIN` の 8px ずれ）は、**この複製によってそのまま2本に増えている** `[sequence-m1]`
