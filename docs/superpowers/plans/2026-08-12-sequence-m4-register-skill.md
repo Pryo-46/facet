@@ -646,7 +646,9 @@ EOF
 cd .claude/skills/sequence-register && node scripts/sequence-write.mjs --check /tmp/seq-ok.json; echo "exit=$?"
 ```
 
-Expected: `✓ スキーマ検証OK` と `✓ 正規形と一致しています`、`参加者: 3人 ／ ステップ: 3件`、`exit=0`
+Expected: `✓ スキーマ検証OK`、`参加者: 3人 ／ ステップ: 3件`、`exit=0`
+
+**正規形の判定は `△ 正規形と差があります` になる。それが正しい。** 上の heredoc は `actors` / `steps` の各要素を1行で書いているが、`serialize` は `JSON.stringify(value, null, 2)` なので入れ子オブジェクトを必ず1キー1行に展開する。単一行で書いた下書きが自分自身の正規形と一致することはない。`--in` / `--out` で書き出したものを `--check` にかければ `✓ 正規形と一致しています` が出る（Step 5 で確認する）。
 
 - [ ] **Step 4: スキーマ違反が終了コード1で落ちることを確認する**
 
