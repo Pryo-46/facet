@@ -51,6 +51,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [M8](history/m8-glossary-editor-appearance.md) | 用語集エディタの見た目と操作性 | 用語集 |
 | [M9](history/m9-core-list-editor-and-output-profiles.md) | リストエディタのコア化と出力プロファイル | コア |
 | [M10](history/m10-error-catalog-editor.md) | エラーカタログエディタ | エラーカタログ |
+| [M11](history/m11-core-claude-code-pane.md) | Claude Code ペイン | コア |
 | [logic-tree-m1](history/logic-tree-m1-keyboard-editor.md) | キーボードで打ち切れるキャンバスエディタ | ロジックツリー |
 | [sequence-m1](history/sequence-m1-keyboard-editor.md) | ステップ入力＋全ステップに立つ「失敗したら？」の問い | シーケンス |
 

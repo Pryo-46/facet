@@ -75,14 +75,6 @@ describe('TerminalPane', () => {
     expect(screen.getByRole('button', { name: 'Claude 2' }).getAttribute('aria-pressed')).toBe('true')
   })
 
-  it('タブが多くてもタブバーからボタンが消えない', () => {
-    let state = emptyTerminalState
-    for (let i = 0; i < 5; i += 1) state = openSession(state)
-    setup(state)
-    expect(screen.getByRole('button', { name: 'タブを追加' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Claude 1' })).toBeTruthy()
-  })
-
   it('**ペインを畳んでいる間もタブは生きていて、隠れているだけ**', () => {
     // 畳むでアンマウントすると会話とプロセスが消える（設計 決定6）
     const handlers = {

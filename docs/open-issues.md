@@ -4,7 +4,7 @@
 >
 > ここに載るのは「**いつでもよいが、忘れると実害化するもの**」。いま着手すべきものはマイルストーンの計画に入れる。マイルストーン完了時にこのファイルを更新するのは義務（[`../CLAUDE.md`](../CLAUDE.md) 参照）。
 >
-> 最終更新: sequence M2 完了時点（2026-08-11）
+> 最終更新: M11 完了時点（2026-08-12）
 
 各項目の末尾の `[MN]` は**最初に記録されたマイルストーン**。長く開いているものほど「踏まないから残っている」のか「踏むけど後回しにしている」のかを見分ける手がかりになる。**採番は3系統**（コア・用語集・エラーカタログの `MN`、ロジックツリーの `logic-tree-mN`、シーケンスの `sequence-mN`）。
 
@@ -16,14 +16,13 @@
 - **`FLUSH_MAX_ROUNDS` の打ち切りパスに直接テストが無い**（`src/core/autosave.ts`）。戻り値は安全側の false なので後回し可 `[M5]`
 - **`fileExists` に専用の単体テストが無い**（`src/fs/project-fs.ts`）。`exists` への1行委譲で、意味のある挙動は `file-ops.test.ts` が押さえている `[M5]`
 - **`ChoiceDialog` のオーバーレイクリックのテストが無い**。`onOpenChange` を渡さないことで構造的に担保され、同じ機構を Esc のテストが固定している `[M5]`
-- **`Ctrl+Z` / `Ctrl+Shift+Z` をエディタが消費しないことを守るテストが、リポジトリのどこにも無い**: Undo/Redo は rev 10章のグローバル層で、額縁が握って全ツールに効かせている。ところが**額縁とエディタを一緒に立てる App レベルの DOM テストが1本も無い**ため、どのエディタも「自分で `Ctrl+Z` を食べてしまう」変更を入れ放題である。各エディタ側のテストは自分のハンドラしか見ておらず、消費してしまったこと自体は観測できない。**全ツールの Undo が同時に静かに壊れうる唯一の穴**なので、App レベルの DOM テストを1本立てる価値がある `[logic-tree-m1]`
+- **`AppController.openFolder` の `boolean` 契約を直接固定する単体テストが無い**（`src/core/app-controller.test.ts`）: false を返す分岐は4つ（`closeCurrentFile` の flush 失敗／トークンすり替わり2箇所／`scan.unreadable`／catch）。**この契約はフォルダ切替時の破壊的な `kill` が依存しているので load-bearing** `[M11]`
 
 ## 将来の機能を作った瞬間に踏むもの
 
 - **`ensureFileOfType` は将来のインライン登録から呼ぶと二択と競合する**（`src/core/app-controller.ts`）: 内部で `rescan()` を回すので、`ask` が出た直後に `selectFile` で選択を移してしまい、回答が「選択が変わったため書き戻しませんでした」に倒れる。今日は「用語集を作る」ボタンが空状態（未選択時）にしか出ないので到達不能だが、**インライン登録を実装した時点で踏む**（[`history/m4-core-file-operations.md`](history/m4-core-file-operations.md) の `ensureFileOfType` に関する項と併せて読むこと） `[M6]`
 - **モジュール規約8（表記ゆれ検知の対象フィールドパス宣言）が `ToolModule` に無い**（`src/core/registry.ts`）: rev 6章は8点セットと書いているが、コードは7点＋`createEmpty`。**検知エンジン自体もコアに無い**ため、宣言だけ足しても読み手のいない死んだコードになる。エンジンを作る時点で両方を足す `[M9]`
 - **`scripts/gen-types.mjs` は `schemas/*.schema.json` が減っても対応する `src/types/*.ts` を消さない**: スキーマを走査して書き出すだけで、消えたスキーマの古い型ファイルは掃除しない。M9 で `.gitignore` を `src/types/glossary.ts` から `src/types/*.ts` に広げたため、取り残された型ファイルは `git status` に現れず `tsc` の対象にだけ残る。**2本目以降のツールでスキーマを作り直す／消す時点で踏む** `[M9]`（M10 はスキーマを1本足しただけで、作り直し・削除は発生していないため未解消のまま）
-- **エラー登録 Skill が無い**（`.claude/skills/`）: 用語集には `glossary-term-register` があるが、エラーカタログには対応物が無い。会議中に出たエラーを AI 経由で登録する動線が用語集にだけある状態。**アプリと Skill の正規形はバイト単位で一致していなければならない**ので、作るときは `scripts/` の書き出し実装をアプリの `serialize` と突き合わせること `[M10]`
 - **エッジに矢印を描いていない**（`src/modules/logic-tree/TreeEdges.tsx`）: [`logic-tree/logic-tree-canvas-tech-notes.md`](logic-tree/logic-tree-canvas-tech-notes.md) 論点3 は「曲線と矢印」としているが、横向きで親が必ず左にあるため向きは曖昧でなく、M1 では描いていない。**エッジの種類を増やす（点線・色分け）ときに再検討する**——種類が増えた瞬間「線の意味」を線自体が語る必要が出るため `[logic-tree-m1]`
 
 ## 挙動の穴（実害は小さいが残っている）
@@ -36,6 +35,11 @@
 - **検証エラーのバナーが木の上部を覆う**（`src/modules/logic-tree/LogicTreeEditor.tsx`）: `absolute top-0` で敷いており、指摘が2件出ると最初のノードに重なる。`max-height` も無いので件数が多いと広く覆う。**赤表示が出ているファイルほどノードを触りたいのに、そのノードが隠れる**という逆向きの挙動になっている `[logic-tree-m1]`
 - **ドラッグ中にアンマウントすると d3 が window に張ったリスナーが残る**（`src/modules/logic-tree/useViewport.ts`）: 体感とは無関係に成立し、実機確認を終えても解消しない `[logic-tree-m1]`
 - **`FOLLOW_MARGIN`(48) > `CANVAS_MARGIN`(40) で初回の追従が 8px ずれる**（`src/modules/logic-tree/useViewport.ts` / `viewport.ts`）: 完全に見えているノードでも初回の追従だけ 8px 余分に動く。**実機確認の前に載せておく必要がある**——載せておかないと、実機で「1回だけカクッと動く」を見た人が I-1（二重スクロール）の再発と誤診する `[logic-tree-m1]`
+- **一度端末をクリックするとキーボードだけでは本体へ戻れない**（`src/components/TerminalPane.tsx`）: xterm が `Tab` を消費するため。ペインの開閉にショートカットを割り当てない判断（設計 決定11。**人間が「キーは割り当てない」と裁定**）の帰結で、マウスで本体をクリックする必要がある。**facet は入力速度最優先（rev 2章）を掲げているので、体験としては未達である** `[M11]`
+- **端末の中だけライト表示でも暗い**（`src/components/TerminalTab.tsx`）: xterm の既定配色を使い、facet の役割トークンを流し込んでいない（端末は rev 9章の対象外という判断）。実機で違和感が出たら、CSS カスタムプロパティを実行時に解決して xterm の `theme` へ渡す形を検討する——**その際もソースに色値を書かないこと**（`conventions.test.ts`） `[M11]`
+- **ペインが壁に当たった状態でさらに広げようとすると、記憶している幅が縮む**（`src/core/column-resize.ts` / `src/components/PaneSplitter.tsx`）: `upper` に達している状態でドラッグすると、クランプ後の値が「意図」として書き戻される。ウィンドウを広げても元の幅に戻らない（ダブルクリック／`Home` で復帰可能）。**表エディタと共有しているモジュールなので、直すなら両方の挙動を見る必要がある** `[M11]`
+- **起動待ちの間に端末へ打った入力が無音で消える**（`src/components/TerminalTab.tsx`）: `term.onData` の登録が `spawn` の解決後のため。実害は起動までの約1秒 `[M11]`
+- **`killAllPtys` が `starting` 状態の PTY を取りこぼしうる**（`src/fs/pty.ts`）: `live` への登録が `pty_spawn` の解決後なので、invoke が in-flight の間に呼ばれると漏れる `[M11]`
 
 ## 性能
 
