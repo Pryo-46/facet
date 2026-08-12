@@ -1,8 +1,35 @@
 mod pty;
 
+use tauri_plugin_fs::FsExt as _;
+
+/// プロジェクトフォルダ配下の `.claude/` を fs プラグインの実行時 scope に入れる。
+///
+/// **これが無いと mac で Skill を置けない。** フォルダ選択のダイアログが入れる
+/// 許可は `<フォルダ>` と `<フォルダ>/**` の2パターンで、この scope の glob 判定は
+/// unix では `require_literal_leading_dot: true` が既定になる（tauri の
+/// `scope/fs.rs`。Windows は false）。つまり `**` は `.claude` のような
+/// ドット始まりの要素に一致せず、`.claude/skills/` への `exists` が
+/// 「forbidden path」で落ちる。**Windows では既定が逆なので表に出ない。**
+///
+/// **`tauri.conf.json` の `plugins.fs.requireLiteralLeadingDot: false` では
+/// これは直らない。** その設定が届くのは capabilities 由来の scope までで
+/// （同梱 Skill 側の `.gitignore` を読むために実際に入れてある）、ダイアログが
+/// 許可を入れる実行時 scope は `FsScope::default()` から作られており設定を
+/// 見ない（tauri-plugin-fs の `lib.rs`）。**2つの scope は別物で、
+/// 設定とこのコマンドはどちらも要る。**
+///
+/// パターンに `.claude` を literal で入れれば判定を通る。ここで許可するのは
+/// `.claude` 配下だけで、判断は一切置かない（rev 7章）
+#[tauri::command]
+fn allow_skill_dir(app: tauri::AppHandle, dir: String) -> Result<(), String> {
+    app.fs_scope()
+        .allow_directory(std::path::Path::new(&dir).join(".claude"), true)
+        .map_err(|e| e.to_string())
+}
+
 /// ファイルを OS のゴミ箱へ移す。
 ///
-/// このアプリで唯一の自前コマンド。Tauri の fs プラグインにゴミ箱 API が無く、
+/// Tauri の fs プラグインにゴミ箱 API が無く、
 /// `remove` は完全削除になるため、rev 6章「削除はOSのゴミ箱へ移動。完全削除は
 /// しない」をプラグインだけでは満たせない。ロジックは TypeScript 側という
 /// 原則（rev 7章）は維持し、ここには判断を一切置かない。
@@ -27,6 +54,7 @@ pub fn run() {
         .manage(pty::PtyState::default())
         .invoke_handler(tauri::generate_handler![
             move_to_trash,
+            allow_skill_dir,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,
