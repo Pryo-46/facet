@@ -83,9 +83,18 @@ export function markFailed(state: TerminalState, id: number, message: string): T
   return patch(state, id, (s) => ({ ...s, ptyId: null, status: 'failed', message }))
 }
 
+/**
+ * そのタブが起動中・実行中か（タブを閉じる確認の要否。M11 実機確認）。
+ * `hasRunning` はセッション全体を見るので、1本のタブの状態を見る用途には
+ * 合わない——別に切り出す
+ */
+export function isSessionRunning(session: TerminalSession): boolean {
+  return session.status === 'starting' || session.status === 'running'
+}
+
 /** 起動中・実行中のタブが1つでもあるか（フォルダ切替の確認の要否） */
 export function hasRunning(state: TerminalState): boolean {
-  return state.sessions.some((s) => s.status === 'starting' || s.status === 'running')
+  return state.sessions.some(isSessionRunning)
 }
 
 export function closeAll(state: TerminalState): TerminalState {

@@ -5,6 +5,7 @@ import {
   closeSession,
   emptyTerminalState,
   hasRunning,
+  isSessionRunning,
   markExited,
   markFailed,
   markRunning,
@@ -114,5 +115,16 @@ describe('hasRunning / closeAll', () => {
     expect(after.sessions).toEqual([])
     expect(after.activeId).toBeNull()
     expect(openSession(after).sessions[0]?.label).toBe('Claude 3')
+  })
+})
+
+describe('isSessionRunning', () => {
+  it('starting / running は true、exited / failed は false', () => {
+    const starting = openSession(emptyTerminalState).sessions[0]
+    if (starting === undefined) throw new Error('unreachable')
+    expect(isSessionRunning(starting)).toBe(true)
+    expect(isSessionRunning({ ...starting, status: 'running', ptyId: 42 })).toBe(true)
+    expect(isSessionRunning({ ...starting, status: 'exited' })).toBe(false)
+    expect(isSessionRunning({ ...starting, status: 'failed' })).toBe(false)
   })
 })

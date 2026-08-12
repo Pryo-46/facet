@@ -3,7 +3,7 @@ import { PanelLeft, PanelRight } from 'lucide-react'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ExportMenu } from '@/components/ExportMenu'
-import { PaneSplitter } from '@/components/PaneSplitter'
+import { EDITOR_MIN_WIDTH, PANE_MIN_WIDTH, PaneSplitter } from '@/components/PaneSplitter'
 import { TerminalPane } from '@/components/TerminalPane'
 import { buttonBase } from '@/components/button-styles'
 import { FileList } from '@/components/FileList'
@@ -18,7 +18,7 @@ import {
 } from '@/core/app-controller'
 import { createAutoSaver } from '@/core/autosave'
 import { createCoalescer } from '@/core/coalesce'
-import { createColumnWidthStore } from '@/core/column-resize'
+import { createColumnWidthStore, resizeColumns } from '@/core/column-resize'
 import { canCreateFileOfType } from '@/core/file-ops'
 import {
   canRedo,
@@ -42,6 +42,7 @@ import {
   closeSession,
   emptyTerminalState,
   hasRunning,
+  isSessionRunning,
   markExited,
   markFailed,
   markRunning,
@@ -139,6 +140,41 @@ function App() {
   const terminalPaneRef = useRef<HTMLElement | null>(null)
 
   /**
+   * ウィンドウが狭まったときにペイン幅を詰める（実機確認の指摘A。M11 Task 11）。
+   * `splitRef`（サイドバーを含まない、エディタ＋ペインの区間）の実測幅を
+   * `resizeColumns`（`delta: 0`）に通すだけで、上限クランプの判断を
+   * `column-resize.ts` 1箇所に保てる。ResizeObserver は observe 直後にも
+   * 一度発火する仕様なので、初期表示時の詰めも兼ねる。
+   *
+   * **ウィンドウ最小幅 1000px の下でサイドバーを開くと 744px しか残らず、
+   * `EDITOR_MIN_WIDTH`(480) + `PANE_MIN_WIDTH`(320) = 800px に足りない。**
+   * この場合どちらを譲るかは `resizeColumns` の上限クランプが決める:
+   * `upper = max(PANE_MIN_WIDTH, available - EDITOR_MIN_WIDTH)` なので、
+   * 詰め切れないぶんはペインが `PANE_MIN_WIDTH` を守り、エディタ側が
+   * それより狭くなって譲る（エディタは `min-w-0` で潰れられる。ペイン側は
+   * 端末の桁数が最低限確保されないと使い物にならないため、ペインを守る）
+   */
+  useEffect(() => {
+    const el = splitRef.current
+    if (el === null) return
+    const clamp = () => {
+      paneWidthStore.set(
+        resizeColumns({
+          widths: paneWidthStore.getSnapshot(),
+          index: 0,
+          delta: 0,
+          minWidth: PANE_MIN_WIDTH,
+          available: el.clientWidth,
+          flexMinWidth: EDITOR_MIN_WIDTH,
+        }),
+      )
+    }
+    const observer = new ResizeObserver(clamp)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  /**
    * タブを1本足す。**開く直前に必ず Skill を同期する**（設計 決定10）——
    * Skill の更新・追加が黙って取り残されないようにするため。
    * 同期に失敗しても起動は続ける（Skill が無くても端末は使える。設計 決定13）
@@ -159,12 +195,38 @@ function App() {
     setTerminals((prev) => openSession(prev))
   }
 
-  const closeTerminal = (id: number) => {
+  const closeTerminalNow = (id: number) => {
     // **updater の外で殺す。** setState の updater は純粋でなければならない
     //（StrictMode の二重実行で kill が2回飛ぶ。showToast の id 採番と同じ理由）
     const target = terminals.sessions.find((s) => s.id === id)
     if (target !== undefined && target.ptyId !== null) void tauriPtyIo.kill(target.ptyId)
     setTerminals((prev) => closeSession(prev, id))
+  }
+
+  /**
+   * タブを閉じる。**実行中（starting/running）のタブは確認を経由する。**
+   * 計画の決定12（確認なしで即座に殺す）を、実機で使った人間が「確認は出して
+   * ほしい」と覆した（Task 11）。exited/failed は殺す PTY が無いので確認なしで
+   * 閉じてよい。`key` を切ることで、同じタブへの × 連打が要求を積み上げず
+   * 1件に置き換わる（switch-folder / close と同じ作法）
+   */
+  const closeTerminal = (id: number) => {
+    const target = terminals.sessions.find((s) => s.id === id)
+    if (target === undefined) return
+    if (!isSessionRunning(target)) {
+      closeTerminalNow(id)
+      return
+    }
+    setModals((prev) =>
+      pushModal(prev, {
+        kind: 'confirm',
+        key: `close-tab-${id}`,
+        title: `${target.label} を終了しますか？`,
+        description: '会話は Claude Code 側に残るので、--resume で戻せます。',
+        confirmLabel: '終了する',
+        onConfirm: () => closeTerminalNow(id),
+      }),
+    )
   }
   const [projectDir, setProjectDir] = useState<string | null>(null)
   const [files, setFiles] = useState<ProjectFile[]>([])
@@ -402,7 +464,7 @@ function App() {
   }, [projectDir, controller, setBanner])
 
   return (
-    <main className="flex h-screen flex-col bg-canvas bg-grid-paper text-ink">
+    <main className="flex h-screen flex-col overflow-hidden bg-canvas bg-grid-paper text-ink">
       <header className="flex items-center gap-4 border-b border-rule bg-surface px-6 py-3">
         <h1 className="text-lg font-bold text-ink">facet</h1>
         <Button onClick={() => void openFolder()}>フォルダを開く</Button>

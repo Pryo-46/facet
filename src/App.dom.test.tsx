@@ -177,6 +177,33 @@ describe('フォルダ切替', () => {
   })
 })
 
+describe('タブを閉じる確認', () => {
+  // 実機確認の指摘Bで計画の決定12（確認なしで即座に殺す）が覆り、
+  // 実行中のタブは確認ダイアログを経由するようになった（M11 Task 11）
+  it('実行中のタブの × を押すと確認ダイアログが出て、その時点ではまだ閉じない', async () => {
+    await openPane()
+    fireEvent.click(screen.getByRole('button', { name: 'Claude 1 を閉じる' }))
+    expect(await screen.findByText('Claude 1 を終了しますか？')).toBeTruthy()
+    // ダイアログが開いている間、背後は Radix が aria-hidden にする
+    // （フォーカストラップ）。存在の確認なので hidden: true で見る
+    expect(screen.getByRole('button', { name: 'Claude 1', hidden: true })).toBeTruthy()
+  })
+
+  it('承認するとタブが消える', async () => {
+    await openPane()
+    fireEvent.click(screen.getByRole('button', { name: 'Claude 1 を閉じる' }))
+    fireEvent.click(await screen.findByRole('button', { name: '終了する' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
+  })
+
+  it('取り消すとタブが残る', async () => {
+    await openPane()
+    fireEvent.click(screen.getByRole('button', { name: 'Claude 1 を閉じる' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'キャンセル' }))
+    expect(screen.getByRole('button', { name: 'Claude 1' })).toBeTruthy()
+  })
+})
+
 describe('アプリ終了', () => {
   // **beforeEach で消すこと。** 「フォルダ切替」側のテストも実フォルダ切替を
   // 経由して killAllPtys（このファイル共通のモック）を呼ぶので、afterEach

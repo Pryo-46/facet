@@ -8,10 +8,13 @@ import { useColumnResize, type ColumnWidthStore } from '@/core/column-resize'
  * エディタが潰れない上限クランプが全部ついてくる。3本目のリサイズ実装を生やさない
  */
 
-/** ペインをこれより狭くしない */
-const PANE_MIN_WIDTH = 320
-/** エディタに必ず残す幅 */
-const EDITOR_MIN_WIDTH = 480
+/**
+ * ペインをこれより狭くしない。**App.tsx（ウィンドウ幅への追従）と共有するため
+ * export する**（定数を二重に書かない）
+ */
+export const PANE_MIN_WIDTH = 320
+/** エディタに必ず残す幅。同じ理由で export する */
+export const EDITOR_MIN_WIDTH = 480
 /** ←→ 1回あたり */
 const STEP = 16
 
