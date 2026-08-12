@@ -1423,32 +1423,44 @@ function assertionsFor(evalId, dir) {
 }
 
 // ---- run ディレクトリを回って grading.json を書く ----
+//
+// **既存2本の grade.mjs と同じ規約にすること**（eval-N/{with_skill,without_skill}）。
+// 走査規約と grading.json の形（run_id / expectations）がズレると、
+// 3本を横断して回すハーネスが読めない。フラットな run-0 形式にしないこと
 
-for (const entry of fs.readdirSync(ITER, { withFileTypes: true })) {
-  if (!entry.isDirectory()) continue;
-  const runDir = path.join(ITER, entry.name);
-  const m = /(\d+)/.exec(entry.name);
-  if (!m) continue;
-  const evalId = Number(m[1]);
-  const assertions = assertionsFor(evalId, runDir);
-  const passed = assertions.filter((a) => a.passed).length;
-  fs.writeFileSync(
-    path.join(runDir, "grading.json"),
-    JSON.stringify({ eval_id: evalId, passed, total: assertions.length, assertions }, null, 2) + "\n",
-    "utf8"
-  );
-  console.log(`${entry.name}: ${passed}/${assertions.length}`);
+const results = [];
+for (const evalDir of fs.readdirSync(ITER).filter((d) => d.startsWith("eval-"))) {
+  const evalId = Number(evalDir.split("-")[1]);
+  for (const variant of ["with_skill", "without_skill"]) {
+    const runDir = path.join(ITER, evalDir, variant);
+    if (!fs.existsSync(runDir)) continue;
+    const expectations = assertionsFor(evalId, runDir);
+    const passed = expectations.filter((e) => e.passed).length;
+    const grading = { run_id: `${evalDir}-${variant}`, expectations, passed, total: expectations.length };
+    fs.writeFileSync(path.join(runDir, "grading.json"), JSON.stringify(grading, null, 2) + "\n", "utf8");
+    results.push(grading);
+  }
+}
+
+for (const r of results.sort((a, b) => a.run_id.localeCompare(b.run_id))) {
+  console.log(`${r.run_id}: ${r.passed}/${r.total}`);
+  for (const e of r.expectations.filter((x) => !x.passed)) console.log(`   ✗ ${e.text} — ${e.evidence}`);
 }
 ```
 
 - [ ] **Step 4: `grade.mjs` が worktree から動くことを確認する**
 
 ```bash
-mkdir -p /tmp/seq-iter/run-0 && cp /tmp/seq-ok.json /tmp/seq-iter/run-0/注文確定.json
-cd .claude/skills/sequence-register && node evals/grade.mjs /tmp/seq-iter && cat /tmp/seq-iter/run-0/grading.json | head -20
+mkdir -p /tmp/seq-iter/eval-0/with_skill /tmp/seq-iter/eval-0/without_skill
+cp /tmp/seq-ok.json /tmp/seq-iter/eval-0/with_skill/注文確定.json
+cp /tmp/seq-ok.json /tmp/seq-iter/eval-0/without_skill/注文確定.json
+cd .claude/skills/sequence-register && node evals/grade.mjs /tmp/seq-iter
+ls /tmp/seq-iter/eval-0/*/grading.json
 ```
 
-Expected: `run-0: N/M` が出力され、`grading.json` が書かれる。**絶対パスの決め打ちが無いので worktree でも動くこと**が確認できる（`SCHEMA` が解決できずに全件 fail するなら、`SKILL` からの相対段数を見直す）
+Expected: `eval-0-with_skill: N/M` と `eval-0-without_skill: N/M` の**2行**が出力され、`grading.json` が**バリアントごとに1つずつ**書かれる。**絶対パスの決め打ちが無いので worktree でも動くこと**が確認できる（`SCHEMA` が解決できずに全件 fail するなら、`SKILL` からの相対段数を見直す）
+
+`eval-0` 直下に `grading.json` が1つだけできたなら走査規約を間違えている（既存2本と揃っていない）
 
 - [ ] **Step 5: 用語集版 `grade.mjs` の自己位置解決を揃える（open-issues #81）**
 
@@ -1469,12 +1481,12 @@ const SCHEMA = path.resolve(SKILL, "../../../schemas/glossary.schema.json");
 - [ ] **Step 6: 用語集版が worktree で動くことを確認する**
 
 ```bash
-mkdir -p /tmp/glo-iter/run-0
-cp .claude/skills/glossary-term-register/evals/fixtures/*/*.json /tmp/glo-iter/run-0/ 2>/dev/null || true
-cd .claude/skills/glossary-term-register && node evals/grade.mjs /tmp/glo-iter && cat /tmp/glo-iter/run-0/grading.json | head -10
+mkdir -p /tmp/glo-iter/eval-1/with_skill
+cp .claude/skills/glossary-term-register/evals/fixtures/*/*.json /tmp/glo-iter/eval-1/with_skill/ 2>/dev/null || true
+cd .claude/skills/glossary-term-register && node evals/grade.mjs /tmp/glo-iter
 ```
 
-Expected: `run-0: N/M` が出力される。**「スキーマが見つかりません」で全件 fail しないこと**（絶対パス依存が消えたことの確認）
+Expected: `eval-1-with_skill: N/M` が出力される。**「スキーマが見つかりません」で全件 fail しないこと**（絶対パス依存が消えたことの確認）
 
 - [ ] **Step 7: 3本の `grade.mjs` が同じ形になったことを確認する**
 
