@@ -89,6 +89,7 @@ vi.mock('@xterm/xterm', () => ({
       onData: vi.fn(),
       loadAddon: vi.fn(),
       dispose: vi.fn(),
+      attachCustomKeyEventHandler: vi.fn(),
       cols: 80,
       rows: 24,
     }
@@ -99,6 +100,16 @@ vi.mock('@xterm/addon-fit', () => ({
     return { fit: vi.fn() }
   }),
 }))
+// jsdom には ResizeObserver が無い。TerminalTab がペイン幅の追従に使うので
+// ここでは「何もしないフェイク」に差し替えて落ちないようにするだけでよい
+vi.stubGlobal(
+  'ResizeObserver',
+  class {
+    observe(): void {}
+    disconnect(): void {}
+    unobserve(): void {}
+  },
+)
 
 const App = (await import('./App')).default
 

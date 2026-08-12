@@ -12,6 +12,7 @@ const term = {
   onData: vi.fn(),
   dispose: vi.fn(),
   loadAddon: vi.fn(),
+  attachCustomKeyEventHandler: vi.fn(),
   cols: 80,
   rows: 24,
 }
@@ -29,6 +30,25 @@ vi.mock('@xterm/addon-fit', () => ({
     return fit
   }),
 }))
+
+// jsdom には ResizeObserver が無い。observe されたコールバックをテストから
+// 呼べるフェイクに差し替える
+class FakeResizeObserver {
+  static instances: FakeResizeObserver[] = []
+  callback: ResizeObserverCallback
+  observe = vi.fn()
+  disconnect = vi.fn()
+  unobserve = vi.fn()
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback
+    FakeResizeObserver.instances.push(this)
+  }
+  trigger(width: number, height: number): void {
+    const entries = [{ contentRect: { width, height } } as ResizeObserverEntry]
+    this.callback(entries, this as unknown as ResizeObserver)
+  }
+}
+vi.stubGlobal('ResizeObserver', FakeResizeObserver)
 
 const { TerminalTab } = await import('./TerminalTab')
 
@@ -64,11 +84,15 @@ function fakePty() {
 function fakePtyMultiSpawn() {
   const issuedIds: number[] = []
   const killedIds: number[] = []
+  // spawn ごとの onExit を ID 別に持っておく。捨てられた側の onExit を
+  // テストから明示的に呼べるようにするため
+  const onExits = new Map<number, (code: number | null) => void>()
   let nextId = 100
   const io: PtyIo = {
-    spawn: async () => {
+    spawn: async (spec) => {
       const id = nextId++
       issuedIds.push(id)
+      onExits.set(id, spec.onExit)
       return id
     },
     write: vi.fn(async () => undefined),
@@ -77,11 +101,21 @@ function fakePtyMultiSpawn() {
       killedIds.push(id)
     }),
   }
-  return { io, issuedIds, killedIds }
+  return {
+    io,
+    issuedIds,
+    killedIds,
+    exit: (id: number, code: number | null) => onExits.get(id)?.(code),
+  }
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // 前のテストで書き換わった状態を戻す（fit() のモック実装が cols/rows を
+  // 変えるテストがあるため）
+  term.cols = 80
+  term.rows = 24
+  FakeResizeObserver.instances = []
 })
 afterEach(cleanup)
 
@@ -238,5 +272,212 @@ describe('TerminalTab', () => {
     // 合わせると発行された2本と一致する(取りこぼしも重複もない)
     expect(survivedId).not.toBe(killedId)
     expect([survivedId, killedId].sort()).toEqual([...pty.issuedIds].sort())
+  })
+
+  it('StrictMode で捨てられた側の PTY が終了イベントを出しても onExited は呼ばれない（生き残った側の終了は伝わる）', async () => {
+    // 指摘1: disposed で守られていない onExit は、捨てられた側（kill 済み）の
+    // 終了イベントを生きているセッションの終了として誤通知してしまう。
+    // これが実機の3症状（誤った終了表示／フォルダ切替の確認が出ない／
+    // タブを閉じても kill が飛ばない）の共通原因だった
+    const pty = fakePtyMultiSpawn()
+    const onRunning = vi.fn()
+    const onExited = vi.fn()
+    render(
+      <StrictMode>
+        <TerminalTab
+          session={session()}
+          cwd="/proj"
+          ptyIo={pty.io}
+          hidden={false}
+          onRunning={onRunning}
+          onExited={onExited}
+          onFailed={vi.fn()}
+        />
+      </StrictMode>,
+    )
+
+    await waitFor(() => expect(pty.issuedIds).toHaveLength(2))
+    await waitFor(() => expect(onRunning).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(pty.killedIds).toHaveLength(1))
+
+    const survivedId = onRunning.mock.calls[0]?.[1] as number
+    const killedId = pty.killedIds[0] as number
+
+    // 1. 捨てられた側の onExit を発火させても onExited は呼ばれない
+    pty.exit(killedId, 1)
+    expect(onExited).not.toHaveBeenCalled()
+
+    // 2. 生き残った側の onExit を発火させたら onExited は呼ばれる
+    //    （守りすぎて本物の終了まで落としていないこと）
+    pty.exit(survivedId, 0)
+    expect(onExited).toHaveBeenCalledTimes(1)
+    expect(onExited).toHaveBeenCalledWith(1, '終了しました（コード 0）')
+  })
+
+  it('ペインの寸法が変わったら fit() を走らせ、桁数・行数が変わっていれば pty_resize を呼ぶ', async () => {
+    const pty = fakePty()
+    const onRunning = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    // 表示中でマウントすると「隠れている間は測らない」effect が起動直後に
+    // 1回 fit() を呼ぶ。ResizeObserver 由来の呼び出しだけを見たいので、
+    // 起動が落ち着いた（running になった）時点で一旦クリアする
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+    fit.fit.mockClear()
+
+    const observer = FakeResizeObserver.instances.at(-1)
+    expect(observer).toBeDefined()
+
+    // fit() が実際に桁数・行数を変えるケースを模す
+    fit.fit.mockImplementationOnce(() => {
+      term.cols = 100
+      term.rows = 30
+    })
+    observer?.trigger(800, 600)
+
+    expect(fit.fit).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(pty.resized).toEqual([{ id: 7, cols: 100, rows: 30 }]))
+  })
+
+  it('桁数・行数が変わらない通知では pty_resize を呼ばない', async () => {
+    const pty = fakePty()
+    const onRunning = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+    fit.fit.mockClear()
+
+    const observer = FakeResizeObserver.instances.at(-1)
+    // fit() のデフォルト実装は term.cols / term.rows を変えない
+    observer?.trigger(800, 600)
+
+    expect(fit.fit).toHaveBeenCalledTimes(1)
+    expect(pty.resized).toEqual([])
+  })
+
+  it('寸法が 0 の通知では fit しない（隠れている間の通知を無視する）', async () => {
+    const pty = fakePty()
+    const onRunning = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+    fit.fit.mockClear()
+
+    const observer = FakeResizeObserver.instances.at(-1)
+    observer?.trigger(0, 0)
+
+    expect(fit.fit).not.toHaveBeenCalled()
+    expect(pty.resized).toEqual([])
+  })
+
+  it('Shift+Enter で ESC+CR を書き込み、xterm の既定処理を止める', async () => {
+    const pty = fakePty()
+    const onRunning = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+
+    const handler = term.attachCustomKeyEventHandler.mock.calls[0]?.[0] as (
+      event: KeyboardEvent,
+    ) => boolean
+    expect(handler).toBeDefined()
+
+    const event = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true })
+    const result = handler(event)
+
+    expect(result).toBe(false)
+    await waitFor(() =>
+      expect(pty.io.write).toHaveBeenCalledWith(7, `${String.fromCharCode(27)}\r`),
+    )
+  })
+
+  it('素の Enter では書き込まない', async () => {
+    const pty = fakePty()
+    const onRunning = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+
+    const handler = term.attachCustomKeyEventHandler.mock.calls[0]?.[0] as (
+      event: KeyboardEvent,
+    ) => boolean
+
+    const result = handler(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: false }))
+
+    expect(result).toBe(true)
+    expect(pty.io.write).not.toHaveBeenCalled()
+  })
+
+  it('Ctrl+Shift+Enter では書き込まない（修飾キーの取り違えを防ぐ）', async () => {
+    const pty = fakePty()
+    const onRunning = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+
+    const handler = term.attachCustomKeyEventHandler.mock.calls[0]?.[0] as (
+      event: KeyboardEvent,
+    ) => boolean
+
+    const result = handler(
+      new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, ctrlKey: true }),
+    )
+
+    expect(result).toBe(true)
+    expect(pty.io.write).not.toHaveBeenCalled()
   })
 })
