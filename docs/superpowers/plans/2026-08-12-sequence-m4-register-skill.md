@@ -14,7 +14,7 @@
 - **作業は worktree `sequence-m4-register-skill` の中で行う。** 主チェックアウトで計画・仕様ファイルを作らない（CLAUDE.md）
 - **ID を手で書かない。** 必ず `scripts/new-id.mjs` の出力を使う。連番禁止
 - ID 形式: `actor_` / `step_` ＋ 英数字62文字（`A-Za-z0-9`）の nanoid **10文字固定**
-- **`questions.ts` のコピーは手で編集しない。** 正は `src/modules/sequence/questions.ts` で、コピーはそこから丸ごと取り直す
+- **同梱した `.ts` のコピーは手で編集しない。** 正は `src/modules/sequence/questions.ts` と `src/core/canonical.ts` で、コピーはそこから丸ごと取り直す
 - Node は **22.18+ / 23.6+ / 24+**（型ストリップが unflagged。23.0〜23.5 は不可）。検証環境は v24.12.0
 - スクリプトの終了コード: **0＝成功（警告はあり得る）／1＝スキーマ検証失敗／2＝使い方の誤り**
 - 書き出しの正規形: キー順はスキーマの `properties` 記載順から実行時に導出／インデント2スペース／**LF**／非ASCIIそのまま／末尾改行あり／BOM なし
@@ -29,11 +29,12 @@
 | ファイル | 責務 |
 | --- | --- |
 | `src/modules/sequence/questions.ts`（改） | 問いの導出。**`readSlot` をここへ移す**（Task 1） |
-| `src/modules/sequence/commands.ts`（改） | `readSlot` の定義を削り、`questions.ts` から re-export |
+| `src/modules/sequence/commands.ts`（改） | `readSlot` の定義を削り、`questions.ts` から import して使う |
 | `src/modules/sequence/markdown.ts`（改） | `readSlot` の import 元を `./questions` へ |
 | `src/modules/sequence/SequenceEditor.tsx`（改） | ローカルの `readAnswer` を削り、`readSlot` を使う |
-| `src/modules/sequence/skill-copy.test.ts`（新） | コピーのバイト一致／`questions.ts` が型 import のみ、の機械検査 |
+| `src/modules/sequence/skill-copy.test.ts`（新） | コピー2本のバイト一致／値 import と消去不能構文が無いこと、の機械検査 |
 | `.claude/skills/sequence-register/scripts/questions.ts`（新） | 上記のバイト一致コピー |
+| `.claude/skills/sequence-register/scripts/canonical.ts`（新） | `src/core/canonical.ts` のバイト一致コピー（正規形シリアライザ） |
 | `.claude/skills/sequence-register/scripts/new-id.mjs`（新） | ID 採番 |
 | `.claude/skills/sequence-register/scripts/sequence-write.mjs`（新） | 検証＋正規化＋整合性検証＋集計 |
 | `.claude/skills/sequence-register/SKILL.md`（新） | 聞き方の手順書（この Skill の本体） |
@@ -54,7 +55,7 @@
 
 **Files:**
 - Modify: `src/modules/sequence/questions.ts`（末尾に追加）
-- Modify: `src/modules/sequence/commands.ts:243-262`（定義を削り re-export に）
+- Modify: `src/modules/sequence/commands.ts:4, 246-262`（import を値に変え、定義を削る。360 行目の呼び出しはそのまま残る）
 - Modify: `src/modules/sequence/markdown.ts:4`（import 元の変更）
 - Modify: `src/modules/sequence/SequenceEditor.tsx:168-178, 330, 338`（`readAnswer` の削除）
 - Test: `src/modules/sequence/questions.test.ts`（追記）
@@ -132,16 +133,15 @@ Expected: PASS
 
 - [ ] **Step 5: `commands.ts` の定義を削る**
 
-`commands.ts` の `export function readSlot(...)` を、直前のドキュメントコメント（`同じ読み方が3箇所にある` で始まるブロック）ごと削除する。
+`commands.ts` の `export function readSlot(...)`（252 行目付近）を、直前のドキュメントコメント（`同じ読み方が3箇所にある` で始まるブロック）ごと削除する。
 
-**import 行は触らない。** `commands.ts:4` は `import type { AnswerPath } from './questions'` という型のみの import で、`readSlot` を消したあとも `AnswerPath` は他所で使われている。
-
-削除した位置に、後方互換の再輸出を1行置く:
+**`commands.ts:360` が `readSlot` を内部で使っている**（`const current = readSlot(step, path)`）ので、値として import し直す必要がある。`commands.ts:4` を次に置き換える:
 
 ```ts
-// 読み方の正は questions.ts（同梱 Skill が import できる側）。ここは後方互換の再輸出
-export { readSlot } from './questions'
+import { readSlot, type AnswerPath } from './questions'
 ```
+
+**再輸出は置かない。** Step 6 で `markdown.ts` が `./questions` を直接見るようになり、`./commands` 経由で `readSlot` を引く利用者はいなくなる。後方互換の再輸出は死んだコードになる。
 
 - [ ] **Step 6: `markdown.ts` の import 元を変える**
 
@@ -177,15 +177,25 @@ git commit -m "refactor(sequence): 答えスロットの読み方を questions.t
 
 ---
 
-### Task 2: `questions.ts` のコピーと一致の機械検査
+### Task 2: `.ts` コピー2本と一致の機械検査
+
+同梱 Skill は `src/` を直接 import できない（アプリがプロジェクトフォルダへコピーするため）。手で複製すると open-issues #78 と同じ「追従漏れがテストで検知されない」状態になるので、**バイト一致コピー＋機械検査**にする。対象は2本:
+
+| コピー | 正 | 何のため |
+| --- | --- | --- |
+| `scripts/questions.ts` | `src/modules/sequence/questions.ts` | 問いの導出・答えの読み方（Task 5 の集計と検証） |
+| `scripts/canonical.ts` | `src/core/canonical.ts` | 正規形シリアライザ（Task 4 の書き出し） |
+
+`canonical.ts` は **import を1つも持たない**ので型ストリップだけで通る（実測済み）。そのヘッダコメントは既に「Skill 側の write スクリプトとバイト単位で同一の出力を返すこと」を要求しており、**コピーにすればその要求が構造的に満たされる**（既存2本の Skill は同じ処理を手で複製している）。
 
 **Files:**
 - Create: `.claude/skills/sequence-register/scripts/questions.ts`
+- Create: `.claude/skills/sequence-register/scripts/canonical.ts`
 - Test: `src/modules/sequence/skill-copy.test.ts`
 
 **Interfaces:**
 - Consumes: Task 1 の `questions.ts`（`readSlot` を含む形）
-- Produces: `.claude/skills/sequence-register/scripts/questions.ts`（`src/modules/sequence/questions.ts` とバイト一致）。Task 4 の `sequence-write.mjs` が `await import('./questions.ts')` で読む
+- Produces: Task 4・5 の `sequence-write.mjs` が `await import('./questions.ts')`（`poseQuestions` / `unposedAnswers` / `readSlot`）と `import { serialize, stripBom } from './canonical.ts'` で読む
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -196,35 +206,37 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 /**
- * 同梱 Skill（sequence-register）は questions.ts のバイト一致コピーを持つ。
+ * 同梱 Skill（sequence-register）は、アプリのソース2本のバイト一致コピーを持つ。
  *
  * **なぜコピーなのか。** Skill はアプリがユーザーのプロジェクトフォルダへ
  * 置き直すため（src/core/skill-sync.ts）、実行時に src/ は存在しない。
- * 一方で問いの導出を手で複製すると、エラーカタログ Skill と同じ
+ * 一方で手で複製すると、エラーカタログ Skill と同じ
  * 「追従漏れがテストで検知されない」状態になる（open-issues #78）。
  * **バイト一致のコピー＋この検査**なら、ズレた瞬間に赤くなる
  */
-const APP = 'src/modules/sequence/questions.ts'
-const SKILL = '.claude/skills/sequence-register/scripts/questions.ts'
+const COPIES = [
+  { app: 'src/modules/sequence/questions.ts', skill: '.claude/skills/sequence-register/scripts/questions.ts' },
+  { app: 'src/core/canonical.ts', skill: '.claude/skills/sequence-register/scripts/canonical.ts' },
+]
 
-describe('sequence-register 同梱の questions.ts', () => {
-  it('アプリの questions.ts とバイト一致する', () => {
-    expect(readFileSync(SKILL)).toEqual(readFileSync(APP))
+describe.each(COPIES)('sequence-register 同梱の $app', ({ app, skill }) => {
+  it('アプリ側とバイト一致する', () => {
+    expect(readFileSync(skill)).toEqual(readFileSync(app))
   })
 
-  it('questions.ts は型 import しか持たない（コピーが Node で解決できる条件）', () => {
-    // 値 import があるとコピー側で相対解決できず、sequence-write.mjs が落ちる。
-    // `import type ...` と `import { type X } from` を除いた import 文を探す
-    const src = readFileSync(APP, 'utf8')
+  it('値 import を持たない（コピーが Node で相対解決できる条件）', () => {
+    // 値 import があるとコピー側で解決できず、sequence-write.mjs が落ちる。
+    // `import type ...` と `import { type X } from` は型ストリップで消えるので許す
+    const src = readFileSync(app, 'utf8')
     const valueImports = [...src.matchAll(/^import\s+(?!type\s)(.*)$/gm)]
       .map((m) => m[0])
       .filter((line) => !/^import\s*\{\s*type\s/.test(line))
     expect(valueImports).toEqual([])
   })
 
-  it('questions.ts は消去できない構文（enum / パラメータプロパティ）を持たない', () => {
+  it('消去できない構文（enum / パラメータプロパティ）を持たない', () => {
     // 型ストリップは型注釈しか消せない。enum は実行時の値を持つので落ちる
-    const src = readFileSync(APP, 'utf8')
+    const src = readFileSync(app, 'utf8')
     expect(src).not.toMatch(/^\s*(export\s+)?(const\s+)?enum\s/m)
     expect(src).not.toMatch(/constructor\s*\([^)]*\b(public|private|protected|readonly)\s/)
   })
@@ -234,7 +246,7 @@ describe('sequence-register 同梱の questions.ts', () => {
 - [ ] **Step 2: テストが失敗することを確認する**
 
 Run: `npx vitest run src/modules/sequence/skill-copy.test.ts`
-Expected: FAIL（1件目が ENOENT。コピーがまだ無い）
+Expected: FAIL（バイト一致の2件が ENOENT。コピーがまだ無い）
 
 - [ ] **Step 3: コピーを作る**
 
@@ -243,25 +255,36 @@ Expected: FAIL（1件目が ENOENT。コピーがまだ無い）
 ```bash
 mkdir -p .claude/skills/sequence-register/scripts
 cp src/modules/sequence/questions.ts .claude/skills/sequence-register/scripts/questions.ts
+cp src/core/canonical.ts .claude/skills/sequence-register/scripts/canonical.ts
 ```
 
 - [ ] **Step 4: テストが通ることを確認する**
 
 Run: `npx vitest run src/modules/sequence/skill-copy.test.ts`
-Expected: PASS（3件）
+Expected: PASS（6件＝2ファイル × 3検査）
 
-- [ ] **Step 5: コピーが Node から実際に import できることを確認する**
+- [ ] **Step 5: コピー2本が Node から実際に import できることを確認する**
 
-Run: `node -e "import('./.claude/skills/sequence-register/scripts/questions.ts').then(m => console.log(JSON.stringify(m.poseQuestions({kind:'call',awaitsReply:false})), JSON.stringify(m.readSlot({}, 'failed'))))"`
-Expected: `{"failed":false,"unknown":true,"ifExecuted":false} {}`
+Run:
+```bash
+node -e "
+Promise.all([
+  import('./.claude/skills/sequence-register/scripts/questions.ts'),
+  import('./.claude/skills/sequence-register/scripts/canonical.ts'),
+]).then(([q, c]) => {
+  console.log(JSON.stringify(q.poseQuestions({kind:'call',awaitsReply:false})), JSON.stringify(q.readSlot({}, 'failed')));
+  console.log(JSON.stringify(c.serialize({b:1,a:2}, {properties:{a:{},b:{}}})));
+})"
+```
+Expected: 1行目が `{"failed":false,"unknown":true,"ifExecuted":false} {}`、2行目が `"{\n  \"a\": 2,\n  \"b\": 1\n}\n"`（キー順がスキーマ順に直り、末尾が改行）
 
 （落ちたら Node のバージョンを確認する。22.18+ / 23.6+ / 24+ が要る。）
 
 - [ ] **Step 6: コミット**
 
 ```bash
-git add .claude/skills/sequence-register/scripts/questions.ts src/modules/sequence/skill-copy.test.ts
-git commit -m "feat(skill): シーケンス登録 Skill に questions.ts のコピーと一致検査を置く"
+git add .claude/skills/sequence-register/scripts/ src/modules/sequence/skill-copy.test.ts
+git commit -m "feat(skill): シーケンス登録 Skill にアプリのコピー2本と一致検査を置く"
 ```
 
 ---
@@ -424,15 +447,19 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const SKILL_DIR = path.resolve(fileURLToPath(import.meta.url), "../..");
 
-// ---------- 問いの導出（アプリのコピー。手で複製しない） ----------
+// ---------- アプリのコピー（手で複製しない） ----------
+//
+// questions.ts = 問いの導出と答えの読み方（src/modules/sequence/questions.ts）
+// canonical.ts = 正規形シリアライザ（src/core/canonical.ts）
+// どちらもバイト一致コピーで、ズレは src/modules/sequence/skill-copy.test.ts が検知する
 
-let Q;
+let Q, C;
 try {
-  Q = await import("./questions.ts");
+  [Q, C] = await Promise.all([import("./questions.ts"), import("./canonical.ts")]);
 } catch (e) {
   die(
     2,
-    `questions.ts を読み込めません。Node の型ストリップが要ります（22.18+ / 23.6+ / 24+。現在 ${process.version}）\n  ${e.message}`
+    `同梱の .ts を読み込めません。Node の型ストリップが要ります（22.18+ / 23.6+ / 24+。現在 ${process.version}）\n  ${e.message}`
   );
 }
 
@@ -507,9 +534,13 @@ if (!validate(data)) {
 }
 
 // ---------- 正規化 ----------
+//
+// serialize がキー順（スキーマの properties 記載順）・2スペース・末尾改行を担う。
+// normalizeSlots はその前に走らせる——答えスロットは oneOf でキー順を導出できず、
+// serialize は入力の順をそのまま通すため（下の関数コメントを見よ）
 
-const normalized = normalizeSlots(reorder(data, schema, schema));
-const text = JSON.stringify(normalized, null, 2) + "\n";
+const text = C.serialize(normalizeSlots(data), schema);
+const normalized = JSON.parse(text);
 
 // ---------- 整合性検証と集計（Task 5 でここに足す） ----------
 
@@ -538,28 +569,12 @@ if (warnings.length) {
 
 // ---------- 補助 ----------
 
-function reorder(value, node, root) {
-  const s = deref(node, root);
-  if (Array.isArray(value)) {
-    return s?.items ? value.map((v) => reorder(v, s.items, root)) : value;
-  }
-  if (value && typeof value === "object") {
-    const props = s?.properties ?? {};
-    const inSchema = Object.keys(props).filter((k) => k in value);
-    const rest = Object.keys(value).filter((k) => !(k in props)); // additionalProperties:false なら空
-    const out = {};
-    for (const k of [...inSchema, ...rest]) out[k] = reorder(value[k], props[k] ?? {}, root);
-    return out;
-  }
-  return value;
-}
-
 /**
  * 答えスロットのキー順を decision → text に固定する。
  *
- * **なぜ reorder だけでは足りないか。** answerSlot はスキーマ上 oneOf なので
- * deref が properties を持たないノードを返し、reorder は decision / text を
- * 「スキーマに無いキー」として**入力の順のまま**出力する。一方アプリは
+ * **なぜ serialize だけでは足りないか。** answerSlot はスキーマ上 oneOf なので
+ * canonical.ts の deref が properties を持たないノードを返し、decision / text は
+ * 「スキーマに無いキー」として**入力の順のまま**出力される。一方アプリは
  * commands.ts の buildAnswerSlot が必ず { decision, text } の順で組む。
  * ここを揃えないと、同じ内容のファイルがバイト列で食い違い、
  * アプリが1回保存しただけで意味の無い diff が出る
@@ -584,23 +599,10 @@ function normalizeSlots(root) {
   return root;
 }
 
-function deref(node, root) {
-  let s = node;
-  for (let i = 0; s && s.$ref && i < 20; i++) {
-    if (!s.$ref.startsWith("#/")) return s;
-    s = s.$ref
-      .slice(2)
-      .split("/")
-      .map((seg) => decodeURIComponent(seg).replace(/~1/g, "/").replace(/~0/g, "~"))
-      .reduce((acc, k) => (acc == null ? acc : acc[k]), root);
-  }
-  return s;
-}
-
 function readJson(p, label) {
   let raw;
   try { raw = fs.readFileSync(p, "utf8"); } catch { die(2, `${label}が読めません: ${p}`); }
-  try { return JSON.parse(raw.replace(/^\uFEFF/, "")); } catch (e) { die(1, `${label}が JSON として壊れています: ${p}\n  ${e.message}`); }
+  try { return JSON.parse(C.stripBom(raw)); } catch (e) { die(1, `${label}が JSON として壊れています: ${p}\n  ${e.message}`); }
 }
 
 function die(code, msg) {
@@ -609,9 +611,9 @@ function die(code, msg) {
 }
 ```
 
-**注意:** `reorder` / `deref` / `readJson` は `error-catalog-write.mjs` と同一である。これは既存2本の間でも既に重複しており（スキーマ非依存の汎用処理）、この計画で共通化しない。
+**`reorder` / `deref` を書かないこと。** 既存2本の Skill（`glossary-write.mjs` / `error-catalog-write.mjs`）はこの2関数を手で複製しているが、この Skill は `canonical.ts` のコピーを import する。`src/core/canonical.ts` のヘッダは「Skill 側の write スクリプトとバイト単位で同一の出力を返すこと」を要求しており、コピーにすればその要求が構造的に満たされる。
 
-**`normalizeSlots` が要る理由（実測で確認済み）。** `answerSlot` はスキーマ上 `oneOf` なので `deref` は `properties` を持たないノードを返す。その結果 `decision` / `text` は「スキーマに無いキー」として `rest` 側に落ち、**入力に書いた順のまま**出力される。一方アプリは `buildAnswerSlot` が必ず `{ decision, text }` の順で組むので、揃えないと**同じ内容のファイルがバイト列で食い違う**（アプリが1回保存しただけで意味の無い diff が出る）。`unknown` は `properties` を持つ `unknownSlot` なので `reorder` が効くが、その中の `ifExecuted` は再び `oneOf` なので同じ手当てが要る。
+**`normalizeSlots` が要る理由（実測で確認済み）。** `answerSlot` はスキーマ上 `oneOf` なので `canonical.ts` の `deref` は `properties` を持たないノードを返す。その結果 `decision` / `text` は「スキーマに無いキー」として `rest` 側に落ち、**入力に書いた順のまま**出力される。一方アプリは `buildAnswerSlot` が必ず `{ decision, text }` の順で組むので、揃えないと**同じ内容のファイルがバイト列で食い違う**（アプリが1回保存しただけで意味の無い diff が出る）。`unknown` は `properties` を持つ `unknownSlot` なのでキー順が導出できるが、その中の `ifExecuted` は再び `oneOf` なので同じ手当てが要る。
 
 - [ ] **Step 2: ajv を入れる**
 
@@ -1644,7 +1646,7 @@ Expected: `sample-project/` に関する行が無いこと
 - **実装で確定した事項**: 同梱 Skill は `src/` を直接 import できない（`skill-sync.ts` がプロジェクトフォルダへコピーするため）／バイト一致コピー＋機械検査という解法／`readSlot` を `questions.ts` へ集約した経緯（4本目の複製を作らないため）
 - **見つかった欠陥**: `skill-sync.ts` のコメントが `bundle.resources` の実態（ディレクトリごと同梱）より古かった
 - **実機確認の結果**（Task 9 で得たもの）
-- **繰り越し**: `reorder` / `deref` / `readJson` が3本の Skill で重複していること（スキーマ非依存の汎用処理。共通化しなかった判断とその理由）／`sequence` スキーマに `notes` 相当が無く、`failures` を空にした理由がファイルに残らないこと
+- **繰り越し**: 既存2本の Skill（`glossary-write.mjs` / `error-catalog-write.mjs`）が `reorder` / `deref` を手で複製したままであること（`sequence-register` は `canonical.ts` のコピーに寄せた。次にあの2本へ触る機会に揃える）／`sequence` スキーマに `notes` 相当が無く、`failures` を空にした理由がファイルに残らないこと
 
 - [ ] **Step 6: open-issues に繰り越しを足す**
 
@@ -1677,8 +1679,12 @@ git commit -m "docs(sequence-m4): 登録 Skill の完了を反映し、申し送
 
 **スペックから増えたもう1件**: Task 1（`readSlot` の集約）。スペックは集計に `readSlot` 相当が要ることを明示していなかった。`commands.ts` のコメントが「4本目を作らないため」と警告しているため、複製ではなく移動を選んだ。
 
-**スペックから増えた3件目**: `normalizeSlots`（Task 4）。`answerSlot` が `oneOf` のため `reorder` が効かず、答えスロットのキー順が入力のまま残ることを実測で確認した。アプリは常に `decision` → `text` の順で書くので、揃えないと同じ内容のファイルがバイト列で食い違う。
+**スペックから増えた3件目**: `normalizeSlots`（Task 4）。`answerSlot` が `oneOf` のためキー順が導出できず、答えスロットのキー順が入力のまま残ることを実測で確認した。アプリは常に `decision` → `text` の順で書くので、揃えないと同じ内容のファイルがバイト列で食い違う。
+
+**スペックから増えた4件目**: `canonical.ts` のバイト一致コピー（Task 2・4）。当初は `reorder` / `deref` を既存2本の Skill から手で複製する計画だったが、`src/core/canonical.ts` が import を1つも持たず Node から直接読めることを実測で確認した。同ファイルのヘッダが既に「Skill 側の write スクリプトとバイト単位で同一の出力を返すこと」を要求しているため、コピーにすればその要求が構造的に満たされる。実行前のスキャンで人間に諮って決めた。
 
 **型の一貫性**: `readSlot(step, path)` の戻り値 `{ decision?, text? }` を Task 1 で定義し、Task 5 の集計（`Q.readSlot(step, p).decision`）が同じ形で使っている。`Q.poseQuestions` の戻り値のキー（`failed` / `unknown` / `ifExecuted`）は Task 5 のループの配列リテラルと `PATH_LABEL` のキーに一致している。`unposedAnswers` の戻り値も同じ3語。
+
+**実行前のスキャンで直した自分の誤り2件**: (1) Task 1 は「`commands.ts` の import 行は触らない」と書いていたが、`commands.ts:360` が `readSlot` を内部で使っているので値 import が要る。(2) 後方互換の再輸出を置く指示があったが、Task 6 で `markdown.ts` が `./questions` を直接見るようになるため死んだコードになる。どちらも削除・訂正済み。
 
 **未解決の前提が1つある**: Task 7 Step 4 の `SCHEMA` は `path.resolve(SKILL, "../../../schemas/sequence.schema.json")` で、`.claude/skills/<名前>/` からリポジトリ直下まで3段上がる想定である。エラーカタログ版と同じ段数だが、**実行して確かめること**（解決できないと全件 fail する）。
