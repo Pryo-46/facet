@@ -730,30 +730,29 @@ const PATH_LABEL = { failed: "失敗確定", unknown: "結果不明", ifExecuted
 const stepName = (step, index) =>
   step.label === "" ? `#${index + 1}` : `#${index + 1}（${step.label}）`;
 
-// ID重複（IDは機械的識別子なので正規化しない完全一致）
-const actorIds = new Set();
-for (const a of actors) {
-  if (actorIds.has(a.id)) warnings.push(`ID重複: ${a.id}（参加者「${a.name}」）`);
-  actorIds.add(a.id);
+// ID重複（IDは機械的識別子なので正規化しない完全一致）。
+// **1つの id につき1件**——出現回数ぶん出さない（アプリの consistency.ts と同じ規則）
+for (const [label, items] of [["参加者", actors], ["ステップ", steps]]) {
+  const seen = new Map();
+  for (const item of items) seen.set(item.id, (seen.get(item.id) ?? 0) + 1);
+  for (const [id, count] of seen) {
+    if (count > 1) warnings.push(`${label}の ID が重複しています: ${id}`);
+  }
 }
-const stepIds = new Set();
-steps.forEach((s, i) => {
-  if (stepIds.has(s.id)) warnings.push(`ID重複: ${s.id}（${stepName(s, i)}）`);
-  stepIds.add(s.id);
-});
+const actorIds = new Set(actors.map((a) => a.id));
 
 steps.forEach((step, index) => {
   // 参照切れ
-  if (!actorIds.has(step.from)) {
-    warnings.push(`${stepName(step, index)} の from（${step.from}）が参加者にありません`);
-  }
-  if (step.to !== undefined && !actorIds.has(step.to)) {
-    warnings.push(`${stepName(step, index)} の to（${step.to}）が参加者にありません`);
+  for (const field of ["from", "to"]) {
+    const ref = step[field];
+    if (ref !== undefined && !actorIds.has(ref)) {
+      warnings.push(`${stepName(step, index)} の ${field} が指す参加者が存在しません: ${ref}`);
+    }
   }
 
   // to の過不足
   if (step.kind === "self" && step.to !== undefined) {
-    warnings.push(`${stepName(step, index)} は内部処理なのに to（受け手）があります`);
+    warnings.push(`${stepName(step, index)} は内部処理（self）なのに to を持っています。内部処理は from だけで表します`);
   }
   if (step.kind !== "self" && step.to === undefined) {
     warnings.push(`${stepName(step, index)} は${KIND_LABEL[step.kind]}なのに to（受け手）がありません`);
@@ -848,7 +847,19 @@ require('fs').writeFileSync('/tmp/seq-broken.json', JSON.stringify(j,null,2))"
 cd .claude/skills/sequence-register && node scripts/sequence-write.mjs --check /tmp/seq-broken.json
 ```
 
-Expected: 4件——`to（actor_ZZZZZZZZZZ）が参加者にありません` ／ `ID重複: step_Ab3xK9mP2q` ／ `#2（与信依頼）は呼出なのに to（受け手）がありません` ／ `#3（在庫を引き当てる）は内部処理なのに to（受け手）があります`
+Expected: 4件——`#1（注文確定）の to が指す参加者が存在しません: actor_ZZZZZZZZZZ` ／ `ステップの ID が重複しています: step_Ab3xK9mP2q` ／ `#2（与信依頼）は呼出なのに to（受け手）がありません` ／ `#3（在庫を引き当てる）は内部処理（self）なのに to を持っています。内部処理は from だけで表します`
+
+- [ ] **Step 5b: 同じ ID が3回出ても警告は1件であることを確認する**
+
+```bash
+node -e "
+const j=require('/tmp/seq-ok.json');
+j.steps[1].id=j.steps[0].id; j.steps[2].id=j.steps[0].id;
+require('fs').writeFileSync('/tmp/seq-dup3.json', JSON.stringify(j,null,2))"
+cd .claude/skills/sequence-register && node scripts/sequence-write.mjs --check /tmp/seq-dup3.json | grep -c "ID が重複"
+```
+
+Expected: `1`（出現回数ぶん出さない。アプリは id 単位で1件なので、ここがズレると同じファイルで警告数が食い違う）
 
 - [ ] **Step 6: 警告ゼロのファイルで警告が出ないことを確認する（偽陽性の確認）**
 
