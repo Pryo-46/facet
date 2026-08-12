@@ -140,30 +140,35 @@ const PATH_LABEL = { failed: "失敗確定", unknown: "結果不明", ifExecuted
 const stepName = (step, index) =>
   step.label === "" ? `#${index + 1}` : `#${index + 1}（${step.label}）`;
 
-// ID重複（IDは機械的識別子なので正規化しない完全一致）
-const actorIds = new Set();
-for (const a of actors) {
-  if (actorIds.has(a.id)) warnings.push(`ID重複: ${a.id}（参加者「${a.name}」）`);
-  actorIds.add(a.id);
+// ID重複（IDは機械的識別子なので正規化しない完全一致。1つのidにつき1件——
+// アプリの dupLocations と同じ構造で actors / steps を回す）
+for (const [label, items] of [
+  ["参加者", actors],
+  ["ステップ", steps],
+]) {
+  const counts = new Map();
+  for (const item of items) counts.set(item.id, (counts.get(item.id) ?? 0) + 1);
+  for (const [id, count] of counts) {
+    if (count > 1) warnings.push(`${label}の ID が重複しています: ${id}`);
+  }
 }
-const stepIds = new Set();
-steps.forEach((s, i) => {
-  if (stepIds.has(s.id)) warnings.push(`ID重複: ${s.id}（${stepName(s, i)}）`);
-  stepIds.add(s.id);
-});
+
+const actorIds = new Set(actors.map((a) => a.id));
 
 steps.forEach((step, index) => {
   // 参照切れ
-  if (!actorIds.has(step.from)) {
-    warnings.push(`${stepName(step, index)} の from（${step.from}）が参加者にありません`);
-  }
-  if (step.to !== undefined && !actorIds.has(step.to)) {
-    warnings.push(`${stepName(step, index)} の to（${step.to}）が参加者にありません`);
+  for (const field of ["from", "to"]) {
+    const ref = step[field];
+    if (ref !== undefined && !actorIds.has(ref)) {
+      warnings.push(`${stepName(step, index)} の ${field} が指す参加者が存在しません: ${ref}`);
+    }
   }
 
   // to の過不足
   if (step.kind === "self" && step.to !== undefined) {
-    warnings.push(`${stepName(step, index)} は内部処理なのに to（受け手）があります`);
+    warnings.push(
+      `${stepName(step, index)} は内部処理（self）なのに to を持っています。内部処理は from だけで表します`
+    );
   }
   if (step.kind !== "self" && step.to === undefined) {
     warnings.push(`${stepName(step, index)} は${KIND_LABEL[step.kind]}なのに to（受け手）がありません`);
