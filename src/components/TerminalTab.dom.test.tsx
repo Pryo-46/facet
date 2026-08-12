@@ -36,13 +36,22 @@ vi.mock('@xterm/addon-fit', () => ({
 class FakeResizeObserver {
   static instances: FakeResizeObserver[] = []
   callback: ResizeObserverCallback
-  observe = vi.fn()
   disconnect = vi.fn()
   unobserve = vi.fn()
   constructor(callback: ResizeObserverCallback) {
     this.callback = callback
     FakeResizeObserver.instances.push(this)
   }
+  // **実物の ResizeObserver は observe() を呼んだ時点で初回通知を1回自動で
+  // 発火する**（対象の現在の寸法で）。このフェイクがそれを模していなかった
+  // ため、「fit() は済んでいるが起動直後の pty_resize がまだ実寸で1回も
+  // 飛んでいない」という穴を、既存のテストが誰も踏まずに素通りしていた
+  // （指摘1）。jsdom の要素は getBoundingClientRect が既定で 0 を返すため、
+  // ここでの自動発火は通常 0x0 になり、寸法 0 のガードに素直に吸収される
+  observe = vi.fn((target: Element) => {
+    const rect = target.getBoundingClientRect()
+    this.trigger(rect.width, rect.height)
+  })
   trigger(width: number, height: number): void {
     const entries = [{ contentRect: { width, height } } as ResizeObserverEntry]
     this.callback(entries, this as unknown as ResizeObserver)
@@ -201,6 +210,62 @@ describe('TerminalTab', () => {
     )
   })
 
+  it('起動直後、fit() 後の実寸で pty_resize を1回呼ぶ（指摘1: spawn 前の fit() では ptyId が無く resize できない穴）', async () => {
+    // spawn 解決前（ptyIdRef.current が null の間）に「隠れている間は測らない」
+    // effect が fit() を1回走らせ、xterm の既定サイズ（80x24）を実寸へ変える
+    // ことがある。その時点では PTY へ resize を送れないため、何もしないと
+    // PTY は 80x24 のまま取り残される。fit() が実寸で桁数・行数を変えるさまを
+    // 模して、spawn 解決後に実寸で resize が飛ぶことを確認する
+    const pty = fakePty()
+    // fit() は「隠れている間は測らない」effect（spawn 解決前、ptyId がまだ
+    // 無い）と、spawn 解決直後（本テストが検証する箇所）の2回走る。
+    // mockImplementationOnce を2回積んで、実物の fit() が実寸へ変える
+    // さまをそれぞれの呼び出しで模す（mockImplementation で永続的に
+    // 差し替えると、他のテストへ副作用が漏れる）
+    fit.fit.mockImplementationOnce(() => {
+      term.cols = 45
+      term.rows = 12
+    })
+    fit.fit.mockImplementationOnce(() => {
+      term.cols = 45
+      term.rows = 12
+    })
+    const onRunning = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+    expect(pty.resized).toEqual([{ id: 7, cols: 45, rows: 12 }])
+  })
+
+  it('隠れて起動した場合、起動直後には resize しない（表示に戻ったときの hidden effect に任せる）', async () => {
+    // display:none では寸法が測れない。spawn 解決時点で hidden なら、
+    // ここで測って resize してはいけない（隠れている間は測らないという
+    // 既存の原則と同じ）
+    const pty = fakePty()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden
+        onRunning={vi.fn()}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(pty.spawned).toHaveLength(1))
+    expect(pty.resized).toEqual([])
+  })
+
   it('**隠れている間は fit しない。表示に戻った瞬間に1回だけ fit して resize する**', async () => {
     // display:none の間は xterm が寸法を測れない（clientWidth が 0）。
     // ここで測ると開き直したときだけ表示が崩れる
@@ -328,11 +393,14 @@ describe('TerminalTab', () => {
         onFailed={vi.fn()}
       />,
     )
-    // 表示中でマウントすると「隠れている間は測らない」effect が起動直後に
-    // 1回 fit() を呼ぶ。ResizeObserver 由来の呼び出しだけを見たいので、
-    // 起動が落ち着いた（running になった）時点で一旦クリアする
+    // 表示中でマウントすると「隠れている間は測らない」effect の fit() に加え、
+    // spawn 解決直後にも実寸で pty_resize が1回飛ぶ（指摘1の修正）。
+    // ResizeObserver 由来の呼び出しだけを見たいので、起動が落ち着いた
+    // （running になった）時点で fit の呼び出し回数と resized の記録を
+    // 両方クリアする
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
     fit.fit.mockClear()
+    pty.resized.length = 0
 
     const observer = FakeResizeObserver.instances.at(-1)
     expect(observer).toBeDefined()
@@ -364,6 +432,9 @@ describe('TerminalTab', () => {
     )
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
     fit.fit.mockClear()
+    // 起動直後の resize（指摘1の修正）を含めない。ここで見たいのは
+    // ResizeObserver 由来の呼び出しだけ
+    pty.resized.length = 0
 
     const observer = FakeResizeObserver.instances.at(-1)
     // fit() のデフォルト実装は term.cols / term.rows を変えない
@@ -389,6 +460,9 @@ describe('TerminalTab', () => {
     )
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
     fit.fit.mockClear()
+    // 起動直後の resize（指摘1の修正）を含めない。ここで見たいのは
+    // ResizeObserver 由来の呼び出しだけ
+    pty.resized.length = 0
 
     const observer = FakeResizeObserver.instances.at(-1)
     observer?.trigger(0, 0)

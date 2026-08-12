@@ -40,6 +40,11 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   const cb = useRef({ onRunning, onExited, onFailed })
   cb.current = { onRunning, onExited, onFailed }
 
+  // spawn が解決した時点の hidden を知るための ref。起動 effect は1回しか
+  // 走らないので、クロージャに閉じ込めた hidden は古い値のままになる
+  const hiddenRef = useRef(hidden)
+  hiddenRef.current = hidden
+
   useEffect(() => {
     const host = hostRef.current
     if (host === null) return
@@ -110,6 +115,20 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
           return
         }
         ptyIdRef.current = ptyId
+        // 起動直後の PTY へ実寸を伝える。ここまでの fit()（隠れている間は
+        // 測らない effect）は spawn 前——つまり ptyIdRef.current が null の
+        // 間——に走っていることがあり、そのときは pty_resize を送れない。
+        // その結果、xterm は実寸（fit 後）なのに PTY は xterm の既定
+        // （80x24）のままという不一致が起動のたびに残る（実機で気付かれ
+        // なかったのは、スプリッタのドラッグやタブ切替の resize/fit で
+        // 自己修復するため）。ここで fit() をやり直し、実寸で1回だけ
+        // resize する。**隠れている間は測らない**（hidden effect と同じ
+        // 理由——display:none では寸法が 0 になる。表示に戻ったときは
+        // 既存の hidden effect が拾う）
+        if (!hiddenRef.current) {
+          fitRef.current?.fit()
+          void ptyIo.resize(ptyId, term.cols, term.rows).catch(() => undefined)
+        }
         term.onData((data) => {
           // 書き込みの失敗もタブの中に出す（設計 決定13）。握り潰すと
           // 「打っても何も起きない端末」になり、原因が画面から読めない

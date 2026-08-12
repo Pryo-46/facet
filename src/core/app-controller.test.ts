@@ -234,7 +234,8 @@ function createHarness(
 describe('openFolder', () => {
   it('走査結果を一覧にして台帳へ記録する', async () => {
     const h = createHarness({ [p('a.json')]: note('A'), [p('b.json')]: note('B') })
-    await h.controller.openFolder(DIR)
+    const result = await h.controller.openFolder(DIR)
+    expect(result).toBe(true)
     expect(h.files().map((f) => f.name)).toEqual(['a.json', 'b.json'])
     expect(h.files().every((f) => f.result.status === 'editable')).toBe(true)
     expect(h.banners().io).toBeNull()
@@ -248,9 +249,82 @@ describe('openFolder', () => {
       if (path === p('a.json')) throw new Error('locked')
       return h.disk.files.get(path)!
     }
-    await h.controller.openFolder(DIR)
+    const result = await h.controller.openFolder(DIR)
+    expect(result).toBe(false)
     expect(h.files()).toBe(before)
     expect(h.banners().io).toContain('読み込めないファイルがあるため開けませんでした')
+  })
+
+  // 指摘2であわせて足したテスト群: openFolder の戻り値（boolean）契約。
+  // switchFolder（App.tsx）は `opened` が true のときだけ端末を殺す
+  // （設計 決定12）ので、false を返すべき箇所で誤って true を返すと、
+  // フォルダを切り替えられなかったのに実行中の Claude Code だけを失う
+  // 事故になる。false になる4分岐（closeCurrentFile の flush 失敗／
+  // トークンすり替わり2箇所／scan.unreadable／catch）を1つずつ確かめる
+
+  it('closeCurrentFile の flush が失敗したら false を返す（フォルダを切り替えない）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.savers.current().flushOk = false
+    const result = await h.controller.openFolder('C:\\proj2')
+    expect(result).toBe(false)
+  })
+
+  it('スキャン中に別の openFolder が割り込んだら、先行の呼び出しは false を返す（トークンすり替わり・scan 成功後）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    const realScan = h.io.scan
+    // オブジェクトの1プロパティに持たせる（`let` の素の変数だと、クロージャの
+    // 中でしか代入していないケースで TS の制御フロー解析が `never` へ
+    // narrow してしまい `?.()` が呼べなくなるため）
+    const release: { current: (() => void) | null } = { current: null }
+    let callCount = 0
+    h.io.scan = (dir) => {
+      callCount++
+      if (callCount === 1) {
+        return new Promise((resolve) => {
+          release.current = () => resolve(realScan(dir))
+        })
+      }
+      return realScan(dir)
+    }
+    const first = h.controller.openFolder(DIR)
+    // 2本目が先に完了して selectSeq を進める
+    await h.controller.openFolder(DIR)
+    expect(release.current).not.toBeNull()
+    release.current?.()
+    expect(await first).toBe(false)
+  })
+
+  it('スキャンが失敗している間に別の openFolder が割り込んだら、先行の呼び出しは false を返す（トークンすり替わり・catch 内）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    const realScan = h.io.scan
+    const rejectRef: { current: (() => void) | null } = { current: null }
+    let callCount = 0
+    h.io.scan = (dir) => {
+      callCount++
+      if (callCount === 1) {
+        return new Promise((_resolve, reject) => {
+          rejectRef.current = () => reject(new Error('boom'))
+        })
+      }
+      return realScan(dir)
+    }
+    const first = h.controller.openFolder(DIR)
+    await h.controller.openFolder(DIR)
+    expect(rejectRef.current).not.toBeNull()
+    rejectRef.current?.()
+    expect(await first).toBe(false)
+  })
+
+  it('スキャンが例外を投げたら banner を出して false を返す（catch）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    h.io.scan = async () => {
+      throw new Error('boom')
+    }
+    const result = await h.controller.openFolder(DIR)
+    expect(result).toBe(false)
+    expect(h.banners().io).toContain('フォルダの読み込みに失敗しました')
   })
 
   it('前のフォルダのモーダル要求を掃除する', async () => {
