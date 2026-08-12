@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { createAppController, type AppController, type AppHost, type AppIo, type BannerKind, type SaverSpec } from './app-controller'
 import type { AutoSaver } from './autosave'
 import { serialize, type JsonSchema } from './canonical'
-import type { ModalRequest } from './modal-queue'
+import type { ConsistencyIssue } from './consistency'
+import { pushModal, type ModalRequest } from './modal-queue'
 import type { ProjectFile } from './project-file'
 import { createRegistry, type AnyToolModule, type ModuleRegistry } from './registry'
 import { scanFolder } from './scan'
@@ -161,12 +162,13 @@ interface Harness {
 function createHarness(
   initial: Record<string, string> = {},
   over: Partial<AppIo> = {},
+  moduleOver: Partial<AnyToolModule> = {},
 ): Harness {
   const log: string[] = []
   const disk = createDisk(initial)
   const savers = createSaverFactory(log)
   const registry = createRegistry()
-  registry.register(noteModule())
+  registry.register(noteModule(moduleOver))
 
   let files: ProjectFile[] = []
   let selectedPath: string | null = null
@@ -206,7 +208,11 @@ function createHarness(
     setBanner: (kind, message) => { banners[kind] = message },
     showToast: (toast) => { toasts.push(toast); log.push('toast') },
     dismissToast: (key) => { log.push(`dismissToast:${key}`) },
-    showModal: (request) => { modals = [...modals, request]; log.push('showModal') },
+    // 本物の host（App.tsx）は pushModal を経由し、同じ key の要求を積み上げず
+    // 置き換える。この偽物が単純な append のままだと、guardIssues の
+    // 「key で置き換える」契約（sequence M3）を確かめるテストが、実装の正しさとは
+    // 無関係に「積み上がる」で落ちてしまう
+    showModal: (request) => { modals = pushModal(modals, request); log.push('showModal') },
     dropModal: (key) => { modals = modals.filter((m) => m.key !== key); log.push(`dropModal:${key}`) },
     clearModals: () => { modals = []; log.push('clearModals') },
     getEditingData: () => document,
@@ -890,9 +896,13 @@ describe('exportMarkdown: 保存ダイアログを開いている間の変化', 
 
   it('その間に選択が変わったら書き出さない', async () => {
     const { askSavePath, release } = pendingSavePath()
+    // note モジュールは singleton なので、この描写のとおり2つ開くと単一性違反が
+    // 出力ガード（sequence M3）を引いてしまう。ここでの主題は選択変更のレースで
+    // あって単一性ではないので、singleton を切って無関係な確認を避ける
     const h = createHarness(
       { [p('a.json')]: note('A'), [p('b.json')]: note('B') },
       { askSavePath },
+      { singleton: false },
     )
     await h.controller.openFolder(DIR)
     await h.controller.selectFile(p('a.json'))
@@ -916,5 +926,130 @@ describe('削除確認の取り下げ', () => {
     await request.onConfirm()
     // 残すと、外部で消えた後に確定したとき trashFile が失敗する
     expect(h.log).toContain(`dropModal:delete:${p('a.json')}`)
+  })
+})
+
+describe('出力: 整合性エラーがあるファイル', () => {
+  const badIssue: ConsistencyIssue = {
+    rule: 'duplicate-id',
+    message: 'ノートの ID が重複しています: note_X',
+    locations: [],
+  }
+
+  it('コピーは確認を挟み、承認するまでクリップボードへ書かない', async () => {
+    const copyText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+    const h = createHarness(
+      { [p('a.json')]: note('A', '本文') },
+      { copyText },
+      { checkConsistency: () => [badIssue] },
+    )
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    await h.controller.copyMarkdown(firstOutput(h))
+    expect(copyText).not.toHaveBeenCalled()
+    expect(h.modals()).toHaveLength(1)
+
+    const request = h.modals()[0]
+    if (request.kind !== 'confirm') throw new Error('confirm を期待した')
+    await request.onConfirm()
+    expect(copyText).toHaveBeenCalledWith('## A\n\n本文\n')
+  })
+
+  it('確認の本文に指摘の件数と各メッセージが載る', async () => {
+    const h = createHarness(
+      { [p('a.json')]: note('A', '本文') },
+      {},
+      { checkConsistency: () => [badIssue] },
+    )
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    await h.controller.copyMarkdown(firstOutput(h))
+    const request = h.modals()[0]
+    if (request.kind !== 'confirm') throw new Error('confirm を期待した')
+    expect(request.description).toContain('1 件')
+    expect(request.description).toContain('ノートの ID が重複しています: note_X')
+  })
+
+  it('describeIssueEffect を持つプロファイルは、その1文が本文の末尾に載る', async () => {
+    const h = createHarness(
+      { [p('a.json')]: note('A', '本文') },
+      {},
+      {
+        checkConsistency: () => [badIssue],
+        outputs: [
+          {
+            id: 'default',
+            label: 'Markdown',
+            fileSuffix: '',
+            toMarkdown: () => '## A\n',
+            describeIssueEffect: () => '図には「（未解決）」が立ちます。',
+          },
+        ],
+      },
+    )
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    await h.controller.copyMarkdown(firstOutput(h))
+    const request = h.modals()[0]
+    if (request.kind !== 'confirm') throw new Error('confirm を期待した')
+    expect(request.description.endsWith('図には「（未解決）」が立ちます。')).toBe(true)
+  })
+
+  it('指摘が多いときは先頭5件だけ並べ、残りの件数を言う（黙って隠さない）', async () => {
+    const many = Array.from({ length: 8 }, (_v, i): ConsistencyIssue => ({
+      rule: 'duplicate-id',
+      message: `指摘${i + 1}`,
+      locations: [],
+    }))
+    const h = createHarness({ [p('a.json')]: note('A', '本文') }, {}, { checkConsistency: () => many })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    await h.controller.copyMarkdown(firstOutput(h))
+    const request = h.modals()[0]
+    if (request.kind !== 'confirm') throw new Error('confirm を期待した')
+    expect(request.description).toContain('指摘5')
+    expect(request.description).not.toContain('指摘6')
+    expect(request.description).toContain('ほか 3 件')
+  })
+
+  it('書き出しも同じ確認を挟む', async () => {
+    const askSavePath = vi.fn<() => Promise<string | null>>().mockResolvedValue(p('a.md'))
+    const h = createHarness(
+      { [p('a.json')]: note('A', '本文') },
+      { askSavePath },
+      { checkConsistency: () => [badIssue] },
+    )
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    await h.controller.exportMarkdown(firstOutput(h))
+    expect(askSavePath).not.toHaveBeenCalled()
+    const request = h.modals()[0]
+    if (request.kind !== 'confirm') throw new Error('confirm を期待した')
+    await request.onConfirm()
+    expect(askSavePath).toHaveBeenCalled()
+  })
+
+  it('同じ操作を繰り返しても確認は積み上がらない（key で置き換える）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A', '本文') }, {}, { checkConsistency: () => [badIssue] })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    await h.controller.copyMarkdown(firstOutput(h))
+    await h.controller.copyMarkdown(firstOutput(h))
+    expect(h.modals()).toHaveLength(1)
+  })
+})
+
+describe('出力: 整合性エラーが無いファイル', () => {
+  it('確認を挟まずそのままコピーする（未定義があっても確認しない）', async () => {
+    const copyText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+    // note モジュールの checkConsistency は既定で [] を返す。
+    // **未定義（空フィールド）は整合性エラーではない**——出力に（未定義）として
+    // 残すのが規約であり、正常な「まだ決めていない」状態である
+    const h = createHarness({ [p('a.json')]: note('A', '') }, { copyText })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    await h.controller.copyMarkdown(firstOutput(h))
+    expect(h.modals()).toHaveLength(0)
+    expect(copyText).toHaveBeenCalled()
   })
 })

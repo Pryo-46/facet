@@ -49,21 +49,70 @@ describe('StepShapeCell', () => {
     expect(onFieldKeyDown).toHaveBeenCalledOnce()
   })
 
-  it('クリックで形が1歩進む（↓ と同じ巡回）', () => {
+  it('クリックでメニューが開き、選んだ形になる', async () => {
     const onChange = vi.fn()
     render(
       <StepShapeCell value="call-sync" aria-label="ステップ1の形" data-cell="k:shape" onChange={onChange} />,
     )
-    fireEvent.click(screen.getByLabelText('ステップ1の形'))
-    expect(onChange).toHaveBeenCalledWith('call-async')
+    // Radix のトリガーは pointerdown で開く（ExportMenu の DOM テストと同じ作法）
+    fireEvent.pointerDown(screen.getByLabelText('ステップ1の形'), { button: 0, ctrlKey: false })
+    fireEvent.click(await screen.findByRole('menuitem', { name: '内部処理' }))
+    expect(onChange).toHaveBeenCalledWith('self')
   })
 
-  it('末尾の形のクリックは先頭に戻る', () => {
+  it('メニューには4値すべてが出る', async () => {
+    render(
+      <StepShapeCell value="call-sync" aria-label="ステップ1の形" data-cell="k:shape" onChange={() => {}} />,
+    )
+    fireEvent.pointerDown(screen.getByLabelText('ステップ1の形'), { button: 0, ctrlKey: false })
+    await screen.findByRole('menuitem', { name: '呼出' })
+    expect(screen.getAllByRole('menuitem').map((el) => el.textContent)).toEqual([
+      '呼出',
+      '呼出（応答なし）',
+      '応答',
+      '内部処理',
+    ])
+  })
+
+  it('開閉を onOpenChange で伝える（キャンバスのズームを止めるため）', async () => {
+    const onOpenChange = vi.fn()
+    render(
+      <StepShapeCell
+        value="call-sync"
+        aria-label="ステップ1の形"
+        data-cell="k:shape"
+        onChange={() => {}}
+        onOpenChange={onOpenChange}
+      />,
+    )
+    fireEvent.pointerDown(screen.getByLabelText('ステップ1の形'), { button: 0, ctrlKey: false })
+    await screen.findByRole('menuitem', { name: '呼出' })
+    expect(onOpenChange).toHaveBeenCalledWith(true)
+  })
+
+  it('↓ は巡回のままで、メニューを開かない（キーボード動線を変えない）', () => {
     const onChange = vi.fn()
     render(
-      <StepShapeCell value="self" aria-label="ステップ1の形" data-cell="k:shape" onChange={onChange} />,
+      <StepShapeCell value="call-sync" aria-label="ステップ1の形" data-cell="k:shape" onChange={onChange} />,
     )
-    fireEvent.click(screen.getByLabelText('ステップ1の形'))
-    expect(onChange).toHaveBeenCalledWith('call-sync')
+    fireEvent.keyDown(screen.getByLabelText('ステップ1の形'), { key: 'ArrowDown' })
+    expect(onChange).toHaveBeenCalledWith('call-async')
+    expect(screen.queryByRole('menuitem')).toBeNull()
+  })
+
+  it('Enter はメニューを開かず onFieldKeyDown へ委譲する（ステップ追加の経路を塞がない）', () => {
+    const onFieldKeyDown = vi.fn()
+    render(
+      <StepShapeCell
+        value="call-sync"
+        aria-label="ステップ1の形"
+        data-cell="k:shape"
+        onChange={() => {}}
+        onFieldKeyDown={onFieldKeyDown}
+      />,
+    )
+    fireEvent.keyDown(screen.getByLabelText('ステップ1の形'), { key: 'Enter' })
+    expect(onFieldKeyDown).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('menuitem')).toBeNull()
   })
 })

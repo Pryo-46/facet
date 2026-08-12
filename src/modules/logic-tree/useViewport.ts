@@ -58,6 +58,11 @@ export function useViewport(
   const [spaceHeld, setSpaceHeld] = useState(false)
   // ハンドラはマウント時に1回しか張らないので、最新値は ref から読む
   const spaceHeldRef = useRef(false)
+  // **d3 のハンドラはマウント時に1回しか張らない**ので、filter が読む enabled も
+  // ref に写す。素の値を閉じ込めると最初の値で凍り、モーダルを閉じても
+  // 止まったままになる（spaceHeldRef と同じ理由）
+  const enabledRef = useRef(enabled)
+  enabledRef.current = enabled
   const behaviorRef = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null)
   const transformRef = useRef<Transform>(INITIAL_TRANSFORM)
   transformRef.current = transform
@@ -73,6 +78,10 @@ export function useViewport(
         return -event.deltaY * unit
       })
       .filter((event: Event) => {
+        // モーダル・ポップアップが開いている間はキャンバスの操作言語を止める
+        //（rev 10章の境界規則）。**キー監視だけでは足りない**——ホイールと
+        // ドラッグは d3 が直接取るので、ここで弾かないと裏で視点が動く
+        if (!enabledRef.current) return false
         if (event.type === 'wheel') {
           const e = event as WheelEvent
           return e.ctrlKey || e.metaKey

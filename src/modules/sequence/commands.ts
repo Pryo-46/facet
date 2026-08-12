@@ -168,24 +168,6 @@ export function setStepActor(
   return replaceStep(d, index, { ...d.steps[index], [field]: actorId })
 }
 
-/**
- * 未登録の名前が確定されたら、参加者を末尾に足して参照を差し替える（1操作＝
- * 1履歴）。同一ファイル内で完結するインライン登録であり、rev 6章の
- * クロスファイルのインライン登録（用語集）とは別物。範囲外 stepIndex では
- * 参加者も足さない（「何も起きない」を1操作全体として守る）
- */
-export function createActorAndAssign(
-  d: SequenceSchemaVersion1,
-  stepIndex: number,
-  field: 'from' | 'to',
-  name: string,
-): SequenceSchemaVersion1 {
-  if (d.steps[stepIndex] === undefined) return d
-  const actor: SequenceActor = { id: newId('actor'), name }
-  const withActor = withActors(d, [...d.actors, actor])
-  return setStepActor(withActor, stepIndex, field, actor.id)
-}
-
 // ---- kind × awaitsReply（画面は1トグル、データは2フィールド） ----
 
 export type StepShapeValue = 'call-sync' | 'call-async' | 'reply' | 'self'
@@ -259,7 +241,15 @@ function cleanupFailures(step: SequenceStep, failures: Failures): SequenceStep {
   return Object.keys(next).length === 0 ? rest : { ...rest, failures: next }
 }
 
-function readSlot(
+/**
+ * スロットの生の値（decision / text）を読む。
+ *
+ * **同じ読み方が3箇所にある**（ここ・`SequenceEditor.tsx` の `readAnswer`・
+ * `consistency.ts` の `presentAnswers`）。M2 の申し送りに既知の負債として
+ * 記録されている。**4本目を作らないため**に export した——出力（`markdown.ts`）は
+ * これを使うこと
+ */
+export function readSlot(
   step: SequenceStep,
   path: AnswerPath,
 ): { decision?: 'handled' | 'notApplicable'; text?: string } {

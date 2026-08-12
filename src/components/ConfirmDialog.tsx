@@ -30,6 +30,9 @@ export interface ConfirmDialogProps {
  * 用語の削除に確認は挟まない（rev 5章。会議中の入力速度を削ぐため）。
  * 確認するのは「ファイルの削除」など、Undo で取り消せない操作だけ。
  * 見た目は shadcn の既定トークンのままで、役割トークンへの寄せは M7
+ *
+ * `description` は改行を含みうる（出力前の確認が指摘を箇条書きで並べる）。
+ * `<p>` は既定で改行を潰すので `whitespace-pre-line` を当てている
  */
 export function ConfirmDialog(props: ConfirmDialogProps) {
   return (
@@ -43,7 +46,9 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{props.title}</AlertDialogTitle>
-          <AlertDialogDescription>{props.description}</AlertDialogDescription>
+          <AlertDialogDescription className="whitespace-pre-line">
+            {props.description}
+          </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{props.cancelLabel ?? 'キャンセル'}</AlertDialogCancel>

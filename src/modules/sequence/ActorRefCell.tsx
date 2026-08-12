@@ -1,6 +1,10 @@
-import { useState } from 'react'
-import type { FieldState } from '@/components/CellInput'
-import { normalizeForMatch } from '@/core/normalize'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { UNDEFINED_VALUE, UNRESOLVED_ACTOR_LABEL } from './output-labels'
 
 export interface ActorRefCellProps {
   value: string | undefined
@@ -9,104 +13,74 @@ export interface ActorRefCellProps {
   'aria-label': string
   'data-cell': string
   onSelect: (actorId: string) => void
-  onCreate: (name: string) => void
-  onFieldKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>, state: FieldState) => void
+  /** メニューが開いているか。**省略可**——渡さなければ Radix は非制御モードで動く
+      （セル単体の DOM テストが親を介さず素で描画できるのはこのため） */
+  open?: boolean
+  /** メニューの開閉。同時に1つだけ開くように親が制御するために使う */
+  onOpenChange?: (open: boolean) => void
+  onFieldKeyDown?: (e: React.KeyboardEvent<HTMLButtonElement>) => void
 }
 
 /**
- * from / to の参加者参照セル（design-notes 論点9）。
+ * from / to の参加者参照セル（sequence M3 で選択専用にした）。
  *
- * - 表示は参照先の名前（参照切れは空表示＋赤）
- * - ↑↓＝actors 配列順の即時切替（arrowsOwnedByField: true として扱われる前提。
- *   ドロップダウンは出さない——会議の速度でリストを目で追わせない）
- * - 文字を打つとドラフトになり、blur / Tab / Enter で確定:
- *   正規化一致（normalizeForMatch。照合規則はアプリで1つ）→ その参加者
- *   ／前方一致が1人 → その参加者／未登録名 → onCreate（インライン追加）
- *   ／空 → 変更なし（元の表示に戻す）
- * - IME 変換中は候補切替しない（rev 10章）
+ * **マウスはメニュー、キーボードは ↑↓ の即時切替。** M1 の「頭文字の
+ * インクリメンタル一致＋未登録名の確定でその場で `actors` に追加」は、
+ * 実使用の観察（補完の出番が少なく、その場で参加者を作る必要も無かった）を
+ * 受けて外した。M1 の実機確認チェックリスト自体が「『決』＋Enter で参加者
+ *『決』ができる挙動」を危険として見に行っていたのと整合する。
  *
- * CellInput を使わないのは、value が「テキスト」ではなく「参照」であり、
- * ドラフト確定の規則（照合・新規作成）が CellInput の commit と別物のため。
- * IME 対応（変換中は確定しない）はこの部品が自前で持つ
+ * 参加者の追加は、ヘッダの `Enter` とツールバーの「参加者を追加」の2本になった。
+ *
+ * 参照切れを空表示にしない——ボタンなので、空だと押す場所が見えなくなる。
+ * 出力と同じ「（未解決）」の語を使う。**参照は引けているが名前が空**の場合も
+ * 同じ理由（空文字のボタン／空白のメニュー項目は押す場所が見えない）で空表示を
+ * 避け、出力と同じ「（未定義）」を使う（（未解決）とは区別する——参照は引けている）
  */
 export function ActorRefCell(props: ActorRefCellProps) {
-  const [draft, setDraft] = useState<string | null>(null)
-  const resolved = props.actors.find((a) => a.id === props.value)?.name ?? ''
-
-  const commit = (): void => {
-    if (draft === null) return
-    setDraft(null)
-    if (draft === '') return
-    const needle = normalizeForMatch(draft)
-    const exact = props.actors.find((a) => normalizeForMatch(a.name) === needle)
-    if (exact !== undefined) {
-      props.onSelect(exact.id)
-      return
-    }
-    const prefix = props.actors.filter((a) => normalizeForMatch(a.name).startsWith(needle))
-    if (prefix.length === 1) {
-      props.onSelect(prefix[0].id)
-      return
-    }
-    props.onCreate(draft)
-  }
-
+  const resolved = props.actors.find((a) => a.id === props.value)
   const cycle = (delta: -1 | 1): void => {
     if (props.actors.length === 0) return
     const at = props.actors.findIndex((a) => a.id === props.value)
     const next = (at + delta + props.actors.length) % props.actors.length
-    setDraft(null)
     props.onSelect(props.actors[next].id)
   }
-
-  const face = props.invalid
-    ? 'border-warning bg-warning/20'
-    : 'border-rule bg-surface'
-
+  const face = props.invalid ? 'border-warning bg-warning/20' : 'border-rule bg-surface'
   return (
-    <input
-      className={`w-full rounded-sm border px-1.5 py-0.5 text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring ${face}`}
-      aria-label={props['aria-label']}
-      data-cell={props['data-cell']}
-      value={draft ?? resolved}
-      onChange={(e) => setDraft(e.target.value)}
-      onKeyDown={(e) => {
-        const composing =
-          (e.nativeEvent as { isComposing?: boolean }).isComposing ??
-          (e as unknown as { isComposing?: boolean }).isComposing ??
-          false
-        if (
-          !composing &&
-          (e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
-          !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey
-        ) {
-          e.preventDefault()
-          cycle(e.key === 'ArrowUp' ? -1 : 1)
-          return
-        }
-        if (!composing && (e.key === 'Enter' || e.key === 'Tab')) {
-          const hadDraft = draft !== null
-          commit()
-          // **ドラフトの確定と「次のステップを足す」を同じ打鍵で起こさない。**
-          // ここで親へ委譲すると、操作言語が Enter を insert-item-after と読み、
-          // エディタが commit() の onSelect / onCreate より**古い data**から
-          // 追加を作って直前の変更を上書きする。未登録名のときは、
-          // インライン作成した参加者ごと消える（実測で再現）。
-          // Tab は欄を移るだけでデータを触らないので、従来どおり委譲する
-          if (hadDraft && e.key === 'Enter') {
+    <DropdownMenu open={props.open} onOpenChange={props.onOpenChange}>
+      <DropdownMenuTrigger
+        type="button"
+        className={`w-full truncate rounded-sm border px-1.5 py-0.5 text-left text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring ${face}`}
+        aria-label={props['aria-label']}
+        data-cell={props['data-cell']}
+        onKeyDown={(e) => {
+          if (
+            (e.key === 'ArrowUp' || e.key === 'ArrowDown') &&
+            !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey
+          ) {
+            // preventDefault が Radix の「↓ で開く」を止めている（StepShapeCell と同じ理由）
             e.preventDefault()
+            cycle(e.key === 'ArrowUp' ? -1 : 1)
             return
           }
-        }
-        const el = e.currentTarget
-        props.onFieldKeyDown?.(e, {
-          empty: el.value === '',
-          caretAtStart: el.selectionStart === 0 && el.selectionEnd === 0,
-          caretAtEnd:
-            el.selectionStart === el.value.length && el.selectionEnd === el.value.length,
-        })
-      }}
-      onBlur={commit}
-    />
+          // Enter / Space でもメニューを開かない。**トリガーはポインタでだけ開く**
+          if (e.key === 'Enter' || e.key === ' ') e.preventDefault()
+          props.onFieldKeyDown?.(e)
+        }}
+      >
+        {resolved === undefined
+          ? UNRESOLVED_ACTOR_LABEL
+          : resolved.name === ''
+            ? UNDEFINED_VALUE
+            : resolved.name}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {props.actors.map((actor) => (
+          <DropdownMenuItem key={actor.id} onSelect={() => props.onSelect(actor.id)}>
+            {actor.name === '' ? UNDEFINED_VALUE : actor.name}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
