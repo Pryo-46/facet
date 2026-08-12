@@ -121,11 +121,94 @@ if (!validate(data)) {
 const text = C.serialize(normalizeSlots(data), schema);
 const normalized = JSON.parse(text);
 
-// ---------- 整合性検証と集計（Task 5 でここに足す） ----------
+// ---------- 整合性検証（レベル2相当。警告にとどめる） ----------
+//
+// アプリの src/modules/sequence/consistency.ts と同じ5ルールを見る。
+// 「立っていない問いへの答え」だけは questions.ts の import で済み、
+// 残る4ルール（参照切れ・ID重複・to の過不足・from==to）は構造検査なので
+// ここに書く。文言はアプリと揃えてある——ズレると同じ問題が2つの言葉で
+// 説明され、ユーザーが別問題だと思う
 
 const warnings = [];
 const actors = normalized.actors ?? [];
 const steps = normalized.steps ?? [];
+
+const KIND_LABEL = { call: "呼出", reply: "応答", self: "内部処理" };
+const PATH_LABEL = { failed: "失敗確定", unknown: "結果不明", ifExecuted: "実行済みだったら" };
+
+/** ステップを人が特定できる呼び名（アプリの stepName と同じ形） */
+const stepName = (step, index) =>
+  step.label === "" ? `#${index + 1}` : `#${index + 1}（${step.label}）`;
+
+// ID重複（IDは機械的識別子なので正規化しない完全一致）
+const actorIds = new Set();
+for (const a of actors) {
+  if (actorIds.has(a.id)) warnings.push(`ID重複: ${a.id}（参加者「${a.name}」）`);
+  actorIds.add(a.id);
+}
+const stepIds = new Set();
+steps.forEach((s, i) => {
+  if (stepIds.has(s.id)) warnings.push(`ID重複: ${s.id}（${stepName(s, i)}）`);
+  stepIds.add(s.id);
+});
+
+steps.forEach((step, index) => {
+  // 参照切れ
+  if (!actorIds.has(step.from)) {
+    warnings.push(`${stepName(step, index)} の from（${step.from}）が参加者にありません`);
+  }
+  if (step.to !== undefined && !actorIds.has(step.to)) {
+    warnings.push(`${stepName(step, index)} の to（${step.to}）が参加者にありません`);
+  }
+
+  // to の過不足
+  if (step.kind === "self" && step.to !== undefined) {
+    warnings.push(`${stepName(step, index)} は内部処理なのに to（受け手）があります`);
+  }
+  if (step.kind !== "self" && step.to === undefined) {
+    warnings.push(`${stepName(step, index)} は${KIND_LABEL[step.kind]}なのに to（受け手）がありません`);
+  }
+
+  // from == to（矢印が引けない。self への変更を促す）。参照切れのときは出さない
+  if (step.kind !== "self" && step.to !== undefined && step.to === step.from && actorIds.has(step.from)) {
+    warnings.push(
+      `${stepName(step, index)} の from と to が同じ参加者を指しています。自分への処理は形を「内部処理」（self）に変えて表します`
+    );
+  }
+
+  // 立っていない問いへの答え。どの属性のせいで立たないかまで言う
+  for (const p of Q.unposedAnswers(step)) {
+    const reason =
+      step.kind === "reply"
+        ? "応答には問いが立ちません（応答の失敗は対の呼出側の「結果不明」が扱います）"
+        : step.kind === "self"
+          ? "内部処理に立つ問いは「失敗確定」だけです"
+          : "awaitsReply: false（投げっぱなし）の呼出に立つ問いは「結果不明」だけです";
+    warnings.push(`${stepName(step, index)} に「${PATH_LABEL[p]}」の答えがありますが、${reason}`);
+  }
+});
+
+// ---------- 未定義の集計（アプリのガターと同一規則） ----------
+//
+// 数えるのは**立っている問いだけ**。立っていない問いへの答えは上の
+// unposed-answer が別に指摘するので、ここには混ぜない（SequenceEditor.tsx の
+// tally と同じ扱い）
+
+const tally = { unanswered: 0, handled: 0, notApplicable: 0 };
+const unansweredAt = [];
+for (const [index, step] of steps.entries()) {
+  const posed = Q.poseQuestions(step);
+  for (const p of ["failed", "unknown", "ifExecuted"]) {
+    if (!posed[p]) continue;
+    const decision = Q.readSlot(step, p).decision;
+    if (decision === "handled") tally.handled += 1;
+    else if (decision === "notApplicable") tally.notApplicable += 1;
+    else {
+      tally.unanswered += 1;
+      unansweredAt.push(`${stepName(step, index)}「${PATH_LABEL[p]}」`);
+    }
+  }
+}
 
 // ---------- 書き出し ----------
 
@@ -140,6 +223,8 @@ if (targetPath) {
 }
 console.log(`  スキーマ: ${schemaPath}`);
 console.log(`  参加者: ${actors.length}人 ／ ステップ: ${steps.length}件`);
+console.log(`  ⚠ 未定義 ${tally.unanswered} ／ ✓ 回答済 ${tally.handled} ／ ─ 考慮不要 ${tally.notApplicable}`);
+if (unansweredAt.length) console.log(`  未定義の内訳: ${unansweredAt.join("、")}`);
 
 if (warnings.length) {
   console.log(`\n⚠ 整合性の警告（アプリでは赤表示。ファイルは開けます）`);
