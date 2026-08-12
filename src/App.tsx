@@ -133,6 +133,15 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [paneOpen, setPaneOpen] = useState(false)
   const [terminals, setTerminals] = useState<TerminalState>(emptyTerminalState)
+  // タブを閉じる確認ダイアログの `onConfirm` は承認まで遅延実行される
+  // （レビュー指摘2）。`historyRef` / `modalOpenRef` と同じ「最新値の
+  // 読み取り口」——確認待ちの間にタブが自然終了（`onExited`）していても、
+  // 承認された時点の最新の台帳から `ptyId` を引き直せるようにする
+  const terminalsRef = useRef(terminals)
+  terminalsRef.current = terminals
+  // **`paneWidthStore` が持つのは「ユーザーが選んだ幅」（意図）だけ。**
+  // 書き込むのはドラッグ／キーボード／リセット（`PaneSplitter` の
+  // `useColumnResize`）だけにする。ここでは読むだけ
   const paneWidth = useSyncExternalStore(paneWidthStore.subscribe, paneWidthStore.getSnapshot)
   const splitRef = useRef<HTMLDivElement | null>(null)
   // window リスナーはマウント時に1回しか張らないので、最新値は ref から読む
@@ -140,39 +149,49 @@ function App() {
   const terminalPaneRef = useRef<HTMLElement | null>(null)
 
   /**
-   * ウィンドウが狭まったときにペイン幅を詰める（実機確認の指摘A。M11 Task 11）。
-   * `splitRef`（サイドバーを含まない、エディタ＋ペインの区間）の実測幅を
-   * `resizeColumns`（`delta: 0`）に通すだけで、上限クランプの判断を
-   * `column-resize.ts` 1箇所に保てる。ResizeObserver は observe 直後にも
-   * 一度発火する仕様なので、初期表示時の詰めも兼ねる。
+   * `splitRef`（サイドバーを含まない、エディタ＋ペインの区間）の実測幅
+   *（実機確認の指摘A。M11 Task 11）。**ここには意図の幅を書き込まない。**
    *
-   * **ウィンドウ最小幅 1000px の下でサイドバーを開くと 744px しか残らず、
-   * `EDITOR_MIN_WIDTH`(480) + `PANE_MIN_WIDTH`(320) = 800px に足りない。**
-   * この場合どちらを譲るかは `resizeColumns` の上限クランプが決める:
-   * `upper = max(PANE_MIN_WIDTH, available - EDITOR_MIN_WIDTH)` なので、
-   * 詰め切れないぶんはペインが `PANE_MIN_WIDTH` を守り、エディタ側が
-   * それより狭くなって譲る（エディタは `min-w-0` で潰れられる。ペイン側は
-   * 端末の桁数が最低限確保されないと使い物にならないため、ペインを守る）
+   * レビュー指摘1: 最初の実装は `ResizeObserver` のコールバックで
+   * `paneWidthStore.set(resizeColumns(...))` を直接呼び、クランプ後の
+   * 値をそのまま意図として永続化していた。その結果、ウィンドウを一度でも
+   * 狭めると store の値が 320px に潰れ、ウィンドウを元の大きさへ戻しても
+   * 320px のまま二度と戻らなかった（`resizeColumns` は「今の意図」からの
+   * 差分でしか計算しないため、潰れた値からは復元できない）。
+   *
+   * **直し方**: 「意図」（store）と「今画面に出す幅」（意図 ＋ 実測幅を
+   * `resizeColumns` に通した戻り値）を分ける。実測幅はこの state に
+   * 記録するだけにし、表示幅は描画のたびに `displayPaneWidth` として
+   * 計算する。ウィンドウを広げれば `available` が増え、次の描画で
+   * 意図の幅まで自然に戻る
    */
+  const [paneAvailable, setPaneAvailable] = useState(0)
+
   useEffect(() => {
     const el = splitRef.current
     if (el === null) return
-    const clamp = () => {
-      paneWidthStore.set(
-        resizeColumns({
-          widths: paneWidthStore.getSnapshot(),
-          index: 0,
-          delta: 0,
-          minWidth: PANE_MIN_WIDTH,
-          available: el.clientWidth,
-          flexMinWidth: EDITOR_MIN_WIDTH,
-        }),
-      )
-    }
-    const observer = new ResizeObserver(clamp)
+    const measure = () => setPaneAvailable(el.clientWidth)
+    const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
+
+  /**
+   * 実際に画面へ出すペイン幅。**上限クランプの判断は `column-resize.ts`
+   * 1箇所に保つ**——ここでも `resizeColumns` に `delta: 0` で通すだけで、
+   * 新しい判断ロジックは書かない。`paneAvailable` が 0（未測定。jsdom や
+   * 初回描画）のときは `resizeColumns` が上限を掛けないので、意図の幅が
+   * そのまま出る
+   */
+  const displayPaneWidth =
+    resizeColumns({
+      widths: paneWidth,
+      index: 0,
+      delta: 0,
+      minWidth: PANE_MIN_WIDTH,
+      available: paneAvailable,
+      flexMinWidth: EDITOR_MIN_WIDTH,
+    })[0] ?? paneWidth[0]
 
   /**
    * タブを1本足す。**開く直前に必ず Skill を同期する**（設計 決定10）——
@@ -198,7 +217,11 @@ function App() {
   const closeTerminalNow = (id: number) => {
     // **updater の外で殺す。** setState の updater は純粋でなければならない
     //（StrictMode の二重実行で kill が2回飛ぶ。showToast の id 採番と同じ理由）
-    const target = terminals.sessions.find((s) => s.id === id)
+    // **`terminals` を直読みしない。** 確認ダイアログの `onConfirm` から
+    // 遅延して呼ばれるので、閉じるボタンを押した瞬間のクロージャではなく
+    // `terminalsRef.current` で承認された時点の最新の台帳を読む
+    //（レビュー指摘2。historyRef と同じ理由）
+    const target = terminalsRef.current.sessions.find((s) => s.id === id)
     if (target !== undefined && target.ptyId !== null) void tauriPtyIo.kill(target.ptyId)
     setTerminals((prev) => closeSession(prev, id))
   }
@@ -622,7 +645,7 @@ function App() {
               // display は排他なので三項で切り替える（`hidden` と `flex` を
               // 並べてもどちらが勝つかは出力順まかせになる）
               className={`${paneOpen ? 'flex' : 'hidden'} shrink-0 flex-col border-l border-rule`}
-              style={{ width: paneWidth[0] }}
+              style={{ width: displayPaneWidth }}
             >
               <TerminalPane
                 state={terminals}

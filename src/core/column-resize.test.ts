@@ -38,6 +38,37 @@ describe('resizeColumns', () => {
     resizeColumns({ ...base, widths, index: 0, delta: 50 })
     expect(widths).toEqual([100, 100, 100])
   })
+
+  it('狭めてから広げても、元の意図（widths）を渡し直せば元の幅に戻る（M11 レビュー指摘1）', () => {
+    // App.tsx のペイン幅追従の値そのもの（PANE_MIN_WIDTH=320, EDITOR_MIN_WIDTH=480）。
+    // クランプ後の戻り値を意図として書き戻すと、意図そのものが 320 に潰れて
+    // 二度と戻らなくなる（レビューで見つかったバグ）。**呼び出し側が意図
+    // （intent）を変えず、都度この関数に通すだけなら、ウィンドウを広げた
+    // ときに自然に戻る**——それを固定する
+    const intent = [420]
+    const narrow = resizeColumns({
+      widths: intent,
+      index: 0,
+      delta: 0,
+      minWidth: 320,
+      available: 700, // 700 - 480(flexMinWidth) = 220 < 320 なので minWidth に張り付く
+      flexMinWidth: 480,
+    })
+    expect(narrow).toEqual([320])
+    // resizeColumns は引数の配列を書き換えない。呼び出し側が narrow を
+    // 意図として保存し直さない限り、intent は 420 のまま残る
+    expect(intent).toEqual([420])
+
+    const wide = resizeColumns({
+      widths: intent,
+      index: 0,
+      delta: 0,
+      minWidth: 320,
+      available: 2000,
+      flexMinWidth: 480,
+    })
+    expect(wide).toEqual([420])
+  })
 })
 
 describe('invertDelta', () => {

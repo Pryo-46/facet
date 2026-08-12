@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 /**
  * 額縁レベルの DOM テスト。**このファイルが守っているのは1点だけ**——
@@ -19,11 +19,20 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
  * 前提と噛み合わず遠回りになる。`vi.mock` はホイストされるので、
  * ファクトリから参照する可変状態は `vi.hoisted` で作る
  */
-const { closeState, killAllPtysMock, requestCloseOverride } = vi.hoisted(() => ({
-  closeState: { callback: null as (() => Promise<boolean>) | null },
-  killAllPtysMock: vi.fn(async () => undefined),
-  requestCloseOverride: { value: null as boolean | null },
-}))
+/**
+ * `ptyExitHandlers` は spawn ごとに `onExit` を捕まえておく口。「確認待ちの
+ * 間にタブが自然終了した」状況をテストから直接作るために使う——タブを閉じる
+ * 確認ダイアログの `onConfirm` が古い state を掴まないことを検証するテスト
+ * （レビュー指摘2）専用で、それ以外のテストは呼ばない
+ */
+const { closeState, killAllPtysMock, requestCloseOverride, ptyKillMock, ptyExitHandlers } =
+  vi.hoisted(() => ({
+    closeState: { callback: null as (() => Promise<boolean>) | null },
+    killAllPtysMock: vi.fn(async () => undefined),
+    requestCloseOverride: { value: null as boolean | null },
+    ptyKillMock: vi.fn(async () => undefined),
+    ptyExitHandlers: new Map<number, (code: number | null) => void>(),
+  }))
 
 vi.mock('@/fs/project-fs', () => ({
   pickProjectFolder: async () => '/proj',
@@ -46,10 +55,17 @@ vi.mock('@/fs/app-window', () => ({
 vi.mock('@/fs/clipboard', () => ({ copyToClipboard: async () => undefined }))
 vi.mock('@/fs/pty', () => ({
   tauriPtyIo: {
-    spawn: async () => 1,
+    // spec 全体（program/args/cwd/cols/rows/onData/onExit）のうち、ここでは
+    // `onExit` だけ捕まえる。連番の ptyId を振るのは既存テストの前提
+    //（呼び出し引数の中身は見ない）を崩さないため
+    spawn: async (spec: { onExit: (code: number | null) => void }) => {
+      const id = ptyExitHandlers.size + 1
+      ptyExitHandlers.set(id, spec.onExit)
+      return id
+    },
     write: async () => undefined,
     resize: async () => undefined,
-    kill: async () => undefined,
+    kill: ptyKillMock,
   },
   killAllPtys: killAllPtysMock,
 }))
@@ -114,6 +130,10 @@ vi.stubGlobal(
 const App = (await import('./App')).default
 
 afterEach(cleanup)
+afterEach(() => {
+  ptyExitHandlers.clear()
+  ptyKillMock.mockClear()
+})
 
 /**
  * 端末ペインの中の要素を返す。**`role="tablist"` は名乗っていない**
@@ -201,6 +221,30 @@ describe('タブを閉じる確認', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Claude 1 を閉じる' }))
     fireEvent.click(await screen.findByRole('button', { name: 'キャンセル' }))
     expect(screen.getByRole('button', { name: 'Claude 1' })).toBeTruthy()
+  })
+
+  // レビュー指摘2: onConfirm は承認まで遅延実行されるので、× を押した瞬間の
+  // クロージャではなく、承認された時点の最新の台帳から ptyId を引き直す必要がある
+  it('確認待ちの間にタブが自然終了しても壊れない（古い ptyId で kill を呼ばない）', async () => {
+    await openPane()
+    // spawn の解決（onRunning。ptyId が入る）をここで確実に反映させてから
+    // 閉じる操作に進む。反映前に閉じると target.ptyId が最初から null になり、
+    // このテストが検証したい「非 null だった ptyId が古いまま使われる」状況を
+    // 再現できない
+    await act(async () => {
+      await Promise.resolve()
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Claude 1 を閉じる' }))
+    await screen.findByText('Claude 1 を終了しますか？')
+    // 確認待ちの間に PTY が自然終了する。台帳の ptyId はここで null に落ちる
+    const onExit = ptyExitHandlers.get(1)
+    if (onExit === undefined) throw new Error('unreachable: spawn が呼ばれていない')
+    act(() => onExit(0))
+    fireEvent.click(await screen.findByRole('button', { name: '終了する' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
+    // 承認された時点で ptyId は既に null。古い（自然終了前の）ptyId で
+    // kill を呼んでいたら、この期待は壊れる
+    expect(ptyKillMock).not.toHaveBeenCalled()
   })
 })
 
