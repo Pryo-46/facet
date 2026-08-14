@@ -324,12 +324,11 @@ export function LogicTreeEditor({
 
       <TreeEdges roots={built.roots} positions={positions} sizes={sizes} transform={transform} />
 
-      {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面で、
-          ツリー順では帯のボタンより後ろ（＝上）に来る。z-index はどちらも
-          auto なので、pointer-events を切らないと中央のヒットテストを
-          この面が奪い、「帯のボタン」が押せなくなる。操作を受けるのは
-          ノードの矩形だけでよいので、NodeBox 側で auto に戻す。
-          Task 11 の「背景を掴んでパンする」もこの形のまま効く */}
+      {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面。
+          pointer-events を切らないと、この面がキャンバス全体を覆う単一の
+          ヒット領域になり、useViewport がコンテナに付けた背景パン／ズームの
+          ハンドラまで mousedown が届かなくなる。操作を受けるのはノードの矩形
+          だけでよいので、NodeBox 側で auto に戻す */}
       <div
         className="pointer-events-none absolute inset-0 origin-top-left"
         style={{ transform: cssTransform(transform) }}

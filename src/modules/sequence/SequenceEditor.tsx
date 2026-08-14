@@ -780,8 +780,10 @@ export function SequenceEditor({
       <SequenceEdges steps={edgeSteps} layout={layout} transform={transform} />
 
       {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面。
-          pointer-events を切らないと帯のボタンのヒットテストをこの面が奪う。
-          操作を受けるのはセルの矩形だけでよいので、各セル側で auto に戻す */}
+          pointer-events を切らないと、この面がキャンバス全体を覆う単一の
+          ヒット領域になり、useViewport がコンテナに付けた背景パン／ズームの
+          ハンドラまで mousedown が届かなくなる。操作を受けるのはセルの矩形
+          だけでよいので、各セル側で auto に戻す */}
       <div
         className="pointer-events-none absolute inset-0 origin-top-left"
         style={{ transform: cssTransform(transform) }}
