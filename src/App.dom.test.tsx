@@ -361,12 +361,11 @@ describe('名前の帯（M13）', () => {
     expect(screen.getByRole('button', { name: '(無題)（用語集.json） を開く' })).not.toBeNull()
   })
 
-  it('スキーマ検証に落ちた用語集でも帯に種類名を出す（一覧の見出しと食い違わせない）', async () => {
+  it('スキーマ検証に落ちたファイルの帯は読み取り専用で、種類名も出さない', async () => {
     // terms が配列でないのでスキーマ検証に落ちる（＝ rejected）。それでも
     // type は読めているので、一覧は「用語集」の見出しの下に置く。
-    // **ファイル名にも title にも「用語集」を含めないこと**——帯に出る
-    // 「用語集」がファイル名やタイトルの写しでないことを確かめたいので、
-    // 種類名としてしか現れない状況を作る
+    // **ファイル名にも title にも「用語集」を含めないこと**——帯に「用語集」が
+    // 出ていないことを確かめたいので、種類名としてしか現れない状況を作る
     disk.set(
       '/proj/broken.json',
       JSON.stringify({ schemaVersion: 1, type: 'glossary', title: 'こわれた', terms: 'x' }),
@@ -374,8 +373,9 @@ describe('名前の帯（M13）', () => {
     const input = await openBand('こわれた（broken.json）')
     const band = input.parentElement
     if (band === null) throw new Error('unreachable: 帯が無い')
-    expect(band.textContent).toContain('用語集')
-    // 書けないファイルなので入力欄は読み取り専用のまま（帯の editable は変えていない）
+    // 種類は一覧の見出しが示すので、帯では言わない（M13 実機確認の裁定）
+    expect(band.textContent).not.toContain('用語集')
+    // 書けないファイルなので入力欄は読み取り専用のまま
     expect(input.hasAttribute('readonly')).toBe(true)
   })
 })

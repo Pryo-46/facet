@@ -3,8 +3,6 @@ export interface FileHeaderProps {
   title: string
   /** 副表示。ファイル名は識別子ではないので小さく出す（rev 5章） */
   fileName: string
-  /** モジュールの displayName。登録に無い type なら null */
-  typeLabel: string | null
   /**
    * false なら読み取り専用。**rejected / listOnly のファイルに書き込む入口を
    * 作らないため**——データを書けないファイルに編集 UI を出すと、
@@ -41,15 +39,20 @@ export function FileHeader(props: FileHeaderProps) {
           if (props.editable) props.onTitleChange(e.target.value)
         }}
       />
-      {props.typeLabel !== null && (
-        <span className="shrink-0 text-xs text-ink-muted">{props.typeLabel}</span>
-      )}
-      {/* **`shrink-0` を付けないこと。** 付けると span が常に内容ぶんの幅を取り、
+      {/* **種類名は出さない。** 一覧の見出しが既に種類を示しているので、
+          帯にも出すと同じことを2箇所で言うことになる（人間の裁定。M13 実機確認）
+
+          **`shrink-0` を付けないこと。** 付けると span が常に内容ぶんの幅を取り、
           `truncate` が永久に発火しないまま、長いファイル名が主役の入力欄を
           押し潰す。ファイル名は副表示なので、狭いときに縮んで `…` になる方を採る
           （`truncate` の overflow:hidden が flex の自動最小幅を 0 にするので、
-          `min-w-0` は要らない） */}
-      <span className="truncate text-xs text-ink-muted">{props.fileName}</span>
+          `min-w-0` は要らない）
+
+          **`/70` は役割トークンへの透過。** ファイル名は識別子ではない副表示
+          なので、`ink-muted` そのままより一段引く（人間の裁定。M13 実機確認）。
+          トークン自体の 4.5:1 は palette が保証しているが、透過を掛けた分は
+          その保証の外に出る */}
+      <span className="truncate text-xs text-ink-muted/70">{props.fileName}</span>
     </div>
   )
 }
