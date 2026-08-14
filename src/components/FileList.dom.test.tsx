@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ProjectFile } from '@/core/project-file'
 import { groupFiles } from '@/core/file-grouping'
+import { UNTITLED } from '@/core/load'
 import { appRegistry } from '@/modules'
 import { FileList } from './FileList'
 
@@ -194,8 +195,10 @@ describe('種類の見出しとソート（M13）', () => {
       }),
       file('用語集.json'),
     ])
-    expect(screen.getByRole('heading', { name: '用語集' })).not.toBeNull()
-    expect(screen.getByRole('heading', { name: 'シーケンス' })).not.toBeNull()
+    // 見出しレベルは h2。額縁の h1（`facet`）との間に入る見出しは無いので、
+    // h3 にするとレベルが飛ぶ（エディタの h2 は M13 で帯へ一本化した）
+    expect(screen.getByRole('heading', { level: 2, name: '用語集' })).not.toBeNull()
+    expect(screen.getByRole('heading', { level: 2, name: 'シーケンス' })).not.toBeNull()
   })
 
   it('行の主表示は title、副表示はファイル名', () => {
@@ -230,5 +233,43 @@ describe('種類の見出しとソート（M13）', () => {
       }),
     ])
     expect(screen.getByRole('button', { name: 'メモ.json を開く' })).not.toBeNull()
+    // 見えている行でも2度言わない（主表示がファイル名に落ちているので、
+    // 副表示にもう一度同じ文字列を出さない）。マーカーは出したまま
+    expect(screen.getAllByText('メモ.json')).toHaveLength(1)
+    expect(screen.getByText('開けない')).not.toBeNull()
+  })
+
+  it('title が読めないファイルでも issue 件数バッジは出る（副表示を畳んでも消さない）', () => {
+    setup([
+      file('メモ.json', {
+        result: {
+          status: 'rejected',
+          type: null,
+          title: null,
+          reason: 'JSON として解釈できません',
+          errors: [],
+        },
+        issues: [{ rule: 'singleton-violation', message: '用語集が2件あります', locations: [] }],
+      }),
+    ])
+    expect(screen.getByText('1')).not.toBeNull()
+  })
+
+  it('(無題) は弱い色で出す（実在の title と見分けがつくように）', () => {
+    setup([
+      file('用語集.json', {
+        result: { status: 'editable', type: 'glossary', title: '', data: {} },
+      }),
+    ])
+    const label = screen.getByText(UNTITLED)
+    expect(label.className).toContain('text-ink-muted')
+  })
+
+  it('実在の title は通常の色で出す', () => {
+    setup([file('用語集.json')])
+    // 行の主表示（副表示のファイル名ではない方）
+    const label = screen.getByText('用語集', { selector: 'span' })
+    expect(label.className).toContain('text-ink')
+    expect(label.className).not.toContain('text-ink-muted')
   })
 })

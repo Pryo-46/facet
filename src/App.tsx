@@ -422,6 +422,17 @@ function App() {
     selected && selected.result.status === 'editable'
       ? appRegistry.get(selected.result.type)
       : undefined
+  /**
+   * 帯に出す種類名。**`selectedModule` から引かないこと**——`selectedModule` は
+   * editable のときしか決まらないので、スキーマ検証に落ちた用語集では null に
+   * なる。一覧（`groupFiles`）は同じファイルを「用語集」の見出しの下に置くので、
+   * 一覧と帯が食い違う。type が読めているなら status を問わず名前を出す
+   *（`editable` の判定自体はここでは変えない。読み取り専用のままでよい）
+   */
+  const selectedTypeLabel =
+    selected && selected.result.type !== null
+      ? (appRegistry.get(selected.result.type)?.displayName ?? null)
+      : null
   // **`appRegistry.list()` を JSX の中で呼ばないこと。** 毎レンダーで新しい
   // 配列が返るため、下の groups の useMemo が毎回作り直しになる
   const modules = useMemo(() => appRegistry.list(), [])
@@ -617,7 +628,7 @@ function App() {
                     : (selected.result.title ?? '')
                 }
                 fileName={selected.name}
-                typeLabel={selectedModule?.displayName ?? null}
+                typeLabel={selectedTypeLabel}
                 editable={selected.result.status === 'editable' && editingData !== null}
                 onTitleChange={(next) => {
                   if (editingData === null || selectedModule === undefined) return

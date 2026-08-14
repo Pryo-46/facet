@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupFiles } from './file-grouping'
+import { groupFiles, UNKNOWN_TYPE_KEY } from './file-grouping'
 import type { ProjectFile } from './project-file'
 import type { AnyToolModule } from './registry'
 
@@ -48,7 +48,9 @@ describe('groupFiles', () => {
     expect(groups[0].key).toBe('glossary')
   })
 
-  it('グループ内は title の五十音順', () => {
+  // **五十音順ではない。** 漢字は ICU の照合順（部首・画数）で並ぶので、
+  // 期待値も読みの順（受注→問合せ→返品）ではなく localeCompare の順になる
+  it("グループ内は title の localeCompare('ja') 順", () => {
     const groups = groupFiles(
       [
         editable('シーケンス.json', 'sequence', '問合せフロー'),
@@ -94,7 +96,7 @@ describe('groupFiles', () => {
       MODULES,
     )
     expect(groups.map((g) => g.heading)).toEqual(['用語集', 'stateMachine（未対応）', '種類不明'])
-    expect(groups[2].key).toBe('__unknown__')
+    expect(groups[2].key).toBe(UNKNOWN_TYPE_KEY)
   })
 
   it('入力の配列を破壊しない', () => {

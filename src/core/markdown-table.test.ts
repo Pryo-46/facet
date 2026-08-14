@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dividerRow, escapeCell, headingText, row } from './markdown-table'
+import { dividerRow, documentHeading, escapeCell, headingText, row } from './markdown-table'
 
 describe('escapeCell', () => {
   it('| をエスケープする（列区切りと衝突する）', () => {
@@ -44,5 +44,23 @@ describe('headingText', () => {
 
   it('| はエスケープしない（見出しに列区切りは無い）', () => {
     expect(headingText('a|b')).toBe('a|b')
+  })
+})
+
+describe('documentHeading', () => {
+  it('title を h2 にする', () => {
+    expect(documentHeading('受注フロー')).toBe('## 受注フロー')
+  })
+
+  it('空の title は (無題) に落とす（`## ` だけの行を出さない）', () => {
+    expect(documentHeading('')).toBe('## (無題)')
+  })
+
+  it('空白だけの title はそのまま（空欄と「空白を入れた」は区別する）', () => {
+    expect(documentHeading(' ')).toBe('##  ')
+  })
+
+  it('改行は headingText と同じく空白へ潰す', () => {
+    expect(documentHeading('受注\n# フロー')).toBe('## 受注 # フロー')
   })
 })

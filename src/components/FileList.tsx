@@ -2,6 +2,7 @@ import { useId } from 'react'
 import { buttonBase } from '@/components/button-styles'
 import type { FileGroup } from '@/core/file-grouping'
 import { canCreateFileOfType } from '@/core/file-ops'
+import { UNTITLED } from '@/core/load'
 import { displayTitle, type ProjectFile } from '@/core/project-file'
 import type { AnyToolModule } from '@/core/registry'
 
@@ -38,8 +39,11 @@ function FileRow(props: {
   const label = displayTitle(file)
   // **同じ文字列を2度言わない。** displayTitle がファイル名に落ちたとき
   //（title が読めないファイル）、素朴に併記すると
-  //「壊れた.json（壊れた.json）」になる
-  const fullName = label === file.name ? label : `${label}（${file.name}）`
+  //「壊れた.json（壊れた.json）」になる。
+  // 見えている行も同じ条件で畳む——アクセシブル名だけ畳んで主表示と副表示に
+  // 同じファイル名を2行並べると、目で見る側にだけ重複が残る
+  const showFileName = label !== file.name
+  const fullName = showFileName ? `${label}（${file.name}）` : label
   const descId = useId()
   return (
     // items-stretch で削除ボタンが行の高さいっぱいになる（要望8）。
@@ -58,9 +62,13 @@ function FileRow(props: {
         }`}
         onClick={props.onSelect}
       >
-        <span className="block truncate text-ink">{label}</span>
+        {/* `(無題)` は人間がつけた名前ではないので弱く出す（設計スペック）。
+            実在の title と見分けがつかないと「名前をつけ忘れた」が伝わらない */}
+        <span className={`block truncate ${label === UNTITLED ? 'text-ink-muted' : 'text-ink'}`}>
+          {label}
+        </span>
         <span id={descId} className="block truncate text-xs text-ink-muted">
-          {file.name}
+          {showFileName && file.name}
           {file.result.status === 'rejected' && <span className="ml-1 text-warning">開けない</span>}
           {file.result.status === 'listOnly' && <span className="ml-1">編集不可</span>}
           {file.issues.length > 0 && (
@@ -124,10 +132,13 @@ export function FileList(props: FileListProps) {
         props.groups.map((group) => (
           <div key={group.key}>
             {/* 見出しは装飾ではなく文書構造なので heading。面は M8 の
-                「見出しの面」トークンを使う（rev 9章） */}
-            <h3 className="border-b border-rule bg-surface-accent px-4 py-1 text-xs font-bold text-ink-muted">
+                「見出しの面」トークンを使う（rev 9章）。
+                **h2 にすること。** 額縁の h1（`facet`）の直下で、間に入る
+                見出しは無い（エディタの h2 は M13 で帯へ一本化した）ので、
+                h3 にするとレベルが飛ぶ */}
+            <h2 className="border-b border-rule bg-surface-accent px-4 py-1 text-xs font-bold text-ink-muted">
               {group.heading}
-            </h3>
+            </h2>
             <ul>
               {group.files.map((file) => (
                 <FileRow

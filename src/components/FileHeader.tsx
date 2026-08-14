@@ -44,7 +44,12 @@ export function FileHeader(props: FileHeaderProps) {
       {props.typeLabel !== null && (
         <span className="shrink-0 text-xs text-ink-muted">{props.typeLabel}</span>
       )}
-      <span className="shrink-0 truncate text-xs text-ink-muted">{props.fileName}</span>
+      {/* **`shrink-0` を付けないこと。** 付けると span が常に内容ぶんの幅を取り、
+          `truncate` が永久に発火しないまま、長いファイル名が主役の入力欄を
+          押し潰す。ファイル名は副表示なので、狭いときに縮んで `…` になる方を採る
+          （`truncate` の overflow:hidden が flex の自動最小幅を 0 にするので、
+          `min-w-0` は要らない） */}
+      <span className="truncate text-xs text-ink-muted">{props.fileName}</span>
     </div>
   )
 }

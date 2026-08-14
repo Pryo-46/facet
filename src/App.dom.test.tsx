@@ -25,6 +25,12 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
  * 確認ダイアログの `onConfirm` が古い state を掴まないことを検証するテスト
  * （レビュー指摘2）専用で、それ以外のテストは呼ばない
  */
+/**
+ * `disk` は「/proj の中身」をテストから差し替えるための可変状態（M13）。
+ * 既定は空なので、**このファイルの既存テストが前提にしている「listJsonFiles は
+ * 常に []」はそのまま保たれる**——中身を置くテストだけが自分で足し、
+ * afterEach で片付ける
+ */
 const {
   closeState,
   killAllPtysMock,
@@ -32,6 +38,8 @@ const {
   ptyKillMock,
   ptyExitHandlers,
   syncReadingGuideMock,
+  disk,
+  writeProjectFileMock,
 } = vi.hoisted(() => ({
   closeState: { callback: null as (() => Promise<boolean>) | null },
   killAllPtysMock: vi.fn(async () => undefined),
@@ -39,13 +47,15 @@ const {
   ptyKillMock: vi.fn(async () => undefined),
   ptyExitHandlers: new Map<number, (code: number | null) => void>(),
   syncReadingGuideMock: vi.fn(async () => undefined),
+  disk: new Map<string, string>(),
+  writeProjectFileMock: vi.fn(async (_path: string, _text: string) => undefined),
 }))
 
 vi.mock('@/fs/project-fs', () => ({
   pickProjectFolder: async () => '/proj',
-  listJsonFiles: async () => [],
-  readProjectFile: async () => '',
-  writeProjectFile: async () => undefined,
+  listJsonFiles: async () => [...disk.keys()],
+  readProjectFile: async (path: string) => disk.get(path) ?? '',
+  writeProjectFile: writeProjectFileMock,
   fileExists: async () => false,
   moveFileToTrash: async () => undefined,
   joinPath: async (dir: string, name: string) => `${dir}/${name}`,
@@ -149,6 +159,8 @@ afterEach(cleanup)
 afterEach(() => {
   ptyExitHandlers.clear()
   ptyKillMock.mockClear()
+  disk.clear()
+  writeProjectFileMock.mockClear()
 })
 
 /**
@@ -278,6 +290,93 @@ describe('タブを閉じる確認', () => {
     // 承認された時点で ptyId は既に null。古い（自然終了前の）ptyId で
     // kill を呼んでいたら、この期待は壊れる
     expect(ptyKillMock).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * 名前の帯（M13）。**ここが守っているのは配線の2本立て**——帯の
+ * `onTitleChange` は `record`（履歴）と `applyEdit`（自動保存＋一覧）の
+ * 両方を呼ぶ必要があり、片方を落としても TypeScript もユニットテストも
+ * 何も言わない。`record` だけなら名前が保存されず、`applyEdit` だけなら
+ * Undo が静かに効かなくなる。どちらも「動いているように見える」壊れ方をする
+ */
+describe('名前の帯（M13）', () => {
+  const GLOSSARY_PATH = '/proj/用語集.json'
+
+  const putGlossary = (title: string, over: Record<string, unknown> = {}) => {
+    disk.set(
+      GLOSSARY_PATH,
+      JSON.stringify({ schemaVersion: 1, type: 'glossary', title, terms: [], ...over }),
+    )
+  }
+
+  /** フォルダを開いて用語集を選び、帯の入力欄を返す */
+  async function openBand(rowName: string) {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: `${rowName} を開く` }))
+    return await screen.findByRole('textbox', { name: 'ファイルの名前' })
+  }
+
+  it('帯で名前を変えると、保存もされ Undo も効く（record と applyEdit の両方）', async () => {
+    putGlossary('古い名前')
+    const input = await openBand('古い名前（用語集.json）')
+    fireEvent.change(input, { target: { value: '新しい名前' } })
+
+    // **applyEdit 側**: 自動保存（デバウンス 500ms）へ新しい title が渡る。
+    // ここは実タイマーで待つ——このファイルは偽タイマーを使っておらず、
+    // 導入すると xterm/ResizeObserver 側の非同期まで巻き込む
+    await waitFor(
+      () => {
+        expect(writeProjectFileMock).toHaveBeenCalled()
+      },
+      { timeout: 3000 },
+    )
+    const lastCall = writeProjectFileMock.mock.calls.at(-1)
+    if (lastCall === undefined) throw new Error('unreachable: write が呼ばれていない')
+    expect(lastCall[0]).toBe(GLOSSARY_PATH)
+    expect((JSON.parse(lastCall[1]) as { title: string }).title).toBe('新しい名前')
+
+    // **record 側**: 履歴に積まれたので「元に戻す」が押せるようになる
+    expect(screen.getByRole('button', { name: '元に戻す' }).hasAttribute('disabled')).toBe(false)
+
+    // 一覧の行も追随する（applyEdit の result.title 引き直し。ここが無いと
+    // 帯で名前を変えても一覧が古いまま残る）
+    expect(screen.getByRole('button', { name: '新しい名前（用語集.json） を開く' })).not.toBeNull()
+  })
+
+  it('名前を空にしても保存される（空欄は「まだ決めていない」の意思表示。拒否しない）', async () => {
+    putGlossary('消す名前')
+    const input = await openBand('消す名前（用語集.json）')
+    fireEvent.change(input, { target: { value: '' } })
+    await waitFor(
+      () => {
+        expect(writeProjectFileMock).toHaveBeenCalled()
+      },
+      { timeout: 3000 },
+    )
+    const lastCall = writeProjectFileMock.mock.calls.at(-1)!
+    expect((JSON.parse(lastCall[1]) as { title: string }).title).toBe('')
+    // 一覧の主表示だけが (無題) に落ちる（データは空のまま）
+    expect(screen.getByRole('button', { name: '(無題)（用語集.json） を開く' })).not.toBeNull()
+  })
+
+  it('スキーマ検証に落ちた用語集でも帯に種類名を出す（一覧の見出しと食い違わせない）', async () => {
+    // terms が配列でないのでスキーマ検証に落ちる（＝ rejected）。それでも
+    // type は読めているので、一覧は「用語集」の見出しの下に置く。
+    // **ファイル名にも title にも「用語集」を含めないこと**——帯に出る
+    // 「用語集」がファイル名やタイトルの写しでないことを確かめたいので、
+    // 種類名としてしか現れない状況を作る
+    disk.set(
+      '/proj/broken.json',
+      JSON.stringify({ schemaVersion: 1, type: 'glossary', title: 'こわれた', terms: 'x' }),
+    )
+    const input = await openBand('こわれた（broken.json）')
+    const band = input.parentElement
+    if (band === null) throw new Error('unreachable: 帯が無い')
+    expect(band.textContent).toContain('用語集')
+    // 書けないファイルなので入力欄は読み取り専用のまま（帯の editable は変えていない）
+    expect(input.hasAttribute('readonly')).toBe(true)
   })
 })
 

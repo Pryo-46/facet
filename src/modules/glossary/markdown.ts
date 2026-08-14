@@ -1,4 +1,4 @@
-import { dividerRow, escapeCell, headingText, row } from '@/core/markdown-table'
+import { dividerRow, documentHeading, escapeCell, headingText, row } from '@/core/markdown-table'
 import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
 import glossarySchema from '../../../schemas/glossary.schema.json'
 import { FIELD_LABELS, FIELD_ORDER } from './fields'
@@ -46,7 +46,7 @@ export function glossaryToMarkdown(data: GlossarySchemaVersion1): string {
 
   const header = row(FIELD_ORDER.map((field) => FIELD_LABELS[field]))
   const divider = dividerRow(FIELD_ORDER.length)
-  const blocks: string[] = [`## ${headingText(data.title)}`]
+  const blocks: string[] = [documentHeading(data.title)]
   for (const [kind, terms] of groups) {
     if (terms.length === 0) continue
     // kindLabel は未知の値に生値を返す（kind-labels.ts）。enum を拡張した版の

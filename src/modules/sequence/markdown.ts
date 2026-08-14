@@ -1,5 +1,5 @@
 import type { ConsistencyIssue } from '@/core/consistency'
-import { dividerRow, escapeCell, headingText, row } from '@/core/markdown-table'
+import { dividerRow, documentHeading, escapeCell, row } from '@/core/markdown-table'
 import type { SequenceSchemaVersion1, SequenceStep } from '@/types/sequence'
 import { readSlot } from './commands'
 import { sequenceToMermaid } from './mermaid'
@@ -76,7 +76,7 @@ export function sequenceToMarkdown(data: SequenceSchemaVersion1): string {
   )
   const table = [row(TABLE_HEADERS), dividerRow(TABLE_HEADERS.length), ...rows].join('\n')
   const diagram = ['```mermaid', sequenceToMermaid(data), '```'].join('\n')
-  return `## ${headingText(data.title)}\n\n${diagram}\n\n${table}\n`
+  return `${documentHeading(data.title)}\n\n${diagram}\n\n${table}\n`
 }
 
 /**
