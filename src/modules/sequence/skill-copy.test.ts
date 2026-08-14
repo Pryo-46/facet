@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
  * **なぜコピーなのか。** Skill はアプリがユーザーのプロジェクトフォルダへ
  * 置き直すため（src/core/skill-sync.ts）、実行時に src/ は存在しない。
  * 一方で手で複製すると、エラーカタログ Skill と同じ
- * 「追従漏れがテストで検知されない」状態になる（open-issues #78）。
+ * 「追従漏れがテストで検知されない」状態になる（open-issues に記録あり）。
  * **バイト一致のコピー＋この検査**なら、ズレた瞬間に赤くなる
  */
 const COPIES = [
