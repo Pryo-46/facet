@@ -54,6 +54,9 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [M11](history/m11-core-claude-code-pane.md) | Claude Code ペイン | コア |
 | [logic-tree-m1](history/logic-tree-m1-keyboard-editor.md) | キーボードで打ち切れるキャンバスエディタ | ロジックツリー |
 | [sequence-m1](history/sequence-m1-keyboard-editor.md) | ステップ入力＋全ステップに立つ「失敗したら？」の問い | シーケンス |
+| [sequence-m2](history/sequence-m2-usability.md) | 会議で使ってみて出た使い勝手9点 | シーケンス |
+| [sequence-m3](history/sequence-m3-mouse-and-output.md) | マウス操作と出力（Markdown・Mermaid） | シーケンス |
+| [sequence-m4](history/sequence-m4-register-skill.md) | シーケンス登録 Skill（会話→ JSON） | シーケンス・コア |
 
 ## ツールが増えたとき
 
@@ -71,5 +74,5 @@ docs/open-issues.md                                    ← ツール横断で1�
 ## リポジトリ内の他の「正」
 
 - `schemas/*.schema.json` — 各ツールのデータ形式の**正**。型（`src/types/*.ts`）はここから生成する。**コピーを作らない**（Skill 側も同じ実体を読む）
-- `.claude/skills/` — AI 側の実装。**2種類ある**——ユーザーのデータを作るもの（用語集・エラーカタログ。アプリと**正規形が完全一致**していなければならない）と、アプリ自身のソースを触るもの（`palette-retheme`。配色の差し替え）
+- `.claude/skills/` — AI 側の実装。**2種類ある**——ユーザーのデータを作るもの（用語集・エラーカタログ・シーケンス。アプリと**正規形が完全一致**していなければならない。`src/core/skill-sync.ts` の `BUNDLED_SKILLS` に載り、プロジェクトフォルダへコピーされる）と、アプリ自身のソースを触るもの（`palette-retheme`。配色の差し替え。同梱しない）
 - `../CLAUDE.md` — 作業のしかた（worktree の使い方、マイルストーン完了時に触る場所）
