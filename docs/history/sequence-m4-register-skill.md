@@ -165,7 +165,7 @@ Skill をプロジェクトへ配置できませんでした（Skill 無しで�
 報告は全項目通過で、内訳は次のとおり:
 
 - **フォルダを開いた時点で**3本とも配置された（Claude Code タブを開く必要が無い＝同期を `projectDir` の effect へ移した修正が効いている）
-- 置かれたのは `SKILL.md` / `package.json` / `scripts/`（4本）。**`evals/` と `.gitignore` は無い**。なお `package-lock.json` は `shouldSyncSkillFile` の除外対象では**ない**——この回に無かったのは Skill の `.gitignore` が対象にしていて同梱物に入らなかったからで、同梱物にあれば一緒に置かれる（`open-issues.md` の「同期のたびに `package-lock.json` は消える」はこの前提に立っている）
+- 置かれたのは `SKILL.md` / `package.json` / `scripts/`（4本）。**`evals/` と `.gitignore` は無い**。なお `package-lock.json` は `shouldSyncSkillFile` の除外対象では**ない**——同梱物にあれば一緒に置かれる。**この回に無かった理由は特定できていない。**「`.gitignore` が対象にしているから同梱物に入らない」という説明は**クリーンなチェックアウトからビルドした場合に限って成立する**——`bundle.resources` はワーキングツリーをそのままコピーするため、`npm install` 済みの開発機でビルドすると `.gitignore` は同梱に一切影響しない（gitignore 対象のはずの `node_modules/` が同梱物に入るのと同じ機構）。実際、この worktree のビルド（`src-tauri/target/debug/skills/sequence-register/package-lock.json`）にはソースと byte-identical な `package-lock.json` が存在する。この回のビルドがクリーンなチェックアウトからのものだったかは記録が無い（`open-issues.md` の「同期のたびに `package-lock.json` は消える」の記述は、クリーンなチェックアウトの場合として正しい）
 - **置いた先で `npm install` が成功し `ajv` が入った**（`package.json` を同梱するようにした効果。これが無いと手順書どおりにしても入らなかった）
 - **フォルダを開き直しても `node_modules` が残った**（Task 8b＋8c の修正2）
 - **`.DS_Store` 起因の失敗トーストは出なかった**（握りつぶしが効いている）
