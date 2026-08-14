@@ -44,7 +44,6 @@ import {
   GUTTER_HEADING_HEIGHT,
   layoutSequence,
   QUESTION_LABEL_WIDTH,
-  RAIL_WIDTH,
   ROW_GAP,
   type SeqLayoutInput,
 } from './layout'
@@ -443,6 +442,7 @@ export function SequenceEditor({
     steps: stepViews.map((view) => ({
       fromIndex: view.fromIndex,
       toIndex: view.toIndex,
+      isSelf: view.shape === 'self',
       metrics: {
         labelWidth: view.label.width,
         labelHeight: view.label.height,
@@ -928,16 +928,10 @@ export function SequenceEditor({
           const labelFace = stepHas(index, 'row') ? 'bg-transparent' : 'bg-surface'
           // 文言は矢印の真上に置く（layout の arrowY は文言の高さから決まっている）
           const labelTop = row.arrowY - ARROW_GAP - view.label.height
-          // 参照が引けない行の逃げ場は「図の左端」＝レールの右。
-          // DIAGRAM_MARGIN に置くとレールのセルの上に文言が乗る
-          const diagramLeft = DIAGRAM_MARGIN + RAIL_WIDTH
-          const anchorX = view.fromIndex < 0 ? diagramLeft : layout.actorX[view.fromIndex]
-          const labelLeft = isSelf
-            ? anchorX
-            : view.toIndex === null || view.toIndex < 0 || view.fromIndex < 0
-              ? diagramLeft
-              : (layout.actorX[view.fromIndex] + layout.actorX[view.toIndex]) / 2 -
-                view.label.width / 2
+          // 文言の置き方はレイアウトが決める（`labelLeft`）。**ここで
+          // 計算し直さないこと**——ガターの左端は文言の右端から導いており、
+          // 置き方が2箇所にあると図が静かに重なる（実機確認で踏んだ）
+          const labelLeft = row.labelLeft
           // 編集の足場（#番号 / from / to / 形）はレールの中の固定 x に置く。
           // **矢印の位置も参加者の数も見ない**——だから from==to の呼出（線が引けない）でも
           // 定位置に出るし、細い図でガターに被ることもない

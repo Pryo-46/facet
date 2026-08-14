@@ -25,7 +25,7 @@ export const GUTTER_HEADING_HEIGHT = 18
  * `questions.test.ts` がこの下限を検算しているので、**問いの文言を足す／
  * 伸ばすときはここも一緒に見ること**（折り返すとその行だけ背が伸びる）
  */
-export const QUESTION_LABEL_WIDTH = 152
+export const QUESTION_LABEL_WIDTH = 164
 export const DIAGRAM_MARGIN = 8
 /**
  * 行の左端に置く編集セル列（レール）の幅。**図はこの右から始まる。**
@@ -49,7 +49,17 @@ export interface StepMetrics {
 export interface SeqLayoutInput {
   actorWidths: number[]
   domains: (string | undefined)[]
-  steps: { fromIndex: number; toIndex: number | null; metrics: StepMetrics }[]
+  /**
+   * `isSelf` は文言の置き方が種別で変わるために要る（self は起点の真上、
+   * 呼出／応答は from-to の中点）。**エディタ側で分岐させないこと**——
+   * 置き方を知っているのがここだけだから、ガターの左端をそこから導ける
+   */
+  steps: {
+    fromIndex: number
+    toIndex: number | null
+    isSelf: boolean
+    metrics: StepMetrics
+  }[]
 }
 
 export interface SeqRow {
@@ -57,6 +67,8 @@ export interface SeqRow {
   height: number
   arrowY: number
   slotTops: number[]
+  /** 文言セルの左端。描画はこれをそのまま使う（置き方の正はレイアウト） */
+  labelLeft: number
 }
 
 export interface SeqLayoutResult {
@@ -108,11 +120,33 @@ export function layoutSequence(input: SeqLayoutInput): SeqLayoutResult {
     }
   }
 
+  // 参照が引けない行の逃げ場は「図の左端」＝レールの右。
+  // DIAGRAM_MARGIN に置くとレールのセルの上に文言が乗る
+  const diagramLeft = DIAGRAM_MARGIN + RAIL_WIDTH
+  /**
+   * 文言セルの左端。**self は起点の真上**（矢印が無く、線は自分へ戻るだけ）、
+   * 呼出／応答は from-to の中点に文言の中心を合わせる。
+   * 参照が引けないときはどちらも図の左端へ逃がす
+   */
+  const labelLeftOf = (step: SeqLayoutInput['steps'][number]): number => {
+    const fromX = actorX[step.fromIndex]
+    if (step.isSelf) return fromX ?? diagramLeft
+    const toX = step.toIndex === null ? undefined : actorX[step.toIndex]
+    if (fromX === undefined || toX === undefined) return diagramLeft
+    return (fromX + toX) / 2 - step.metrics.labelWidth / 2
+  }
+
   // ---- Y 軸: 行を上から積む ----
   const rows: SeqRow[] = []
+  // 文言の右端の最大。**ガターの左端はこれも見る**——参加者ヘッダの右端だけで
+  // 決めると、参加者が少なく文言が長い図（self の内部処理など）で
+  // 文言がガターの問いラベルに重なる（実機確認で踏んだ）
+  let labelsRight = 0
   let top = HEADER_HEIGHT + FIRST_ROW_GAP
   for (const step of input.steps) {
     const m = step.metrics
+    const labelLeft = labelLeftOf(step)
+    labelsRight = Math.max(labelsRight, labelLeft + m.labelWidth)
     const slotsHeight =
       m.slotHeights.length === 0
         ? 0
@@ -129,13 +163,13 @@ export function layoutSequence(input: SeqLayoutInput): SeqLayoutResult {
       slotTops.push(slotTop)
       slotTop += h + SLOT_GAP
     }
-    rows.push({ top, height, arrowY, slotTops })
+    rows.push({ top, height, arrowY, slotTops, labelLeft })
     top += height + ROW_GAP
   }
 
   // ---- ガター ----
   const lastRight = n === 0 ? DIAGRAM_MARGIN : actorX[n - 1] + input.actorWidths[n - 1] / 2
-  const gutterX = lastRight + GUTTER_GAP
+  const gutterX = Math.max(lastRight, labelsRight) + GUTTER_GAP
   const gutterWidth = QUESTION_LABEL_WIDTH + ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2
 
   return {
