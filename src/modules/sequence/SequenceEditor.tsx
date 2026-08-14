@@ -905,9 +905,14 @@ export function SequenceEditor({
           )
         })}
 
-        {/* ガターの集計（design-notes 論点7）。数えるのは立っている問いだけ */}
+        {/* ガターの集計（design-notes 論点7）。数えるのは立っている問いだけ。
+            **`whitespace-nowrap` を外さないこと。** この div は幅を持たない
+            absolute なので、折り返しの上限は「包含ブロックの右端まで」＝
+            キャンバスの見えている幅になる。ガターが右へ寄る図（文言が長く
+            `gutterX` が大きい）だと右の余白が尽きて2行になり、行の高さ
+            （`headerHeight`）を超えて最初のステップに重なる */}
         <div
-          className="absolute text-sm text-ink-muted"
+          className="absolute whitespace-nowrap text-sm text-ink-muted"
           style={{ left: layout.gutterX, top: layout.headerTop, height: layout.headerHeight }}
         >
           {`⚠ 未定義 ${tally.unanswered} ／ ✓ 回答済 ${tally.handled} ／ ─ 考慮不要 ${tally.notApplicable}`}
