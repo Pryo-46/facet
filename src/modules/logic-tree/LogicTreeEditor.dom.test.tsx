@@ -233,6 +233,24 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     expect(screen.queryByLabelText('ノード3')).toBe(null)
   })
 
+  // WKWebView の実測: 確定の Enter は keyCode 229・isComposing false で来る。
+  // 229 は IME が食った打鍵の予約値で、composition の記録に頼らず判別できる
+  it('WKWebView の実測どおりの Enter（keyCode 229 / isComposing false）でもノードが増えない', () => {
+    render(<Harness initial={file([[1, null, '親'], [2, 1, '']])} />)
+    const el = screen.getByLabelText('ノード2')
+    fireEvent.keyDown(el, { key: 'Enter', keyCode: 229 })
+    expect(screen.queryByLabelText('ノード3')).toBe(null)
+  })
+
+  it('WebKit の順序（compositionend が先）でもノードが増えない', () => {
+    render(<Harness initial={file([[1, null, '親'], [2, 1, '']])} />)
+    const el = screen.getByLabelText('ノード2')
+    fireEvent.compositionStart(el)
+    fireEvent.compositionEnd(el, { target: { value: '退会' } })
+    fireEvent.keyDown(el, { key: 'Enter' })
+    expect(screen.queryByLabelText('ノード3')).toBe(null)
+  })
+
   it('Shift+Enter / Alt+Enter はノード内の改行として既定動作に委ねる', () => {
     // 誰も消費しない＝ブラウザが改行を入れる（CellInput が約束している挙動）。
     // ノードの文言は複数行になり得るので、この経路が塞がると改行が打てなくなる

@@ -292,6 +292,69 @@ describe('toKeyEventLike', () => {
     }
     expect(toKeyEventLike(e).isComposing).toBe(false)
   })
+
+  /**
+   * WKWebView の実測（2026-08-15）。変換を確定した Enter は
+   * `isComposing: false` で来るが `keyCode` は 229 のままだった:
+   *
+   *   11 compositionend
+   *   12 keydown  Enter  keyCode=229  isComposing=false   ← これ
+   *   13 keyup    Enter  keyCode=13   isComposing=false
+   *
+   * 229 は「IME が処理中」を表す予約値で、実在のキーには割り当てられない。
+   * **isComposing より信用できる**——同じ物理キーでも、IME が食った打鍵だけが
+   * 229 になり、離した keyup は本来の 13 に戻っている
+   */
+  it('keyCode 229（IME が処理中）は isComposing が false でも変換中として扱う', () => {
+    const e = {
+      key: 'Enter',
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      nativeEvent: { isComposing: false, keyCode: 229 },
+    }
+    expect(toKeyEventLike(e).isComposing).toBe(true)
+    expect(resolveCommand(toKeyEventLike(e), ctx())).toBe(null)
+  })
+
+  it('DOM イベントでも keyCode 229 を読む（window の keydown 経由）', () => {
+    const e = {
+      key: 'Enter',
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      isComposing: false,
+      keyCode: 229,
+    }
+    expect(toKeyEventLike(e).isComposing).toBe(true)
+  })
+
+  it('本来の keyCode を持つ Enter は行追加のまま（塞ぎすぎない）', () => {
+    const e = {
+      key: 'Enter',
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      nativeEvent: { isComposing: false, keyCode: 13 },
+    }
+    expect(toKeyEventLike(e).isComposing).toBe(false)
+    expect(resolveCommand(toKeyEventLike(e), ctx())).toBe('insert-item-after')
+  })
+
+  it('keyCode を持たない環境でも従来どおり動く（jsdom の合成イベント）', () => {
+    const e = {
+      key: 'Enter',
+      altKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      shiftKey: false,
+      nativeEvent: { isComposing: false },
+    }
+    expect(toKeyEventLike(e).isComposing).toBe(false)
+  })
 })
 
 // ---- sequence M1 で足した分: horizontal / toggle-item-state / ←→ の arrowsOwnedByField ----

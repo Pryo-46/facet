@@ -62,6 +62,66 @@ describe('CellInput', () => {
   })
 })
 
+/**
+ * macOS（WKWebView）と Linux（WebKitGTK）は、変換を確定した Enter の keydown を
+ * compositionend の **後** に投げる。そのイベントの isComposing は false なので、
+ * 操作言語の IME ガード（resolveCommand の1行目）をすり抜ける。
+ * WebKit bug 165004 ——2016年の報告から2026年に main で直るまで開いていた
+ */
+describe('CellInput: 変換確定の Enter（WebKit の順序）', () => {
+  const setup = () => {
+    const onFieldKeyDown = vi.fn()
+    render(
+      <CellInput value="" onValueChange={() => {}} onFieldKeyDown={onFieldKeyDown} aria-label="名称" />,
+    )
+    return { onFieldKeyDown, el: screen.getByLabelText('名称') }
+  }
+
+  it('compositionend の直後に来た Enter は呼び出し側へ渡さない', () => {
+    const { onFieldKeyDown, el } = setup()
+    fireEvent.compositionStart(el)
+    fireEvent.change(el, { target: { value: 'じゅちゅう' } })
+    fireEvent.compositionEnd(el, { target: { value: '受注' } })
+    // isComposing は false で来る。これが WebKit の順序
+    fireEvent.keyDown(el, { key: 'Enter' })
+    expect(onFieldKeyDown).not.toHaveBeenCalled()
+  })
+
+  it('確定の Enter を離したあとの Enter は通す（行を増やせなくなっては困る）', () => {
+    const { onFieldKeyDown, el } = setup()
+    fireEvent.compositionStart(el)
+    fireEvent.compositionEnd(el, { target: { value: '受注' } })
+    fireEvent.keyDown(el, { key: 'Enter' })
+    fireEvent.keyUp(el, { key: 'Enter' })
+    fireEvent.keyDown(el, { key: 'Enter' })
+    expect(onFieldKeyDown).toHaveBeenCalledTimes(1)
+  })
+
+  it('Chromium の順序（keydown が先）でも確定後の打鍵を握り潰さない', () => {
+    const { onFieldKeyDown, el } = setup()
+    fireEvent.compositionStart(el)
+    // 変換中の keydown。isComposing が true なので誰も反応しない
+    fireEvent.keyDown(el, { key: 'Enter', isComposing: true })
+    fireEvent.compositionEnd(el, { target: { value: '受注' } })
+    fireEvent.keyUp(el, { key: 'Enter' })
+    fireEvent.keyDown(el, { key: 'Enter' })
+    expect(onFieldKeyDown).toHaveBeenCalledTimes(1)
+  })
+
+  it('変換中の keydown は呼び出し側へ渡さない', () => {
+    const { onFieldKeyDown, el } = setup()
+    fireEvent.compositionStart(el)
+    fireEvent.keyDown(el, { key: 'Enter', isComposing: true })
+    expect(onFieldKeyDown).not.toHaveBeenCalled()
+  })
+
+  it('変換と関係のない Enter はそのまま渡す', () => {
+    const { onFieldKeyDown, el } = setup()
+    fireEvent.keyDown(el, { key: 'Enter' })
+    expect(onFieldKeyDown).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('CellInput: 複数行', () => {
   it('multiline なら textarea として描かれる', () => {
     render(<CellInput multiline value="" onValueChange={() => {}} aria-label="定義" />)

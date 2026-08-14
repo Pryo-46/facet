@@ -72,6 +72,24 @@ describe('ErrorCatalogEditor: IME', () => {
     fireEvent.keyDown(cell, { key: 'Enter', isComposing: true })
     expect(screen.getAllByLabelText(/^エラー名（/)).toHaveLength(2)
   })
+
+  // WKWebView の実測: 確定の Enter は keyCode 229・isComposing false で来る。
+  // 229 は IME が食った打鍵の予約値で、composition の記録に頼らず判別できる
+  it('WKWebView の実測どおりの Enter（keyCode 229 / isComposing false）でも行が増えない', () => {
+    renderEditor(twoErrors)
+    const cell = screen.getByLabelText('エラー名（No.1）')
+    fireEvent.keyDown(cell, { key: 'Enter', keyCode: 229 })
+    expect(screen.getAllByLabelText(/^エラー名（/)).toHaveLength(2)
+  })
+
+  it('WebKit の順序（compositionend が先）でも行が増えない', () => {
+    renderEditor(twoErrors)
+    const cell = screen.getByLabelText('エラー名（No.1）')
+    fireEvent.compositionStart(cell)
+    fireEvent.compositionEnd(cell, { target: { value: 'ログインできない' } })
+    fireEvent.keyDown(cell, { key: 'Enter' })
+    expect(screen.getAllByLabelText(/^エラー名（/)).toHaveLength(2)
+  })
 })
 
 describe('ErrorCatalogEditor: 行の操作言語', () => {
