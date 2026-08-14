@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { JsonSchema } from './canonical'
-import { classifyFile } from './load'
+import { classifyFile, titleOf, UNTITLED, withTitle } from './load'
 import { createRegistry, type AnyToolModule } from './registry'
 
 const glossarySchema = JSON.parse(
@@ -105,5 +105,40 @@ describe('classifyFile', () => {
     const result = classifyFile(JSON.stringify(broken), makeRegistry())
     expect(result.status).toBe('rejected')
     if (result.status === 'rejected') expect(result.type).toBe('glossary')
+  })
+})
+
+describe('titleOf', () => {
+  it('title が文字列ならそのまま返す', () => {
+    expect(titleOf({ title: '受注フロー' })).toBe('受注フロー')
+  })
+
+  it('空文字もそのまま返す（空欄は未決の意思表示。潰さない）', () => {
+    expect(titleOf({ title: '' })).toBe('')
+  })
+
+  it('title が無い・文字列でない・レコードでないなら (無題)', () => {
+    expect(titleOf({})).toBe(UNTITLED)
+    expect(titleOf({ title: 42 })).toBe(UNTITLED)
+    expect(titleOf(null)).toBe(UNTITLED)
+    expect(titleOf('文字列')).toBe(UNTITLED)
+  })
+})
+
+describe('withTitle', () => {
+  it('title だけを差し替え、他のキーは保つ', () => {
+    const before = { schemaVersion: 1, type: 'sequence', title: '旧', steps: [] }
+    expect(withTitle(before, '受注フロー')).toEqual({
+      schemaVersion: 1,
+      type: 'sequence',
+      title: '受注フロー',
+      steps: [],
+    })
+  })
+
+  it('元のオブジェクトを破壊しない', () => {
+    const before = { title: '旧' }
+    withTitle(before, '新')
+    expect(before.title).toBe('旧')
   })
 })

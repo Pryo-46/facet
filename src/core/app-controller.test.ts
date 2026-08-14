@@ -401,6 +401,21 @@ describe('applyEdit', () => {
     const entry = h.files().find((f) => f.path === p('a.json'))!
     expect(entry.result.status === 'editable' && entry.result.data).toMatchObject({ body: 'x' })
   })
+
+  it('result.title を新しい title で引き直す（一覧の表示が古いまま残らない）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    const module = h.registry.get('note')!
+    h.controller.applyEdit(p('a.json'), module, {
+      schemaVersion: 1,
+      type: 'note',
+      title: '受注フロー',
+      body: '',
+    })
+    const entry = h.files().find((f) => f.path === p('a.json'))!
+    expect(entry.result.status === 'editable' && entry.result.title).toBe('受注フロー')
+  })
 })
 
 describe('dispose', () => {
