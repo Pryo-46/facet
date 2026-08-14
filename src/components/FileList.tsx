@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { Folder, Plus, Trash2 } from 'lucide-react'
 import { buttonBase } from '@/components/button-styles'
 import { canCreateFileOfType } from '@/core/file-ops'
 import type { ProjectFile } from '@/core/project-file'
@@ -17,6 +18,8 @@ export interface FileListProps {
   existingTypes: readonly (string | null)[]
   /** プロジェクトフォルダを開いているか。未選択なら操作を一切出さない */
   projectOpen: boolean
+  /** 開いているプロジェクトフォルダ。一覧の直上に出す（額縁の帯から移設） */
+  projectDir: string | null
   onSelect: (file: ProjectFile) => void
   onCreate: (module: AnyToolModule) => void
   onDelete: (file: ProjectFile) => void
@@ -61,14 +64,16 @@ function FileRow(props: {
       </button>
       {/* 開けない・編集不可のファイルにも削除を出す——単一性違反の解消には
           「壊れている方の用語集を消す」が必要で、そこを塞ぐと外部エディタを
-          強いることになる（rev 5章「拒否は最小限に」のファイル操作への適用） */}
+          強いることになる（rev 5章「拒否は最小限に」のファイル操作への適用）。
+          赤は warning（facet のパレットに destructive 役割は無い） */}
       <button
         type="button"
         aria-label={`${file.name} を削除`}
-        className={`${buttonBase} shrink-0 px-2 text-xs text-ink-muted hover:bg-canvas hover:text-warning`}
+        title={`${file.name} を削除`}
+        className={`${buttonBase} shrink-0 px-3 text-ink-muted hover:bg-canvas hover:text-warning`}
         onClick={props.onDelete}
       >
-        削除
+        <Trash2 aria-hidden className="size-4" />
       </button>
     </li>
   )
@@ -88,23 +93,41 @@ export function FileList(props: FileListProps) {
   }
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap gap-1 border-b border-rule p-2">
+      {/* 作成ボタンは縦積みで幅をそろえる。**flex-wrap で横に流さない**——
+          ツール名の長さで折り返し位置が変わり、行ごとに端が揃わなくなる */}
+      <div className="flex flex-col gap-1 border-b border-rule p-2">
         {props.modules.map((module) => {
           const creatable = canCreateFileOfType(module, props.existingTypes)
+          const Icon = module.icon
           return (
             <button
               key={module.type}
               type="button"
               disabled={!creatable}
               title={creatable ? undefined : `${module.displayName}はプロジェクトに1つまでです`}
-              className={`${buttonBase} border border-rule px-2 py-1 text-xs text-ink hover:bg-canvas disabled:hover:bg-transparent`}
+              className={`${buttonBase} w-full justify-start gap-2 border border-rule px-2 py-1 text-xs text-ink hover:bg-canvas disabled:hover:bg-transparent`}
               onClick={() => props.onCreate(module)}
             >
-              ＋ {module.displayName}を新規作成
+              <Plus aria-hidden className="size-3.5 shrink-0" />
+              <Icon aria-hidden className="size-3.5 shrink-0" />
+              <span className="truncate">{module.displayName}を新規作成</span>
             </button>
           )
         })}
       </div>
+      {/* パスは一覧の直上。長さが青天井なので truncate で受け、全文は title */}
+      {props.projectDir !== null && (
+        <div
+          className="flex items-center gap-1.5 border-b border-rule px-2 py-1.5 text-xs text-ink-muted"
+          title={props.projectDir}
+        >
+          <Folder aria-hidden className="size-3.5 shrink-0" />
+          {/* 末尾（フォルダ名）の方が手がかりになるので、頭を省く */}
+          <span className="min-w-0 flex-1 truncate text-left" dir="rtl">
+            {props.projectDir}
+          </span>
+        </div>
+      )}
       {props.files.length === 0 ? (
         <p className="p-4 text-sm text-ink-muted">
           このフォルダに JSON ファイルがありません。上のボタンで作成できます。

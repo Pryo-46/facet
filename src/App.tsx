@@ -617,6 +617,7 @@ function App() {
               modules={appRegistry.list()}
               existingTypes={existingTypes}
               projectOpen={projectDir !== null}
+              projectDir={projectDir}
               onSelect={(file) => void controller.selectFile(file.path)}
               onCreate={(module) => void controller.createNewFile(module)}
               onDelete={(file) => controller.requestDelete(file)}
