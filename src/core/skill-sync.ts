@@ -11,7 +11,8 @@
  * アプリに同梱する Skill（ユーザーのデータを作るもの）。
  *
  * `src-tauri/tauri.conf.json` の `bundle.resources` は
- * `".claude/skills": "skills"` とディレクトリごと同梱しているので、
+ * `"../.claude/skills": "skills"`（`src-tauri/` からの相対パス）と
+ * ディレクトリごと同梱しているので、
  * **Skill を増やしてもそちらの追従は要らない。ここに1行足すだけでよい。**
  *
  * ここに載せない Skill（`palette-retheme` など facet 自身のソースを触るもの）は
@@ -44,9 +45,23 @@ const SKILL_DEPS_DIR = 'node_modules'
  * `assets/` など、開発時点で名前を知らないもの）は既定で同梱されるべきで、
  * 落とすべきは開発・評価用の足場だけだから。除外するのは:
  * - `evals/` 配下（Skill の評価ハーネス。会議で使う人には無意味なノイズ）
- * - Skill 直下の `.gitignore`（開発用）
+ * - Skill 直下の `.gitignore`（開発用。**加えて、mac では置くこと自体ができない**）
  * - `node_modules/` 配下（`npm install` で足された依存。数が多く、
  *   Tauri の書き込み許可スコープ外のファイルを含むこともあって同期が壊れる）
+ *
+ * **`.gitignore` を同期に戻してはならない（sequence M4 の最終レビューで検証）。**
+ * SKILL.md が指示する `npm install` は置いた先に未追跡の `node_modules` を
+ * 数千ファイル作るので、`.gitignore`（`node_modules/` を含む）を一緒に置きたく
+ * なる。**が、mac では書き込みが `forbidden path` で落ちる。** `allow_skill_dir`
+ * が入れる実行時 scope のパターンは `<dir>/.claude` と `<dir>/.claude/**` で、
+ * この scope の照合は `require_literal_leading_dot: true`（unix の既定。
+ * `tauri.conf.json` の `plugins.fs.requireLiteralLeadingDot: false` は
+ * capabilities 由来の scope にしか届かない）。`**` はドット始まりの要素に
+ * 一致しないので、`<root>/.gitignore` は許可されない——`.DS_Store` が消せない
+ * のと**同じ1つの機構**である。下の書き込みループには try/catch が無いため、
+ * 戻すと「消したあとに書けない」＝Skill が半分しか置かれない状態になり、
+ * 毎回フォルダを開くたびに失敗トーストが出る。
+ * 塞ぐなら `allow_skill_dir` にファイルを literal で許可させる側を直すこと
  *
  * **`package.json` は除外しない（レビュー指摘。以前は除外していた）。**
  * これは evals の足場ではなく**実行時のマニフェスト**である——`ajv` は

@@ -239,7 +239,11 @@ describe('shouldSyncSkillFile', () => {
     expect(shouldSyncSkillFile('evals/grade.mjs')).toBe(false)
   })
 
-  it('.gitignore は同期しない（開発用）', () => {
+  it('.gitignore は同期しない（開発用。mac では書き込み自体が forbidden path になる）', () => {
+    // 置いた先で npm install するとユーザーのリポジトリに未追跡の node_modules が
+    // 出るため「同期に戻したい」誘惑があるが、実行時 scope の照合は
+    // require_literal_leading_dot: true で `**` がドット始まりの要素に一致しない。
+    // 戻すと「消したあとに書けない」＝半分だけ置かれた Skill になる（skill-sync.ts）
     expect(shouldSyncSkillFile('.gitignore')).toBe(false)
   })
 

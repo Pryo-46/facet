@@ -193,6 +193,14 @@ steps.forEach((step, index) => {
   }
 });
 
+if (targetPath) {
+  const dir = path.dirname(targetPath);
+  // 改行コードの担保（プロジェクト雛形の責務だが、雛形が無い場合に備えて気づけるようにする）
+  if (fs.existsSync(path.join(dir, ".git")) && !hasJsonEolRule(dir)) {
+    warnings.push(`.gitattributes に「*.json text eol=lf」がありません（autocrlf 環境で全行diffになります）`);
+  }
+}
+
 // ---------- 未定義の集計（アプリのガターと同一規則） ----------
 //
 // 数えるのは**立っている問いだけ**。立っていない問いへの答えは上の
@@ -272,6 +280,12 @@ function readJson(p, label) {
   let raw;
   try { raw = fs.readFileSync(p, "utf8"); } catch { die(2, `${label}が読めません: ${p}`); }
   try { return JSON.parse(C.stripBom(raw)); } catch (e) { die(1, `${label}が JSON として壊れています: ${p}\n  ${e.message}`); }
+}
+
+function hasJsonEolRule(dir) {
+  const p = path.join(dir, ".gitattributes");
+  if (!fs.existsSync(p)) return false;
+  return /^\s*\*(\.json)?\s+.*eol=lf/m.test(fs.readFileSync(p, "utf8"));
 }
 
 function die(code, msg) {
