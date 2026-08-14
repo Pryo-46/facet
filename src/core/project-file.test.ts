@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeIssues, fileName, type ProjectFile } from './project-file'
+import { computeIssues, displayTitle, fileName, type ProjectFile } from './project-file'
 import { appRegistry } from '@/modules'
 
 function editable(path: string): ProjectFile {
@@ -65,5 +65,64 @@ describe('computeIssues', () => {
     // ID 重複（モジュール内検証）と単一性違反（コア横断検証）が両方載る
     expect(rules).toContain('singleton-violation')
     expect(rules.length).toBeGreaterThan(1)
+  })
+})
+
+describe('displayTitle', () => {
+  function f(name: string, result: ProjectFile['result']): ProjectFile {
+    return { path: `C:\\proj\\${name}`, name, result, issues: [] }
+  }
+
+  it('editable なら title を返す', () => {
+    expect(
+      displayTitle(f('シーケンス-2.json', { status: 'editable', type: 'sequence', title: '受注フロー', data: {} })),
+    ).toBe('受注フロー')
+  })
+
+  it('editable で title が空文字なら (無題)', () => {
+    expect(
+      displayTitle(f('シーケンス-2.json', { status: 'editable', type: 'sequence', title: '', data: {} })),
+    ).toBe('(無題)')
+  })
+
+  it('rejected でも title が読めていればそれを返す（スキーマ検証より前に読まれるため）', () => {
+    expect(
+      displayTitle(
+        f('シーケンス-2.json', {
+          status: 'rejected',
+          type: 'sequence',
+          title: '受注フロー',
+          reason: 'スキーマ検証に失敗しました（このファイルは開けません）',
+          errors: [],
+        }),
+      ),
+    ).toBe('受注フロー')
+  })
+
+  it('title が null（パースすらできない）ならファイル名に落ちる', () => {
+    expect(
+      displayTitle(
+        f('メモ.json', {
+          status: 'rejected',
+          type: null,
+          title: null,
+          reason: 'JSON として解釈できません',
+          errors: [],
+        }),
+      ),
+    ).toBe('メモ.json')
+  })
+
+  it('listOnly で title が空文字ならファイル名に落ちる', () => {
+    expect(
+      displayTitle(
+        f('注文の状態遷移.json', {
+          status: 'listOnly',
+          type: 'stateMachine',
+          title: '',
+          reason: '編集できない schemaVersion',
+        }),
+      ),
+    ).toBe('注文の状態遷移.json')
   })
 })

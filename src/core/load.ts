@@ -14,6 +14,26 @@ export type LoadResult =
   | { status: 'rejected'; type: string | null; title: string | null; reason: string; errors: string[] }
   | { status: 'listOnly'; type: string | null; title: string | null; reason: string }
 
+/** title が読めないときの表示。一覧と帯が共有する */
+export const UNTITLED = '(無題)'
+
+/**
+ * 文書レコードから表示用の title を読む。読めなければ `(無題)`。
+ * **空文字はそのまま返す**——空欄は「まだ決めていない」という意思表示なので、
+ * ここで潰すと未決が見えなくなる（表示側が `(無題)` に落とすかを決める）。
+ * `classifyFile` と `applyEdit` の両方から呼ぶので、判定はここ1箇所に閉じる
+ */
+export function titleOf(data: unknown): string {
+  if (typeof data !== 'object' || data === null) return UNTITLED
+  const t = (data as Record<string, unknown>).title
+  return typeof t === 'string' ? t : UNTITLED
+}
+
+/** 文書レコードの title だけを差し替えた新しいレコードを返す（額縁の帯が使う） */
+export function withTitle(data: unknown, title: string): unknown {
+  return { ...(data as Record<string, unknown>), title }
+}
+
 const validatorCache = new WeakMap<AnyToolModule, (data: unknown) => SchemaValidationResult>()
 
 export function classifyFile(text: string, registry: ModuleRegistry): LoadResult {
@@ -103,5 +123,5 @@ export function classifyFile(text: string, registry: ModuleRegistry): LoadResult
       errors: result.errors,
     }
   }
-  return { status: 'editable', type, title: title ?? '(無題)', data: record }
+  return { status: 'editable', type, title: titleOf(record), data: record }
 }

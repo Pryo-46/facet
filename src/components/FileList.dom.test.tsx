@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ProjectFile } from '@/core/project-file'
+import { groupFiles } from '@/core/file-grouping'
+import { UNTITLED } from '@/core/load'
 import { appRegistry } from '@/modules'
 import { FileList } from './FileList'
 
@@ -25,7 +27,7 @@ function setup(
   const handlers = { onSelect: vi.fn(), onCreate: vi.fn(), onDelete: vi.fn() }
   render(
     <FileList
-      files={files}
+      groups={groupFiles(files, appRegistry.list())}
       selectedPath={null}
       modules={appRegistry.list()}
       existingTypes={existingTypes}
@@ -58,7 +60,7 @@ describe('FileList', () => {
 
   it('行のクリックで onSelect を呼ぶ', () => {
     const { onSelect } = setup([file('用語集.json')])
-    fireEvent.click(screen.getByRole('button', { name: /用語集\.json を開く/ }))
+    fireEvent.click(screen.getByRole('button', { name: '用語集（用語集.json） を開く' }))
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ name: '用語集.json' }))
   })
 
@@ -130,7 +132,7 @@ describe('新規作成ボタンの単一性ゲート', () => {
 describe('削除', () => {
   it('行ごとの削除ボタンで onDelete を呼ぶ', () => {
     const { onDelete } = setup([file('用語集.json')])
-    fireEvent.click(screen.getByRole('button', { name: '用語集.json を削除' }))
+    fireEvent.click(screen.getByRole('button', { name: '用語集（用語集.json） を削除' }))
     expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ name: '用語集.json' }))
   })
 
@@ -145,9 +147,9 @@ describe('削除', () => {
 })
 
 describe('行の説明（aria-describedby）', () => {
-  // アクセシブル名は「<名前> を開く」で固定なので、title・「開けない」
-  // 「編集不可」・issue 件数バッジはスクリーンリーダーに読まれない（M8 残件4）。
-  // description 側で補う
+  // アクセシブル名は「<title>（<ファイル名>）を開く」。title は読まれるが、
+  //「開けない」「編集不可」・issue 件数バッジは aria-describedby 側なので
+  // 読まれない（M8 残件4 のうち title の部分だけが解消した）。
   const description = (name: string): string => {
     const button = screen.getByRole('button', { name: `${name} を開く` })
     const id = button.getAttribute('aria-describedby')
@@ -157,7 +159,7 @@ describe('行の説明（aria-describedby）', () => {
 
   it('タイトルが読まれる', () => {
     setup([file('用語集.json')])
-    expect(description('用語集.json')).toContain('用語集')
+    expect(description('用語集（用語集.json）')).toContain('用語集')
   })
 
   it('issue の件数が読まれる', () => {
@@ -166,7 +168,7 @@ describe('行の説明（aria-describedby）', () => {
         issues: [{ rule: 'singleton-violation', message: '用語集が2件あります', locations: [] }],
       }),
     ])
-    expect(description('用語集.json')).toContain('1')
+    expect(description('用語集（用語集.json）')).toContain('1')
   })
 
   it('開けないファイルは「開けない」が読まれる', () => {
@@ -182,5 +184,92 @@ describe('行の説明（aria-describedby）', () => {
       }),
     ])
     expect(description('壊れた.json')).toContain('開けない')
+  })
+})
+
+describe('種類の見出しとソート（M13）', () => {
+  it('種類ごとに見出しを出す', () => {
+    setup([
+      file('シーケンス.json', {
+        result: { status: 'editable', type: 'sequence', title: '受注フロー', data: {} },
+      }),
+      file('用語集.json'),
+    ])
+    // 見出しレベルは h2。額縁の h1（`facet`）との間に入る見出しは無いので、
+    // h3 にするとレベルが飛ぶ（エディタの h2 は M13 で帯へ一本化した）
+    expect(screen.getByRole('heading', { level: 2, name: '用語集' })).not.toBeNull()
+    expect(screen.getByRole('heading', { level: 2, name: 'シーケンス' })).not.toBeNull()
+  })
+
+  it('行の主表示は title、副表示はファイル名', () => {
+    setup([
+      file('シーケンス-2.json', {
+        result: { status: 'editable', type: 'sequence', title: '受注フロー', data: {} },
+      }),
+    ])
+    expect(screen.getByText('受注フロー')).not.toBeNull()
+    expect(screen.getByText('シーケンス-2.json')).not.toBeNull()
+  })
+
+  it('アクセシブル名に title とファイル名の両方が入る（同名の title があっても引ける）', () => {
+    setup([
+      file('a.json', { result: { status: 'editable', type: 'sequence', title: '同じ', data: {} } }),
+      file('b.json', { result: { status: 'editable', type: 'sequence', title: '同じ', data: {} } }),
+    ])
+    expect(screen.getByRole('button', { name: '同じ（a.json） を開く' })).not.toBeNull()
+    expect(screen.getByRole('button', { name: '同じ（b.json） を削除' })).not.toBeNull()
+  })
+
+  it('title が読めずファイル名に落ちたときは同じ文字列を2度言わない', () => {
+    setup([
+      file('メモ.json', {
+        result: {
+          status: 'rejected',
+          type: null,
+          title: null,
+          reason: 'JSON として解釈できません',
+          errors: [],
+        },
+      }),
+    ])
+    expect(screen.getByRole('button', { name: 'メモ.json を開く' })).not.toBeNull()
+    // 見えている行でも2度言わない（主表示がファイル名に落ちているので、
+    // 副表示にもう一度同じ文字列を出さない）。マーカーは出したまま
+    expect(screen.getAllByText('メモ.json')).toHaveLength(1)
+    expect(screen.getByText('開けない')).not.toBeNull()
+  })
+
+  it('title が読めないファイルでも issue 件数バッジは出る（副表示を畳んでも消さない）', () => {
+    setup([
+      file('メモ.json', {
+        result: {
+          status: 'rejected',
+          type: null,
+          title: null,
+          reason: 'JSON として解釈できません',
+          errors: [],
+        },
+        issues: [{ rule: 'singleton-violation', message: '用語集が2件あります', locations: [] }],
+      }),
+    ])
+    expect(screen.getByText('1')).not.toBeNull()
+  })
+
+  it('(無題) は弱い色で出す（実在の title と見分けがつくように）', () => {
+    setup([
+      file('用語集.json', {
+        result: { status: 'editable', type: 'glossary', title: '', data: {} },
+      }),
+    ])
+    const label = screen.getByText(UNTITLED)
+    expect(label.className).toContain('text-ink-muted')
+  })
+
+  it('実在の title は通常の色で出す', () => {
+    setup([file('用語集.json')])
+    // 行の主表示（副表示のファイル名ではない方）
+    const label = screen.getByText('用語集', { selector: 'span' })
+    expect(label.className).toContain('text-ink')
+    expect(label.className).not.toContain('text-ink-muted')
   })
 })
