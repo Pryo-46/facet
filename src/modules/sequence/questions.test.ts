@@ -26,7 +26,7 @@ describe('poseQuestions', () => {
 describe('questionLabels', () => {
   it('文言はステップ種別で変わる（キーは同じ）', () => {
     expect(questionLabels(call(true)).unknown).toBe('結果不明だったら？')
-    expect(questionLabels(call(false)).unknown).toBe('届かなかったかもしれない。それでよいか？')
+    expect(questionLabels(call(false)).unknown).toBe('届かなくてよいか？')
     expect(questionLabels({ kind: 'self' }).failed).toBe('処理失敗したら？')
     expect(questionLabels(call(true)).failed).toBe('失敗が確定したら？')
     expect(questionLabels(call(true)).ifExecuted).toBe('実行済みだったら？')
@@ -49,6 +49,10 @@ describe('questionLabels', () => {
     expect(labels.failed).not.toBe('')
     expect(labels.unknown).not.toBe('')
     expect(labels.ifExecuted).not.toBe('')
+  })
+  it('投げっぱなしの問いは1行に収まる短さである', () => {
+    const labels = questionLabels({ kind: 'call', awaitsReply: false })
+    expect(labels.unknown).toBe('届かなくてよいか？')
   })
 })
 

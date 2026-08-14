@@ -37,7 +37,7 @@ import {
   type SeqEditResult,
 } from './commands'
 import { GhostSlot } from './GhostSlot'
-import { GutterSlot, type SlotState } from './GutterSlot'
+import { GutterSlot, GUTTER_INDENT, type SlotState } from './GutterSlot'
 import {
   ARROW_GAP,
   DIAGRAM_MARGIN,
@@ -82,6 +82,13 @@ const MEASURE_CACHE_LIMIT = 2000
 
 /** 図の文字に当たるクラスのうち、フォントを決めている部分。見本要素と共有する */
 const SEQ_FONT_CLASS = 'text-sm'
+
+/**
+ * 問いラベルのフォント階級（GutterSlot のラベル列と同じ）。
+ * **`SEQ_FONT_CLASS` で代用しないこと**——text-sm で text-xs を測ると
+ * 高さを4割ほど過大に見積もり、行が無駄に伸びる
+ */
+const LABEL_FONT_CLASS = 'text-xs'
 
 /** ガターと図の操作ヒント。`$mod` / `$alt` は KeyHints が解決する */
 const SEQ_HINTS: readonly KeyHint[] = [
@@ -212,6 +219,8 @@ export function SequenceEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const [font, setFont] = useState<SeqFont>(FALLBACK_SEQ_FONT)
+  const labelProbeRef = useRef<HTMLSpanElement>(null)
+  const [labelFont, setLabelFont] = useState<SeqFont>(FALLBACK_SEQ_FONT)
 
   // ガターのグレースロットの削除確認（Undo で戻せるとはいえ、削除は確認を挟む）
   const [confirmTarget, setConfirmTarget] = useState<{ index: number; path: AnswerPath } | null>(
@@ -258,6 +267,10 @@ export function SequenceEditor({
   const readFont = (): void => {
     setFont((prev) => {
       const next = readSeqFont(probeRef.current)
+      return sameFont(prev, next) ? prev : next
+    })
+    setLabelFont((prev) => {
+      const next = readSeqFont(labelProbeRef.current)
       return sameFont(prev, next) ? prev : next
     })
   }
@@ -328,6 +341,46 @@ export function SequenceEditor({
     return block
   }
 
+  // 問いラベル用（text-xs）。**同じ入れ物に混ぜないこと**——キャッシュの鍵は
+  // 文字列と箱の種別だけで、どのフォントで測ったかを持っていない
+  const labelMeasurerKey = `${labelFont.font}|${labelFont.lineHeight}|${fontGeneration}`
+  const labelMeasurerRef = useRef<{
+    key: string
+    measure: MeasureWidth
+    cache: Map<string, WrappedBlock>
+  } | null>(null)
+  if (labelMeasurerRef.current === null || labelMeasurerRef.current.key !== labelMeasurerKey) {
+    labelMeasurerRef.current = {
+      key: labelMeasurerKey,
+      measure: createSeqMeasurer(labelFont),
+      cache: new Map(),
+    }
+  }
+  const labelMeasurer = labelMeasurerRef.current
+
+  /**
+   * 問いラベルの高さ。**ガターの行高はこれを勘定に入れる**——入れないと、
+   * 長い問い（投げっぱなしの unknown）が次の行へ食い込む。
+   * indent（ifExecuted）はラベル列を 16px 削るぶん折り返しが増える
+   */
+  const questionHeight = (text: string, indent: boolean): number => {
+    if (text === '') return 0
+    const key = `${indent ? 'q-indent' : 'q'}:${text}`
+    let block = labelMeasurer.cache.get(key)
+    if (block === undefined) {
+      block = wrapWithin(text, labelMeasurer.measure, labelFont.lineHeight, {
+        maxWidth: QUESTION_LABEL_WIDTH - (indent ? GUTTER_INDENT : 0),
+        minWidth: 0,
+        insetX: 0,
+        // GutterSlot のラベル列は py-1（上下 4px ずつ）
+        insetY: 4,
+      })
+      if (labelMeasurer.cache.size >= MEASURE_CACHE_LIMIT) labelMeasurer.cache.clear()
+      labelMeasurer.cache.set(key, block)
+    }
+    return block.height
+  }
+
   const actorKeys = computeRowKeys(data.actors)
   const stepKeys = computeRowKeys(data.steps)
 
@@ -343,7 +396,14 @@ export function SequenceEditor({
       const text = slot.text ?? ''
       // 未回答の枠は placeholder の「未定義」が入る高さを確保する（空だと潰れる）
       const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
-      return { path, question: labels[path], state: slotStateOf(slot.decision), text, height: block.height }
+      return {
+        path,
+        question: labels[path],
+        state: slotStateOf(slot.decision),
+        text,
+        // **問いラベルの方が高いことがある。** 高い方を採らないと行から食み出す
+        height: Math.max(block.height, questionHeight(labels[path], path === 'ifExecuted')),
+      }
     })
     // 立っていない問いへの答え（種別切替の残骸）。ガターにグレースロットで見せる
     const ghosts = unposedAnswers(step).map((path) => {
@@ -353,7 +413,12 @@ export function SequenceEditor({
           ? '─ 考慮不要'
           : (slot.text ?? '')
       const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
-      return { path, text, height: block.height }
+      // GhostSlot もラベル列を持つ（インデントは無い）
+      return {
+        path,
+        text,
+        height: Math.max(block.height, questionHeight(GHOST_QUESTION_LABEL[path], false)),
+      }
     })
     // 参照切れは -1 のまま layout へ渡す（layout は範囲外を読み飛ばす契約）
     const fromIndex = data.actors.findIndex((a) => a.id === step.from)
@@ -684,6 +749,13 @@ export function SequenceEditor({
         ref={probeRef}
         aria-hidden="true"
         className={`${SEQ_FONT_CLASS} pointer-events-none absolute left-0 top-0 select-none opacity-0`}
+      >
+        あ
+      </span>
+      <span
+        ref={labelProbeRef}
+        aria-hidden="true"
+        className={`${LABEL_FONT_CLASS} pointer-events-none absolute left-0 top-0 select-none opacity-0`}
       >
         あ
       </span>

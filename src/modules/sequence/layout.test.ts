@@ -200,4 +200,18 @@ describe('layoutSequence', () => {
     expect(r.rows).toEqual([])
     expect(r.actorX).toEqual([])
   })
+
+  it('スロットが高いと行もその分高くなる（問いラベルの高さは呼び出し側が畳んで渡す）', () => {
+    const result = layoutSequence({
+      actorWidths: [100],
+      domains: [undefined],
+      steps: [
+        { fromIndex: 0, toIndex: null, metrics: { labelWidth: 50, labelHeight: 20, slotHeights: [60] } },
+        { fromIndex: 0, toIndex: null, metrics: { labelWidth: 50, labelHeight: 20, slotHeights: [20] } },
+      ],
+    })
+    // 1行目の下端が2行目の上端を越えない（越えると画面上で食い込む）
+    expect(result.rows[0].top + result.rows[0].height).toBeLessThanOrEqual(result.rows[1].top)
+    expect(result.rows[0].height).toBeGreaterThanOrEqual(GUTTER_HEADING_HEIGHT + 60)
+  })
 })

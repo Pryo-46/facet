@@ -3,6 +3,9 @@ import { ANSWER_BOX_CLASS } from './measure'
 
 export type SlotState = 'unanswered' | 'handled' | 'notApplicable'
 
+/** ifExecuted（下位問い）のインデント幅。行高の測定側（SequenceEditor）も読む */
+export const GUTTER_INDENT = 16
+
 export interface GutterSlotProps {
   /** 問いの文言（questionLabels の値）。ラベル列に出す */
   question: string
@@ -35,7 +38,7 @@ export function GutterSlot(props: GutterSlotProps) {
       : props.state === 'notApplicable'
         ? 'border-rule bg-surface text-ink-muted'
         : 'border-rule bg-surface text-ink'
-  const indentPad = props.indent ? 16 : 0
+  const indentPad = props.indent ? GUTTER_INDENT : 0
   return (
     <div
       className="pointer-events-auto absolute flex items-stretch gap-1"
