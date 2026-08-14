@@ -44,6 +44,7 @@ const {
   skillCalls,
   pickedFolder,
   syncGate,
+  syncReadingGuideMock,
 } = vi.hoisted(() => ({
   closeState: { callback: null as (() => Promise<boolean>) | null },
   killAllPtysMock: vi.fn(async () => undefined),
@@ -53,6 +54,7 @@ const {
   skillCalls: [] as string[],
   pickedFolder: { value: '/proj' },
   syncGate: { promise: null as Promise<void> | null, release: null as (() => void) | null },
+  syncReadingGuideMock: vi.fn(async () => undefined),
 }))
 
 vi.mock('@/fs/project-fs', () => ({
@@ -103,6 +105,12 @@ vi.mock('@/core/skill-sync', async (orig) => ({
     // 既定（`promise` が null）では素通り。gate が張られている間だけ止まる
     await syncGate.promise
   },
+}))
+vi.mock('@/fs/reading-guide-io', () => ({ tauriReadingGuideIo: {} }))
+// READING_GUIDE_FILENAME 等は実物のまま、同期関数だけ差し替える（skill-sync の mock と同じ形）
+vi.mock('@/core/reading-guide', async (orig) => ({
+  ...(await orig<typeof import('@/core/reading-guide')>()),
+  syncReadingGuide: syncReadingGuideMock,
 }))
 // `requestClose` の結果をテストから直接差し込むための薄いラッパー。
 // **他のメソッドは実物のまま**——フォルダ切替テストが依存する openFolder の
@@ -298,6 +306,17 @@ describe('フォルダ切替', () => {
     fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
     fireEvent.click(await screen.findByRole('button', { name: 'キャンセル' }))
     expect(screen.getByRole('button', { name: 'Claude 1' })).toBeTruthy()
+  })
+})
+
+describe('読み方ガイド', () => {
+  it('フォルダを開くと読み方ガイドを配る', async () => {
+    syncReadingGuideMock.mockClear()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await waitFor(() => {
+      expect(syncReadingGuideMock).toHaveBeenCalledWith('/proj', expect.anything())
+    })
   })
 })
 
