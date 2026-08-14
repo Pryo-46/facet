@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { PanelLeft, PanelRight } from 'lucide-react'
+import { PanelLeft, PanelRight, Redo2, Undo2 } from 'lucide-react'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ExportMenu } from '@/components/ExportMenu'
@@ -515,63 +515,84 @@ function App() {
 
   return (
     <main className="flex h-screen flex-col overflow-hidden bg-canvas bg-grid-paper text-ink">
-      <header className="flex items-center gap-4 border-b border-rule bg-surface px-6 py-3">
-        <h1 className="text-lg font-bold text-ink">facet</h1>
-        <Button onClick={() => void openFolder()}>フォルダを開く</Button>
-        <Button
-          variant="outline"
-          disabled={history === null || !canUndo(history)}
-          onClick={() => runHistory('undo')}
-        >
-          元に戻す
-        </Button>
-        <Button
-          variant="outline"
-          disabled={history === null || !canRedo(history)}
-          onClick={() => runHistory('redo')}
-        >
-          やり直す
-        </Button>
-        <ExportMenu
-          outputs={selectedModule?.outputs ?? []}
-          disabled={!canExport}
-          onCopy={(profile) => void controller.copyMarkdown(profile)}
-          onExport={(profile) => void controller.exportMarkdown(profile)}
-        />
-        {projectDir && <span className="text-sm text-ink-muted">{projectDir}</span>}
-        <button
-          type="button"
-          aria-label={sidebarOpen ? 'ファイル一覧を畳む' : 'ファイル一覧を開く'}
-          aria-pressed={sidebarOpen}
-          className={`${buttonBase} ml-auto p-1 text-ink-muted`}
-          onClick={() => setSidebarOpen((v) => !v)}
-        >
-          <PanelLeft aria-hidden className="size-4" />
-        </button>
-        {/* **ラベルを `Claude Code を開く` にしないこと。** TerminalPane の
-            空状態のボタンと accessible name が衝突し、テストの getByRole が
-            2つ拾って落ちる */}
-        <button
-          type="button"
-          aria-label={paneOpen ? 'Claude Code ペインを畳む' : 'Claude Code ペインを開く'}
-          aria-pressed={paneOpen}
-          disabled={projectDir === null}
-          className={`${buttonBase} p-1 text-ink-muted`}
-          onClick={() => {
-            const next = !paneOpen
-            setPaneOpen(next)
-            if (next && terminals.sessions.length === 0) void openTerminal()
-          }}
-        >
-          <PanelRight aria-hidden className="size-4" />
-        </button>
-        <button
-          type="button"
-          className={`${buttonBase} text-sm text-ink-muted underline`}
-          onClick={toggleTheme}
-        >
-          {dark ? 'ライト' : 'ダーク'}
-        </button>
+      {/* 額縁の帯（rev 9章）。**幅が縮んでも右端の3つを絶対に押し出さないこと。**
+          フォルダのパスは長さが青天井なので、`min-w-0 truncate` を外すと
+          flex アイテムの既定（min-width:auto＝内容幅より縮まない）で右端を
+          画面外へ押し出す。伸縮を引き受けるのはこのパスだけで、
+          左右の操作群は shrink-0 で固定する */}
+      <header className="flex items-center gap-3 border-b border-rule bg-surface px-6 py-3">
+        <h1 className="shrink-0 text-lg font-bold text-ink">facet</h1>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button onClick={() => void openFolder()}>フォルダを開く</Button>
+          {/* Undo/Redo はアイコンのみ。accessible name は aria-label で保つ
+              （キーボードが本筋の操作なので、帯では幅を使わない） */}
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="元に戻す"
+            title="元に戻す"
+            disabled={history === null || !canUndo(history)}
+            onClick={() => runHistory('undo')}
+          >
+            <Undo2 aria-hidden />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="やり直す"
+            title="やり直す"
+            disabled={history === null || !canRedo(history)}
+            onClick={() => runHistory('redo')}
+          >
+            <Redo2 aria-hidden />
+          </Button>
+          <ExportMenu
+            outputs={selectedModule?.outputs ?? []}
+            disabled={!canExport}
+            onCopy={(profile) => void controller.copyMarkdown(profile)}
+            onExport={(profile) => void controller.exportMarkdown(profile)}
+          />
+        </div>
+        {projectDir && (
+          <span className="min-w-0 flex-1 truncate text-sm text-ink-muted" title={projectDir}>
+            {projectDir}
+          </span>
+        )}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            aria-label={sidebarOpen ? 'ファイル一覧を畳む' : 'ファイル一覧を開く'}
+            aria-pressed={sidebarOpen}
+            className={`${buttonBase} p-1 text-ink-muted`}
+            onClick={() => setSidebarOpen((v) => !v)}
+          >
+            <PanelLeft aria-hidden className="size-4" />
+          </button>
+          {/* **ラベルを `Claude Code を開く` にしないこと。** TerminalPane の
+              空状態のボタンと accessible name が衝突し、テストの getByRole が
+              2つ拾って落ちる */}
+          <button
+            type="button"
+            aria-label={paneOpen ? 'Claude Code ペインを畳む' : 'Claude Code ペインを開く'}
+            aria-pressed={paneOpen}
+            disabled={projectDir === null}
+            className={`${buttonBase} p-1 text-ink-muted`}
+            onClick={() => {
+              const next = !paneOpen
+              setPaneOpen(next)
+              if (next && terminals.sessions.length === 0) void openTerminal()
+            }}
+          >
+            <PanelRight aria-hidden className="size-4" />
+          </button>
+          <button
+            type="button"
+            className={`${buttonBase} text-sm text-ink-muted underline`}
+            onClick={toggleTheme}
+          >
+            {dark ? 'ライト' : 'ダーク'}
+          </button>
+        </div>
       </header>
 
       {BANNER_ORDER.map((kind) =>
