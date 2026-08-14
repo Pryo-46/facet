@@ -44,14 +44,20 @@ const SKILL_DEPS_DIR = 'node_modules'
  * `assets/` など、開発時点で名前を知らないもの）は既定で同梱されるべきで、
  * 落とすべきは開発・評価用の足場だけだから。除外するのは:
  * - `evals/` 配下（Skill の評価ハーネス。会議で使う人には無意味なノイズ）
- * - Skill 直下の `package.json`（evals の依存宣言）
  * - Skill 直下の `.gitignore`（開発用）
  * - `node_modules/` 配下（`npm install` で足された依存。数が多く、
  *   Tauri の書き込み許可スコープ外のファイルを含むこともあって同期が壊れる）
+ *
+ * **`package.json` は除外しない（レビュー指摘。以前は除外していた）。**
+ * これは evals の足場ではなく**実行時のマニフェスト**である——`ajv` は
+ * 書き出しスクリプト（`*-write.mjs` が `require("ajv/dist/2020.js")`）の
+ * 依存で、3本とも `dependencies` に宣言している。各 SKILL.md は利用者に
+ * 「Skill ディレクトリで `npm install`」と指示するのに、置いた先に
+ * マニフェストが無ければ `npm install` は**何もインストールしない**。
+ * 除外したままだと、その指示に従っても `ajv が見つかりません` から抜けられない
  */
 export function shouldSyncSkillFile(path: string): boolean {
   if (path === 'evals' || path.startsWith('evals/')) return false
-  if (path === 'package.json') return false
   if (path === '.gitignore') return false
   if (path === SKILL_DEPS_DIR || path.startsWith(`${SKILL_DEPS_DIR}/`)) return false
   return true
@@ -113,7 +119,25 @@ export async function syncBundledSkills(
         //（`node_modules` を巻き込むと利用者の `npm install` が毎回消える）
         for (const name of await io.listEntries(root)) {
           if (!isRemovableSkillEntry(name)) continue
-          await io.removeEntry(await io.join(root, name))
+          try {
+            await io.removeEntry(await io.join(root, name))
+          } catch {
+            // **1件消せなくても置き直しは続ける（レビュー指摘）。** 削除は
+            // 掃除であって目的ではない。ここで投げると「消えかけたまま
+            // 書き戻されない」——#43 と同じ形の恒久的な破損が、一段あとに
+            // 移っただけになる。
+            //
+            // mac では実際に起きる: `allow_skill_dir` が入れる実行時 scope は
+            // `Scope::default()` 由来で `require_literal_leading_dot: true`
+            // なので、`<dir>/.claude/**` はドット始まりの**直下の要素**に
+            // 一致しない。Finder が置く `.DS_Store` や、除外前の版が置いた
+            // `.gitignore` が1つあるだけで、その remove が forbidden path になる
+            //（`scripts/` の中のドットファイルは、親ごと再帰削除されるので
+            // 個別の判定を通らず影響が無い）。
+            //
+            // 消し残しはファイルが1つ余分に残るだけで、次の書き込みが
+            // 同じ名前を上書きする。Skill を失うより明確に軽い
+          }
         }
       }
       for (const file of files) {

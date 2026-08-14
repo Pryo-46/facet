@@ -86,6 +86,33 @@ describe('syncBundledSkills', () => {
     ])
   })
 
+  it('**消せない要素が1つあっても Skill は置き直される**', async () => {
+    // mac の実行時 scope は `require_literal_leading_dot: true` なので
+    // `<dir>/.claude/**` はドット始まりの直下要素に一致しない。Finder の
+    // `.DS_Store` が1つあるだけで remove が forbidden path になる。
+    // ここで諦めると「消えかけたまま書き戻されない」——#43 と同じ形の
+    // 恒久的な破損が一段あとに移るだけになる
+    const { io, removed, written } = fakeIo(
+      ['/proj/.claude/skills/glossary-term-register'],
+      ['.DS_Store', 'SKILL.md'],
+    )
+    const withForbidden: SkillSyncIo = {
+      ...io,
+      removeEntry: async (path) => {
+        if (path.endsWith('/.DS_Store')) throw new Error('forbidden path')
+        await io.removeEntry(path)
+      },
+    }
+    await syncBundledSkills('/proj', withForbidden, ['glossary-term-register'])
+    // 消せた方は消え（ループが止まっていない）、
+    expect(removed).toEqual(['/proj/.claude/skills/glossary-term-register/SKILL.md'])
+    // 何より Skill が置き直されている
+    expect(written.map((w) => w.path)).toEqual([
+      '/proj/.claude/skills/glossary-term-register/SKILL.md',
+      '/proj/.claude/skills/glossary-term-register/scripts/write.mjs',
+    ])
+  })
+
   it('**ユーザーが置いた Skill には触らない**', async () => {
     // .claude/skills/ を丸ごと消すと、ユーザーの Skill が巻き添えになる。
     // facet が壊してよいのは facet が書いたものだけ
@@ -165,7 +192,6 @@ describe('syncBundledSkills', () => {
         { path: 'scripts/write.mjs', text: 'export {}' },
         { path: 'evals/evals.json', text: '{}' },
         { path: 'evals/fixtures/existing-project/用語集.json', text: '{}' },
-        { path: 'package.json', text: '{}' },
         { path: '.gitignore', text: 'node_modules/' },
       ],
     }
@@ -174,6 +200,25 @@ describe('syncBundledSkills', () => {
       '/proj/.claude/skills/glossary-term-register/SKILL.md',
       '/proj/.claude/skills/glossary-term-register/scripts/write.mjs',
     ])
+  })
+
+  it('**package.json は置く**（置いた先で `npm install` が効くために要る）', async () => {
+    const { io, written } = fakeIo()
+    const withManifest: SkillSyncIo = {
+      ...io,
+      readBundled: async () => [
+        { path: 'SKILL.md', text: '#' },
+        { path: 'package.json', text: '{"dependencies":{"ajv":"^8.17.1"}}' },
+        { path: 'package-lock.json', text: '{}' },
+      ],
+    }
+    await syncBundledSkills('/proj', withManifest, ['glossary-term-register'])
+    expect(written.map((w) => w.path)).toContain(
+      '/proj/.claude/skills/glossary-term-register/package.json',
+    )
+    expect(written.map((w) => w.path)).toContain(
+      '/proj/.claude/skills/glossary-term-register/package-lock.json',
+    )
   })
 })
 
@@ -184,9 +229,17 @@ describe('shouldSyncSkillFile', () => {
     expect(shouldSyncSkillFile('evals/grade.mjs')).toBe(false)
   })
 
-  it('package.json と .gitignore は同期しない', () => {
-    expect(shouldSyncSkillFile('package.json')).toBe(false)
+  it('.gitignore は同期しない（開発用）', () => {
     expect(shouldSyncSkillFile('.gitignore')).toBe(false)
+  })
+
+  it('**package.json は同期する**（`ajv` を宣言する実行時マニフェスト）', () => {
+    // 書き出しスクリプトは `require("ajv/dist/2020.js")` を通る。SKILL.md は
+    // 利用者に「Skill ディレクトリで npm install」と指示するので、置いた先に
+    // マニフェストが無いと `npm install` が何もインストールせず、
+    // 「ajv が見つかりません」から抜けられない（レビュー指摘）
+    expect(shouldSyncSkillFile('package.json')).toBe(true)
+    expect(shouldSyncSkillFile('package-lock.json')).toBe(true)
   })
 
   it('node_modules/ 配下は同期しない（Skill が npm install したもの）', () => {
@@ -218,12 +271,16 @@ describe('isRemovableSkillEntry', () => {
 
   it('それ以外は消す（更新でファイルが減ったときに古いものを取り残さない）', () => {
     expect(isRemovableSkillEntry('SKILL.md')).toBe(true)
+    // facet が置くもの（package.json も置く）は、facet が消してよい
+    expect(isRemovableSkillEntry('package.json')).toBe(true)
     expect(isRemovableSkillEntry('scripts')).toBe(true)
     expect(isRemovableSkillEntry('references')).toBe(true)
-    // 同期しないもの（package.json / .gitignore）も、プロジェクト側に
-    // 残っているなら facet が前に置いた古いものなので消してよい
-    expect(isRemovableSkillEntry('package.json')).toBe(true)
+    // いま同期しないもの（evals / .gitignore）も、プロジェクト側に残って
+    // いるなら以前の版の facet が置いた古いものなので消してよい。
+    // ただし `.gitignore` の削除は mac では forbidden path になる——
+    // 消せなくても置き直しは続く（syncBundledSkills 側で握る）
     expect(isRemovableSkillEntry('evals')).toBe(true)
+    expect(isRemovableSkillEntry('.gitignore')).toBe(true)
   })
 
   it('名前が node_modules を含むだけの別ディレクトリは消す', () => {

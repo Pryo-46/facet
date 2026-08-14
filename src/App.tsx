@@ -107,6 +107,53 @@ const appIo: AppIo = {
 }
 
 /**
+ * 走っている最中の Skill 同期（フォルダごとに1本）。
+ *
+ * **同じフォルダの同期を並走させない（レビュー指摘）。置き直しは冪等ではない:**
+ * - 削除は tauri-plugin-fs が先に `symlink_metadata` を見るため、相手が先に
+ *   消したパスでは「メタデータが取れない」で失敗する
+ * - 片方の削除ループが相手の書き込みより後ろへずれ込むと、**置いたばかりの
+ *   `scripts/` を消してしまう**（そちらの書き込みが ENOENT で落ちる）
+ *
+ * 出る症状は「Skill をプロジェクトへ配置できませんでした」——このタスクで
+ * 直した2つの実バグと同じ文言なので、次の実機確認を誤診させる。
+ *
+ * **並走が起きる経路（レビューの前提は測って訂正した）。** レビューは
+ * 「StrictMode が effect を2回起こすので `tauri dev` では常に2本走る」と
+ * 述べていたが、**今のコードでは起きない**——StrictMode が二重に起こすのは
+ * マウント時の effect だけで、マウント時点の `projectDir` は `null` なので
+ * この effect は即 return する。同期が始まるのはフォルダを開いた**更新**時で、
+ * 更新の effect は二重に起こらない（`src/App.dom.test.tsx` を StrictMode で
+ * 包んで実測: `interceptClose` は2回呼ばれるのに、同期は1回だけだった）。
+ *
+ * それでも並走はしうる: 同期が終わる前に**別のフォルダへ切り替えて戻る**と、
+ * 前の同期が走ったまま同じフォルダの同期がもう1本始まる。将来「起動時に
+ * 前回のフォルダを復元する」を足せば、マウント時に `projectDir` が入るので
+ * StrictMode の二重起動も本当に効くようになる。**先に塞いでおく**
+ */
+const skillSyncInFlight = new Map<string, Promise<void>>()
+
+/**
+ * フォルダ `dir` へ同梱 Skill を置く。走っている最中なら**その同じ実行を待つ**。
+ *
+ * `allowSkillDir` は同期の**前**に呼ぶ。mac では `.claude/` がダイアログ由来の
+ * scope に入らないので、これが無いと同期の最初の `exists` で落ちる
+ */
+function syncSkillsOnce(dir: string): Promise<void> {
+  const running = skillSyncInFlight.get(dir)
+  if (running !== undefined) return running
+  const task = (async () => {
+    await allowSkillDir(dir)
+    await syncBundledSkills(dir, tauriSkillSyncIo, BUNDLED_SKILLS)
+  })().finally(() => {
+    // 終わったら忘れる。次にフォルダを開き直したときは改めて置き直す
+    skillSyncInFlight.delete(dir)
+  })
+  skillSyncInFlight.set(dir, task)
+  return task
+}
+
+/**
  * 額縁が取るグローバル層のキー文脈（rev 10章）。Undo/Redo だけを扱うため
  * 構造依存層の文脈は固定値でよい。modalOpen はダイアログが開いている間 true
  */
@@ -447,10 +494,7 @@ function App() {
     let current = true
     void (async () => {
       try {
-        // scope の付与を先に。mac では `.claude/` がダイアログ由来の scope に
-        // 入らないので、これが無いと同期の最初の exists で落ちる
-        await allowSkillDir(dir)
-        await syncBundledSkills(dir, tauriSkillSyncIo, BUNDLED_SKILLS)
+        await syncSkillsOnce(dir)
       } catch (err: unknown) {
         if (!current) return
         showToast({
