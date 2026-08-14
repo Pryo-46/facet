@@ -76,7 +76,10 @@ vi.mock('@/fs/pty', () => ({
   },
   killAllPtys: killAllPtysMock,
 }))
-vi.mock('@/fs/skill-resources', () => ({ tauriSkillSyncIo: {} }))
+vi.mock('@/fs/skill-resources', () => ({
+  tauriSkillSyncIo: {},
+  allowSkillDir: async () => undefined,
+}))
 vi.mock('@/core/skill-sync', async (orig) => ({
   ...(await orig<typeof import('@/core/skill-sync')>()),
   syncBundledSkills: async () => undefined,
