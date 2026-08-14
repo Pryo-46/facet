@@ -1,5 +1,5 @@
 import { CellInput, type FieldState } from '@/components/CellInput'
-import { ANSWER_BOX_CLASS } from './measure'
+import { ANSWER_BOX_CLASS, gutterLabelText } from './measure'
 
 export type SlotState = 'unanswered' | 'handled' | 'notApplicable'
 
@@ -48,7 +48,7 @@ export function GutterSlot(props: GutterSlotProps) {
         className="shrink-0 py-1 text-xs text-ink-muted"
         style={{ width: props.labelWidth - indentPad }}
       >
-        {props.indent ? `└ ${props.question}` : props.question}
+        {gutterLabelText(props.question, props.indent)}
       </div>
       <div className="relative" style={{ width: props.answerWidth }}>
         {props.state === 'notApplicable' && (

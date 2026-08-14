@@ -21,6 +21,19 @@ export const FALLBACK_SEQ_FONT: SeqFont = {
   lineHeight: 14 * 1.65,
 }
 
+/**
+ * 問いラベル列（text-xs）用の既定値。**FALLBACK_SEQ_FONT を使い回さないこと**
+ * ——text-xs は 12px・行間 1.5 で、text-sm（14px・1.65）とはサイズも行間も違う
+ * （src/index.css の --text-xs--line-height / --text-sm--line-height）。
+ * 揃えてしまうと、ラベル用の測定器が text-sm 相当の高さを返し続け、
+ * jsdom のテストでは両者の違いを検出できなくなる
+ */
+export const FALLBACK_LABEL_FONT: SeqFont = {
+  font: 'normal 400 12px sans-serif',
+  fontSize: 12,
+  lineHeight: 12 * 1.5,
+}
+
 export function sameFont(a: SeqFont, b: SeqFont): boolean {
   return a.font === b.font && a.fontSize === b.fontSize && a.lineHeight === b.lineHeight
 }

@@ -56,6 +56,7 @@ import {
   ANSWER_CONTENT_WIDTH,
   ANSWER_INSET_X,
   ANSWER_INSET_Y,
+  gutterLabelText,
   LABEL_BOX_CLASS,
   LABEL_INSET_X,
   LABEL_INSET_Y,
@@ -71,7 +72,14 @@ import {
   type WrapOptions,
 } from './measure'
 import { poseQuestions, questionLabels, unposedAnswers, type AnswerPath } from './questions'
-import { createSeqMeasurer, FALLBACK_SEQ_FONT, readSeqFont, sameFont, type SeqFont } from './seq-font'
+import {
+  createSeqMeasurer,
+  FALLBACK_LABEL_FONT,
+  FALLBACK_SEQ_FONT,
+  readSeqFont,
+  sameFont,
+  type SeqFont,
+} from './seq-font'
 import { SequenceEdges, type EdgeStep } from './SequenceEdges'
 import { StepShapeCell } from './StepShapeCell'
 import { useViewport } from './useViewport'
@@ -220,7 +228,7 @@ export function SequenceEditor({
   const probeRef = useRef<HTMLSpanElement>(null)
   const [font, setFont] = useState<SeqFont>(FALLBACK_SEQ_FONT)
   const labelProbeRef = useRef<HTMLSpanElement>(null)
-  const [labelFont, setLabelFont] = useState<SeqFont>(FALLBACK_SEQ_FONT)
+  const [labelFont, setLabelFont] = useState<SeqFont>(FALLBACK_LABEL_FONT)
 
   // ガターのグレースロットの削除確認（Undo で戻せるとはいえ、削除は確認を挟む）
   const [confirmTarget, setConfirmTarget] = useState<{ index: number; path: AnswerPath } | null>(
@@ -368,7 +376,10 @@ export function SequenceEditor({
     const key = `${indent ? 'q-indent' : 'q'}:${text}`
     let block = labelMeasurer.cache.get(key)
     if (block === undefined) {
-      block = wrapWithin(text, labelMeasurer.measure, labelFont.lineHeight, {
+      // **描画される文字列を測る。** GutterSlot は indent 時に「└ 」を前置して
+      // 出すので、その接頭辞込みの文字列を測らないと折り返し回数がずれる
+      // （素の question で測ると実測より短く出て行が食い込む）
+      block = wrapWithin(gutterLabelText(text, indent), labelMeasurer.measure, labelFont.lineHeight, {
         maxWidth: QUESTION_LABEL_WIDTH - (indent ? GUTTER_INDENT : 0),
         minWidth: 0,
         insetX: 0,
@@ -744,7 +755,9 @@ export function SequenceEditor({
     >
       {/* 測定用の見本。**描画される文字と同じフォントのクラスを持たせる**ことで、
           測定と描画が同一の情報源を見る（rev 9章）。opacity-0 で見せないだけに
-          するのは、display:none だと getComputedStyle がフォントを返さない環境があるため */}
+          するのは、display:none だと getComputedStyle がフォントを返さない環境があるため。
+          見本が2本あるのは、答えセル（text-sm）と問いラベル列（text-xs）で
+          フォント階級が違うため——1本を両方に使い回すと、片方の高さを見誤る */}
       <span
         ref={probeRef}
         aria-hidden="true"

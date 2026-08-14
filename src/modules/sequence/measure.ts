@@ -42,6 +42,18 @@ export const ANSWER_INSET_X = ANSWER_PADDING_X + ANSWER_BORDER
 export const ANSWER_INSET_Y = ANSWER_PADDING_Y + ANSWER_BORDER
 export const ANSWER_BOX_CLASS = 'border px-2 py-1'
 
+/**
+ * ラベル列に実際に描画される文字列（ifExecuted の「└ 」接頭を含む）。
+ * **測る文字列と描く文字列を同じにするため**、GutterSlot の描画も
+ * SequenceEditor の questionHeight もこの戻り値だけを見る。素の問い文言を
+ * 測ると接頭辞のぶん短く出て、折り返しが1行足りず下の行へ食い込む。
+ * ANSWER_BOX_CLASS と同じ理由でこの純粋層に置く——描画と測定の共通語彙は、
+ * 部品側に置くと測定側から見えず二重定義になる
+ */
+export function gutterLabelText(question: string, indent: boolean): string {
+  return indent ? `└ ${question}` : question
+}
+
 export type MeasureWidth = (text: string) => number
 
 export interface WrapOptions {
