@@ -203,7 +203,18 @@
  *   palette.test.ts が index.css の色値直書きを弾く
  * ========================================================================= */
 @utility bg-grid-paper {
+    /* **repeating-linear-gradient を使わないこと（mac の実機で判明）。**
+       WebKit（macOS の WKWebView / Linux の WebKitGTK）は繰り返し勾配を
+       「面の端から端までの1本の勾配」として標本化するため、24px 周期の 1px 線は
+       ほとんど落ちる。実機では横線が 24 / 72 / 96px とばらばらの間隔になり、
+       縦線に至っては画面全体で2本しか出ていなかった。Chromium（Windows の
+       WebView2）は正しく敷き詰めるので、**Windows では決して見えない**。
+
+       1周期ぶんの絵を background-size で敷き詰める形にすると、勾配の長さが
+       マス目1つに閉じるため標本化の誤差が出ない。マス目の大きさは
+       --grid-size のまま——この形でも変数1つで変えられる */
     background-image:
-        repeating-linear-gradient(to right, var(--grid) 0 1px, transparent 1px var(--grid-size)),
-        repeating-linear-gradient(to bottom, var(--grid) 0 1px, transparent 1px var(--grid-size));
+        linear-gradient(to right, var(--grid) 0 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid) 0 1px, transparent 1px);
+    background-size: var(--grid-size) var(--grid-size);
 }

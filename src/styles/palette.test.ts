@@ -188,6 +188,23 @@ describe('index.css', () => {
   it('マス目のサイズを持つ', () => {
     expect(indexCss).toMatch(/--grid-size:\s*\d+px/)
   })
+
+  /**
+   * WebKit（macOS の WKWebView）は repeating-linear-gradient を「面の端から端まで
+   * の1本の勾配」として標本化するため、24px 周期の 1px 線がほとんど落ちる。
+   * mac の実機では縦線が画面全体で2本しか出ていなかった（QuickLook の
+   * WebKit 描画でも再現：27本・間隔 6/19/37px とばらばらになる）。
+   *
+   * 1周期ぶんの絵を background-size で敷き詰める形にすれば、勾配の長さが
+   * マス目1つに閉じるので標本化の誤差が出ない。**この形を戻さないこと**
+   */
+  it('マス目は1周期の敷き詰めで描く（repeating-linear-gradient を使わない）', () => {
+    // indexCss はコメントを落としてある（このファイルの先頭を読むこと）ので、
+    // 「使わない」と書いた解説そのものを違反として拾う心配は無い
+    const utility = indexCss.match(/@utility\s+bg-grid-paper\s*\{[^}]*\}/)?.[0] ?? ''
+    expect(utility).not.toMatch(/repeating-linear-gradient/)
+    expect(utility).toMatch(/background-size:\s*var\(--grid-size\)\s+var\(--grid-size\)/)
+  })
 })
 
 /**
