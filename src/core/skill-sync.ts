@@ -98,7 +98,8 @@ export interface SkillSyncIo {
  * 置く）。逐次 for ループで await すると1本目の失敗でループ全体が止まり、
  * 後続の Skill が一切置かれなくなるため、Promise.allSettled で独立させている
  *
- * **読んでから消す**（open-issues #43）。先に消してから `readBundled` が
+ * **読んでから消す**（M11 から繰り越していた「読む前に消す」欠陥。sequence-m4 で解消）。
+ * 先に消してから `readBundled` が
  * 失敗すると、プロジェクト側の Skill が消えたまま復旧しない。同梱物を
  * すべてメモリに読み終えてから消しに行けば、「読めなかったから消さない」が
  * 成り立つ——消したあとに残る失敗要因は書き込みそのものだけになる
@@ -111,7 +112,7 @@ export async function syncBundledSkills(
   const results = await Promise.allSettled(
     skills.map(async (skill) => {
       const root = await io.join(projectDir, '.claude', 'skills', skill)
-      // 消すより先に読む（#43）。ここで失敗したら以降へ進まないので、
+      // 消すより先に読む（読めなかったら消さない）。ここで失敗したら以降へ進まないので、
       // プロジェクト側の Skill は前回のまま残る
       const files = (await io.readBundled(skill)).filter((file) => shouldSyncSkillFile(file.path))
       if (await io.exists(root)) {
@@ -133,8 +134,8 @@ export async function syncBundledSkills(
             )
             // **1件消せなくても置き直しは続ける（レビュー指摘）。** 削除は
             // 掃除であって目的ではない。ここで投げると「消えかけたまま
-            // 書き戻されない」——#43 と同じ形の恒久的な破損が、一段あとに
-            // 移っただけになる。
+            // 書き戻されない」——「読む前に消す」と同じ形の恒久的な破損が、
+            // 一段あとに移っただけになる。
             //
             // mac では実際に起きる: `allow_skill_dir` が入れる実行時 scope は
             // `Scope::default()` 由来で `require_literal_leading_dot: true`

@@ -95,8 +95,8 @@ describe('syncBundledSkills', () => {
     // mac の実行時 scope は `require_literal_leading_dot: true` なので
     // `<dir>/.claude/**` はドット始まりの直下要素に一致しない。Finder の
     // `.DS_Store` が1つあるだけで remove が forbidden path になる。
-    // ここで諦めると「消えかけたまま書き戻されない」——#43 と同じ形の
-    // 恒久的な破損が一段あとに移るだけになる
+    // ここで諦めると「消えかけたまま書き戻されない」——「読む前に消す」と
+    // 同じ形の恒久的な破損が一段あとに移るだけになる
     const { io, removed, written } = fakeIo(
       ['/proj/.claude/skills/glossary-term-register'],
       ['.DS_Store', 'SKILL.md'],
@@ -140,7 +140,7 @@ describe('syncBundledSkills', () => {
     expect(removed).not.toContain('/proj/.claude/skills/glossary-term-register')
   })
 
-  it('**readBundled が失敗したら何も消さない**（open-issues #43）', async () => {
+  it('**readBundled が失敗したら何も消さない**（読む前に消さない）', async () => {
     // 先に消してから読み出しに失敗すると、プロジェクト側の Skill が
     // 消えたまま復旧しない（次の同期も同じ理由で失敗する）
     const { io, removed, written } = fakeIo(['/proj/.claude/skills/glossary-term-register'])
