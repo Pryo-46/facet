@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sequence.schema.json",
+  "title": "シーケンス (sequence) schemaVersion 1",
+  "description": "仕様整理ツール詰め合わせのシーケンスファイル。1ファイル＝1本の直列シナリオ（分岐は別ファイルかロジックツリーの担当）。図が持つのは正常系だけで、異常系は各ステップの failures（『失敗したら？』の問いへの答え）が持つ。問いの類型はスキーマ固定であり、どの問いが立つかは kind × awaitsReply から導出される——ユーザーや AI が類型を増やしてはならない。原因（エラー応答・接続不能・タイムアウト等）はキーに列挙せず、答えの text に書き分けること。キーの正規順序は本スキーマの properties 記載順とする。",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "description": "スキーマの版。sequence の初版は 1。",
+      "const": 1
+    },
+    "type": {
+      "description": "ツール種別。シーケンスは sequence 固定。",
+      "const": "sequence"
+    },
+    "title": {
+      "description": "表示名。プロジェクトのファイル一覧に使う。",
+      "type": "string"
+    },
+    "actors": {
+      "description": "参加者の配列。配列順が図の横の並び（左→右）の正である。座標は持たない。",
+      "type": "array",
+      "items": { "$ref": "#/$defs/sequenceActor" }
+    },
+    "steps": {
+      "description": "ステップの配列。配列順が時系列（上→下）の正である。行番号・座標は持たない。",
+      "type": "array",
+      "items": { "$ref": "#/$defs/sequenceStep" }
+    }
+  },
+  "required": ["schemaVersion", "type", "title", "actors", "steps"],
+  "additionalProperties": false,
+  "$defs": {
+    "sequenceActor": {
+      "description": "参加者（ライフライン）1本。",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "不変ID。プレフィクス actor_ ＋ nanoid（英数字62文字）10文字固定。連番禁止。",
+          "type": "string",
+          "pattern": "^actor_[A-Za-z0-9]{10}$"
+        },
+        "name": {
+          "description": "参加者名。空文字＝「未記入」（追加直後の状態がそのまま自動保存に載りうるため空を許す）。",
+          "type": "string"
+        },
+        "domain": {
+          "description": "責任ドメイン（例: 自社／決済会社）。省略可。隣接する参加者間で双方が指定済みかつ異なる位置に責任境界の縦線を描く（描画は導出。境界そのものはデータに持たない）。",
+          "type": "string"
+        }
+      },
+      "required": ["id", "name"],
+      "additionalProperties": false
+    },
+    "sequenceStep": {
+      "description": "ステップ（矢印）1本。kind は矢印の形の分類で、問いのセットは kind × awaitsReply から導出される: self→failed のみ／call+awaitsReply:true→failed と unknown（内に ifExecuted）／call+awaitsReply:false→unknown のみ／reply→問い無し（応答の失敗は対の呼出側の unknown が扱う）。",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "不変ID。プレフィクス step_ ＋ nanoid（英数字62文字）10文字固定。連番禁止。",
+          "type": "string",
+          "pattern": "^step_[A-Za-z0-9]{10}$"
+        },
+        "kind": {
+          "description": "call＝呼出（実線）／reply＝応答（破線）／self＝内部処理（ライフライン上のボックス）。",
+          "enum": ["call", "reply", "self"]
+        },
+        "from": {
+          "description": "送り手の参加者ID。実在しない参照は整合性検証（レベル2）が赤表示する。",
+          "type": "string",
+          "pattern": "^actor_[A-Za-z0-9]{10}$"
+        },
+        "to": {
+          "description": "受け手の参加者ID。self は持たない。call / reply で欠けている状態は整合性検証（レベル2）が指摘する（スキーマでは拒否しない——編集途中の自動保存がレベル1違反ファイルを作らないため）。",
+          "type": "string",
+          "pattern": "^actor_[A-Za-z0-9]{10}$"
+        },
+        "label": {
+          "description": "ステップの文言。空文字＝「未記入」。ユーザーが明示的に入れた改行（\\n）は文言の一部として永続化する。表示上の自動折り返しはデータに持たない。",
+          "type": "string"
+        },
+        "awaitsReply": {
+          "description": "応答を待つ呼出か。kind: call のとき必須（既定値を持たず明示させる——問いのセットを決める属性のため）。reply / self では持たない。false＝投げっぱなし（開き矢頭で描く）。",
+          "type": "boolean"
+        },
+        "failures": {
+          "description": "『失敗したら？』の答え。キーの欠落＝未定義（warning 表示）。正規化で欠落キーを補完しない。",
+          "$ref": "#/$defs/failures"
+        }
+      },
+      "required": ["id", "kind", "from", "label"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "call" } }, "required": ["kind"] },
+          "then": { "required": ["awaitsReply"] }
+        },
+        {
+          "if": { "properties": { "kind": { "enum": ["reply", "self"] } }, "required": ["kind"] },
+          "then": { "not": { "required": ["awaitsReply"] } }
+        }
+      ]
+    },
+    "failures": {
+      "description": "問いスロットの器。キーはスキーマ固定の2つだけ（原因の列挙はしない——閉じたものは型に、開いたものは文に）。",
+      "type": "object",
+      "properties": {
+        "failed": {
+          "description": "『失敗が確定したら？』への答え。エラー応答・接続不能・送信不能など、失敗が確定的に観測されるケースすべてをこの1問が受ける。",
+          "$ref": "#/$defs/answerSlot"
+        },
+        "unknown": { "$ref": "#/$defs/unknownSlot" }
+      },
+      "additionalProperties": false
+    },
+    "answerSlot": {
+      "description": "答え1つ。handled＝挙動を決めた（text 必須）／notApplicable＝考慮不要と決めた（text は任意の理由メモ）。",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "decision": { "const": "handled" },
+            "text": { "description": "失敗時に何が起きるか。", "type": "string", "minLength": 1 }
+          },
+          "required": ["decision", "text"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "decision": { "const": "notApplicable" },
+            "text": { "description": "考慮不要と決めた理由（任意）。", "type": "string" }
+          },
+          "required": ["decision"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "unknownSlot": {
+      "description": "『結果が不明だったら？』への答え。下位の ifExecuted（『実行済みだったら？』＝冪等性の問い）を内包する。decision 無しで ifExecuted だけ持つ部分回答を許す。",
+      "type": "object",
+      "properties": {
+        "decision": { "enum": ["handled", "notApplicable"] },
+        "text": { "type": "string" },
+        "ifExecuted": { "$ref": "#/$defs/answerSlot" }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "decision": { "const": "handled" } }, "required": ["decision"] },
+          "then": { "required": ["text"] }
+        }
+      ]
+    }
+  }
+}

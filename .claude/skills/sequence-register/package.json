@@ -1,0 +1,9 @@
+{
+  "name": "sequence-register-skill",
+  "private": true,
+  "type": "module",
+  "description": "シーケンス登録Skillの同梱スクリプト（ID採番・検証・正規形書き出し）",
+  "dependencies": {
+    "ajv": "^8.17.1"
+  }
+}

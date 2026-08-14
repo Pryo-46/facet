@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "glossary.schema.json",
+  "title": "用語集 (glossary) schemaVersion 1",
+  "description": "仕様整理ツール詰め合わせの用語集ファイル。プロジェクトフォルダにつき1ファイル（単一性は整合性検証で担保）。キーの正規順序は本スキーマの properties 記載順とする（JSON Schema ではキー順を強制できないため、正規化はアプリの書き込み時処理が保証する）。",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "description": "スキーマの版。glossary の初版は 1。アプリは検証前にこの値を読み、未知の新版は「一覧表示のみ・編集不可」として扱う。",
+      "const": 1
+    },
+    "type": {
+      "description": "ツール種別。用語集は glossary 固定。",
+      "const": "glossary"
+    },
+    "title": {
+      "description": "表示名。プロジェクトのファイル一覧に使う。",
+      "type": "string"
+    },
+    "terms": {
+      "description": "用語の配列。配列順＝UIの既定表示順（正）。五十音等のソートはUI側の導出であり、この順を書き換えない。",
+      "type": "array",
+      "items": { "$ref": "#/$defs/term" }
+    }
+  },
+  "required": ["schemaVersion", "type", "title", "terms"],
+  "additionalProperties": false,
+  "$defs": {
+    "term": {
+      "description": "用語1件。全キー常在（欠損でなく空の値で「未記入」を表現する）。",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "不変ID。プレフィクス term_ ＋ nanoid（英数字62文字カスタムアルファベット）10文字固定。連番禁止。",
+          "type": "string",
+          "pattern": "^term_[A-Za-z0-9]{10}$"
+        },
+        "name": {
+          "description": "正式表記。表記ゆれ検知の「正」側。名前のない用語は解釈不能のため空を許さない。",
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "description": "種別。undecided＝未分類（warning対象、後で埋める）／other＝検討したがどの分類でもない（ok、これで完成）。enumの拡張は schemaVersion の改訂として扱う。",
+          "enum": ["actor", "state", "event", "screen", "data", "other", "undecided"]
+        },
+        "definition": {
+          "description": "定義文。空文字＝「未定義」として warning 可視化の対象。",
+          "type": "string"
+        },
+        "aliases": {
+          "description": "別名リスト。表記ゆれ検知（ルールベース層）の照合キー。重複（同一用語内含む）はスキーマで拒否せず整合性検証（レベル2）で赤表示する。",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "notes": {
+          "description": "備考。検知対象外の自由メモ。NotePM出力に含まれる。",
+          "type": "string"
+        }
+      },
+      "required": ["id", "name", "kind", "definition", "aliases", "notes"],
+      "additionalProperties": false
+    }
+  }
+}

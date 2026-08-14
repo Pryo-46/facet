@@ -1,7 +1,17 @@
-import { describe, expect, it } from 'vitest'
-import { shouldSyncSkillFile, syncBundledSkills, type SkillSyncIo } from './skill-sync'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  BUNDLED_SKILLS,
+  isRemovableSkillEntry,
+  shouldSyncSkillFile,
+  syncBundledSkills,
+  type SkillSyncIo,
+} from './skill-sync'
 
-function fakeIo(existing: string[] = []) {
+/**
+ * `existing` はプロジェクト側に既にあるディレクトリのパス、`entries` は
+ * その直下にある要素の名前（既定は「前回の同期が置いた形」）
+ */
+function fakeIo(existing: string[] = [], entries: string[] = ['SKILL.md', 'scripts']) {
   const removed: string[] = []
   const written: Array<{ path: string; text: string }> = []
   const dirs: string[] = []
@@ -11,7 +21,8 @@ function fakeIo(existing: string[] = []) {
       { path: 'scripts/write.mjs', text: 'export {}' },
     ],
     exists: async (path) => existing.includes(path),
-    removeDir: async (path) => {
+    listEntries: async () => entries,
+    removeEntry: async (path) => {
       removed.push(path)
     },
     mkdir: async (path) => {
@@ -25,6 +36,11 @@ function fakeIo(existing: string[] = []) {
   return { io, removed, written, dirs }
 }
 
+// console.warn の差し替えを次のテストへ持ち越さない（assertion で落ちても戻す）
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 describe('syncBundledSkills', () => {
   it('同梱 Skill を .claude/skills/<名前>/ へ置く', async () => {
     const { io, written } = fakeIo()
@@ -36,16 +52,75 @@ describe('syncBundledSkills', () => {
     expect(written[0]?.text).toBe('# glossary-term-register')
   })
 
-  it('既にあるディレクトリは消してから置き直す（Skill の更新を取り残さない）', async () => {
-    const { io, removed } = fakeIo(['/proj/.claude/skills/glossary-term-register'])
+  it('既にある中身は消してから置き直す（Skill の更新を取り残さない）', async () => {
+    // 前回の同期が置いた `old.mjs` は今回の同梱物に無い。消えないと
+    // 消えたはずのファイルがプロジェクトに残り続ける
+    const { io, removed } = fakeIo(
+      ['/proj/.claude/skills/glossary-term-register'],
+      ['SKILL.md', 'scripts', 'old.mjs'],
+    )
     await syncBundledSkills('/proj', io, ['glossary-term-register'])
-    expect(removed).toEqual(['/proj/.claude/skills/glossary-term-register'])
+    expect(removed).toEqual([
+      '/proj/.claude/skills/glossary-term-register/SKILL.md',
+      '/proj/.claude/skills/glossary-term-register/scripts',
+      '/proj/.claude/skills/glossary-term-register/old.mjs',
+    ])
   })
 
   it('無いディレクトリは消そうとしない', async () => {
     const { io, removed } = fakeIo()
     await syncBundledSkills('/proj', io, ['glossary-term-register'])
     expect(removed).toEqual([])
+  })
+
+  it('**利用者が `npm install` した node_modules は消さない**', async () => {
+    // SKILL.md は「初回のみ Skill ディレクトリで npm install」と指示している。
+    // ここを消すと同期のたびにその1回が巻き戻り、スクリプトが
+    // 「ajv が見つかりません」で落ちる状態に戻る（同期では置き直さないので
+    // 消したら復元されない）
+    const { io, removed } = fakeIo(
+      ['/proj/.claude/skills/glossary-term-register'],
+      ['SKILL.md', 'node_modules', 'package-lock.json'],
+    )
+    await syncBundledSkills('/proj', io, ['glossary-term-register'])
+    expect(removed).not.toContain('/proj/.claude/skills/glossary-term-register/node_modules')
+    // node_modules 以外はこれまでどおり消える
+    expect(removed).toEqual([
+      '/proj/.claude/skills/glossary-term-register/SKILL.md',
+      '/proj/.claude/skills/glossary-term-register/package-lock.json',
+    ])
+  })
+
+  it('**消せない要素が1つあっても Skill は置き直される**', async () => {
+    // mac の実行時 scope は `require_literal_leading_dot: true` なので
+    // `<dir>/.claude/**` はドット始まりの直下要素に一致しない。Finder の
+    // `.DS_Store` が1つあるだけで remove が forbidden path になる。
+    // ここで諦めると「消えかけたまま書き戻されない」——「読む前に消す」と
+    // 同じ形の恒久的な破損が一段あとに移るだけになる
+    const { io, removed, written } = fakeIo(
+      ['/proj/.claude/skills/glossary-term-register'],
+      ['.DS_Store', 'SKILL.md'],
+    )
+    const withForbidden: SkillSyncIo = {
+      ...io,
+      removeEntry: async (path) => {
+        if (path.endsWith('/.DS_Store')) throw new Error('forbidden path')
+        await io.removeEntry(path)
+      },
+    }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    await syncBundledSkills('/proj', withForbidden, ['glossary-term-register'])
+    // 消せた方は消え（ループが止まっていない）、
+    expect(removed).toEqual(['/proj/.claude/skills/glossary-term-register/SKILL.md'])
+    // 何より Skill が置き直されている
+    expect(written.map((w) => w.path)).toEqual([
+      '/proj/.claude/skills/glossary-term-register/SKILL.md',
+      '/proj/.claude/skills/glossary-term-register/scripts/write.mjs',
+    ])
+    // **握りつぶすが黙らない。** 現場で追えるよう、どの要素がなぜ消せなかったかを残す
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]?.[0])).toContain('glossary-term-register/.DS_Store')
+    expect(String(warn.mock.calls[0]?.[0])).toContain('forbidden path')
   })
 
   it('**ユーザーが置いた Skill には触らない**', async () => {
@@ -56,9 +131,47 @@ describe('syncBundledSkills', () => {
       '/proj/.claude/skills/my-own-skill',
     ])
     await syncBundledSkills('/proj', io, ['glossary-term-register'])
-    expect(removed).toEqual(['/proj/.claude/skills/glossary-term-register'])
+    // 列挙も削除も同梱名のディレクトリの内側で閉じている
+    expect(removed.every((p) => p.startsWith('/proj/.claude/skills/glossary-term-register/'))).toBe(
+      true,
+    )
     expect(removed).not.toContain('/proj/.claude/skills/my-own-skill')
     expect(removed).not.toContain('/proj/.claude/skills')
+    expect(removed).not.toContain('/proj/.claude/skills/glossary-term-register')
+  })
+
+  it('**readBundled が失敗したら何も消さない**（読む前に消さない）', async () => {
+    // 先に消してから読み出しに失敗すると、プロジェクト側の Skill が
+    // 消えたまま復旧しない（次の同期も同じ理由で失敗する）
+    const { io, removed, written } = fakeIo(['/proj/.claude/skills/glossary-term-register'])
+    const failing: SkillSyncIo = {
+      ...io,
+      readBundled: async () => {
+        throw new Error('同梱物が読めません')
+      },
+    }
+    await expect(syncBundledSkills('/proj', failing, ['glossary-term-register'])).rejects.toThrow(
+      '同梱物が読めません',
+    )
+    expect(removed).toEqual([])
+    expect(written).toEqual([])
+  })
+
+  it('読み出しに失敗した Skill だけが手つかずで残る（他の Skill は置き直す）', async () => {
+    const { io, removed, written } = fakeIo(['/proj/.claude/skills/a', '/proj/.claude/skills/b'])
+    const failing: SkillSyncIo = {
+      ...io,
+      readBundled: async (skill) => {
+        if (skill === 'a') throw new Error('同梱物が読めません')
+        return [{ path: 'SKILL.md', text: skill }]
+      },
+    }
+    await expect(syncBundledSkills('/proj', failing, ['a', 'b'])).rejects.toThrow(
+      '同梱物が読めません',
+    )
+    expect(removed.some((p) => p.startsWith('/proj/.claude/skills/a/'))).toBe(false)
+    expect(removed.some((p) => p.startsWith('/proj/.claude/skills/b/'))).toBe(true)
+    expect(written.map((w) => w.path)).toEqual(['/proj/.claude/skills/b/SKILL.md'])
   })
 
   it('入れ子のファイルの親ディレクトリを作る', async () => {
@@ -89,7 +202,6 @@ describe('syncBundledSkills', () => {
         { path: 'scripts/write.mjs', text: 'export {}' },
         { path: 'evals/evals.json', text: '{}' },
         { path: 'evals/fixtures/existing-project/用語集.json', text: '{}' },
-        { path: 'package.json', text: '{}' },
         { path: '.gitignore', text: 'node_modules/' },
       ],
     }
@@ -98,6 +210,25 @@ describe('syncBundledSkills', () => {
       '/proj/.claude/skills/glossary-term-register/SKILL.md',
       '/proj/.claude/skills/glossary-term-register/scripts/write.mjs',
     ])
+  })
+
+  it('**package.json は置く**（置いた先で `npm install` が効くために要る）', async () => {
+    const { io, written } = fakeIo()
+    const withManifest: SkillSyncIo = {
+      ...io,
+      readBundled: async () => [
+        { path: 'SKILL.md', text: '#' },
+        { path: 'package.json', text: '{"dependencies":{"ajv":"^8.17.1"}}' },
+        { path: 'package-lock.json', text: '{}' },
+      ],
+    }
+    await syncBundledSkills('/proj', withManifest, ['glossary-term-register'])
+    expect(written.map((w) => w.path)).toContain(
+      '/proj/.claude/skills/glossary-term-register/package.json',
+    )
+    expect(written.map((w) => w.path)).toContain(
+      '/proj/.claude/skills/glossary-term-register/package-lock.json',
+    )
   })
 })
 
@@ -108,9 +239,32 @@ describe('shouldSyncSkillFile', () => {
     expect(shouldSyncSkillFile('evals/grade.mjs')).toBe(false)
   })
 
-  it('package.json と .gitignore は同期しない', () => {
-    expect(shouldSyncSkillFile('package.json')).toBe(false)
+  it('.gitignore は同期しない（開発用。mac では書き込み自体が forbidden path になる）', () => {
+    // 置いた先で npm install するとユーザーのリポジトリに未追跡の node_modules が
+    // 出るため「同期に戻したい」誘惑があるが、実行時 scope の照合は
+    // require_literal_leading_dot: true で `**` がドット始まりの要素に一致しない。
+    // 戻すと「消したあとに書けない」＝半分だけ置かれた Skill になる（skill-sync.ts）
     expect(shouldSyncSkillFile('.gitignore')).toBe(false)
+  })
+
+  it('**package.json は同期する**（`ajv` を宣言する実行時マニフェスト）', () => {
+    // 書き出しスクリプトは `require("ajv/dist/2020.js")` を通る。SKILL.md は
+    // 利用者に「Skill ディレクトリで npm install」と指示するので、置いた先に
+    // マニフェストが無いと `npm install` が何もインストールせず、
+    // 「ajv が見つかりません」から抜けられない（レビュー指摘）
+    expect(shouldSyncSkillFile('package.json')).toBe(true)
+    expect(shouldSyncSkillFile('package-lock.json')).toBe(true)
+  })
+
+  it('node_modules/ 配下は同期しない（Skill が npm install したもの）', () => {
+    expect(shouldSyncSkillFile('node_modules')).toBe(false)
+    expect(shouldSyncSkillFile('node_modules/ajv/package.json')).toBe(false)
+    // 実機で `allow-write-text-file` の許可スコープ外として書き込みに失敗した実例
+    expect(shouldSyncSkillFile('node_modules/json-schema-traverse/.eslintrc.yml')).toBe(false)
+  })
+
+  it('名前が node_modules を含むだけの別ディレクトリは同期する（文字列の前方一致ではなくパス区切りで判定する）', () => {
+    expect(shouldSyncSkillFile('node_modules_backup/README.md')).toBe(true)
   })
 
   it('SKILL.md と scripts/*.mjs は同期する', () => {
@@ -121,5 +275,46 @@ describe('shouldSyncSkillFile', () => {
   it('references/ のような未知のディレクトリは同期する（除外リスト方式である固定）', () => {
     expect(shouldSyncSkillFile('references/style.md')).toBe(true)
     expect(shouldSyncSkillFile('assets/logo.png')).toBe(true)
+  })
+})
+
+describe('isRemovableSkillEntry', () => {
+  it('node_modules は消さない（同期でも置き直さないので、消したら復元されない）', () => {
+    expect(isRemovableSkillEntry('node_modules')).toBe(false)
+  })
+
+  it('それ以外は消す（更新でファイルが減ったときに古いものを取り残さない）', () => {
+    expect(isRemovableSkillEntry('SKILL.md')).toBe(true)
+    // facet が置くもの（package.json も置く）は、facet が消してよい
+    expect(isRemovableSkillEntry('package.json')).toBe(true)
+    expect(isRemovableSkillEntry('scripts')).toBe(true)
+    expect(isRemovableSkillEntry('references')).toBe(true)
+    // いま同期しないもの（evals / .gitignore）も、プロジェクト側に残って
+    // いるなら以前の版の facet が置いた古いものなので消してよい。
+    // ただし `.gitignore` の削除は mac では forbidden path になる——
+    // 消せなくても置き直しは続く（syncBundledSkills 側で握る）
+    expect(isRemovableSkillEntry('evals')).toBe(true)
+    expect(isRemovableSkillEntry('.gitignore')).toBe(true)
+  })
+
+  it('名前が node_modules を含むだけの別ディレクトリは消す', () => {
+    expect(isRemovableSkillEntry('node_modules_backup')).toBe(true)
+  })
+})
+
+describe('BUNDLED_SKILLS', () => {
+  it('ユーザーのデータを作る Skill が3本とも載っている', () => {
+    // アプリが置き直さない Skill は、プロジェクトフォルダで claude を起動した
+    // ユーザーには存在しない。ここから漏れると Skill が黙って使えなくなる
+    expect([...BUNDLED_SKILLS]).toEqual([
+      'glossary-term-register',
+      'error-catalog-register',
+      'sequence-register',
+    ])
+  })
+
+  it('アプリ自身のソースを触る Skill は載せない（palette-retheme）', () => {
+    // 配色差し替えは facet リポジトリで動かすもので、ユーザーのプロジェクトには不要
+    expect(BUNDLED_SKILLS).not.toContain('palette-retheme')
   })
 })

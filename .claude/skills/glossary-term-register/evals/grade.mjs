@@ -5,10 +5,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const ITER = path.resolve(process.argv[2] ?? ".");
-const SKILL = path.resolve("C:/Dev/Projects/facet/.claude/skills/glossary-term-register");
-const SCHEMA = "C:/Dev/Projects/facet/schemas/glossary.schema.json";
+const SKILL = path.resolve(fileURLToPath(import.meta.url), "../..");
+const SCHEMA = path.resolve(SKILL, "../../../schemas/glossary.schema.json");
 const ID_RE = /^term_[A-Za-z0-9]{10}$/;
 
 function glossaryFiles(dir) {
