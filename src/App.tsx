@@ -518,7 +518,15 @@ function App() {
       {/* 額縁の帯（rev 9章）。中身はすべて幅の決まった操作なので、伸縮は
           `ml-auto` の余白だけが引き受ける（右端の保証は下の div のコメント） */}
       <header className="flex items-center gap-3 border-b border-rule bg-surface px-6 py-3">
-        <h1 className="shrink-0 text-lg font-bold text-ink">facet</h1>
+        {/* 見出しはサイドメニューと同じ幅（w-64）を占め、操作の始まりを
+            エディタの左端に揃える。**`-ml-6 pl-6` は帯の `px-6` を打ち消して
+            いる**——打ち消さないと見出しの箱が 24px ぶん右へずれ、幅を
+            サイドメニューに合わせた意味が無くなる。帯の `gap-3` があるので
+            ボタンは実際には 12px ほど右から始まるが、表エディタ自身が
+            `p-4` を持つのでちょうど本文の始まりの上に来る。
+            **サイドメニューを畳んだときのずれは許容する**（畳んだ状態に
+            合わせると、開いているときの方がずれる） */}
+        <h1 className="-ml-6 w-64 shrink-0 pl-6 text-2xl font-bold text-ink">facet</h1>
         <div className="flex shrink-0 items-center gap-2">
           <Button onClick={() => void openFolder()}>フォルダを開く</Button>
           {/* Undo/Redo はアイコンのみ。accessible name は aria-label で保つ

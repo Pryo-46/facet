@@ -55,9 +55,9 @@ describe('questionLabels', () => {
     expect(labels.ifExecuted).not.toBe('')
   })
   // questions.ts の「**短く保つこと**」は行高の制約。ガターの問いラベル列は
-  // QUESTION_LABEL_WIDTH 固定で、3行に折り返すとその行だけ背が伸びる。
-  // ifExecuted は GUTTER_INDENT ぶん列が狭いので、そこが一番きつい
-  it('立つ問いはラベル列で2行までに収まる', () => {
+  // QUESTION_LABEL_WIDTH 固定で、折り返すとその行だけ背が伸びる。
+  // ifExecuted は GUTTER_INDENT ぶん列が狭く接頭辞も付くので、そこが一番きつい
+  it('立つ問いはラベル列で1行に収まる', () => {
     const measure = createEstimateMeasurer(FALLBACK_LABEL_FONT.fontSize)
     const lineCount = (question: string, indent: boolean): number =>
       wrapWithin(gutterLabelText(question, indent), measure, FALLBACK_LABEL_FONT.lineHeight, {
@@ -69,7 +69,7 @@ describe('questionLabels', () => {
     for (const step of [call(true), call(false), { kind: 'self' } as const]) {
       for (const [key, text] of Object.entries(questionLabels(step))) {
         if (text === '') continue
-        expect(lineCount(text, key === 'ifExecuted'), `${key}: ${text}`).toBeLessThanOrEqual(2)
+        expect(lineCount(text, key === 'ifExecuted'), `${key}: ${text}`).toBe(1)
       }
     }
   })
