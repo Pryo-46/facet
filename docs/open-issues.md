@@ -4,7 +4,7 @@
 >
 > ここに載るのは「**いつでもよいが、忘れると実害化するもの**」。いま着手すべきものはマイルストーンの計画に入れる。マイルストーン完了時にこのファイルを更新するのは義務（[`../CLAUDE.md`](../CLAUDE.md) 参照）。
 >
-> 最終更新: M12 完了時点（2026-08-13）
+> 最終更新: M13 完了時点（2026-08-14）
 
 各項目の末尾の `[MN]` は**最初に記録されたマイルストーン**。長く開いているものほど「踏まないから残っている」のか「踏むけど後回しにしている」のかを見分ける手がかりになる。**採番は3系統**（コア・用語集・エラーカタログの `MN`、ロジックツリーの `logic-tree-mN`、シーケンスの `sequence-mN`）。
 
@@ -24,10 +24,14 @@
 - **モジュール規約8（表記ゆれ検知の対象フィールドパス宣言）が `ToolModule` に無い**（`src/core/registry.ts`）: rev 6章は8点セットと書いているが、コードは7点＋`createEmpty`。**検知エンジン自体もコアに無い**ため、宣言だけ足しても読み手のいない死んだコードになる。エンジンを作る時点で両方を足す `[M9]`
 - **`scripts/gen-types.mjs` は `schemas/*.schema.json` が減っても対応する `src/types/*.ts` を消さない**: スキーマを走査して書き出すだけで、消えたスキーマの古い型ファイルは掃除しない。M9 で `.gitignore` を `src/types/glossary.ts` から `src/types/*.ts` に広げたため、取り残された型ファイルは `git status` に現れず `tsc` の対象にだけ残る。**2本目以降のツールでスキーマを作り直す／消す時点で踏む** `[M9]`（M10 はスキーマを1本足しただけで、作り直し・削除は発生していないため未解消のまま）
 - **エッジに矢印を描いていない**（`src/modules/logic-tree/TreeEdges.tsx`）: [`logic-tree/logic-tree-canvas-tech-notes.md`](logic-tree/logic-tree-canvas-tech-notes.md) 論点3 は「曲線と矢印」としているが、横向きで親が必ず左にあるため向きは曖昧でなく、M1 では描いていない。**エッジの種類を増やす（点線・色分け）ときに再検討する**——種類が増えた瞬間「線の意味」を線自体が語る必要が出るため `[logic-tree-m1]`
+- **`KeyHints` の `key={hint.keys}` は同じ `keys` が2件あると衝突する**（`src/components/KeyHints.tsx`）: React の `key` に `hint.keys` 文字列をそのまま使っており、一意性の保証は呼び出し側任せ。現行の `SEQ_HINTS` / `TREE_HINTS` はいずれもキー表記が一意なので今は無害だが、**3本目のヒント集合を足したときに同じキー表記を再利用すると踏む** `[M13]`
 - **ゾーンは sequence M4**（`schemas/sequence.schema.json` / `src/modules/sequence/`）: design-notes 論点12 の M3+ 候補のうち、M3 はマウス操作と出力を採った。ゾーンは `schemaVersion` 改訂＋マイグレータを伴う唯一の候補で、`questions.ts` / `consistency.ts` / `layout.ts` / ガター集計と縦に全層を貫く。データ形式（step ID のペアか所属宣言か）も未確定。design-notes が付けた条件「**同じ答えを何度も書いた実感を得てから**」を満たしたかを先に確かめること `[sequence-m3]`
 
 ## 挙動の穴（実害は小さいが残っている）
 
+- **ロジックツリーにマウスだけでノードを増やす動線が無い**（`src/modules/logic-tree/LogicTreeEditor.tsx`）: 追加は `Enter`（兄弟）／`Tab`（子）のキーだけで、帯のボタンは**0件のときにルートを作る**1本しか無い。M13 は「フォーカス中のノードを持つ」という新しい状態を作らずに済ませるため、意図的に手を付けなかった。シーケンスは「ステップを追加」「参加者を追加」を常設しており、**2本のキャンバスでマウス動線の厚みが揃っていない** `[M13]`
+- **サイドメニューを畳むとフォルダのパスが読めない**（`src/components/FileList.tsx`）: M13 でパスを額縁の帯からファイル一覧の直上へ移した（帯の幅を食う最大の要素だったため）。畳んだ状態でどのフォルダを開いているかを確かめる手段が画面に無い `[M13]`
+- **`layout.totalHeight` が図の実際の一番下を表さない**（`src/modules/sequence/layout.ts` / `SequenceEditor.tsx`）: M13 で追加した「末尾にステップを追加」ボタンは `top: layout.totalHeight + ROW_GAP` に置かれるため、実際に描かれる一番下は `totalHeight` より下（ボタンの高さぶん）にある。右端の `totalWidth`/`GhostSlot` の帳簿ずれ（下記）と同種の欠陥で、**図の下端を扱う変更をするとき必ず踏む** `[M13]`
 - **`replyTo`（応答と呼出の対応）が無く、`reply` 行の説明が一般文言である**（`schemas/sequence.schema.json` / `src/modules/sequence/`）: 「この応答はどの呼出への応答か」をデータが持たないため、行の説明は誰に対しても同じ文になる。design-notes 論点3 は**意図的に持たない**と決めた（対応の明示が要ると分かってから入れる）ので欠陥ではないが、**呼出が入れ子になるシナリオを実際に書いたときに読めるか**は実使用でしか分からない。ホバーで対の呼出をハイライトする等を検討するなら、まずこのフィールドが要る `[sequence-m1]`
 - **`GhostSlot` の ✕ が `layout.totalWidth` の外に約20px はみ出す**（`src/modules/sequence/GhostSlot.tsx` / `layout.ts`）: 図の幅の帳簿（`layout.totalWidth`）と実描画がずれている——ghost の削除ボタンは `layout.totalWidth` を考慮せず配置されるため、右端に固定幅ぶんはみ出す。sequence M2 の実機確認では崩れとして問題視されなかったが、**構造的なずれなのでガターに列を足す等、図の右端を扱う変更をするとき必ず踏む** `[sequence-m2]`
 - **`resolveCommand` の細かい非対称**（`src/core/keyboard/keymap.ts`）: macOS の `Ctrl+Backspace`（主修飾キーは Cmd なので素の Backspace として通る）と `Alt+Shift+↑↓`（`altKey` を先に見るため並び替えになる） `[M3]`
@@ -61,16 +65,18 @@
 
 ## デザイン
 
-- **`warning` と `ok` が P型・D型色覚で識別できない**（`src/styles/palette.css`）: 採用した Basalt 由来の配色は、OKLab の色差が標準色覚で 0.151 / P型 0.050 / D型 0.041（ライト）。0.10 を下回ると「同じ色の濃淡」に見え始める。**色を差し替えるときに、青緑側（`oklch(0.470 0.075 168)` 付近）へ振る案を再検討すること。** `palette.test.ts` がこの数字を毎回出力するが、意図的に失敗させていない（M7 の設計スペック 決定4）。`palette-retheme` Skill が差し替えのたびに ΔE 3種を報告するので、次に配色を触るときには必ずこの数字が目に入る `[M7]`
+- **`warning` と `ok` が P型・D型色覚で識別できない**（`src/styles/palette.css`）: 採用した Basalt 由来の配色は、OKLab の色差が標準色覚で 0.151 / P型 0.050 / D型 0.041（ライト）。0.10 を下回ると「同じ色の濃淡」に見え始める。**色を差し替えるときに、青緑側（`oklch(0.470 0.075 168)` 付近）へ振る案を再検討すること。** `palette.test.ts` がこの数字を毎回出力するが、意図的に失敗させていない（M7 の設計スペック 決定4）。`palette-retheme` Skill が差し替えのたびに ΔE 3種を報告するので、次に配色を触るときには必ずこの数字が目に入る。**M13 でサイドバーの削除ボタンが `warning` の赤アイコンになった**ため、色差の再検討が要る対象が1つ増えている `[M7]`
 - **`ok` がどのコンポーネントからも参照されていない**（`src/styles/palette.css`）: rev 9章の3系統として定義とテストはあるが、facet の画面に「確定・応答」を色で示す箇所がまだ無い（トーストは種別を持たない）。**成功トーストなどを作った時点で使う。** M8 で新設した `surface-accent`（見出しの面）は**別のトークン**であって、これを解消しない——カラム名は「確定・応答」ではないので、`ok` を流用すると意味論が壊れる `[M7]`
   - **sequence M1 が最初の使いどころだったが、使わなかった**（`src/modules/sequence/GutterSlot.tsx`）: scope は答えスロットの色を「未定義＝warning／handled＝ok 系／notApplicable＝弱い ok 系」と書いていたが、**`ok` の面（`bg-ok/α`）は濃さの検算が済んでいない**ため、`handled` と `notApplicable` はどちらも無地（`border-rule bg-surface`、文字色だけ差をつける）にした。**「回答済み」と「考慮不要」の区別が、面の色ではなく文言に頼っている**状態である。上の色差の再検討（P型・D型）と一緒に、`ok` の半透明の濃さを検算するときに入れる `[sequence-m1]`
 - **行全体の指摘と `from`/`to` の指摘が同時に出ると `warning` の面が二重になりうる**（`src/modules/sequence/SequenceEditor.tsx`）: 行の帯と文言セルの面は排他にしたが（M8「面は片方だけ」）、`from`/`to` の参照切れが指すセルは `bg-surface` の上に枠を出す形なので今は重ならない。**`from`/`to` のセルに面を与えた瞬間、行の帯と2枚になる。** 排他の判定は `stepHas(index,'row')` の1箇所にあるので、面を増やすときはそこを通すこと `[sequence-m1]`
 - **方眼背景がキャンバスのズームに追従しない**（`src/modules/logic-tree/LogicTreeEditor.tsx`）: `bg-grid-paper` はビューポート（transform を当てる要素）の**外側**に敷いてあるので、拡大しても升目の大きさが変わらない。**rev 9章「地は方眼、作業する面は無地」の意図には合っている**（方眼は地の模様であって図の一部ではない）が、キャンバスとしては**倍率の手がかりを失っている**——どれだけ拡大しているかが画面から読めない。倍率表示を出すか方眼を内側へ移すかは、実機で「今どれくらいの倍率か分からない」と感じたときに決める `[logic-tree-m1]`
 - **空欄 `Backspace` のステップ削除に誤爆の不安があると実機で観察された**（`src/modules/sequence/SequenceEditor.tsx`）: 設計は「消しても `Undo` が受け皿」で確定済みだが、体感として不安が先に立つ場面があった。確定設計を変える理由にはならないが、体感と設計判断の差として記録する。詳細は [`history/sequence-m1-keyboard-editor.md`](history/sequence-m1-keyboard-editor.md) の「実機確認で出た観察」② `[sequence-m1]`
+- **`bg-surface/80` がコードベースに前例のない不透明度指定**（`src/modules/sequence/SequenceEditor.tsx` / `src/modules/logic-tree/LogicTreeEditor.tsx` の `KeyHints` 帯）: 役割トークン＋不透明度なので `conventions.test.ts` の色値直書き禁止には抵触しないが、`bg-surface/NN` の形はこの2箇所が最初の例。規約違反ではないので急ぎではないが、**実機で読みやすさを見て、前例化するか個別対応のままにするか決めること** `[M13]`
 - **「図を作る」→「失敗考慮を打つ」の二段階ワークフローと `Tab` の2ゾーン化**（`src/modules/sequence/SequenceEditor.tsx`）: 骨格（from/to/種別/ラベル）を打ち切ってからガターの答えを埋め直す使い方が多く観察された。`Tab` を骨格ゾーン→答えゾーンの2ゾーンに分けられると自然という提案。**答えへのキーボード到達は必須のまま崩さないこと。** 詳細は同「観察」⑤ `[sequence-m1]`
 
 ## 小さな負債
 
+- **`FileList.dom.test.tsx:45` のコメントが古い**（`src/components/FileList.dom.test.tsx`）: 「ボタンのラベルは『＋ 用語集を新規作成』なので部分一致で引く」と書いているが、M13 で「＋」は文字ではなくアイコン（`Plus`）に変わった。テストの可読性のみの実害 `[M13]`
 - **`TerminalTab` の根 div が `flex` と `hidden` を同時に出している**（`src/components/TerminalTab.tsx`）: `className={`flex min-h-0 flex-1 flex-col ${hidden ? 'hidden' : ''}`}` は非表示時に `flex` と `hidden` の両クラスを同時に持つ。`src/App.tsx` は同じ問題を三項（`` `${paneOpen ? 'flex' : 'hidden'} ...` ``）で避けており、「display は排他なので三項で切り替える（`hidden` と `flex` を並べてもどちらが勝つかは出力順まかせになる）」というコメントまで書いてある。`TerminalTab` はその警告どおりの形になっており、いまは Tailwind の出力順で `hidden` が勝って動いているだけ `[M11]`
 - **用語テーブルの `<th>` に `sticky` と `relative` が同時に付いている**（`src/modules/glossary/GlossaryEditor.tsx`）: どちらも `position` なので、カラム名が固定されているのは Tailwind が `sticky` を `relative` より後に出力しているからにすぎない。`sticky` 自体が絶対配置の包含ブロックになる（列幅ハンドルはそれに乗っている）ので `relative` は不要。**出力順が変わると固定が静かに外れ、原因は読み手に自明でない** `[M8]`
 - **エディタのキー処理が用語集とエラーカタログで二重化している**（`GlossaryEditor.tsx` / `ErrorCatalogEditor.tsx`）: `runCommand` の switch・`onCellKeyDown`・`textFieldContext`・セルの面のクラス定数（計 約80行）がほぼ同一。M10 は意図的に複製した——いま抽象を決めても、3本目（ロジックツリーは列を持たない図系）が必要とする形と一致する保証がないため（M9 決定1が万能フックを退けたのと同じ理由）。**3本目が列を持つツール（状態遷移の遷移表など）だったら、その時点で引き上げる。** 判断材料は「2本の差が3点（プロファイルトグル・列幅ストア2本・吸収列）に収まっているか」 `[M10]`
