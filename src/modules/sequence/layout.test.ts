@@ -26,9 +26,9 @@ function input(over: Partial<SeqLayoutInput> = {}): SeqLayoutInput {
     actorWidths: [96, 96, 96],
     domains: [undefined, undefined, undefined],
     steps: [
-      { fromIndex: 0, toIndex: 1, metrics: metrics() },
-      { fromIndex: 1, toIndex: 2, metrics: metrics(80, 24, [28, 28, 28]) },
-      { fromIndex: 2, toIndex: null, metrics: metrics() },
+      { fromIndex: 0, toIndex: 1, isSelf: false, metrics: metrics() },
+      { fromIndex: 1, toIndex: 2, isSelf: false, metrics: metrics(80, 24, [28, 28, 28]) },
+      { fromIndex: 2, toIndex: null, isSelf: false, metrics: metrics() },
     ],
     ...over,
   }
@@ -49,7 +49,7 @@ describe('layoutSequence', () => {
     const thin = layoutSequence({
       actorWidths: [96],
       domains: [undefined],
-      steps: [{ fromIndex: 0, toIndex: null, metrics: metrics() }],
+      steps: [{ fromIndex: 0, toIndex: null, isSelf: false, metrics: metrics() }],
     })
     expect(thin.gutterX).toBeGreaterThan(RAIL_WIDTH + DIAGRAM_MARGIN)
   })
@@ -71,7 +71,7 @@ describe('layoutSequence', () => {
 
   it('自己ループ（fromIndex === toIndex）は列幅計算をスキップする', () => {
     const self = input()
-    self.steps[0] = { fromIndex: 1, toIndex: 1, metrics: metrics(999, 24) }
+    self.steps[0] = { fromIndex: 1, toIndex: 1, isSelf: false, metrics: metrics(999, 24) }
     const r = layoutSequence(self)
     // 自己ループのラベル(999)が列幅に影響しなければ、gap0 は MIN_COL_GAP のまま
     expect(r.actorX[1] - r.actorX[0]).toBe(MIN_COL_GAP)
@@ -80,7 +80,7 @@ describe('layoutSequence', () => {
 
   it('参照切れ（範囲外の toIndex）は列幅に影響しない', () => {
     const oob = input()
-    oob.steps[0] = { fromIndex: 0, toIndex: 5, metrics: metrics(999, 24) }
+    oob.steps[0] = { fromIndex: 0, toIndex: 5, isSelf: false, metrics: metrics(999, 24) }
     const r = layoutSequence(oob)
     // toIndex(5) が actors 配列の範囲外なら、gap0 はこのステップの影響を受けない
     expect(r.actorX[1] - r.actorX[0]).toBe(MIN_COL_GAP)
@@ -88,7 +88,7 @@ describe('layoutSequence', () => {
 
   it('長いラベルが跨ぐ区間は広がる（3列のうち中央の区間だけ）', () => {
     const wide = input()
-    wide.steps[1] = { fromIndex: 1, toIndex: 2, metrics: metrics(300, 24) }
+    wide.steps[1] = { fromIndex: 1, toIndex: 2, isSelf: false, metrics: metrics(300, 24) }
     const r = layoutSequence(wide)
     const base = layoutSequence(input())
     expect(r.actorX[2] - r.actorX[1]).toBeGreaterThan(base.actorX[2] - base.actorX[1])
@@ -97,7 +97,7 @@ describe('layoutSequence', () => {
 
   it('複数区間を跨ぐ矢印は各区間に分配される（両区間が均等に広がる）', () => {
     const span = input()
-    span.steps[0] = { fromIndex: 0, toIndex: 2, metrics: metrics(500, 24) }
+    span.steps[0] = { fromIndex: 0, toIndex: 2, isSelf: false, metrics: metrics(500, 24) }
     const r = layoutSequence(span)
     const gap01 = r.actorX[1] - r.actorX[0]
     const gap12 = r.actorX[2] - r.actorX[1]
@@ -126,7 +126,7 @@ describe('layoutSequence', () => {
     expect(r.rows[2].arrowY).toBe(r.rows[2].top + 24 + ARROW_GAP)
     // labelHeight を変えると arrowY も追従する
     const tall = input()
-    tall.steps[0] = { fromIndex: 0, toIndex: 1, metrics: metrics(80, 60) }
+    tall.steps[0] = { fromIndex: 0, toIndex: 1, isSelf: false, metrics: metrics(80, 60) }
     const rTall = layoutSequence(tall)
     expect(rTall.rows[0].arrowY).toBe(rTall.rows[0].top + 60 + ARROW_GAP)
   })
@@ -150,7 +150,7 @@ describe('layoutSequence', () => {
       actorWidths: [80, 80],
       domains: [undefined, undefined],
       steps: [
-        { fromIndex: 0, toIndex: 1, metrics: { labelWidth: 60, labelHeight: 20, slotHeights: [30, 30, 30] } },
+        { fromIndex: 0, toIndex: 1, isSelf: false, metrics: { labelWidth: 60, labelHeight: 20, slotHeights: [30, 30, 30] } },
       ],
     })
     const row = result.rows[0]
@@ -164,7 +164,7 @@ describe('layoutSequence', () => {
       actorWidths: [80, 80],
       domains: [undefined, undefined],
       steps: [
-        { fromIndex: 0, toIndex: 1, metrics: { labelWidth: 60, labelHeight: 20, slotHeights: [30, 30, 30] } },
+        { fromIndex: 0, toIndex: 1, isSelf: false, metrics: { labelWidth: 60, labelHeight: 20, slotHeights: [30, 30, 30] } },
       ],
     })
     // 30*3 + SLOT_GAP*2 = 98、見出し 18 を足して 116（MIN_ROW_HEIGHT 44 とラベル 20+8*2=36 に勝つ）
@@ -175,7 +175,7 @@ describe('layoutSequence', () => {
     const result = layoutSequence({
       actorWidths: [80, 80],
       domains: [undefined, undefined],
-      steps: [{ fromIndex: 0, toIndex: 1, metrics: { labelWidth: 60, labelHeight: 20, slotHeights: [] } }],
+      steps: [{ fromIndex: 0, toIndex: 1, isSelf: false, metrics: { labelWidth: 60, labelHeight: 20, slotHeights: [] } }],
     })
     expect(result.rows[0].height).toBe(MIN_ROW_HEIGHT)
   })
@@ -199,5 +199,49 @@ describe('layoutSequence', () => {
     const r = layoutSequence({ actorWidths: [], domains: [], steps: [] })
     expect(r.rows).toEqual([])
     expect(r.actorX).toEqual([])
+  })
+
+  it('スロットが高いと行もその分高くなる（問いラベルの高さは呼び出し側が畳んで渡す）', () => {
+    const result = layoutSequence({
+      actorWidths: [100],
+      domains: [undefined],
+      steps: [
+        { fromIndex: 0, toIndex: null, isSelf: false, metrics: { labelWidth: 50, labelHeight: 20, slotHeights: [60] } },
+        { fromIndex: 0, toIndex: null, isSelf: false, metrics: { labelWidth: 50, labelHeight: 20, slotHeights: [20] } },
+      ],
+    })
+    // 1行目の下端が2行目の上端を越えない（越えると画面上で食い込む）
+    expect(result.rows[0].top + result.rows[0].height).toBeLessThanOrEqual(result.rows[1].top)
+    expect(result.rows[0].height).toBeGreaterThanOrEqual(GUTTER_HEADING_HEIGHT + 60)
+  })
+
+  // 文言の置き方の正はここ（描画は rows[i].labelLeft をそのまま使う）
+  it('self は起点の真上、呼出は from-to の中点に文言を置く', () => {
+    const r = layoutSequence(
+      input({
+        steps: [
+          { fromIndex: 1, toIndex: null, isSelf: true, metrics: metrics(120) },
+          { fromIndex: 0, toIndex: 2, isSelf: false, metrics: metrics(120) },
+          // 参照が引けない行は図の左端（レールの右）へ逃がす
+          { fromIndex: -1, toIndex: null, isSelf: false, metrics: metrics(120) },
+        ],
+      }),
+    )
+    expect(r.rows[0].labelLeft).toBe(r.actorX[1])
+    expect(r.rows[1].labelLeft).toBe((r.actorX[0] + r.actorX[2]) / 2 - 120 / 2)
+    expect(r.rows[2].labelLeft).toBe(DIAGRAM_MARGIN + RAIL_WIDTH)
+  })
+
+  // 実機で踏んだ欠陥: 参加者1人＋長い self 文言だと、文言がガターの
+  // 問いラベルに重なっていた（ガターの左端が参加者ヘッダの幅しか見ていなかった）
+  it('長い文言はガターに食い込まない（ガターの左端は文言の右端も見る）', () => {
+    const r = layoutSequence({
+      actorWidths: [96],
+      domains: [undefined],
+      steps: [{ fromIndex: 0, toIndex: null, isSelf: true, metrics: metrics(320, 24, [28]) }],
+    })
+    expect(r.gutterX).toBeGreaterThanOrEqual(r.rows[0].labelLeft + 320 + GUTTER_GAP)
+    // 図の幅の帳簿もガターの右端までを含む
+    expect(r.totalWidth).toBeGreaterThan(r.gutterX + r.gutterWidth)
   })
 })

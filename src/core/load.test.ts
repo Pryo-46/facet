@@ -18,6 +18,7 @@ function makeRegistry() {
   const mod: AnyToolModule = {
     type: 'glossary',
     displayName: 'glossary',
+    icon: () => null,
     schemaVersion: 1,
     schema: glossarySchema,
     idPrefixes: ['term'],

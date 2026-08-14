@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { PanelLeft, PanelRight } from 'lucide-react'
+import { Moon, PanelLeft, Redo2, Sun, SquareTerminal, Undo2 } from 'lucide-react'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ExportMenu } from '@/components/ExportMenu'
@@ -8,6 +8,7 @@ import { EDITOR_MIN_WIDTH, PANE_MIN_WIDTH, PaneSplitter } from '@/components/Pan
 import { TerminalPane } from '@/components/TerminalPane'
 import { buttonBase } from '@/components/button-styles'
 import { FileList } from '@/components/FileList'
+import { IssueBanner } from '@/components/IssueBanner'
 import { ToastStack } from '@/components/Toast'
 import { Button } from '@/components/ui/button'
 import {
@@ -592,63 +593,96 @@ function App() {
 
   return (
     <main className="flex h-screen flex-col overflow-hidden bg-canvas bg-grid-paper text-ink">
-      <header className="flex items-center gap-4 border-b border-rule bg-surface px-6 py-3">
-        <h1 className="text-lg font-bold text-ink">facet</h1>
-        <Button onClick={() => void openFolder()}>フォルダを開く</Button>
-        <Button
-          variant="outline"
-          disabled={history === null || !canUndo(history)}
-          onClick={() => runHistory('undo')}
-        >
-          元に戻す
-        </Button>
-        <Button
-          variant="outline"
-          disabled={history === null || !canRedo(history)}
-          onClick={() => runHistory('redo')}
-        >
-          やり直す
-        </Button>
-        <ExportMenu
-          outputs={selectedModule?.outputs ?? []}
-          disabled={!canExport}
-          onCopy={(profile) => void controller.copyMarkdown(profile)}
-          onExport={(profile) => void controller.exportMarkdown(profile)}
-        />
-        {projectDir && <span className="text-sm text-ink-muted">{projectDir}</span>}
-        <button
-          type="button"
-          aria-label={sidebarOpen ? 'ファイル一覧を畳む' : 'ファイル一覧を開く'}
-          aria-pressed={sidebarOpen}
-          className={`${buttonBase} ml-auto p-1 text-ink-muted`}
-          onClick={() => setSidebarOpen((v) => !v)}
-        >
-          <PanelLeft aria-hidden className="size-4" />
-        </button>
-        {/* **ラベルを `Claude Code を開く` にしないこと。** TerminalPane の
-            空状態のボタンと accessible name が衝突し、テストの getByRole が
-            2つ拾って落ちる */}
-        <button
-          type="button"
-          aria-label={paneOpen ? 'Claude Code ペインを畳む' : 'Claude Code ペインを開く'}
-          aria-pressed={paneOpen}
-          disabled={projectDir === null}
-          className={`${buttonBase} p-1 text-ink-muted`}
-          onClick={() => {
-            const next = !paneOpen
-            setPaneOpen(next)
-            if (next && terminals.sessions.length === 0) openTerminal()
-          }}
-        >
-          <PanelRight aria-hidden className="size-4" />
-        </button>
-        <button
-          type="button"
-          className={`${buttonBase} text-sm text-ink-muted underline`}
-          onClick={toggleTheme}
-        >
-          {dark ? 'ライト' : 'ダーク'}
-        </button>
+      {/* 額縁の帯（rev 9章）。中身はすべて幅の決まった操作なので、伸縮は
+          `ml-auto` の余白だけが引き受ける（右端の保証は下の div のコメント） */}
+      <header className="flex items-center gap-3 border-b border-rule bg-surface px-6 py-3">
+        {/* 見出しはサイドメニューと同じ幅（w-64）を占め、操作の始まりを
+            エディタの左端に揃える。**`-ml-6 pl-6` は帯の `px-6` を打ち消して
+            いる**——打ち消さないと見出しの箱が 24px ぶん右へずれ、幅を
+            サイドメニューに合わせた意味が無くなる。帯の `gap-3` があるので
+            ボタンは実際には 12px ほど右から始まるが、表エディタ自身が
+            `p-4` を持つのでちょうど本文の始まりの上に来る。
+            **サイドメニューを畳んだときのずれは許容する**（畳んだ状態に
+            合わせると、開いているときの方がずれる） */}
+        <h1 className="-ml-6 w-64 shrink-0 pl-6 text-2xl font-bold text-ink">facet</h1>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button onClick={() => void openFolder()}>フォルダを開く</Button>
+          {/* Undo/Redo はアイコンのみ。accessible name は aria-label で保つ
+              （キーボードが本筋の操作なので、帯では幅を使わない） */}
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="元に戻す"
+            title="元に戻す"
+            disabled={history === null || !canUndo(history)}
+            onClick={() => runHistory('undo')}
+          >
+            <Undo2 aria-hidden />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="やり直す"
+            title="やり直す"
+            disabled={history === null || !canRedo(history)}
+            onClick={() => runHistory('redo')}
+          >
+            <Redo2 aria-hidden />
+          </Button>
+          <ExportMenu
+            outputs={selectedModule?.outputs ?? []}
+            disabled={!canExport}
+            onCopy={(profile) => void controller.copyMarkdown(profile)}
+            onExport={(profile) => void controller.exportMarkdown(profile)}
+          />
+        </div>
+        {/* **右端の3つを絶対に押し出さないこと。** 余白を食って右端へ寄せるのは
+            `ml-auto` の仕事で、`shrink-0` がそれ以上の圧縮を止める。
+            以前あった `min-w-0 flex-1` の空き div は同じ効果の二重掛けだった
+            （伸縮を引き受けていたパスはファイル一覧の直上へ移してある） */}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            aria-label={sidebarOpen ? 'ファイル一覧を畳む' : 'ファイル一覧を開く'}
+            aria-pressed={sidebarOpen}
+            className={`${buttonBase} p-1 text-ink-muted`}
+            onClick={() => setSidebarOpen((v) => !v)}
+          >
+            <PanelLeft aria-hidden className="size-4" />
+          </button>
+          {/* **ラベルを `Claude Code を開く` にしないこと。** TerminalPane の
+              空状態のボタンと accessible name が衝突し、テストの getByRole が
+              2つ拾って落ちる */}
+          <button
+            type="button"
+            aria-label={paneOpen ? 'Claude Code ペインを畳む' : 'Claude Code ペインを開く'}
+            aria-pressed={paneOpen}
+            disabled={projectDir === null}
+            className={`${buttonBase} p-1 text-ink-muted`}
+            onClick={() => {
+              const next = !paneOpen
+              setPaneOpen(next)
+              if (next && terminals.sessions.length === 0) void openTerminal()
+            }}
+          >
+            <SquareTerminal aria-hidden className="size-4" />
+          </button>
+          {/* 名前は「今どちらか」でなく「押すとどうなるか」。アイコンだけの
+              ボタンは押す前に結果が読めないと意味が取れない */}
+          <button
+            type="button"
+            aria-label={dark ? 'ライトにする' : 'ダークにする'}
+            title={dark ? 'ライトにする' : 'ダークにする'}
+            className={`${buttonBase} p-1 text-ink-muted`}
+            onClick={toggleTheme}
+          >
+            {dark ? (
+              <Sun aria-hidden className="size-4" />
+            ) : (
+              <Moon aria-hidden className="size-4" />
+            )}
+          </button>
+        </div>
       </header>
 
       {BANNER_ORDER.map((kind) =>
@@ -671,6 +705,7 @@ function App() {
               modules={modules}
               existingTypes={existingTypes}
               projectOpen={projectDir !== null}
+              projectDir={projectDir}
               onSelect={(file) => void controller.selectFile(file.path)}
               onCreate={(module) => void controller.createNewFile(module)}
               onDelete={(file) => controller.requestDelete(file)}
@@ -703,6 +738,16 @@ function App() {
                 }}
               />
             )}
+            {/* **指摘の一覧は額縁が出す（rev 6章）。** エディタの中に置くと、
+                キャンバス系では絶対配置の帯に載せることになり図を覆う。ここに
+                出して縦フレックスの兄弟にすると、指摘が増えたぶんだけ下の
+                領域が縮む＝図や表が押し下げられて重ならない。
+                **編集できないファイルでも同じ部品で出す**——以前は
+                `status !== 'editable'` のときだけ別の `<ul>` を出していた */}
+            {selected !== null && (
+              // key でファイルを跨いだ「展開したまま」を持ち越さない
+              <IssueBanner key={selected.path} issues={selected.issues} className="shrink-0" />
+            )}
             <div className="min-h-0 flex-1 overflow-auto">
               {selected === null && (
                 <div className="p-6">
@@ -722,13 +767,6 @@ function App() {
                     </div>
                   )}
                 </div>
-              )}
-              {selected && selected.result.status !== 'editable' && selected.issues.length > 0 && (
-                <ul className="list-disc px-6 pt-4 pl-10 text-sm text-warning">
-                  {selected.issues.map((issue, i) => (
-                    <li key={`${issue.rule}-${i}`}>{issue.message}</li>
-                  ))}
-                </ul>
               )}
               {selected?.result.status === 'rejected' && (
                 <div className="p-6">

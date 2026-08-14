@@ -92,8 +92,8 @@ describe('useViewport（Space の押下監視）', () => {
   })
 
   it('キャンバスの中のボタンにフォーカスがあるときも Space は奪わない', () => {
-    // **位置ではなく役割で判定する。** 空状態の「クリックして開始」は
-    // キャンバスの内側にあるので、「外か」で判定すると最初の画面で潰れる
+    // **位置ではなく役割で判定する。** 帯の「追従」ボタンは
+    // キャンバスの内側にあるので、「外か」で判定すると押せなくなる
     render(<Harness />)
     screen.getByRole('button', { name: '追従' }).focus()
     expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(true)

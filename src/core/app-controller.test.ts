@@ -27,6 +27,7 @@ function noteModule(over: Partial<AnyToolModule> = {}): AnyToolModule {
   return {
     type: 'note',
     displayName: 'ノート',
+    icon: () => null,
     schemaVersion: 1,
     schema: noteSchema,
     idPrefixes: ['note'],

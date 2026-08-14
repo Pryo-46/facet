@@ -102,17 +102,22 @@ describe('色値の直書き禁止（rev 9章）', () => {
   })
 })
 
-describe('フォントサイズの段階（M7 決定6）', () => {
-  it('text-xs / text-sm / text-base / text-lg 以外を使っていない', () => {
+describe('フォントサイズの段階（M7 決定6、M14 で1段追加）', () => {
+  it('text-xs / text-sm / text-base / text-lg / text-2xl 以外を使っていない', () => {
     // 「許可外」を直接探す。text-ink のような色のユーティリティと区別する
-    // 必要があるので、許可リストとの照合ではなく xl 以上と任意値を弾く。
+    // 必要があるので、許可リストとの照合ではなく許可外の段と任意値を弾く。
+    //
+    // **`text-xl` は飛ばして `text-2xl` だけを開けてある。** 段は「使う役割が
+    // あるぶんだけ」持つ約束で（M7 決定6）、M14 で足したのはアプリ名
+    // （額縁の看板）1つだけ。text-lg（画面タイトル）との差が 2px しかない
+    // text-xl は、足しても「どちらを使うのか」を決められない
     //
     // 任意値側は末尾に \b を付けない——`]` の直後は語構成文字ではないため
     // \b が成立せず、`text-[13px]` のような検出が一度も発火しなかった
-    const offenders = offendingLines(/\btext-(xl|[2-9]xl)\b|\btext-\[[^\]]*\]/)
+    const offenders = offendingLines(/\btext-(xl|[3-9]xl)\b|\btext-\[[^\]]*\]/)
     expect(
       offenders,
-      `使ってよいのは text-xs / text-sm / text-base / text-lg の4段:\n${offenders.join('\n')}`,
+      `使ってよいのは text-xs / text-sm / text-base / text-lg / text-2xl の5段:\n${offenders.join('\n')}`,
     ).toEqual([])
   })
 })

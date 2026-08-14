@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { SequenceStep } from '@/types/sequence'
-import { poseQuestions, presentAnswers, questionLabels, readSlot, unposedAnswers } from './questions'
+import { GUTTER_INDENT } from './GutterSlot'
+import { QUESTION_LABEL_WIDTH } from './layout'
+import { createEstimateMeasurer, gutterLabelText, wrapWithin } from './measure'
+import {
+  poseQuestions,
+  presentAnswers,
+  questionLabels,
+  readSlot,
+  unposedAnswers,
+} from './questions'
+import { FALLBACK_LABEL_FONT } from './seq-font'
 
 const call = (awaitsReply: boolean) =>
   ({ kind: 'call', awaitsReply }) as const
@@ -26,7 +36,7 @@ describe('poseQuestions', () => {
 describe('questionLabels', () => {
   it('文言はステップ種別で変わる（キーは同じ）', () => {
     expect(questionLabels(call(true)).unknown).toBe('結果不明だったら？')
-    expect(questionLabels(call(false)).unknown).toBe('届かなかったかもしれない。それでよいか？')
+    expect(questionLabels(call(false)).unknown).toBe('届かなくてよいか？')
     expect(questionLabels({ kind: 'self' }).failed).toBe('処理失敗したら？')
     expect(questionLabels(call(true)).failed).toBe('失敗が確定したら？')
     expect(questionLabels(call(true)).ifExecuted).toBe('実行済みだったら？')
@@ -49,6 +59,25 @@ describe('questionLabels', () => {
     expect(labels.failed).not.toBe('')
     expect(labels.unknown).not.toBe('')
     expect(labels.ifExecuted).not.toBe('')
+  })
+  // questions.ts の「**短く保つこと**」は行高の制約。ガターの問いラベル列は
+  // QUESTION_LABEL_WIDTH 固定で、折り返すとその行だけ背が伸びる。
+  // ifExecuted は GUTTER_INDENT ぶん列が狭く接頭辞も付くので、そこが一番きつい
+  it('立つ問いはラベル列で1行に収まる', () => {
+    const measure = createEstimateMeasurer(FALLBACK_LABEL_FONT.fontSize)
+    const lineCount = (question: string, indent: boolean): number =>
+      wrapWithin(gutterLabelText(question, indent), measure, FALLBACK_LABEL_FONT.lineHeight, {
+        maxWidth: QUESTION_LABEL_WIDTH - (indent ? GUTTER_INDENT : 0),
+        minWidth: 0,
+        insetX: 0,
+        insetY: 0,
+      }).lines.length
+    for (const step of [call(true), call(false), { kind: 'self' } as const]) {
+      for (const [key, text] of Object.entries(questionLabels(step))) {
+        if (text === '') continue
+        expect(lineCount(text, key === 'ifExecuted'), `${key}: ${text}`).toBe(1)
+      }
+    }
   })
 })
 

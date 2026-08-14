@@ -80,7 +80,11 @@ export function questionLabels(step: StepShape): QuestionLabels {
     return { failed: '', unknown: '', ifExecuted: '' }
   }
   if (step.kind === 'call' && step.awaitsReply === false) {
-    return { failed: '', unknown: '届かなかったかもしれない。それでよいか？', ifExecuted: '' }
+    // **短く保つこと。** ガターの問いラベル列は `QUESTION_LABEL_WIDTH` 固定で、
+    // 収まらない問いは折り返してその行だけ行高を押し上げる（読みにくさの実測）。
+    // 列幅は「いま立つ問いが1行に収まる」ように採ってあるので、伸ばすなら
+    // layout.ts の側も一緒に見ること
+    return { failed: '', unknown: '届かなくてよいか？', ifExecuted: '' }
   }
   return {
     failed: '失敗が確定したら？',

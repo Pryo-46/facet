@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { Folder, Plus, Trash2 } from 'lucide-react'
 import { buttonBase } from '@/components/button-styles'
 import type { FileGroup } from '@/core/file-grouping'
 import { canCreateFileOfType } from '@/core/file-ops'
@@ -20,10 +21,18 @@ export interface FileListProps {
   existingTypes: readonly (string | null)[]
   /** プロジェクトフォルダを開いているか。未選択なら操作を一切出さない */
   projectOpen: boolean
+  /** 開いているプロジェクトフォルダ。一覧の直上に出す（額縁の帯から移設） */
+  projectDir: string | null
   onSelect: (file: ProjectFile) => void
   onCreate: (module: AnyToolModule) => void
   onDelete: (file: ProjectFile) => void
 }
+
+/**
+ * U+200E LEFT-TO-RIGHT MARK。パス表示の先頭に1文字だけ置く（使う理由は使用箇所に書いた）。
+ * **エスケープのまま書くこと**——生の文字は幅を持たず、差分でもエディタでも見えない
+ */
+const LTR_MARK = '\u200e'
 
 /**
  * ファイル1行。**`useId` を使うために切り出している**——
@@ -80,14 +89,16 @@ function FileRow(props: {
       </button>
       {/* 開けない・編集不可のファイルにも削除を出す——単一性違反の解消には
           「壊れている方の用語集を消す」が必要で、そこを塞ぐと外部エディタを
-          強いることになる（rev 5章「拒否は最小限に」のファイル操作への適用） */}
+          強いることになる（rev 5章「拒否は最小限に」のファイル操作への適用）。
+          赤は warning（facet のパレットに destructive 役割は無い） */}
       <button
         type="button"
         aria-label={`${fullName} を削除`}
-        className={`${buttonBase} shrink-0 px-2 text-xs text-ink-muted hover:bg-canvas hover:text-warning`}
+        title={`${fullName} を削除`}
+        className={`${buttonBase} shrink-0 px-3 text-ink-muted hover:bg-canvas hover:text-warning`}
         onClick={props.onDelete}
       >
-        削除
+        <Trash2 aria-hidden className="size-4" />
       </button>
     </li>
   )
@@ -107,24 +118,53 @@ export function FileList(props: FileListProps) {
   }
   return (
     <div className="flex h-full flex-col">
-      {/* 新規作成の帯は固定。一覧が長くなっても流れないよう shrink-0 */}
-      <div className="flex shrink-0 flex-wrap gap-1 border-b border-rule p-2">
+      {/* 作成ボタンは縦積みで幅をそろえる。**flex-wrap で横に流さない**——
+          ツール名の長さで折り返し位置が変わり、行ごとに端が揃わなくなる。
+          帯自体は `shrink-0`（一覧が長くなっても流れない。スクロールを持つのは
+          下の一覧だけ） */}
+      <div className="flex shrink-0 flex-col gap-1 border-b border-rule p-2">
         {props.modules.map((module) => {
           const creatable = canCreateFileOfType(module, props.existingTypes)
+          const Icon = module.icon
           return (
             <button
               key={module.type}
               type="button"
               disabled={!creatable}
               title={creatable ? undefined : `${module.displayName}はプロジェクトに1つまでです`}
-              className={`${buttonBase} border border-rule px-2 py-1 text-xs text-ink hover:bg-canvas disabled:hover:bg-transparent`}
+              className={`${buttonBase} w-full justify-start gap-2 border border-rule px-2 py-1 text-xs text-ink hover:bg-canvas disabled:hover:bg-transparent`}
               onClick={() => props.onCreate(module)}
             >
-              ＋ {module.displayName}を新規作成
+              <Plus aria-hidden className="size-3.5 shrink-0" />
+              <Icon aria-hidden className="size-3.5 shrink-0" />
+              <span className="truncate">{module.displayName}を新規作成</span>
             </button>
           )
         })}
       </div>
+      {/* パスは一覧の直上。長さが青天井なので truncate で受け、全文は title。
+          帯なので `shrink-0`（スクロールを持つのは下の一覧だけ） */}
+      {props.projectDir !== null && (
+        <div
+          className="flex shrink-0 items-center gap-1.5 border-b border-rule px-2 py-1.5 text-xs text-ink-muted"
+          title={props.projectDir}
+        >
+          <Folder aria-hidden className="size-3.5 shrink-0" />
+          {/* 末尾（フォルダ名）の方が手がかりになるので、頭を省く。省略記号を
+              左端に出すのは `dir="rtl"` の仕事（行の終端＝左になる）。
+              **中身の先頭には LTR_MARK が要る。** `/Users/me/proj` の先頭 `/` は
+              中立文字で、両隣が「行頭（RTL 基準）」と「U（LTR）」で食い違うため
+              双方向アルゴリズムの規則 N2 で埋め込み方向（RTL）に倒れ、
+              並べ替えの結果 `Users/me/proj/` と描かれる。`C:\proj` は先頭が
+              強い LTR なのでこの症状が出ない——Windows のパスだけで確かめないこと。
+              強い LTR を1文字前置すると先頭 `/` の両隣が LTR で揃い（規則 N1）、
+              全体が1つの LTR 実行に収まる。文字自体は幅ゼロで読み上げも素通りする */}
+          <span className="min-w-0 flex-1 truncate text-left" dir="rtl">
+            {LTR_MARK}
+            {props.projectDir}
+          </span>
+        </div>
+      )}
       {/* スクロールするのはここだけ（上の帯は固定）。**この責務を親の aside へ
           戻さないこと**——aside 側で overflow を持つと帯ごと流れる */}
       <div className="min-h-0 flex-1 overflow-y-auto">

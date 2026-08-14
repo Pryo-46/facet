@@ -1,8 +1,11 @@
+import { Plus } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { CellInput } from '@/components/CellInput'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { KeyHints } from '@/components/KeyHints'
 import { buttonBase } from '@/components/button-styles'
+import type { KeyHint } from '@/core/keyboard/hint-text'
 import {
   resolveCommand,
   toKeyEventLike,
@@ -34,14 +37,14 @@ import {
   type SeqEditResult,
 } from './commands'
 import { GhostSlot } from './GhostSlot'
-import { GutterSlot, type SlotState } from './GutterSlot'
+import { GutterSlot, GUTTER_INDENT, type SlotState } from './GutterSlot'
 import {
   ARROW_GAP,
   DIAGRAM_MARGIN,
   GUTTER_HEADING_HEIGHT,
   layoutSequence,
   QUESTION_LABEL_WIDTH,
-  RAIL_WIDTH,
+  ROW_GAP,
   type SeqLayoutInput,
 } from './layout'
 import {
@@ -52,6 +55,7 @@ import {
   ANSWER_CONTENT_WIDTH,
   ANSWER_INSET_X,
   ANSWER_INSET_Y,
+  gutterLabelText,
   LABEL_BOX_CLASS,
   LABEL_INSET_X,
   LABEL_INSET_Y,
@@ -66,8 +70,21 @@ import {
   type WrappedBlock,
   type WrapOptions,
 } from './measure'
-import { poseQuestions, questionLabels, readSlot, unposedAnswers, type AnswerPath } from './questions'
-import { createSeqMeasurer, FALLBACK_SEQ_FONT, readSeqFont, sameFont, type SeqFont } from './seq-font'
+import {
+  poseQuestions,
+  questionLabels,
+  readSlot,
+  unposedAnswers,
+  type AnswerPath,
+} from './questions'
+import {
+  createSeqMeasurer,
+  FALLBACK_LABEL_FONT,
+  FALLBACK_SEQ_FONT,
+  readSeqFont,
+  sameFont,
+  type SeqFont,
+} from './seq-font'
 import { SequenceEdges, type EdgeStep } from './SequenceEdges'
 import { StepShapeCell } from './StepShapeCell'
 import { useViewport } from './useViewport'
@@ -78,6 +95,21 @@ const MEASURE_CACHE_LIMIT = 2000
 
 /** 図の文字に当たるクラスのうち、フォントを決めている部分。見本要素と共有する */
 const SEQ_FONT_CLASS = 'text-sm'
+
+/**
+ * 問いラベルのフォント階級（GutterSlot のラベル列と同じ）。
+ * **`SEQ_FONT_CLASS` で代用しないこと**——text-sm で text-xs を測ると
+ * 高さを4割ほど過大に見積もり、行が無駄に伸びる
+ */
+const LABEL_FONT_CLASS = 'text-xs'
+
+/** ガターと図の操作ヒント。`$mod` / `$alt` は KeyHints が解決する */
+const SEQ_HINTS: readonly KeyHint[] = [
+  { keys: 'Enter', label: 'ステップ追加' },
+  { keys: 'Tab', label: 'セル移動' },
+  { keys: '$mod+Enter', label: '考慮不要' },
+  { keys: '$alt+↑↓', label: '並び替え' },
+]
 
 const PLATFORM = currentPlatform()
 
@@ -183,6 +215,8 @@ export function SequenceEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const [font, setFont] = useState<SeqFont>(FALLBACK_SEQ_FONT)
+  const labelProbeRef = useRef<HTMLSpanElement>(null)
+  const [labelFont, setLabelFont] = useState<SeqFont>(FALLBACK_LABEL_FONT)
 
   // ガターのグレースロットの削除確認（Undo で戻せるとはいえ、削除は確認を挟む）
   const [confirmTarget, setConfirmTarget] = useState<{ index: number; path: AnswerPath } | null>(
@@ -229,6 +263,10 @@ export function SequenceEditor({
   const readFont = (): void => {
     setFont((prev) => {
       const next = readSeqFont(probeRef.current)
+      return sameFont(prev, next) ? prev : next
+    })
+    setLabelFont((prev) => {
+      const next = readSeqFont(labelProbeRef.current)
       return sameFont(prev, next) ? prev : next
     })
   }
@@ -299,6 +337,49 @@ export function SequenceEditor({
     return block
   }
 
+  // 問いラベル用（text-xs）。**同じ入れ物に混ぜないこと**——キャッシュの鍵は
+  // 文字列と箱の種別だけで、どのフォントで測ったかを持っていない
+  const labelMeasurerKey = `${labelFont.font}|${labelFont.lineHeight}|${fontGeneration}`
+  const labelMeasurerRef = useRef<{
+    key: string
+    measure: MeasureWidth
+    cache: Map<string, WrappedBlock>
+  } | null>(null)
+  if (labelMeasurerRef.current === null || labelMeasurerRef.current.key !== labelMeasurerKey) {
+    labelMeasurerRef.current = {
+      key: labelMeasurerKey,
+      measure: createSeqMeasurer(labelFont),
+      cache: new Map(),
+    }
+  }
+  const labelMeasurer = labelMeasurerRef.current
+
+  /**
+   * 問いラベルの高さ。**ガターの行高はこれを勘定に入れる**——入れないと、
+   * 長い問い（投げっぱなしの unknown）が次の行へ食い込む。
+   * indent（ifExecuted）はラベル列を 16px 削るぶん折り返しが増える
+   */
+  const questionHeight = (text: string, indent: boolean): number => {
+    if (text === '') return 0
+    const key = `${indent ? 'q-indent' : 'q'}:${text}`
+    let block = labelMeasurer.cache.get(key)
+    if (block === undefined) {
+      // **描画される文字列を測る。** GutterSlot は indent 時に「└ 」を前置して
+      // 出すので、その接頭辞込みの文字列を測らないと折り返し回数がずれる
+      // （素の question で測ると実測より短く出て行が食い込む）
+      block = wrapWithin(gutterLabelText(text, indent), labelMeasurer.measure, labelFont.lineHeight, {
+        maxWidth: QUESTION_LABEL_WIDTH - (indent ? GUTTER_INDENT : 0),
+        minWidth: 0,
+        insetX: 0,
+        // GutterSlot のラベル列は py-1（上下 4px ずつ）
+        insetY: 4,
+      })
+      if (labelMeasurer.cache.size >= MEASURE_CACHE_LIMIT) labelMeasurer.cache.clear()
+      labelMeasurer.cache.set(key, block)
+    }
+    return block.height
+  }
+
   const actorKeys = computeRowKeys(data.actors)
   const stepKeys = computeRowKeys(data.steps)
 
@@ -314,7 +395,14 @@ export function SequenceEditor({
       const text = slot.text ?? ''
       // 未回答の枠は placeholder の「未定義」が入る高さを確保する（空だと潰れる）
       const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
-      return { path, question: labels[path], state: slotStateOf(slot.decision), text, height: block.height }
+      return {
+        path,
+        question: labels[path],
+        state: slotStateOf(slot.decision),
+        text,
+        // **問いラベルの方が高いことがある。** 高い方を採らないと行から食み出す
+        height: Math.max(block.height, questionHeight(labels[path], path === 'ifExecuted')),
+      }
     })
     // 立っていない問いへの答え（種別切替の残骸）。ガターにグレースロットで見せる
     const ghosts = unposedAnswers(step).map((path) => {
@@ -324,7 +412,12 @@ export function SequenceEditor({
           ? '─ 考慮不要'
           : (slot.text ?? '')
       const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
-      return { path, text, height: block.height }
+      // GhostSlot もラベル列を持つ（インデントは無い）
+      return {
+        path,
+        text,
+        height: Math.max(block.height, questionHeight(GHOST_QUESTION_LABEL[path], false)),
+      }
     })
     // 参照切れは -1 のまま layout へ渡す（layout は範囲外を読み飛ばす契約）
     const fromIndex = data.actors.findIndex((a) => a.id === step.from)
@@ -338,6 +431,7 @@ export function SequenceEditor({
     steps: stepViews.map((view) => ({
       fromIndex: view.fromIndex,
       toIndex: view.toIndex,
+      isSelf: view.shape === 'self',
       metrics: {
         labelWidth: view.label.width,
         labelHeight: view.label.height,
@@ -650,7 +744,9 @@ export function SequenceEditor({
     >
       {/* 測定用の見本。**描画される文字と同じフォントのクラスを持たせる**ことで、
           測定と描画が同一の情報源を見る（rev 9章）。opacity-0 で見せないだけに
-          するのは、display:none だと getComputedStyle がフォントを返さない環境があるため */}
+          するのは、display:none だと getComputedStyle がフォントを返さない環境があるため。
+          見本が2本あるのは、答えセル（text-sm）と問いラベル列（text-xs）で
+          フォント階級が違うため——1本を両方に使い回すと、片方の高さを見誤る */}
       <span
         ref={probeRef}
         aria-hidden="true"
@@ -658,55 +754,51 @@ export function SequenceEditor({
       >
         あ
       </span>
+      <span
+        ref={labelProbeRef}
+        aria-hidden="true"
+        className={`${LABEL_FONT_CLASS} pointer-events-none absolute left-0 top-0 select-none opacity-0`}
+      >
+        あ
+      </span>
 
-      {/* 額縁の帯（指摘一覧と常設のボタン）。**面は透過させる**——下にある
-          キャンバスのパンとヒットテストを、帯の外側で奪わないため */}
-      <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex flex-col items-start">
-        {issues.length > 0 && (
-          <ul className="pointer-events-auto w-full list-disc bg-surface px-6 py-2 pl-10 text-sm text-warning">
-            {issues.map((issue, i) => (
-              <li key={`${issue.rule}-${i}`}>{issue.message}</li>
-            ))}
-          </ul>
-        )}
-        {data.actors.length > 0 && (
-          <div className="pointer-events-none m-2 flex gap-2">
-            <button
-              type="button"
-              className={`${buttonBase} pointer-events-auto border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
-              onClick={() => apply(addStepLast(data), 'from')}
-            >
-              ステップを追加
-            </button>
-            {/* マウスだけの人の唯一の参加者追加手段（sequence M3 で from/to のインライン作成を外したため） */}
-            <button
-              type="button"
-              className={`${buttonBase} pointer-events-auto border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
-              onClick={() => apply(addActorAfter(data, data.actors.length - 1))}
-            >
-              参加者を追加
-            </button>
-          </div>
-        )}
-        {/* 操作ヒント。**額縁の帯の中に置き、self-end で右寄せする**——
-            transform の外側なのでズームと独立に読め、フローに乗せているので
-            バナー（issues banner）が出ているときはその下に押し出され重ならない */}
-        <div className="self-end p-2 text-xs text-ink-muted">
-          Enter: ステップ追加　Tab: セル移動　Ctrl+Enter: 考慮不要　Alt+↑↓: 並び替え
-        </div>
-      </div>
-
-      {data.actors.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center">
+      {/* 見出し・操作・ヒントの帯。**面は透過させる**——下にあるキャンバスの
+          パンとヒットテストを、帯の外側で奪わないため。
+          **指摘の一覧はここに置かない**（rev 6章。額縁がキャンバスの外に出す）
+          ——ここに置くと件数が増えるほど図を覆う */}
+      <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex flex-col items-stretch">
+        {/* 見出し・操作・ヒントを1行に畳む。**ヒントをボタンの下段に置かない**
+            ——キャンバスは縦を図に使いたいので、帯が2段になるぶんだけ図が下がる */}
+        <div className="pointer-events-none m-2 flex items-center gap-3">
+          {/* **ファイル名（title）はここに出さない。** 額縁の `FileHeader` が
+              4ツール共通で出しており、ここに置くと二重になる（rev 6章。
+              指摘の一覧を額縁へ寄せたのと同じ理由） */}
           <button
             type="button"
-            className={`${buttonBase} border border-rule bg-surface px-4 py-2 text-sm text-ink hover:bg-canvas`}
-            onClick={() => apply(addFirstActor(data))}
+            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            onClick={() => apply(addStepLast(data), 'from')}
           >
-            クリックして開始
+            <Plus aria-hidden className="size-4" />
+            ステップを追加
           </button>
+          {/* マウスだけの人の唯一の参加者追加手段（sequence M3 で from/to のインライン作成を外したため） */}
+          <button
+            type="button"
+            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            onClick={() =>
+              apply(
+                data.actors.length === 0
+                  ? addFirstActor(data)
+                  : addActorAfter(data, data.actors.length - 1),
+              )
+            }
+          >
+            <Plus aria-hidden className="size-4" />
+            参加者を追加
+          </button>
+          <KeyHints hints={SEQ_HINTS} className="ml-auto shrink-0 bg-surface/80 px-2 py-1" />
         </div>
-      )}
+      </div>
 
       {/* 背景レイヤ: ライフライン・責任境界の縦線・行全体の赤表示
           （ゾーン導入時はその帯もこの層に載る） */}
@@ -757,11 +849,11 @@ export function SequenceEditor({
 
       <SequenceEdges steps={edgeSteps} layout={layout} transform={transform} />
 
-      {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面で、
-          ツリー順では空状態のボタンより後ろ（＝上）に来る。z-index はどちらも
-          auto なので、pointer-events を切らないと中央のヒットテストを
-          この面が奪い、「クリックして開始」が押せなくなる。操作を受けるのは
-          セルの矩形だけでよいので、各セル側で auto に戻す */}
+      {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面。
+          pointer-events を切らないと、この面がキャンバス全体を覆う単一の
+          ヒット領域になり、useViewport がコンテナに付けた背景パン／ズームの
+          ハンドラまで mousedown が届かなくなる。操作を受けるのはセルの矩形
+          だけでよいので、各セル側で auto に戻す */}
       <div
         className="pointer-events-none absolute inset-0 origin-top-left"
         style={{ transform: cssTransform(transform) }}
@@ -799,9 +891,14 @@ export function SequenceEditor({
           )
         })}
 
-        {/* ガターの集計（design-notes 論点7）。数えるのは立っている問いだけ */}
+        {/* ガターの集計（design-notes 論点7）。数えるのは立っている問いだけ。
+            **`whitespace-nowrap` を外さないこと。** この div は幅を持たない
+            absolute なので、折り返しの上限は「包含ブロックの右端まで」＝
+            キャンバスの見えている幅になる。ガターが右へ寄る図（文言が長く
+            `gutterX` が大きい）だと右の余白が尽きて2行になり、行の高さ
+            （`headerHeight`）を超えて最初のステップに重なる */}
         <div
-          className="absolute text-sm text-ink-muted"
+          className="absolute whitespace-nowrap text-sm text-ink-muted"
           style={{ left: layout.gutterX, top: layout.headerTop, height: layout.headerHeight }}
         >
           {`⚠ 未定義 ${tally.unanswered} ／ ✓ 回答済 ${tally.handled} ／ ─ 考慮不要 ${tally.notApplicable}`}
@@ -822,16 +919,10 @@ export function SequenceEditor({
           const labelFace = stepHas(index, 'row') ? 'bg-transparent' : 'bg-surface'
           // 文言は矢印の真上に置く（layout の arrowY は文言の高さから決まっている）
           const labelTop = row.arrowY - ARROW_GAP - view.label.height
-          // 参照が引けない行の逃げ場は「図の左端」＝レールの右。
-          // DIAGRAM_MARGIN に置くとレールのセルの上に文言が乗る
-          const diagramLeft = DIAGRAM_MARGIN + RAIL_WIDTH
-          const anchorX = view.fromIndex < 0 ? diagramLeft : layout.actorX[view.fromIndex]
-          const labelLeft = isSelf
-            ? anchorX
-            : view.toIndex === null || view.toIndex < 0 || view.fromIndex < 0
-              ? diagramLeft
-              : (layout.actorX[view.fromIndex] + layout.actorX[view.toIndex]) / 2 -
-                view.label.width / 2
+          // 文言の置き方はレイアウトが決める（`labelLeft`）。**ここで
+          // 計算し直さないこと**——ガターの左端は文言の右端から導いており、
+          // 置き方が2箇所にあると図が静かに重なる（実機確認で踏んだ）
+          const labelLeft = row.labelLeft
           // 編集の足場（#番号 / from / to / 形）はレールの中の固定 x に置く。
           // **矢印の位置も参加者の数も見ない**——だから from==to の呼出（線が引けない）でも
           // 定位置に出るし、細い図でガターに被ることもない
@@ -1028,6 +1119,26 @@ export function SequenceEditor({
             </div>
           )
         })}
+
+        {/* 末尾のステップの下にも1つ。帯のボタンは図をスクロールしても
+            消えない動線として残す（こちらは「続きを足す」位置の手がかり） */}
+        <div
+          className="pointer-events-auto absolute"
+          style={{
+            left: DIAGRAM_MARGIN,
+            top: layout.totalHeight + ROW_GAP,
+          }}
+        >
+          <button
+            type="button"
+            aria-label="末尾にステップを追加"
+            className={`${buttonBase} gap-1 border border-dashed border-rule bg-surface px-3 py-1 text-sm text-ink-muted hover:bg-canvas hover:text-ink`}
+            onClick={() => apply(addStepLast(data), 'from')}
+          >
+            <Plus aria-hidden className="size-4" />
+            ステップを追加
+          </button>
+        </div>
       </div>
 
       <ConfirmDialog

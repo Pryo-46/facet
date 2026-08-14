@@ -5,6 +5,7 @@ function fakeModule(type: string, prefixes: string[]): AnyToolModule {
   return {
     type,
     displayName: type,
+    icon: () => null,
     schemaVersion: 1,
     schema: {},
     idPrefixes: prefixes,

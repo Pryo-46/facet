@@ -66,9 +66,10 @@ function last(onChange: ReturnType<typeof vi.fn>): SequenceSchemaVersion1 {
 }
 
 describe('空状態', () => {
-  it('「クリックして開始」で最初の参加者ができる', () => {
+  it('参加者0人でもツールバーから参加者を足せる（空状態のボタンは無い）', () => {
     const { onChange } = setup({ ...doc(), actors: [], steps: [] })
-    fireEvent.click(screen.getByRole('button', { name: 'クリックして開始' }))
+    expect(screen.queryByRole('button', { name: 'クリックして開始' })).toBe(null)
+    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
     expect(last(onChange).actors).toHaveLength(1)
   })
 
@@ -104,9 +105,11 @@ describe('参加者を追加ボタン', () => {
     expect(document.activeElement?.getAttribute('aria-label')).toBe('参加者4の名前')
   })
 
-  it('参加者が0人のときは「参加者を追加」ボタンを出さない（「クリックして開始」が入口）', () => {
-    setup({ ...doc(), actors: [], steps: [] })
-    expect(screen.queryByRole('button', { name: '参加者を追加' })).toBeNull()
+  it('参加者が0人のときも「参加者を追加」ボタンが出て、最初の参加者ができる（空状態のボタンを廃止したため）', () => {
+    const { onChange } = setup({ ...doc(), actors: [], steps: [] })
+    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
+    expect(last(onChange).actors).toHaveLength(1)
+    expect(last(onChange).actors[0].name).toBe('')
   })
 })
 
@@ -159,7 +162,9 @@ describe('ステップ行', () => {
   it('「ステップを追加」ボタンで新ステップの from にフォーカスが移る', () => {
     const onChange = vi.fn()
     render(<Harness initial={doc()} onChange={onChange} />)
-    fireEvent.click(screen.getByText('ステップを追加'))
+    // 末尾のステップ下にも同じ見出しのボタンが増えたため、テキストでなく
+    // 常設ボタンの accessible name（getByRole）で一意に引く
+    fireEvent.click(screen.getByRole('button', { name: 'ステップを追加' }))
     expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ4の送り手')
   })
 
@@ -523,13 +528,18 @@ describe('レール（行の左端の編集セル列）', () => {
 
 describe('操作ヒントとラベルの面', () => {
   it('操作ヒントが常時表示される', () => {
-    // getByText の既定ノーマライザは textContent 側の空白（全角スペース含む）を
-    // 単一の半角スペースへ畳むが、matcher 文字列そのものは畳まない
-    // （testing-library/dom の matches()）。畳んだ形で問い合わせる
+    // KeyHints は各項目を <span> で包み、キー部分をさらに <span class="text-ink"> で
+    // 入れ子にする。getByText の既定マッチャーは直下のテキストノードしか見ないため
+    // 拾えない（子要素のテキストが無視される）。要素の textContent 全体で問い合わせる
     setup()
-    expect(
-      screen.getByText('Enter: ステップ追加 Tab: セル移動 Ctrl+Enter: 考慮不要 Alt+↑↓: 並び替え'),
-    ).toBeDefined()
+    const hintSpan = (text: string) =>
+      screen.getByText(
+        (_, element) => element?.tagName === 'SPAN' && element.textContent === text,
+      )
+    expect(hintSpan('Enter: ステップ追加')).toBeDefined()
+    expect(hintSpan('Tab: セル移動')).toBeDefined()
+    expect(hintSpan('Ctrl+Enter: 考慮不要')).toBeDefined()
+    expect(hintSpan('Alt+↑↓: 並び替え')).toBeDefined()
   })
 
   it('通常時のラベルセルは不透明の面（bg-surface）を持つ（入力できる見た目のため）', () => {
@@ -681,5 +691,20 @@ describe('赤表示', () => {
     ])
     const cell = screen.getByLabelText('ステップ1の送り手') as HTMLInputElement
     expect(cell.className).toContain('bg-warning/20')
+  })
+})
+
+describe('額縁の帯', () => {
+  // ファイル名を出すのは額縁（FileHeader）で、エディタではない（rev 6章）。
+  // ここに戻すと帯と二重になる
+  it('ファイル名はエディタが出さない', () => {
+    setup({ ...doc(), title: '注文確定' })
+    expect(screen.queryByRole('heading', { name: '注文確定' })).toBe(null)
+  })
+
+  it('末尾のステップ追加は常設のボタンと名前で区別できる', () => {
+    const { onChange } = setup()
+    fireEvent.click(screen.getByRole('button', { name: '末尾にステップを追加' }))
+    expect(last(onChange).steps).toHaveLength(4)
   })
 })

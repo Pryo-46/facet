@@ -279,7 +279,10 @@ describe('Skill の同期のタイミング', () => {
     // まだ終わっていない /a へ戻る
     pickedFolder.value = '/a'
     fireEvent.click(open)
-    await waitFor(() => expect(screen.getByText('/a')).toBeTruthy())
+    // パスはサイドメニュー（FileList）が出す。**getByText で引かないこと**——
+    // 頭を省く `dir="rtl"` の副作用を打ち消すため中身の先頭に不可視の
+    // LTR_MARK が入っており、テキスト一致では拾えない。title は生のパス
+    await waitFor(() => expect(screen.getByTitle('/a')).toBeTruthy())
     // 走っている同期に合流するだけで、2本目は始まらない
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(skillCalls).toEqual(['allow:/a', 'sync:/a', 'allow:/b', 'sync:/b'])
@@ -503,5 +506,22 @@ describe('アプリ終了', () => {
     const ok = await closeState.callback!()
     expect(ok).toBe(false)
     expect(killAllPtysMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('額縁の帯', () => {
+  it('ヘッダーはフォルダのパスを出さない（ファイル一覧の直上へ移した）', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Claude Code ペインを開く' }).hasAttribute('disabled')).toBe(false)
+    })
+    expect(document.querySelector('header')?.textContent).not.toContain('/proj')
+  })
+
+  it('テーマ切替はアイコンボタンで、押すと何が起きるかを名前が言う', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'ダークにする' }))
+    expect(screen.getByRole('button', { name: 'ライトにする' })).toBeTruthy()
   })
 })

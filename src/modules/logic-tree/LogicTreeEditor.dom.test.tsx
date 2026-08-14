@@ -88,20 +88,22 @@ describe('LogicTreeEditor（描画）', () => {
     expect(onChange.mock.calls[0][0].nodes[0].text).toBe('退会')
   })
 
-  it('空の状態では「クリックして開始」を出し、押すとルートができてフォーカスが乗る', () => {
+  it('ノード0件のときは「ノードを追加」を出し、押すとルートができてフォーカスが乗る', () => {
     render(<Harness initial={file([])} />)
-    fireEvent.click(screen.getByRole('button', { name: 'クリックして開始' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ノードを追加' }))
     const node = screen.getByLabelText('ノード1')
     expect(node).toBeDefined()
     expect(document.activeElement).toBe(node)
   })
 
-  it('ノードがあるときは「クリックして開始」を出さない', () => {
+  it('ノードがあるときは「ノードを追加」を出さない', () => {
     render(<Harness initial={file([[1, null, 'x']])} />)
-    expect(screen.queryByRole('button', { name: 'クリックして開始' })).toBe(null)
+    expect(screen.queryByRole('button', { name: 'ノードを追加' })).toBe(null)
   })
 
-  it('整合性検証の指摘を画面に出す', () => {
+  // 指摘の一覧を出すのは額縁（IssueBanner）で、エディタではない（rev 6章）。
+  // ここに戻すと件数が増えるほど木の上部を覆う——それが M14 で直した欠陥
+  it('整合性検証の指摘の一覧はエディタが出さない', () => {
     render(
       <LogicTreeEditor
         data={file([[1, null, 'x']])}
@@ -110,7 +112,7 @@ describe('LogicTreeEditor（描画）', () => {
         modalOpen={false}
       />,
     )
-    expect(screen.getByText('ルートが2件あります')).toBeDefined()
+    expect(screen.queryByText('ルートが2件あります')).toBe(null)
   })
 
   it('親子の数だけエッジを描く', () => {
@@ -168,9 +170,9 @@ describe('LogicTreeEditor（描画）', () => {
   })
 
   it('ノードのレイヤは操作を通し、ノードの矩形だけが受ける', () => {
-    // レイヤはツリー順で空状態のボタンより上に来る透明な面なので、
+    // レイヤはツリー順で帯のボタンより上に来る透明な面なので、
     // pointer-events を切らないと中央のヒットテストを奪って
-    // 「クリックして開始」が押せなくなる（jsdom はヒットテストを
+    // 「ノードを追加」が押せなくなる（jsdom はヒットテストを
     //  持たないため、クリックのテストではこの退行を検出できない）
     const { container } = render(<Harness initial={file([[1, null, 'x']])} />)
     const layer = container.querySelector('[data-layer="nodes"]')
@@ -411,14 +413,6 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     expect(root.className).not.toContain('cursor-grab')
   })
 
-  it('空状態の「クリックして開始」は Space で押せる（キャンバスの中のボタン）', () => {
-    // このボタンは containerRef の**内側**にある。Space を「キャンバスの外か」で
-    // 判定すると、**ロジックツリーを開いて最初に出会う画面**でボタンが死ぬ
-    render(<Harness initial={file([])} />)
-    screen.getByRole('button', { name: 'クリックして開始' }).focus()
-    expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(true)
-  })
-
   it('モーダルが開いている間はキャンバスの Space も止まる', () => {
     // 額縁のモーダルにフォーカスが渡っている間、window に張った Space の監視が
     // 生きていると**モーダルの中のボタンが Space で押せなくなる**（rev 10章）
@@ -501,5 +495,29 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     expect(screen.getByLabelText('ノード2')).toBeDefined()
     fireEvent.click(screen.getByRole('button', { name: '元に戻す' }))
     expect(screen.queryByLabelText('ノード2')).toBe(null)
+  })
+})
+
+describe('額縁の帯', () => {
+  // ファイル名を出すのは額縁（FileHeader）で、エディタではない（rev 6章）。
+  // ここに戻すと帯と二重になる
+  it('ファイル名はエディタが出さない', () => {
+    const data = file([[1, null, '退会できない']])
+    render(<Harness initial={{ ...data, title: '退会の導線' }} />)
+    expect(screen.queryByRole('heading', { name: '退会の導線' })).toBe(null)
+  })
+
+  it('操作ヒントを常時出す', () => {
+    // KeyHints は各項目を <span> で包み、キー部分をさらに <span class="text-ink"> で
+    // 入れ子にする。getByText の既定マッチャーは直下のテキストノードしか見ないため
+    // 拾えない（子要素のテキストが無視される）。要素の textContent 全体で問い合わせる
+    render(<Harness initial={file([[1, null, '退会できない']])} />)
+    const hintSpan = (text: string) =>
+      screen.getByText((_, element) => element?.tagName === 'SPAN' && element.textContent === text)
+    expect(hintSpan('Enter: 兄弟を追加')).toBeDefined()
+    expect(hintSpan('Tab: 子を追加')).toBeDefined()
+    expect(hintSpan('←→: 親子移動')).toBeDefined()
+    // $alt は KeyHints が解決する。jsdom は mac 判定にならないので Alt になる
+    expect(hintSpan('Alt+↑↓: 並び替え')).toBeDefined()
   })
 })

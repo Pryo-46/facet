@@ -181,6 +181,15 @@
        個別に変えたいときは従来どおり効く */
     --tw-leading: 1.2;
     }
+  /* Tailwind v4 の preflight はボタンを `cursor: default` にする（v3 までは
+     ブラウザ既定の pointer だった）。押せるものに指マークが出ないという
+     実機フィードバックへの対応で、**個々のボタンに cursor-pointer を撒かず
+     ここ1箇所で戻す**——撒くと「付け忘れたボタンだけ挙動が違う」が積み上がる。
+     `:not(:disabled)` にしているのは、押せないものに指マークを出さないため
+     （`buttonBase` の `disabled:cursor-not-allowed` とも噛み合う） */
+  button:not(:disabled) {
+    cursor: pointer;
+    }
 }
 
 /* =========================================================================

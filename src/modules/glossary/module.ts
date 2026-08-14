@@ -1,3 +1,4 @@
+import { BookA } from 'lucide-react'
 import type { JsonSchema } from '@/core/canonical'
 import type { ToolModule } from '@/core/registry'
 import type { GlossarySchemaVersion1 } from '@/types/glossary'
@@ -10,6 +11,7 @@ import { migrateGlossary } from './migrate'
 export const glossaryModule: ToolModule<GlossarySchemaVersion1> = {
   type: 'glossary',
   displayName: '用語集',
+  icon: BookA,
   schemaVersion: 1,
   schema: glossarySchema as JsonSchema,
   idPrefixes: ['term'],

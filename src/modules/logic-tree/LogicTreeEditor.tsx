@@ -1,6 +1,9 @@
+import { Plus } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
+import { KeyHints } from '@/components/KeyHints'
 import { buttonBase } from '@/components/button-styles'
+import type { KeyHint } from '@/core/keyboard/hint-text'
 import {
   resolveCommand,
   toKeyEventLike,
@@ -40,6 +43,14 @@ const MEASURE_CACHE_LIMIT = 2000
 
 /** ノードの文言に当たるクラスのうち、フォントを決めている部分。見本要素と共有する */
 const NODE_FONT_CLASS = 'text-sm'
+
+/** 木の操作ヒント。`$alt` は KeyHints が解決する */
+const TREE_HINTS: readonly KeyHint[] = [
+  { keys: 'Enter', label: '兄弟を追加' },
+  { keys: 'Tab', label: '子を追加' },
+  { keys: '←→', label: '親子移動' },
+  { keys: '$alt+↑↓', label: '並び替え' },
+]
 
 const PLATFORM = currentPlatform()
 
@@ -274,25 +285,31 @@ export function LogicTreeEditor({
         あ
       </span>
 
-      {issues.length > 0 && (
-        <ul className="absolute left-0 right-0 top-0 z-10 list-disc bg-surface px-6 py-2 pl-10 text-sm text-warning">
-          {issues.map((issue, i) => (
-            <li key={`${issue.rule}-${i}`}>{issue.message}</li>
-          ))}
-        </ul>
-      )}
-
-      {data.nodes.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <button
-            type="button"
-            className={`${buttonBase} border border-rule bg-surface px-4 py-2 text-sm text-ink hover:bg-canvas`}
-            onClick={createRoot}
-          >
-            クリックして開始
-          </button>
+      {/* **指摘の一覧はここに置かない**（rev 6章。額縁がキャンバスの外に出す）
+          ——ここに置くと件数が増えるほど木の上部を覆う */}
+      <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex flex-col items-stretch">
+        {/* 見出しとヒントの帯。**面は透過させる**——下のキャンバスのパンと
+            ヒットテストを、帯の外側で奪わないため */}
+        <div className="pointer-events-none m-2 flex items-center gap-3">
+          {/* **ファイル名（title）はここに出さない。** 額縁の `FileHeader` が
+              4ツール共通で出しており、ここに置くと二重になる（rev 6章。
+              指摘の一覧を額縁へ寄せたのと同じ理由） */}
+          {/* **0件のときだけ出す。** 雛形はルート1件を持つので、ここに来るのは
+              外部で作られた0件ファイルだけ。マウスだけの人がノードを増やす
+              一般的な動線が無いのは M14 以前からの別の穴（open-issues 参照） */}
+          {data.nodes.length === 0 && (
+            <button
+              type="button"
+              className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+              onClick={createRoot}
+            >
+              <Plus aria-hidden className="size-4" />
+              ノードを追加
+            </button>
+          )}
+          <KeyHints hints={TREE_HINTS} className="ml-auto shrink-0 bg-surface/80 px-2 py-1" />
         </div>
-      )}
+      </div>
 
       {/* 背景レイヤ（M1 は空。シーケンスの失敗ゾーンのために枠だけ確保する） */}
       <div
@@ -304,12 +321,11 @@ export function LogicTreeEditor({
 
       <TreeEdges roots={built.roots} positions={positions} sizes={sizes} transform={transform} />
 
-      {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面で、
-          ツリー順では空状態のボタンより後ろ（＝上）に来る。z-index はどちらも
-          auto なので、pointer-events を切らないと中央のヒットテストを
-          この面が奪い、「クリックして開始」が押せなくなる。操作を受けるのは
-          ノードの矩形だけでよいので、NodeBox 側で auto に戻す。
-          Task 11 の「背景を掴んでパンする」もこの形のまま効く */}
+      {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面。
+          pointer-events を切らないと、この面がキャンバス全体を覆う単一の
+          ヒット領域になり、useViewport がコンテナに付けた背景パン／ズームの
+          ハンドラまで mousedown が届かなくなる。操作を受けるのはノードの矩形
+          だけでよいので、NodeBox 側で auto に戻す */}
       <div
         className="pointer-events-none absolute inset-0 origin-top-left"
         style={{ transform: cssTransform(transform) }}

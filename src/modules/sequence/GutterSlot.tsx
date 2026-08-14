@@ -1,7 +1,10 @@
 import { CellInput, type FieldState } from '@/components/CellInput'
-import { ANSWER_BOX_CLASS } from './measure'
+import { ANSWER_BOX_CLASS, gutterLabelText } from './measure'
 
 export type SlotState = 'unanswered' | 'handled' | 'notApplicable'
+
+/** ifExecuted（下位問い）のインデント幅。行高の測定側（SequenceEditor）も読む */
+export const GUTTER_INDENT = 16
 
 export interface GutterSlotProps {
   /** 問いの文言（questionLabels の値）。ラベル列に出す */
@@ -35,7 +38,7 @@ export function GutterSlot(props: GutterSlotProps) {
       : props.state === 'notApplicable'
         ? 'border-rule bg-surface text-ink-muted'
         : 'border-rule bg-surface text-ink'
-  const indentPad = props.indent ? 16 : 0
+  const indentPad = props.indent ? GUTTER_INDENT : 0
   return (
     <div
       className="pointer-events-auto absolute flex items-stretch gap-1"
@@ -45,7 +48,7 @@ export function GutterSlot(props: GutterSlotProps) {
         className="shrink-0 py-1 text-xs text-ink-muted"
         style={{ width: props.labelWidth - indentPad }}
       >
-        {props.indent ? `└ ${props.question}` : props.question}
+        {gutterLabelText(props.question, props.indent)}
       </div>
       <div className="relative" style={{ width: props.answerWidth }}>
         {props.state === 'notApplicable' && (
