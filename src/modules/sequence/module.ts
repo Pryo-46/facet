@@ -1,3 +1,4 @@
+import { ArrowLeftRight } from 'lucide-react'
 import type { JsonSchema } from '@/core/canonical'
 import type { ToolModule } from '@/core/registry'
 import type { SequenceSchemaVersion1 } from '@/types/sequence'
@@ -10,6 +11,7 @@ import { SequenceEditor } from './SequenceEditor'
 export const sequenceModule: ToolModule<SequenceSchemaVersion1> = {
   type: 'sequence',
   displayName: 'シーケンス',
+  icon: ArrowLeftRight,
   schemaVersion: 1,
   schema: sequenceSchema as JsonSchema,
   // zone は M4 で足す

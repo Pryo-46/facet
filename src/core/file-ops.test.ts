@@ -9,6 +9,7 @@ function nonSingletonModule(type: string): AnyToolModule {
   return {
     type,
     displayName: type,
+    icon: () => null,
     schemaVersion: 1,
     schema: {},
     idPrefixes: [],

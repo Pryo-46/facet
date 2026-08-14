@@ -1,3 +1,4 @@
+import { Network } from 'lucide-react'
 import type { JsonSchema } from '@/core/canonical'
 import type { ToolModule } from '@/core/registry'
 import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
@@ -9,6 +10,7 @@ import { migrateLogicTree } from './migrate'
 export const logicTreeModule: ToolModule<LogicTreeSchemaVersion1> = {
   type: 'logicTree',
   displayName: 'ロジックツリー',
+  icon: Network,
   schemaVersion: 1,
   schema: logicTreeSchema as JsonSchema,
   idPrefixes: ['node'],

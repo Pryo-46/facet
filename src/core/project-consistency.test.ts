@@ -7,6 +7,7 @@ function fakeModule(type: string, singleton: boolean): AnyToolModule {
   return {
     type,
     displayName: type === 'glossary' ? '用語集' : type,
+    icon: () => null,
     schemaVersion: 1,
     schema: {},
     idPrefixes: [type],

@@ -65,6 +65,11 @@ export interface ToolModule<TData = unknown> {
   type: string
   /** 一覧・エラーメッセージで使う表示名（例: 用語集） */
   displayName: string
+  /**
+   * 一覧に出すアイコン（規約: 表示名とセット）。**`LucideIcon` と書かないこと**
+   * ——コアを lucide に依存させないため。lucide のアイコンはこの型に代入できる
+   */
+  icon: ComponentType<{ className?: string }>
   /** 現行の schemaVersion。これと異なる版のファイルは「一覧表示のみ」に落ちる */
   schemaVersion: number
   /** 規約2: JSON Schema（schemas/ の実体を import する。コピー禁止） */

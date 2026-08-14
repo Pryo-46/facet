@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react'
 import type { JsonSchema } from '@/core/canonical'
 import type { OutputProfile, ToolModule } from '@/core/registry'
 import type { ErrorCatalogSchemaVersion1 } from '@/types/error-catalog'
@@ -24,6 +25,7 @@ const outputs: readonly OutputProfile<ErrorCatalogSchemaVersion1>[] = PROFILES.m
 export const errorCatalogModule: ToolModule<ErrorCatalogSchemaVersion1> = {
   type: 'errorCatalog',
   displayName: 'エラーカタログ',
+  icon: TriangleAlert,
   schemaVersion: 1,
   schema: errorCatalogSchema as JsonSchema,
   idPrefixes: ['error'],
