@@ -1,0 +1,33 @@
+{
+  "skill_name": "sequence-register",
+  "evals": [
+    {
+      "id": 0,
+      "name": "new-sequence-from-conversation",
+      "prompt": "注文確定まわりの流れを整理していました。画面から受注APIに注文確定を投げて、受注APIが決済サービスに与信を依頼します。与信がNGだったら画面にエラーを出して中断、という話までしました。そのあと受注APIが在庫を引き当てます。じゃあこれでシーケンス図作ってもらえますか。プロジェクトフォルダは <PROJECT_DIR> です。",
+      "expected_output": "<PROJECT_DIR> に type=sequence の JSON が1つ作られる。actors が3人（画面・受注API・決済サービス）、steps は会話に出た3件のみ（言及されていない reply を補っていない）。与信のステップに failures.failed が handled で入り、他のステップの failures は欠落したまま（AIが推測で埋めない）。ID は actor_ / step_ ＋英数字10文字。ファイルは正規形（キー順・LF・末尾改行）。",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "pick-main-line-from-branching-talk",
+      "prompt": "在庫確認の流れを整理しました。画面から在庫APIに問い合わせて、在庫があれば受注APIで注文を確定します。在庫が無い場合は仕入先に取り寄せ依頼を出して、入荷したら顧客に通知する、という別の流れになります。図にしておいてください。プロジェクトフォルダは <PROJECT_DIR> です。",
+      "expected_output": "type=sequence の JSON が1つだけ作られる（2つ作らない）。書かれたのは主線1本で、取り寄せの流れが同じファイルに混ざっていない。取り寄せの流れについては報告で「別ファイルで作れる」と伝えている。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "fill-in-existing-sequence",
+      "prompt": "<PROJECT_DIR> の注文確定の図について、与信依頼が応答なしでタイムアウトしたときの扱いが決まりました。リトライします。そのとき相手が実行済みだった場合は取引IDで冪等性を担保します。在庫引き当ての失敗については、今回は考えなくていいと決めました。",
+      "expected_output": "既存の 注文確定.json が更新される（2つ目のファイルを作らない）。step_Cd5yL1nQ4r の failures.unknown が handled＋text で埋まり、その中に ifExecuted が handled で入る。step_Ef7zM3pS6t の failures.failed が notApplicable になる。既存の failed（画面にエラー表示して中断）と、すべての id・配列順・title・step_Ab3xK9mP2q が1バイトも変わらない。",
+      "files": ["fixtures/existing-project/注文確定.json"]
+    },
+    {
+      "id": 3,
+      "name": "avoid-unposed-answers",
+      "prompt": "監査ログの流れです。受注APIがログ基盤にイベントを投げます。これは投げっぱなしで応答は見ません。ログ基盤が受け取れなかった場合は、業務は止めずに続行します。図にしてください。プロジェクトフォルダは <PROJECT_DIR> です。",
+      "expected_output": "type=sequence の JSON が1つ作られる。投げっぱなしのステップは awaitsReply: false になっている。そのステップの failures に failed キーが無い（awaitsReply: false では失敗確定の問いが立たない）。答えは unknown 側に入っている。sequence-write.mjs の整合性検証で unposed-answer の警告が出ない。",
+      "files": []
+    }
+  ]
+}

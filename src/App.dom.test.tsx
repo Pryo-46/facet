@@ -25,12 +25,25 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
  * 確認ダイアログの `onConfirm` が古い state を掴まないことを検証するテスト
  * （レビュー指摘2）専用で、それ以外のテストは呼ばない
  */
+/**
+ * `skillCalls` は「Skill の同期がいつ走ったか」を順番ごと記録する口。
+ * 呼ばれた回数だけでなく `allowSkillDir` → `syncBundledSkills` の順序も
+ * 見たいので、2つのモックが同じ配列へ積む。
+ *
+ * `pickedFolder` は「フォルダを開く」で選ばれるフォルダ。既定は `/proj` で、
+ * **A→B→A を組みたいテストだけ**が書き換える（`afterEach` で戻す）。
+ * `syncGate` は同期を途中で止めておく口——「まだ終わっていない同期」が
+ * 無いと重複排除は観測できない
+ */
 const {
   closeState,
   killAllPtysMock,
   requestCloseOverride,
   ptyKillMock,
   ptyExitHandlers,
+  skillCalls,
+  pickedFolder,
+  syncGate,
   syncReadingGuideMock,
 } = vi.hoisted(() => ({
   closeState: { callback: null as (() => Promise<boolean>) | null },
@@ -38,11 +51,14 @@ const {
   requestCloseOverride: { value: null as boolean | null },
   ptyKillMock: vi.fn(async () => undefined),
   ptyExitHandlers: new Map<number, (code: number | null) => void>(),
+  skillCalls: [] as string[],
+  pickedFolder: { value: '/proj' },
+  syncGate: { promise: null as Promise<void> | null, release: null as (() => void) | null },
   syncReadingGuideMock: vi.fn(async () => undefined),
 }))
 
 vi.mock('@/fs/project-fs', () => ({
-  pickProjectFolder: async () => '/proj',
+  pickProjectFolder: async () => pickedFolder.value,
   listJsonFiles: async () => [],
   readProjectFile: async () => '',
   writeProjectFile: async () => undefined,
@@ -78,11 +94,17 @@ vi.mock('@/fs/pty', () => ({
 }))
 vi.mock('@/fs/skill-resources', () => ({
   tauriSkillSyncIo: {},
-  allowSkillDir: async () => undefined,
+  allowSkillDir: async (dir: string) => {
+    skillCalls.push(`allow:${dir}`)
+  },
 }))
 vi.mock('@/core/skill-sync', async (orig) => ({
   ...(await orig<typeof import('@/core/skill-sync')>()),
-  syncBundledSkills: async () => undefined,
+  syncBundledSkills: async (dir: string) => {
+    skillCalls.push(`sync:${dir}`)
+    // 既定（`promise` が null）では素通り。gate が張られている間だけ止まる
+    await syncGate.promise
+  },
 }))
 vi.mock('@/fs/reading-guide-io', () => ({ tauriReadingGuideIo: {} }))
 // READING_GUIDE_FILENAME 等は実物のまま、同期関数だけ差し替える（skill-sync の mock と同じ形）
@@ -149,6 +171,23 @@ afterEach(cleanup)
 afterEach(() => {
   ptyExitHandlers.clear()
   ptyKillMock.mockClear()
+  skillCalls.length = 0
+})
+/**
+ * **止めたままの同期を次のテストへ持ち越さない（レビュー指摘）。**
+ * 重複排除の台帳（`App.tsx` の `skillSyncInFlight`）はモジュール変数なので
+ * テスト間で共有される。gate で止めた同期を残すと、そのフォルダは次のテストで
+ * 「まだ走っている」扱いになり、**同期が黙って走らなくなる**。
+ * テスト本体ではなくここで開けるのは、assertion で落ちた場合も必ず通すため
+ */
+afterEach(async () => {
+  syncGate.release?.()
+  syncGate.promise = null
+  syncGate.release = null
+  pickedFolder.value = '/proj'
+  // 台帳から消えるのは同期が解決したあとの `.finally`。マクロタスクを1回
+  // 挟んで、溜まっているマイクロタスクを全部流してから次のテストへ渡す
+  await new Promise((resolve) => setTimeout(resolve, 0))
 })
 
 /**
@@ -183,6 +222,60 @@ describe('グローバル層と端末ペインの境界', () => {
     const tab = await openPane()
     const notPrevented = fireEvent.keyDown(tab, { key: 'Z', ctrlKey: true, shiftKey: true })
     expect(notPrevented).toBe(true)
+  })
+})
+
+describe('Skill の同期のタイミング', () => {
+  /**
+   * Skill はプロジェクトに属するものであって端末セッションに属さない。
+   * 以前は `openTerminal` が同期していたため、「＋ タブを追加」を押した
+   * 回数だけ「消して置き直す」が走っていた（sequence M4 の実機確認）
+   */
+  it('フォルダを開いたときに走る（scope の付与が先）', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    // mac では `.claude/` がダイアログ由来の scope に入らないので、
+    // allowSkillDir が先でないと同期の最初の exists で落ちる
+    await waitFor(() => expect(skillCalls).toEqual(['allow:/proj', 'sync:/proj']))
+  })
+
+  /**
+   * 重複排除（`App.tsx` の `skillSyncInFlight`）。**同期が終わる前に別の
+   * フォルダへ切り替えて戻る**と、同じフォルダの同期が2本並走しうる。
+   * 置き直しは冪等ではないので、並走すると片方の削除ループが相手の書き込みを
+   * 追い越し、置いたばかりの `scripts/` を消してしまう。
+   *
+   * **この経路を塞いでいるのは重複排除だけ**——1件ごとの削除失敗を握りつぶす
+   * ようにした（＝もう中断しない）ぶん、並走時に相手を壊す窓はむしろ開いた
+   */
+  it('**同期の途中で戻ってきても、同じフォルダを二重に同期しない**', async () => {
+    syncGate.promise = new Promise<void>((resolve) => {
+      syncGate.release = resolve
+    })
+    pickedFolder.value = '/a'
+    render(<App />)
+    const open = screen.getByRole('button', { name: 'フォルダを開く' })
+    fireEvent.click(open)
+    // /a の同期が始まり、gate で止まったまま先へ進まない
+    await waitFor(() => expect(skillCalls).toContain('sync:/a'))
+    pickedFolder.value = '/b'
+    fireEvent.click(open)
+    await waitFor(() => expect(skillCalls).toContain('sync:/b'))
+    // まだ終わっていない /a へ戻る
+    pickedFolder.value = '/a'
+    fireEvent.click(open)
+    await waitFor(() => expect(screen.getByText('/a')).toBeTruthy())
+    // 走っている同期に合流するだけで、2本目は始まらない
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(skillCalls).toEqual(['allow:/a', 'sync:/a', 'allow:/b', 'sync:/b'])
+  })
+
+  it('**タブを追加しても走らない**', async () => {
+    await openPane()
+    await waitFor(() => expect(skillCalls).toEqual(['allow:/proj', 'sync:/proj']))
+    fireEvent.click(screen.getByRole('button', { name: 'タブを追加' }))
+    await screen.findByRole('button', { name: 'Claude 2' })
+    expect(skillCalls).toEqual(['allow:/proj', 'sync:/proj'])
   })
 })
 

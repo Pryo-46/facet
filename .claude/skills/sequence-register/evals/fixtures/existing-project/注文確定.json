@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "type": "sequence",
+  "title": "注文確定（在庫あり）",
+  "actors": [
+    {
+      "id": "actor_Xp2mQ9rT4k",
+      "name": "画面",
+      "domain": "自社"
+    },
+    {
+      "id": "actor_Bv7nW3jL8s",
+      "name": "受注API",
+      "domain": "自社"
+    },
+    {
+      "id": "actor_Kd4hR6yU1c",
+      "name": "決済サービス",
+      "domain": "決済会社"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_Ab3xK9mP2q",
+      "kind": "call",
+      "from": "actor_Xp2mQ9rT4k",
+      "to": "actor_Bv7nW3jL8s",
+      "label": "注文を確定する",
+      "awaitsReply": true
+    },
+    {
+      "id": "step_Cd5yL1nQ4r",
+      "kind": "call",
+      "from": "actor_Bv7nW3jL8s",
+      "to": "actor_Kd4hR6yU1c",
+      "label": "与信を依頼する",
+      "awaitsReply": true,
+      "failures": {
+        "failed": {
+          "decision": "handled",
+          "text": "画面にエラー表示して中断"
+        }
+      }
+    },
+    {
+      "id": "step_Ef7zM3pS6t",
+      "kind": "self",
+      "from": "actor_Bv7nW3jL8s",
+      "label": "在庫を引き当てる"
+    }
+  ]
+}

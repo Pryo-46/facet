@@ -1,7 +1,6 @@
 import type { ConsistencyIssue } from '@/core/consistency'
 import { dividerRow, escapeCell, headingText, row } from '@/core/markdown-table'
 import type { SequenceSchemaVersion1, SequenceStep } from '@/types/sequence'
-import { readSlot } from './commands'
 import { sequenceToMermaid } from './mermaid'
 import {
   NOT_APPLICABLE_LABEL,
@@ -9,7 +8,7 @@ import {
   UNDEFINED_VALUE,
   UNRESOLVED_ACTOR_LABEL,
 } from './output-labels'
-import { poseQuestions, type AnswerPath } from './questions'
+import { poseQuestions, readSlot, type AnswerPath } from './questions'
 
 /**
  * シーケンスの Markdown 出力（モジュール規約5。design-notes 論点11）。
