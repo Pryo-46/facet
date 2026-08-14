@@ -515,11 +515,8 @@ function App() {
 
   return (
     <main className="flex h-screen flex-col overflow-hidden bg-canvas bg-grid-paper text-ink">
-      {/* 額縁の帯（rev 9章）。**幅が縮んでも右端の3つを絶対に押し出さないこと。**
-          フォルダのパスは長さが青天井なので、`min-w-0 truncate` を外すと
-          flex アイテムの既定（min-width:auto＝内容幅より縮まない）で右端を
-          画面外へ押し出す。伸縮を引き受けるのはこのパスだけで、
-          左右の操作群は shrink-0 で固定する */}
+      {/* 額縁の帯（rev 9章）。中身はすべて幅の決まった操作なので、伸縮は
+          `ml-auto` の余白だけが引き受ける（右端の保証は下の div のコメント） */}
       <header className="flex items-center gap-3 border-b border-rule bg-surface px-6 py-3">
         <h1 className="shrink-0 text-lg font-bold text-ink">facet</h1>
         <div className="flex shrink-0 items-center gap-2">
@@ -553,8 +550,10 @@ function App() {
             onExport={(profile) => void controller.exportMarkdown(profile)}
           />
         </div>
-        {/* 伸縮はこの空きが引き受ける。パスはファイル一覧の直上（FileList）へ移した */}
-        <div className="min-w-0 flex-1" />
+        {/* **右端の3つを絶対に押し出さないこと。** 余白を食って右端へ寄せるのは
+            `ml-auto` の仕事で、`shrink-0` がそれ以上の圧縮を止める。
+            以前あった `min-w-0 flex-1` の空き div は同じ効果の二重掛けだった
+            （伸縮を引き受けていたパスはファイル一覧の直上へ移してある） */}
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <button
             type="button"

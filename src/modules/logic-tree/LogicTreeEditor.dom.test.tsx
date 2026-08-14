@@ -495,3 +495,25 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     expect(screen.queryByLabelText('ノード2')).toBe(null)
   })
 })
+
+describe('額縁の帯', () => {
+  it('タイトルを出す（他ツールと同じ）', () => {
+    const data = file([[1, null, '退会できない']])
+    render(<Harness initial={{ ...data, title: '退会の導線' }} />)
+    expect(screen.getByRole('heading', { name: '退会の導線' })).toBeTruthy()
+  })
+
+  it('操作ヒントを常時出す', () => {
+    // KeyHints は各項目を <span> で包み、キー部分をさらに <span class="text-ink"> で
+    // 入れ子にする。getByText の既定マッチャーは直下のテキストノードしか見ないため
+    // 拾えない（子要素のテキストが無視される）。要素の textContent 全体で問い合わせる
+    render(<Harness initial={file([[1, null, '退会できない']])} />)
+    const hintSpan = (text: string) =>
+      screen.getByText((_, element) => element?.tagName === 'SPAN' && element.textContent === text)
+    expect(hintSpan('Enter: 兄弟を追加')).toBeDefined()
+    expect(hintSpan('Tab: 子を追加')).toBeDefined()
+    expect(hintSpan('←→: 親子移動')).toBeDefined()
+    // $alt は KeyHints が解決する。jsdom は mac 判定にならないので Alt になる
+    expect(hintSpan('Alt+↑↓: 並び替え')).toBeDefined()
+  })
+})

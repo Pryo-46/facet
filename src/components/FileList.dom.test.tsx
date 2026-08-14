@@ -91,6 +91,22 @@ describe('FileList', () => {
     expect(screen.getByTitle('C:\\proj')).not.toBeNull()
   })
 
+  it('POSIX パスの先頭 / が末尾へ回らない（頭の省略は dir="rtl" のまま保つ）', () => {
+    // **Windows パスでは再現しない欠陥なので、ここは POSIX パスで確かめる。**
+    // `C:\proj` は先頭が強い LTR の `C` なので双方向アルゴリズムが働かず、
+    // `/Users/me/proj` だけが先頭 `/`（中立文字）を末尾へ回される
+    setup([file('用語集.json')], true, ['glossary'], '/Users/me/proj')
+    const path = screen.getByTitle('/Users/me/proj').querySelector('[dir="rtl"]')
+    expect(path).not.toBeNull()
+    const text = path?.textContent ?? ''
+    // 先頭は強い LTR（U+200E）。ここが `/` のままだと `Users/me/proj/` と描かれる
+    expect(text.startsWith('\u200e')).toBe(true)
+    // 読み上げが読む文字列はパス全体のまま——印を除けば1文字も欠けない
+    expect(text.slice(1)).toBe('/Users/me/proj')
+    // 頭を省く仕掛け（rtl の行末＝左端に省略記号）は残っている
+    expect(path?.className).toContain('truncate')
+  })
+
   it('フォルダ未選択ならパスを出さない', () => {
     setup([file('用語集.json')], true, ['glossary'], null)
     expect(screen.queryByTitle('C:\\proj')).toBeNull()

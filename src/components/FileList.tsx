@@ -26,6 +26,12 @@ export interface FileListProps {
 }
 
 /**
+ * U+200E LEFT-TO-RIGHT MARK。パス表示の先頭に1文字だけ置く（使う理由は使用箇所に書いた）。
+ * **エスケープのまま書くこと**——生の文字は幅を持たず、差分でもエディタでも見えない
+ */
+const LTR_MARK = '\u200e'
+
+/**
  * ファイル1行。**`useId` を使うために切り出している**——
  * `aria-describedby` は id で結ぶ必要があり、map の中では id を作れない
  */
@@ -122,8 +128,17 @@ export function FileList(props: FileListProps) {
           title={props.projectDir}
         >
           <Folder aria-hidden className="size-3.5 shrink-0" />
-          {/* 末尾（フォルダ名）の方が手がかりになるので、頭を省く */}
+          {/* 末尾（フォルダ名）の方が手がかりになるので、頭を省く。省略記号を
+              左端に出すのは `dir="rtl"` の仕事（行の終端＝左になる）。
+              **中身の先頭には LTR_MARK が要る。** `/Users/me/proj` の先頭 `/` は
+              中立文字で、両隣が「行頭（RTL 基準）」と「U（LTR）」で食い違うため
+              双方向アルゴリズムの規則 N2 で埋め込み方向（RTL）に倒れ、
+              並べ替えの結果 `Users/me/proj/` と描かれる。`C:\proj` は先頭が
+              強い LTR なのでこの症状が出ない——Windows のパスだけで確かめないこと。
+              強い LTR を1文字前置すると先頭 `/` の両隣が LTR で揃い（規則 N1）、
+              全体が1つの LTR 実行に収まる。文字自体は幅ゼロで読み上げも素通りする */}
           <span className="min-w-0 flex-1 truncate text-left" dir="rtl">
+            {LTR_MARK}
             {props.projectDir}
           </span>
         </div>
