@@ -16,13 +16,20 @@ describe('logicTreeModule', () => {
     expect(logicTreeModule.singleton).toBe(false)
   })
 
-  it('createEmpty はスキーマ検証を通り、正規形で書ける', () => {
-    // ノード0件で作る。最初の1ノードは空状態の「クリックして開始」で生まれる
+  it('createEmpty はルート1件で作り、スキーマ検証を通る', () => {
+    // 空状態の「クリックして開始」を廃止したので、最初の1ノードは雛形が持つ
     const empty = logicTreeModule.createEmpty('ロジックツリー')
-    expect(empty.nodes).toEqual([])
+    expect(empty.nodes).toHaveLength(1)
+    expect(empty.nodes[0].parentId).toBe(null)
+    expect(empty.nodes[0].text).toBe('')
     expect(validate(empty).ok).toBe(true)
+    expect(logicTreeModule.checkConsistency(empty)).toEqual([])
+  })
+
+  it('createEmpty は正規形で書ける', () => {
+    const empty = logicTreeModule.createEmpty('ロジックツリー')
     expect(serialize(empty, logicTreeModule.schema)).toBe(
-      '{\n  "schemaVersion": 1,\n  "type": "logicTree",\n  "title": "ロジックツリー",\n  "nodes": []\n}\n',
+      `{\n  "schemaVersion": 1,\n  "type": "logicTree",\n  "title": "ロジックツリー",\n  "nodes": [\n    {\n      "id": "${empty.nodes[0].id}",\n      "parentId": null,\n      "text": ""\n    }\n  ]\n}\n`,
     )
   })
 

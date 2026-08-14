@@ -88,17 +88,17 @@ describe('LogicTreeEditor（描画）', () => {
     expect(onChange.mock.calls[0][0].nodes[0].text).toBe('退会')
   })
 
-  it('空の状態では「クリックして開始」を出し、押すとルートができてフォーカスが乗る', () => {
+  it('ノード0件のときは「ノードを追加」を出し、押すとルートができてフォーカスが乗る', () => {
     render(<Harness initial={file([])} />)
-    fireEvent.click(screen.getByRole('button', { name: 'クリックして開始' }))
+    fireEvent.click(screen.getByRole('button', { name: 'ノードを追加' }))
     const node = screen.getByLabelText('ノード1')
     expect(node).toBeDefined()
     expect(document.activeElement).toBe(node)
   })
 
-  it('ノードがあるときは「クリックして開始」を出さない', () => {
+  it('ノードがあるときは「ノードを追加」を出さない', () => {
     render(<Harness initial={file([[1, null, 'x']])} />)
-    expect(screen.queryByRole('button', { name: 'クリックして開始' })).toBe(null)
+    expect(screen.queryByRole('button', { name: 'ノードを追加' })).toBe(null)
   })
 
   it('整合性検証の指摘を画面に出す', () => {
@@ -168,9 +168,9 @@ describe('LogicTreeEditor（描画）', () => {
   })
 
   it('ノードのレイヤは操作を通し、ノードの矩形だけが受ける', () => {
-    // レイヤはツリー順で空状態のボタンより上に来る透明な面なので、
+    // レイヤはツリー順で帯のボタンより上に来る透明な面なので、
     // pointer-events を切らないと中央のヒットテストを奪って
-    // 「クリックして開始」が押せなくなる（jsdom はヒットテストを
+    // 「ノードを追加」が押せなくなる（jsdom はヒットテストを
     //  持たないため、クリックのテストではこの退行を検出できない）
     const { container } = render(<Harness initial={file([[1, null, 'x']])} />)
     const layer = container.querySelector('[data-layer="nodes"]')
@@ -409,14 +409,6 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     expect(root.className).toContain('cursor-grab')
     fireEvent.keyUp(window, { code: 'Space', key: ' ' })
     expect(root.className).not.toContain('cursor-grab')
-  })
-
-  it('空状態の「クリックして開始」は Space で押せる（キャンバスの中のボタン）', () => {
-    // このボタンは containerRef の**内側**にある。Space を「キャンバスの外か」で
-    // 判定すると、**ロジックツリーを開いて最初に出会う画面**でボタンが死ぬ
-    render(<Harness initial={file([])} />)
-    screen.getByRole('button', { name: 'クリックして開始' }).focus()
-    expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(true)
   })
 
   it('モーダルが開いている間はキャンバスの Space も止まる', () => {
