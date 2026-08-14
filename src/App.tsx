@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { PanelLeft, PanelRight, Redo2, Undo2 } from 'lucide-react'
+import { Moon, PanelLeft, Redo2, Sun, SquareTerminal, Undo2 } from 'lucide-react'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ExportMenu } from '@/components/ExportMenu'
@@ -553,11 +553,8 @@ function App() {
             onExport={(profile) => void controller.exportMarkdown(profile)}
           />
         </div>
-        {projectDir && (
-          <span className="min-w-0 flex-1 truncate text-sm text-ink-muted" title={projectDir}>
-            {projectDir}
-          </span>
-        )}
+        {/* 伸縮はこの空きが引き受ける。パスはファイル一覧の直上（FileList）へ移した */}
+        <div className="min-w-0 flex-1" />
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <button
             type="button"
@@ -583,14 +580,22 @@ function App() {
               if (next && terminals.sessions.length === 0) void openTerminal()
             }}
           >
-            <PanelRight aria-hidden className="size-4" />
+            <SquareTerminal aria-hidden className="size-4" />
           </button>
+          {/* 名前は「今どちらか」でなく「押すとどうなるか」。アイコンだけの
+              ボタンは押す前に結果が読めないと意味が取れない */}
           <button
             type="button"
-            className={`${buttonBase} text-sm text-ink-muted underline`}
+            aria-label={dark ? 'ライトにする' : 'ダークにする'}
+            title={dark ? 'ライトにする' : 'ダークにする'}
+            className={`${buttonBase} p-1 text-ink-muted`}
             onClick={toggleTheme}
           >
-            {dark ? 'ライト' : 'ダーク'}
+            {dark ? (
+              <Sun aria-hidden className="size-4" />
+            ) : (
+              <Moon aria-hidden className="size-4" />
+            )}
           </button>
         </div>
       </header>

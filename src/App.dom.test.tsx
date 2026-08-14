@@ -310,3 +310,20 @@ describe('アプリ終了', () => {
     expect(killAllPtysMock).not.toHaveBeenCalled()
   })
 })
+
+describe('額縁の帯', () => {
+  it('ヘッダーはフォルダのパスを出さない（ファイル一覧の直上へ移した）', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Claude Code ペインを開く' }).hasAttribute('disabled')).toBe(false)
+    })
+    expect(document.querySelector('header')?.textContent).not.toContain('/proj')
+  })
+
+  it('テーマ切替はアイコンボタンで、押すと何が起きるかを名前が言う', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'ダークにする' }))
+    expect(screen.getByRole('button', { name: 'ライトにする' })).toBeTruthy()
+  })
+})
