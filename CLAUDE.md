@@ -60,7 +60,7 @@ git branch -r --contains <ブランチの先頭コミット>   # origin/main が
 worktree の実体は `node_modules` と `src-tauri/target` で数 GB になる。`ExitWorktree` がディレクトリを消しきれないことがあり、`.claude/worktrees/` に空の殻が溜まる。
 
 ```
-rm -rf .claude/worktrees/*
+rm -rf .claude/worktrees/<今回作成したWorktreeフォルダ>/*
 git worktree prune          # 登録だけ残った幽霊を消す
 git worktree list           # 主チェックアウトだけになること
 ```
