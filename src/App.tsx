@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { PanelLeft, PanelRight } from 'lucide-react'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ExportMenu } from '@/components/ExportMenu'
+import { FileHeader } from '@/components/FileHeader'
 import { EDITOR_MIN_WIDTH, PANE_MIN_WIDTH, PaneSplitter } from '@/components/PaneSplitter'
 import { TerminalPane } from '@/components/TerminalPane'
 import { buttonBase } from '@/components/button-styles'
@@ -19,6 +20,7 @@ import {
 import { createAutoSaver } from '@/core/autosave'
 import { createCoalescer } from '@/core/coalesce'
 import { createColumnWidthStore, resizeColumns } from '@/core/column-resize'
+import { groupFiles } from '@/core/file-grouping'
 import { canCreateFileOfType } from '@/core/file-ops'
 import {
   canRedo,
@@ -32,6 +34,7 @@ import {
 import { isOutsideGlobalLayer } from '@/core/keyboard/global-layer'
 import { resolveCommand, toKeyEventLike, type KeyContext } from '@/core/keyboard/keymap'
 import { currentPlatform } from '@/core/keyboard/platform'
+import { titleOf, withTitle } from '@/core/load'
 import { dropModal, pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
 import type { ProjectFile } from '@/core/project-file'
 import { READING_GUIDE_FILENAME, syncReadingGuide } from '@/core/reading-guide'
@@ -419,6 +422,10 @@ function App() {
     selected && selected.result.status === 'editable'
       ? appRegistry.get(selected.result.type)
       : undefined
+  // **`appRegistry.list()` を JSX の中で呼ばないこと。** 毎レンダーで新しい
+  // 配列が返るため、下の groups の useMemo が毎回作り直しになる
+  const modules = useMemo(() => appRegistry.list(), [])
+  const groups = useMemo(() => groupFiles(files, modules), [files, modules])
   // 走査済み全ファイルの type（読めなかったファイルは null）。singleton 判定は
   // 型でなく物理条件（type が2件以上）なので、rejected/listOnly の type も含める
   const existingTypes = files.map((f) => f.result.type)
@@ -586,9 +593,9 @@ function App() {
         {sidebarOpen && (
           <aside className="w-64 shrink-0 overflow-y-auto border-r border-rule bg-surface">
             <FileList
-              files={files}
+              groups={groups}
               selectedPath={selectedPath}
-              modules={appRegistry.list()}
+              modules={modules}
               existingTypes={existingTypes}
               projectOpen={projectDir !== null}
               onSelect={(file) => void controller.selectFile(file.path)}
@@ -601,63 +608,87 @@ function App() {
         {/* 幅を測る対象はエディタとペインの区間だけ（サイドバーの開閉に幅の
             上限計算が影響されないよう、splitRef はこの内側の div に置く） */}
         <div ref={splitRef} className="flex min-h-0 min-w-0 flex-1">
-          <section className="min-w-0 flex-1 overflow-auto">
-            {selected === null && (
-              <div className="p-6">
-                <p className="text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
-                {projectDir !== null && canCreateGlossary && glossaryModule !== undefined && (
-                  <div className="mt-4">
-                    <p className="text-sm text-ink-muted">
-                      このプロジェクトにはまだ用語集がありません（新規プロジェクトでは正常な状態です）。
-                    </p>
-                    <button
-                      type="button"
-                      className={`${buttonBase} mt-2 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
-                      onClick={() => void controller.ensureFileOfType(glossaryModule)}
-                    >
-                      用語集を作る
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            {selected && selected.result.status !== 'editable' && selected.issues.length > 0 && (
-              <ul className="list-disc px-6 pt-4 pl-10 text-sm text-warning">
-                {selected.issues.map((issue, i) => (
-                  <li key={`${issue.rule}-${i}`}>{issue.message}</li>
-                ))}
-              </ul>
-            )}
-            {selected?.result.status === 'rejected' && (
-              <div className="p-6">
-                <h2 className="mb-2 font-bold text-warning">
-                  このファイルは開けません（{selected.result.reason}）
-                </h2>
-                <ul className="list-disc pl-5 text-sm text-ink">
-                  {selected.result.errors.map((err) => (
-                    <li key={err}>{err}</li>
-                  ))}
-                </ul>
-                <p className="mt-3 text-sm text-ink-muted">
-                  外部エディタで修正してからフォルダを開き直してください。
-                </p>
-              </div>
-            )}
-            {selected?.result.status === 'listOnly' && (
-              <p className="p-6 text-sm text-ink-muted">{selected.result.reason}</p>
-            )}
-            {selected?.result.status === 'editable' && selectedModule && editingData !== null && (
-              <selectedModule.Editor
-                key={selected.path}
-                data={editingData}
-                issues={selected.issues}
-                modalOpen={modalOpen}
-                onChange={(next: unknown, mergeKey?: string | null) => {
-                  setHistory((h) => (h === null ? h : record(h, next, mergeKey ?? null, Date.now())))
-                  controller.applyEdit(selected.path, selectedModule, next)
+          <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            {selected !== null && (
+              <FileHeader
+                title={
+                  selected.result.status === 'editable' && editingData !== null
+                    ? titleOf(editingData)
+                    : (selected.result.title ?? '')
+                }
+                fileName={selected.name}
+                typeLabel={selectedModule?.displayName ?? null}
+                editable={selected.result.status === 'editable' && editingData !== null}
+                onTitleChange={(next) => {
+                  if (editingData === null || selectedModule === undefined) return
+                  const updated = withTitle(editingData, next)
+                  // エディタの onChange と同じ2本立て。**片方だけにしないこと**
+                  //（record が無いと Undo が効かず、applyEdit が無いと保存されない）
+                  setHistory((h) =>
+                    h === null ? h : record(h, updated, 'title', Date.now()),
+                  )
+                  controller.applyEdit(selected.path, selectedModule, updated)
                 }}
               />
             )}
+            <div className="min-h-0 flex-1 overflow-auto">
+              {selected === null && (
+                <div className="p-6">
+                  <p className="text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
+                  {projectDir !== null && canCreateGlossary && glossaryModule !== undefined && (
+                    <div className="mt-4">
+                      <p className="text-sm text-ink-muted">
+                        このプロジェクトにはまだ用語集がありません（新規プロジェクトでは正常な状態です）。
+                      </p>
+                      <button
+                        type="button"
+                        className={`${buttonBase} mt-2 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
+                        onClick={() => void controller.ensureFileOfType(glossaryModule)}
+                      >
+                        用語集を作る
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {selected && selected.result.status !== 'editable' && selected.issues.length > 0 && (
+                <ul className="list-disc px-6 pt-4 pl-10 text-sm text-warning">
+                  {selected.issues.map((issue, i) => (
+                    <li key={`${issue.rule}-${i}`}>{issue.message}</li>
+                  ))}
+                </ul>
+              )}
+              {selected?.result.status === 'rejected' && (
+                <div className="p-6">
+                  <h2 className="mb-2 font-bold text-warning">
+                    このファイルは開けません（{selected.result.reason}）
+                  </h2>
+                  <ul className="list-disc pl-5 text-sm text-ink">
+                    {selected.result.errors.map((err) => (
+                      <li key={err}>{err}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 text-sm text-ink-muted">
+                    外部エディタで修正してからフォルダを開き直してください。
+                  </p>
+                </div>
+              )}
+              {selected?.result.status === 'listOnly' && (
+                <p className="p-6 text-sm text-ink-muted">{selected.result.reason}</p>
+              )}
+              {selected?.result.status === 'editable' && selectedModule && editingData !== null && (
+                <selectedModule.Editor
+                  key={selected.path}
+                  data={editingData}
+                  issues={selected.issues}
+                  modalOpen={modalOpen}
+                  onChange={(next: unknown, mergeKey?: string | null) => {
+                    setHistory((h) => (h === null ? h : record(h, next, mergeKey ?? null, Date.now())))
+                    controller.applyEdit(selected.path, selectedModule, next)
+                  }}
+                />
+              )}
+            </div>
           </section>
 
           {paneOpen && projectDir !== null && (
