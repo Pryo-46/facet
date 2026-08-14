@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { CellInput } from '@/components/CellInput'
@@ -696,42 +697,38 @@ export function SequenceEditor({
             ))}
           </ul>
         )}
-        {data.actors.length > 0 && (
-          <div className="pointer-events-none m-2 flex gap-2">
-            <button
-              type="button"
-              className={`${buttonBase} pointer-events-auto border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
-              onClick={() => apply(addStepLast(data), 'from')}
-            >
-              ステップを追加
-            </button>
-            {/* マウスだけの人の唯一の参加者追加手段（sequence M3 で from/to のインライン作成を外したため） */}
-            <button
-              type="button"
-              className={`${buttonBase} pointer-events-auto border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
-              onClick={() => apply(addActorAfter(data, data.actors.length - 1))}
-            >
-              参加者を追加
-            </button>
-          </div>
-        )}
+        {/* **参加者0人でも出す。** 空状態の中央ボタンを廃止したので、
+            既存の0人ファイルを開いたときの唯一のマウス動線がここになる */}
+        <div className="pointer-events-none m-2 flex gap-2">
+          <button
+            type="button"
+            className={`${buttonBase} pointer-events-auto gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            onClick={() => apply(addStepLast(data), 'from')}
+          >
+            <Plus aria-hidden className="size-4" />
+            ステップを追加
+          </button>
+          {/* マウスだけの人の唯一の参加者追加手段（sequence M3 で from/to のインライン作成を外したため） */}
+          <button
+            type="button"
+            className={`${buttonBase} pointer-events-auto gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            onClick={() =>
+              apply(
+                data.actors.length === 0
+                  ? addFirstActor(data)
+                  : addActorAfter(data, data.actors.length - 1),
+              )
+            }
+          >
+            <Plus aria-hidden className="size-4" />
+            参加者を追加
+          </button>
+        </div>
         {/* 操作ヒント。**額縁の帯の中に置き、self-end で右寄せする**——
             transform の外側なのでズームと独立に読め、フローに乗せているので
             バナー（issues banner）が出ているときはその下に押し出され重ならない */}
         <KeyHints hints={SEQ_HINTS} className="self-end p-2" />
       </div>
-
-      {data.actors.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <button
-            type="button"
-            className={`${buttonBase} border border-rule bg-surface px-4 py-2 text-sm text-ink hover:bg-canvas`}
-            onClick={() => apply(addFirstActor(data))}
-          >
-            クリックして開始
-          </button>
-        </div>
-      )}
 
       {/* 背景レイヤ: ライフライン・責任境界の縦線・行全体の赤表示
           （ゾーン導入時はその帯もこの層に載る） */}
@@ -782,11 +779,9 @@ export function SequenceEditor({
 
       <SequenceEdges steps={edgeSteps} layout={layout} transform={transform} />
 
-      {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面で、
-          ツリー順では空状態のボタンより後ろ（＝上）に来る。z-index はどちらも
-          auto なので、pointer-events を切らないと中央のヒットテストを
-          この面が奪い、「クリックして開始」が押せなくなる。操作を受けるのは
-          セルの矩形だけでよいので、各セル側で auto に戻す */}
+      {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面。
+          pointer-events を切らないと帯のボタンのヒットテストをこの面が奪う。
+          操作を受けるのはセルの矩形だけでよいので、各セル側で auto に戻す */}
       <div
         className="pointer-events-none absolute inset-0 origin-top-left"
         style={{ transform: cssTransform(transform) }}

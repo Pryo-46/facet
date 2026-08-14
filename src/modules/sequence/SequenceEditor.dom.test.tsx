@@ -66,9 +66,10 @@ function last(onChange: ReturnType<typeof vi.fn>): SequenceSchemaVersion1 {
 }
 
 describe('空状態', () => {
-  it('「クリックして開始」で最初の参加者ができる', () => {
+  it('参加者0人でもツールバーから参加者を足せる（空状態のボタンは無い）', () => {
     const { onChange } = setup({ ...doc(), actors: [], steps: [] })
-    fireEvent.click(screen.getByRole('button', { name: 'クリックして開始' }))
+    expect(screen.queryByRole('button', { name: 'クリックして開始' })).toBe(null)
+    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
     expect(last(onChange).actors).toHaveLength(1)
   })
 
@@ -104,9 +105,11 @@ describe('参加者を追加ボタン', () => {
     expect(document.activeElement?.getAttribute('aria-label')).toBe('参加者4の名前')
   })
 
-  it('参加者が0人のときは「参加者を追加」ボタンを出さない（「クリックして開始」が入口）', () => {
-    setup({ ...doc(), actors: [], steps: [] })
-    expect(screen.queryByRole('button', { name: '参加者を追加' })).toBeNull()
+  it('参加者が0人のときも「参加者を追加」ボタンが出て、最初の参加者ができる（空状態のボタンを廃止したため）', () => {
+    const { onChange } = setup({ ...doc(), actors: [], steps: [] })
+    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
+    expect(last(onChange).actors).toHaveLength(1)
+    expect(last(onChange).actors[0].name).toBe('')
   })
 })
 

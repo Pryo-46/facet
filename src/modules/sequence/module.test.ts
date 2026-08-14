@@ -11,6 +11,13 @@ describe('sequenceModule', () => {
     expect(sequenceModule.checkConsistency(empty)).toEqual([])
   })
 
+  it('createEmpty は参加者1人で作る（空状態のボタンを廃止したため）', () => {
+    const empty = sequenceModule.createEmpty('新しいシーケンス')
+    expect(empty.actors).toHaveLength(1)
+    expect(empty.actors[0].name).toBe('')
+    expect(empty.steps).toEqual([])
+  })
+
   it('出力プロファイルは1本（図と表を1つの Markdown にまとめる）', () => {
     expect(sequenceModule.outputs).toHaveLength(1)
     expect(sequenceModule.outputs[0].id).toBe('default')

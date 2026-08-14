@@ -3,6 +3,7 @@ import type { JsonSchema } from '@/core/canonical'
 import type { ToolModule } from '@/core/registry'
 import type { SequenceSchemaVersion1 } from '@/types/sequence'
 import sequenceSchema from '../../../schemas/sequence.schema.json'
+import { addFirstActor } from './commands'
 import { checkSequenceConsistency } from './consistency'
 import { describeSequenceIssueEffect, sequenceToMarkdown } from './markdown'
 import { migrateSequence } from './migrate'
@@ -33,6 +34,9 @@ export const sequenceModule: ToolModule<SequenceSchemaVersion1> = {
   // プロジェクトにシーケンスは何本あってもよい（機能ごとに分けるのが普通の使い方）
   singleton: false,
   migrate: migrateSequence,
-  // 参加者0人で作る。最初の1人は空状態の「クリックして開始」で生まれる
-  createEmpty: (title) => ({ schemaVersion: 1, type: 'sequence', title, actors: [], steps: [] }),
+  // **参加者1人で作る。** 空状態の「クリックして開始」を廃止したので、
+  // 最初の1人は雛形が持つ。ID の採番は commands.ts の1箇所に保つため
+  // addFirstActor を通す（ここで newId を直接呼ばない）
+  createEmpty: (title) =>
+    addFirstActor({ schemaVersion: 1, type: 'sequence', title, actors: [], steps: [] }).data,
 }
