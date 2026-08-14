@@ -121,7 +121,16 @@ export async function syncBundledSkills(
           if (!isRemovableSkillEntry(name)) continue
           try {
             await io.removeEntry(await io.join(root, name))
-          } catch {
+          } catch (err: unknown) {
+            // **握りつぶすが、黙らない（レビュー指摘）。** これは「恒久的な
+            // 破損」を「古いファイルが1つ残る」へ落とす取引なので、起きた
+            // ことは追えるようにしておく。トーストには上げない——mac の
+            // `.DS_Store` は消せなくて当たり前で、利用者に見せる異常ではない
+            console.warn(
+              `Skill の古い要素を消せませんでした（残したまま置き直します）: ${skill}/${name}: ${
+                err instanceof Error ? err.message : String(err)
+              }`,
+            )
             // **1件消せなくても置き直しは続ける（レビュー指摘）。** 削除は
             // 掃除であって目的ではない。ここで投げると「消えかけたまま
             // 書き戻されない」——#43 と同じ形の恒久的な破損が、一段あとに

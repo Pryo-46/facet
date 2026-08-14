@@ -28,7 +28,12 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 /**
  * `skillCalls` は「Skill の同期がいつ走ったか」を順番ごと記録する口。
  * 呼ばれた回数だけでなく `allowSkillDir` → `syncBundledSkills` の順序も
- * 見たいので、2つのモックが同じ配列へ積む
+ * 見たいので、2つのモックが同じ配列へ積む。
+ *
+ * `pickedFolder` は「フォルダを開く」で選ばれるフォルダ。既定は `/proj` で、
+ * **A→B→A を組みたいテストだけ**が書き換える（`afterEach` で戻す）。
+ * `syncGate` は同期を途中で止めておく口——「まだ終わっていない同期」が
+ * 無いと重複排除は観測できない
  */
 const {
   closeState,
@@ -37,6 +42,8 @@ const {
   ptyKillMock,
   ptyExitHandlers,
   skillCalls,
+  pickedFolder,
+  syncGate,
 } = vi.hoisted(() => ({
   closeState: { callback: null as (() => Promise<boolean>) | null },
   killAllPtysMock: vi.fn(async () => undefined),
@@ -44,10 +51,12 @@ const {
   ptyKillMock: vi.fn(async () => undefined),
   ptyExitHandlers: new Map<number, (code: number | null) => void>(),
   skillCalls: [] as string[],
+  pickedFolder: { value: '/proj' },
+  syncGate: { promise: null as Promise<void> | null, release: null as (() => void) | null },
 }))
 
 vi.mock('@/fs/project-fs', () => ({
-  pickProjectFolder: async () => '/proj',
+  pickProjectFolder: async () => pickedFolder.value,
   listJsonFiles: async () => [],
   readProjectFile: async () => '',
   writeProjectFile: async () => undefined,
@@ -91,6 +100,8 @@ vi.mock('@/core/skill-sync', async (orig) => ({
   ...(await orig<typeof import('@/core/skill-sync')>()),
   syncBundledSkills: async (dir: string) => {
     skillCalls.push(`sync:${dir}`)
+    // 既定（`promise` が null）では素通り。gate が張られている間だけ止まる
+    await syncGate.promise
   },
 }))
 // `requestClose` の結果をテストから直接差し込むための薄いラッパー。
@@ -154,6 +165,22 @@ afterEach(() => {
   ptyKillMock.mockClear()
   skillCalls.length = 0
 })
+/**
+ * **止めたままの同期を次のテストへ持ち越さない（レビュー指摘）。**
+ * 重複排除の台帳（`App.tsx` の `skillSyncInFlight`）はモジュール変数なので
+ * テスト間で共有される。gate で止めた同期を残すと、そのフォルダは次のテストで
+ * 「まだ走っている」扱いになり、**同期が黙って走らなくなる**。
+ * テスト本体ではなくここで開けるのは、assertion で落ちた場合も必ず通すため
+ */
+afterEach(async () => {
+  syncGate.release?.()
+  syncGate.promise = null
+  syncGate.release = null
+  pickedFolder.value = '/proj'
+  // 台帳から消えるのは同期が解決したあとの `.finally`。マクロタスクを1回
+  // 挟んで、溜まっているマイクロタスクを全部流してから次のテストへ渡す
+  await new Promise((resolve) => setTimeout(resolve, 0))
+})
 
 /**
  * 端末ペインの中の要素を返す。**`role="tablist"` は名乗っていない**
@@ -202,6 +229,37 @@ describe('Skill の同期のタイミング', () => {
     // mac では `.claude/` がダイアログ由来の scope に入らないので、
     // allowSkillDir が先でないと同期の最初の exists で落ちる
     await waitFor(() => expect(skillCalls).toEqual(['allow:/proj', 'sync:/proj']))
+  })
+
+  /**
+   * 重複排除（`App.tsx` の `skillSyncInFlight`）。**同期が終わる前に別の
+   * フォルダへ切り替えて戻る**と、同じフォルダの同期が2本並走しうる。
+   * 置き直しは冪等ではないので、並走すると片方の削除ループが相手の書き込みを
+   * 追い越し、置いたばかりの `scripts/` を消してしまう。
+   *
+   * **この経路を塞いでいるのは重複排除だけ**——1件ごとの削除失敗を握りつぶす
+   * ようにした（＝もう中断しない）ぶん、並走時に相手を壊す窓はむしろ開いた
+   */
+  it('**同期の途中で戻ってきても、同じフォルダを二重に同期しない**', async () => {
+    syncGate.promise = new Promise<void>((resolve) => {
+      syncGate.release = resolve
+    })
+    pickedFolder.value = '/a'
+    render(<App />)
+    const open = screen.getByRole('button', { name: 'フォルダを開く' })
+    fireEvent.click(open)
+    // /a の同期が始まり、gate で止まったまま先へ進まない
+    await waitFor(() => expect(skillCalls).toContain('sync:/a'))
+    pickedFolder.value = '/b'
+    fireEvent.click(open)
+    await waitFor(() => expect(skillCalls).toContain('sync:/b'))
+    // まだ終わっていない /a へ戻る
+    pickedFolder.value = '/a'
+    fireEvent.click(open)
+    await waitFor(() => expect(screen.getByText('/a')).toBeTruthy())
+    // 走っている同期に合流するだけで、2本目は始まらない
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(skillCalls).toEqual(['allow:/a', 'sync:/a', 'allow:/b', 'sync:/b'])
   })
 
   it('**タブを追加しても走らない**', async () => {

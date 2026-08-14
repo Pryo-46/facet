@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   BUNDLED_SKILLS,
   isRemovableSkillEntry,
@@ -35,6 +35,11 @@ function fakeIo(existing: string[] = [], entries: string[] = ['SKILL.md', 'scrip
   }
   return { io, removed, written, dirs }
 }
+
+// console.warn の差し替えを次のテストへ持ち越さない（assertion で落ちても戻す）
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 describe('syncBundledSkills', () => {
   it('同梱 Skill を .claude/skills/<名前>/ へ置く', async () => {
@@ -103,6 +108,7 @@ describe('syncBundledSkills', () => {
         await io.removeEntry(path)
       },
     }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     await syncBundledSkills('/proj', withForbidden, ['glossary-term-register'])
     // 消せた方は消え（ループが止まっていない）、
     expect(removed).toEqual(['/proj/.claude/skills/glossary-term-register/SKILL.md'])
@@ -111,6 +117,10 @@ describe('syncBundledSkills', () => {
       '/proj/.claude/skills/glossary-term-register/SKILL.md',
       '/proj/.claude/skills/glossary-term-register/scripts/write.mjs',
     ])
+    // **握りつぶすが黙らない。** 現場で追えるよう、どの要素がなぜ消せなかったかを残す
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]?.[0])).toContain('glossary-term-register/.DS_Store')
+    expect(String(warn.mock.calls[0]?.[0])).toContain('forbidden path')
   })
 
   it('**ユーザーが置いた Skill には触らない**', async () => {
