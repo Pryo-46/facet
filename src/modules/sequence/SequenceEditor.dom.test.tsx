@@ -523,13 +523,18 @@ describe('レール（行の左端の編集セル列）', () => {
 
 describe('操作ヒントとラベルの面', () => {
   it('操作ヒントが常時表示される', () => {
-    // getByText の既定ノーマライザは textContent 側の空白（全角スペース含む）を
-    // 単一の半角スペースへ畳むが、matcher 文字列そのものは畳まない
-    // （testing-library/dom の matches()）。畳んだ形で問い合わせる
+    // KeyHints は各項目を <span> で包み、キー部分をさらに <span class="text-ink"> で
+    // 入れ子にする。getByText の既定マッチャーは直下のテキストノードしか見ないため
+    // 拾えない（子要素のテキストが無視される）。要素の textContent 全体で問い合わせる
     setup()
-    expect(
-      screen.getByText('Enter: ステップ追加 Tab: セル移動 Ctrl+Enter: 考慮不要 Alt+↑↓: 並び替え'),
-    ).toBeDefined()
+    const hintSpan = (text: string) =>
+      screen.getByText(
+        (_, element) => element?.tagName === 'SPAN' && element.textContent === text,
+      )
+    expect(hintSpan('Enter: ステップ追加')).toBeDefined()
+    expect(hintSpan('Tab: セル移動')).toBeDefined()
+    expect(hintSpan('Ctrl+Enter: 考慮不要')).toBeDefined()
+    expect(hintSpan('Alt+↑↓: 並び替え')).toBeDefined()
   })
 
   it('通常時のラベルセルは不透明の面（bg-surface）を持つ（入力できる見た目のため）', () => {

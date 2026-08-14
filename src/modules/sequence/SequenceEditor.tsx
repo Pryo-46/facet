@@ -2,7 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { CellInput } from '@/components/CellInput'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { KeyHints } from '@/components/KeyHints'
 import { buttonBase } from '@/components/button-styles'
+import type { KeyHint } from '@/core/keyboard/hint-text'
 import {
   resolveCommand,
   toKeyEventLike,
@@ -78,6 +80,14 @@ const MEASURE_CACHE_LIMIT = 2000
 
 /** 図の文字に当たるクラスのうち、フォントを決めている部分。見本要素と共有する */
 const SEQ_FONT_CLASS = 'text-sm'
+
+/** ガターと図の操作ヒント。`$mod` / `$alt` は KeyHints が解決する */
+const SEQ_HINTS: readonly KeyHint[] = [
+  { keys: 'Enter', label: 'ステップ追加' },
+  { keys: 'Tab', label: 'セル移動' },
+  { keys: '$mod+Enter', label: '考慮不要' },
+  { keys: '$alt+↑↓', label: '並び替え' },
+]
 
 const PLATFORM = currentPlatform()
 
@@ -708,9 +718,7 @@ export function SequenceEditor({
         {/* 操作ヒント。**額縁の帯の中に置き、self-end で右寄せする**——
             transform の外側なのでズームと独立に読め、フローに乗せているので
             バナー（issues banner）が出ているときはその下に押し出され重ならない */}
-        <div className="self-end p-2 text-xs text-ink-muted">
-          Enter: ステップ追加　Tab: セル移動　Ctrl+Enter: 考慮不要　Alt+↑↓: 並び替え
-        </div>
+        <KeyHints hints={SEQ_HINTS} className="self-end p-2" />
       </div>
 
       {data.actors.length === 0 && (
