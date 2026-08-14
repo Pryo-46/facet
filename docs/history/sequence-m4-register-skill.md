@@ -50,7 +50,7 @@ sequence M4 は「**仕様を詰める会話の最後に『じゃあこれでシ
 
 **手複製との質の差はここにある。** ズレたらテストが赤くなる。しかも `src/core/canonical.ts` のヘッダは以前から「Skill 側の `glossary-write.mjs` とバイト単位で同一の出力を返すこと」を要求していたので、**コピーにすればその要求が（少なくともこの Skill については）構造的に満たされる**。
 
-コピーできる根拠は実測で確かめてある——`questions.ts` の import は `import type { SequenceStep } from '@/types/sequence'` の1本だけで、型 import は型ストリップで消えるため `@/` エイリアスの解決が要らない。`canonical.ts` は import を1本も持たない。対照的に `consistency.ts` は `from './questions'`（拡張子なし）を持つため Node から直接読めない——**`consistency.ts` 側の import を `./questions.ts` に直す案は却下した**。アプリのソースを Skill の都合で曲げることになるため。整合性検証の5ルールは `sequence-write.mjs` 側の手実装である。
+コピーできる根拠は実測で確かめてある——`questions.ts` の import は `import type { SequenceStep } from '@/types/sequence'` の1本だけで、型 import は型ストリップで消えるため `@/` エイリアスの解決が要らない。`canonical.ts` は import を1本も持たない。対照的に `consistency.ts` は `from './questions'`（拡張子なし）を持つため Node から直接読めない——**`consistency.ts` 側の import を `./questions.ts` に直す案は却下した**。アプリのソースを Skill の都合で曲げることになるため。整合性検証の5ルールのうち**手実装は4つ**（参照切れ・ID重複・`to` の過不足・`from`==`to`。いずれも構造検査）で、残る「立っていない問いへの答え」は `Q.unposedAnswers` の import で済んでいる——**コピー方式が効いているのはまさにここ**である（`sequence-write.mjs` のヘッダにこの内訳が書いてある）。
 
 代償は open-issues が `palette-fit.mjs` について記録しているのと同じ「Node の型ストリップへの依存」で、これは残る（`.mjs` から `.ts` を import している）。ただし**こちらは生えた瞬間にテストが赤くなる**点が違い、その差は open-issues の当該項目に併記した。
 
@@ -160,12 +160,12 @@ Skill をプロジェクトへ配置できませんでした（Skill 無しで�
 
 なお **Step 1 の期待値そのものが途中で変わった。** 計画は「`package.json` が**無い**こと」を期待していたが、Task 8c で `package.json` は**置くべきもの**になった（置かないと `npm install` が機能しない）。計画の期待値のほうが誤りだったことになる。
 
-2回目の確認は、**`sample-project/` ではなく任意のユーザーフォルダ**（`~/Documents/facet/untitled folder/`）から行った。`sample-project/` はリポジトリの中にあるので、「利用者が自分のフォルダを開いたときに何が起きるか」の確認としては条件が甘い。**任意のフォルダで動くことがここで初めて確かめられた。**
+2回目の確認は、**`sample-project/` ではなく任意のユーザーフォルダ**（`~/Documents/facet/untitled folder/`）から行った。`sample-project/` はリポジトリの中にあるので、「利用者が自分のフォルダを開いたときに何が起きるか」の確認としては条件が甘い。**リポジトリの外の任意のフォルダでも、配置と実行が成り立つことがここで初めて確かめられた。**（この一文は当初「任意のフォルダで動くことが確かめられた」と書いていたが、確かめられた範囲より広い。**確認機は facet のチェックアウトがある同じマシンである。** `sequence-write.mjs` はスキーマを出力先・cwd・Skill ディレクトリから上へ辿って探すが、`tauri.conf.json` が同梱するのは `.claude/skills` だけで `schemas/` は同梱されない。チェックアウトを持たない利用者の環境ではスキーマに到達できない——これは既存3本の Skill に共通の欠陥で、`open-issues.md` に `[Skill]` として記録した）
 
 報告は全項目通過で、内訳は次のとおり:
 
 - **フォルダを開いた時点で**3本とも配置された（Claude Code タブを開く必要が無い＝同期を `projectDir` の effect へ移した修正が効いている）
-- 置かれたのは `SKILL.md` / `package.json` / `scripts/`（4本）。**`evals/` と `.gitignore` は無い**
+- 置かれたのは `SKILL.md` / `package.json` / `scripts/`（4本）。**`evals/` と `.gitignore` は無い**。なお `package-lock.json` は `shouldSyncSkillFile` の除外対象では**ない**——この回に無かったのは Skill の `.gitignore` が対象にしていて同梱物に入らなかったからで、同梱物にあれば一緒に置かれる（`open-issues.md` の「同期のたびに `package-lock.json` は消える」はこの前提に立っている）
 - **置いた先で `npm install` が成功し `ajv` が入った**（`package.json` を同梱するようにした効果。これが無いと手順書どおりにしても入らなかった）
 - **フォルダを開き直しても `node_modules` が残った**（Task 8b＋8c の修正2）
 - **`.DS_Store` 起因の失敗トーストは出なかった**（握りつぶしが効いている）
@@ -177,13 +177,13 @@ Skill をプロジェクトへ配置できませんでした（Skill 無しで�
 ## 繰り越し（[`../open-issues.md`](../open-issues.md) に記録済み）
 
 - **消せない要素の握りつぶしで、「置いた Skill が同梱物と一致している」が best-effort に落ちた**（新しい版が消したはずの古いファイルが残りうる。画面には何も出ない）
-- **同期のたびに `package-lock.json` は消えるが `node_modules` は残る非対称**と、置いた先で `npm install` すると**利用者のリポジトリに未追跡の `node_modules` が出る**こと（`.gitignore` は開発用として同梱から除外したまま）
+- **同期のたびに `package-lock.json` は消えるが `node_modules` は残る非対称**と、置いた先で `npm install` すると**利用者のリポジトリに未追跡の `node_modules` が出る**こと（`.gitignore` は**同梱はされているが同期から除外**したまま。同梱物には入っている——`bundle.resources` はディレクトリごと同梱し、capabilities の scope が `requireLiteralLeadingDot: false` を持つのはこの `.gitignore` を読めるようにするためである）
 - **既存2本の Skill が `reorder` / `deref` を手で複製したままである**こと（`sequence-register` だけが `canonical.ts` のコピーに寄った）
 - **`sequence` スキーマに `notes` 相当が無く、`failures` を空にした理由がファイルに残らない**こと（報告文で運用する、という設計スペックの判断の帰結）
 
 `open-issues` から**消したもの**は2件——「`syncBundledSkills` が読む前に消す」（Task 8c で解消）と、「2本の Skill の `grade.mjs` で自己位置解決の形が揃っていない」（Task 7 で3本とも `import.meta.url` 起点に揃えた）。「`palette-fit.mjs` が Node の型ストリップに依存している」は**残したまま併記した**——同じ依存が `sequence-write.mjs` にもあるが、こちらだけ機械検査が付いている、という非対称を書いてある。
 
-**なお `open-issues.md` の項目に番号は振られていない。** 本書が項目を**文言で**指しているのはそのためで、番号（レビューの通し番号）で書くと、消えた項目・並びが変わった項目を後から引けなくなる。同じ理由で、`src/core/skill-sync.ts` / `skill-sync.test.ts` のコメントに残っていた `#43` も、このコミットで**文言（「読む前に消す」）へ置き換えた**（コメントのみ。挙動は変えていない）。
+**なお `open-issues.md` の項目に番号は振られていない。** 本書が項目を**文言で**指しているのはそのためで、番号（レビューの通し番号）で書くと、消えた項目・並びが変わった項目を後から引けなくなる。同じ理由で、`src/core/skill-sync.ts` / `skill-sync.test.ts` のコメントに残っていた `#43` も**文言（「読む前に消す」）へ置き換えた**（コメントのみ。挙動は変えていない）。置き換えは本書を書いたコミット（`c7f5be2`。文書のみ）ではなく、後続の2コミットにまたがる——`0e05f79`（`src/core/skill-sync.ts` / `skill-sync.test.ts`）と `4c44dfe`（`src/modules/sequence/skill-copy.test.ts` / `open-issues.md`）の計4ファイルである。
 
 ---
 
