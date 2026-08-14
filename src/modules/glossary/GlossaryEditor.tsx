@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Plus } from 'lucide-react'
 import { CellInput, type FieldState } from '@/components/CellInput'
 import { buttonBase } from '@/components/button-styles'
 import { useColumnResize } from '@/core/column-resize'
@@ -466,9 +467,10 @@ export function GlossaryEditor({
         <button
           ref={rows.addButtonRef}
           type="button"
-          className={`${buttonBase} mt-3 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
+          className={`${buttonBase} mt-3 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
           onClick={() => rows.insertAfter(data.terms.length - 1)}
         >
+          <Plus aria-hidden className="size-4" />
           用語を追加
         </button>
       )}
