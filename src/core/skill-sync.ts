@@ -24,6 +24,19 @@ export const BUNDLED_SKILLS: readonly string[] = [
 ]
 
 /**
+ * Skill が `npm install` で作る依存の置き場（Skill 直下の1件）。
+ *
+ * **同期の除外と削除の保護で、同じ1つの名前を見る。** 二重の意味を持つ:
+ * - 同梱物としては**置かない**（`shouldSyncSkillFile`）
+ * - プロジェクト側にあるものは**消さない**（`isRemovableSkillEntry`）
+ *
+ * 両方が揃って初めて「ユーザーの `npm install` が残る」になる。片方だけだと
+ * `SKILL.md` が指示する「初回のみ `npm install`」が同期のたびに巻き戻り、
+ * スクリプトが `ajv が見つかりません` で落ちる状態へ戻る
+ */
+const SKILL_DEPS_DIR = 'node_modules'
+
+/**
  * 同梱 Skill のファイル（Skill 名からの相対パス、`/` 区切り）を
  * プロジェクトフォルダへ同期してよいかを判定する（純関数）。
  *
@@ -40,28 +53,49 @@ export function shouldSyncSkillFile(path: string): boolean {
   if (path === 'evals' || path.startsWith('evals/')) return false
   if (path === 'package.json') return false
   if (path === '.gitignore') return false
-  if (path === 'node_modules' || path.startsWith('node_modules/')) return false
+  if (path === SKILL_DEPS_DIR || path.startsWith(`${SKILL_DEPS_DIR}/`)) return false
   return true
+}
+
+/**
+ * 置き直しの前に消してよい要素か（Skill ディレクトリ直下の名前で判定する。純関数）。
+ *
+ * **消す目的は「Skill の更新でファイルが減ったときに古いファイルを取り残さない」
+ * こと**であって、ディレクトリを空にすることではない。facet が書いたものは
+ * 消してよいが、ユーザーが `npm install` で作ったものは facet の持ち物ではない
+ */
+export function isRemovableSkillEntry(name: string): boolean {
+  return name !== SKILL_DEPS_DIR
 }
 
 export interface SkillSyncIo {
   /** 同梱 Skill の中身。path は Skill 名からの相対パス（`/` 区切り） */
   readBundled(skill: string): Promise<ReadonlyArray<{ path: string; text: string }>>
   exists(path: string): Promise<boolean>
-  removeDir(path: string): Promise<void>
+  /** `path` 直下の要素の名前（ファイル・ディレクトリの区別なく、名前だけ） */
+  listEntries(path: string): Promise<readonly string[]>
+  /** ファイルでもディレクトリでも消せること（ディレクトリは再帰） */
+  removeEntry(path: string): Promise<void>
   mkdir(path: string): Promise<void>
   writeText(path: string, text: string): Promise<void>
   join(...parts: string[]): Promise<string>
 }
 
 /**
- * 同梱 Skill を置き直す。**消すのは同梱名のディレクトリだけ**——
- * `.claude/skills/` を丸ごと消すとユーザーが自分で置いた Skill も消える。
- * facet が壊してよいのは facet が書いたものに限る
+ * 同梱 Skill を置き直す。**消すのは同梱名のディレクトリの中身だけ**——
+ * `.claude/skills/` を丸ごと消すとユーザーが自分で置いた Skill も消えるし、
+ * 同梱名のディレクトリを丸ごと消すとその中の `node_modules`（利用者が
+ * `npm install` で作ったもの）まで消える。facet が壊してよいのは
+ * facet が書いたものに限る（`isRemovableSkillEntry`）
  *
  * **Skill ごとに独立して処理する**（1本の読み出しが失敗しても他の Skill は
  * 置く）。逐次 for ループで await すると1本目の失敗でループ全体が止まり、
  * 後続の Skill が一切置かれなくなるため、Promise.allSettled で独立させている
+ *
+ * **読んでから消す**（open-issues #43）。先に消してから `readBundled` が
+ * 失敗すると、プロジェクト側の Skill が消えたまま復旧しない。同梱物を
+ * すべてメモリに読み終えてから消しに行けば、「読めなかったから消さない」が
+ * 成り立つ——消したあとに残る失敗要因は書き込みそのものだけになる
  */
 export async function syncBundledSkills(
   projectDir: string,
@@ -71,8 +105,17 @@ export async function syncBundledSkills(
   const results = await Promise.allSettled(
     skills.map(async (skill) => {
       const root = await io.join(projectDir, '.claude', 'skills', skill)
-      if (await io.exists(root)) await io.removeDir(root)
+      // 消すより先に読む（#43）。ここで失敗したら以降へ進まないので、
+      // プロジェクト側の Skill は前回のまま残る
       const files = (await io.readBundled(skill)).filter((file) => shouldSyncSkillFile(file.path))
+      if (await io.exists(root)) {
+        // **丸ごと消さない。** 直下を列挙して facet の持ち物だけを消す
+        //（`node_modules` を巻き込むと利用者の `npm install` が毎回消える）
+        for (const name of await io.listEntries(root)) {
+          if (!isRemovableSkillEntry(name)) continue
+          await io.removeEntry(await io.join(root, name))
+        }
+      }
       for (const file of files) {
         const parts = file.path.split('/')
         const name = parts.pop()

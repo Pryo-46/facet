@@ -194,28 +194,13 @@ function App() {
     })[0] ?? paneWidth[0]
 
   /**
-   * タブを1本足す。**開く直前に必ず Skill を同期する**（設計 決定10）——
-   * Skill の更新・追加が黙って取り残されないようにするため。
-   * 同期に失敗しても起動は続ける（Skill が無くても端末は使える。設計 決定13）
+   * タブを1本足す。**Skill の同期はここでは行わない**——Skill はプロジェクトに
+   * 属するものであって端末セッションに属するものではない。同期は
+   * `projectDir` の effect（下の「同梱 Skill の配置」）がフォルダ1つにつき
+   * 1回だけ走らせる。ここに置くと「＋ タブを追加」を押した回数だけ
+   * 「消して置き直す」が起きる（sequence M4 の実機確認）
    */
-  const openTerminal = async () => {
-    const dir = projectDir
-    if (dir === null) return
-    try {
-      // scope の付与を先に。mac では `.claude/` がダイアログ由来の scope に
-      // 入らないので、これが無いと同期の最初の exists で落ちる
-      await allowSkillDir(dir)
-      await syncBundledSkills(dir, tauriSkillSyncIo, BUNDLED_SKILLS)
-    } catch (err: unknown) {
-      showToast({
-        message: `Skill をプロジェクトへ配置できませんでした（Skill 無しで起動します）: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-        key: 'skill-sync',
-      })
-    }
-    setTerminals((prev) => openSession(prev))
-  }
+  const openTerminal = () => setTerminals((prev) => openSession(prev))
 
   const closeTerminalNow = (id: number) => {
     // **updater の外で殺す。** setState の updater は純粋でなければならない
@@ -440,6 +425,47 @@ function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  /**
+   * 同梱 Skill の配置（設計 決定10）。**フォルダ1つにつき1回**——Skill は
+   * プロジェクトに属するもので、端末セッションの数とは関係が無い。
+   * `projectDir` をキーにした effect にすることで、`openFolder` /
+   * `switchFolder`、そして将来足しうる起動時の復元まで、**フォルダが変わる
+   * すべての経路が自動的に1本にまとまる**（経路を足すたびに同期の呼び出しを
+   * 書き足して回る必要が無い）。
+   *
+   * 同期に失敗しても起動は続ける（Skill が無くても端末は使える。設計 決定13）。
+   *
+   * **後片付けは「トーストを出さない」だけ。** 書き込み先のパスは捕まえた `dir`
+   * から作るので、同期中にフォルダを切り替えても新しいフォルダには一切書かない
+   *（走り切って古いフォルダを置き直して終わるだけで、実害が無い）。
+   * 一方、そのとき失敗のトーストを出すと、ユーザーには**いま開いている**
+   * フォルダの話に読める。だから切り替え後は黙って捨てる
+   */
+  useEffect(() => {
+    const dir = projectDir
+    if (dir === null) return
+    let current = true
+    void (async () => {
+      try {
+        // scope の付与を先に。mac では `.claude/` がダイアログ由来の scope に
+        // 入らないので、これが無いと同期の最初の exists で落ちる
+        await allowSkillDir(dir)
+        await syncBundledSkills(dir, tauriSkillSyncIo, BUNDLED_SKILLS)
+      } catch (err: unknown) {
+        if (!current) return
+        showToast({
+          message: `Skill をプロジェクトへ配置できませんでした（Skill 無しで起動します）: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+          key: 'skill-sync',
+        })
+      }
+    })()
+    return () => {
+      current = false
+    }
+  }, [projectDir, showToast])
+
   // フォルダ単位の監視（rev 3章。ファイル単位では外部リネームが取れない）。
   // イベントの種類は見ず、束ねて再走査する。フォルダを切り替えたら張り替える
   useEffect(() => {
@@ -536,7 +562,7 @@ function App() {
           onClick={() => {
             const next = !paneOpen
             setPaneOpen(next)
-            if (next && terminals.sessions.length === 0) void openTerminal()
+            if (next && terminals.sessions.length === 0) openTerminal()
           }}
         >
           <PanelRight aria-hidden className="size-4" />
@@ -663,7 +689,7 @@ function App() {
                 cwd={projectDir}
                 ptyIo={tauriPtyIo}
                 paneVisible={paneOpen}
-                onOpen={() => void openTerminal()}
+                onOpen={openTerminal}
                 onClose={closeTerminal}
                 onActivate={(id) => setTerminals((prev) => activateSession(prev, id))}
                 onRunning={(id, ptyId) => setTerminals((prev) => markRunning(prev, id, ptyId))}

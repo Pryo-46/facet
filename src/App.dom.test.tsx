@@ -25,14 +25,26 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
  * 確認ダイアログの `onConfirm` が古い state を掴まないことを検証するテスト
  * （レビュー指摘2）専用で、それ以外のテストは呼ばない
  */
-const { closeState, killAllPtysMock, requestCloseOverride, ptyKillMock, ptyExitHandlers } =
-  vi.hoisted(() => ({
-    closeState: { callback: null as (() => Promise<boolean>) | null },
-    killAllPtysMock: vi.fn(async () => undefined),
-    requestCloseOverride: { value: null as boolean | null },
-    ptyKillMock: vi.fn(async () => undefined),
-    ptyExitHandlers: new Map<number, (code: number | null) => void>(),
-  }))
+/**
+ * `skillCalls` は「Skill の同期がいつ走ったか」を順番ごと記録する口。
+ * 呼ばれた回数だけでなく `allowSkillDir` → `syncBundledSkills` の順序も
+ * 見たいので、2つのモックが同じ配列へ積む
+ */
+const {
+  closeState,
+  killAllPtysMock,
+  requestCloseOverride,
+  ptyKillMock,
+  ptyExitHandlers,
+  skillCalls,
+} = vi.hoisted(() => ({
+  closeState: { callback: null as (() => Promise<boolean>) | null },
+  killAllPtysMock: vi.fn(async () => undefined),
+  requestCloseOverride: { value: null as boolean | null },
+  ptyKillMock: vi.fn(async () => undefined),
+  ptyExitHandlers: new Map<number, (code: number | null) => void>(),
+  skillCalls: [] as string[],
+}))
 
 vi.mock('@/fs/project-fs', () => ({
   pickProjectFolder: async () => '/proj',
@@ -71,11 +83,15 @@ vi.mock('@/fs/pty', () => ({
 }))
 vi.mock('@/fs/skill-resources', () => ({
   tauriSkillSyncIo: {},
-  allowSkillDir: async () => undefined,
+  allowSkillDir: async (dir: string) => {
+    skillCalls.push(`allow:${dir}`)
+  },
 }))
 vi.mock('@/core/skill-sync', async (orig) => ({
   ...(await orig<typeof import('@/core/skill-sync')>()),
-  syncBundledSkills: async () => undefined,
+  syncBundledSkills: async (dir: string) => {
+    skillCalls.push(`sync:${dir}`)
+  },
 }))
 // `requestClose` の結果をテストから直接差し込むための薄いラッパー。
 // **他のメソッドは実物のまま**——フォルダ切替テストが依存する openFolder の
@@ -136,6 +152,7 @@ afterEach(cleanup)
 afterEach(() => {
   ptyExitHandlers.clear()
   ptyKillMock.mockClear()
+  skillCalls.length = 0
 })
 
 /**
@@ -170,6 +187,29 @@ describe('グローバル層と端末ペインの境界', () => {
     const tab = await openPane()
     const notPrevented = fireEvent.keyDown(tab, { key: 'Z', ctrlKey: true, shiftKey: true })
     expect(notPrevented).toBe(true)
+  })
+})
+
+describe('Skill の同期のタイミング', () => {
+  /**
+   * Skill はプロジェクトに属するものであって端末セッションに属さない。
+   * 以前は `openTerminal` が同期していたため、「＋ タブを追加」を押した
+   * 回数だけ「消して置き直す」が走っていた（sequence M4 の実機確認）
+   */
+  it('フォルダを開いたときに走る（scope の付与が先）', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    // mac では `.claude/` がダイアログ由来の scope に入らないので、
+    // allowSkillDir が先でないと同期の最初の exists で落ちる
+    await waitFor(() => expect(skillCalls).toEqual(['allow:/proj', 'sync:/proj']))
+  })
+
+  it('**タブを追加しても走らない**', async () => {
+    await openPane()
+    await waitFor(() => expect(skillCalls).toEqual(['allow:/proj', 'sync:/proj']))
+    fireEvent.click(screen.getByRole('button', { name: 'タブを追加' }))
+    await screen.findByRole('button', { name: 'Claude 2' })
+    expect(skillCalls).toEqual(['allow:/proj', 'sync:/proj'])
   })
 })
 
