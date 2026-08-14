@@ -601,8 +601,11 @@ function App() {
       )}
 
       <div className="flex min-h-0 flex-1">
+        {/* スクロールは FileList の中（一覧の領域だけ）が持つ。ここを
+            overflow-y-auto にすると新規作成ボタンの帯ごと流れてしまう。
+            エディタ側の section と同じ形（帯は固定・中身だけスクロール） */}
         {sidebarOpen && (
-          <aside className="w-64 shrink-0 overflow-y-auto border-r border-rule bg-surface">
+          <aside className="w-64 shrink-0 overflow-hidden border-r border-rule bg-surface">
             <FileList
               groups={groups}
               selectedPath={selectedPath}

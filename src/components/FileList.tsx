@@ -107,7 +107,8 @@ export function FileList(props: FileListProps) {
   }
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap gap-1 border-b border-rule p-2">
+      {/* 新規作成の帯は固定。一覧が長くなっても流れないよう shrink-0 */}
+      <div className="flex shrink-0 flex-wrap gap-1 border-b border-rule p-2">
         {props.modules.map((module) => {
           const creatable = canCreateFileOfType(module, props.existingTypes)
           return (
@@ -124,35 +125,49 @@ export function FileList(props: FileListProps) {
           )
         })}
       </div>
-      {props.groups.length === 0 ? (
-        <p className="p-4 text-sm text-ink-muted">
-          このフォルダに JSON ファイルがありません。上のボタンで作成できます。
-        </p>
-      ) : (
-        props.groups.map((group) => (
-          <div key={group.key}>
-            {/* 見出しは装飾ではなく文書構造なので heading。面は M8 の
-                「見出しの面」トークンを使う（rev 9章）。
-                **h2 にすること。** 額縁の h1（`facet`）の直下で、間に入る
-                見出しは無い（エディタの h2 は M13 で帯へ一本化した）ので、
-                h3 にするとレベルが飛ぶ */}
-            <h2 className="border-b border-rule bg-surface-accent px-4 py-1 text-xs font-bold text-ink-muted">
-              {group.heading}
-            </h2>
-            <ul>
-              {group.files.map((file) => (
-                <FileRow
-                  key={file.path}
-                  file={file}
-                  selected={file.path === props.selectedPath}
-                  onSelect={() => props.onSelect(file)}
-                  onDelete={() => props.onDelete(file)}
-                />
-              ))}
-            </ul>
-          </div>
-        ))
-      )}
+      {/* スクロールするのはここだけ（上の帯は固定）。**この責務を親の aside へ
+          戻さないこと**——aside 側で overflow を持つと帯ごと流れる */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {props.groups.length === 0 ? (
+          <p className="p-4 text-sm text-ink-muted">
+            このフォルダに JSON ファイルがありません。上のボタンで作成できます。
+          </p>
+        ) : (
+          props.groups.map((group, i) => (
+            <div key={group.key}>
+              {/* 見出しは装飾ではなく文書構造なので heading。面は M8 の
+                  「見出しの面」トークンを使う（rev 9章）。
+                  **h2 にすること。** 額縁の h1（`facet`）の直下で、間に入る
+                  見出しは無い（エディタの h2 は M13 で帯へ一本化した）ので、
+                  h3 にするとレベルが飛ぶ。
+
+                  **罫線は上に置く（下ではない）。** 見出しとその下の行は同じ
+                  グループなので、間に線を引くと属するもの同士を分断する。
+                  区切るべきは「前のグループの最後の行」と「次の見出し」の間。
+                  先頭だけ線を外すのは、真上の新規作成ボタンの帯が既に
+                  `border-b border-rule` を持っており、二重線になるため */}
+              <h2
+                className={`bg-surface-accent px-4 py-1 text-xs font-bold text-ink-muted ${
+                  i === 0 ? '' : 'border-t border-rule'
+                }`}
+              >
+                {group.heading}
+              </h2>
+              <ul>
+                {group.files.map((file) => (
+                  <FileRow
+                    key={file.path}
+                    file={file}
+                    selected={file.path === props.selectedPath}
+                    onSelect={() => props.onSelect(file)}
+                    onDelete={() => props.onDelete(file)}
+                  />
+                ))}
+              </ul>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   )
 }
