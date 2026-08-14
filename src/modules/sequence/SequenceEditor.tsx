@@ -773,16 +773,11 @@ export function SequenceEditor({
         あ
       </span>
 
-      {/* 額縁の帯（指摘一覧と常設のボタン）。**面は透過させる**——下にある
-          キャンバスのパンとヒットテストを、帯の外側で奪わないため */}
+      {/* 見出し・操作・ヒントの帯。**面は透過させる**——下にあるキャンバスの
+          パンとヒットテストを、帯の外側で奪わないため。
+          **指摘の一覧はここに置かない**（rev 6章。額縁がキャンバスの外に出す）
+          ——ここに置くと件数が増えるほど図を覆う */}
       <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex flex-col items-stretch">
-        {issues.length > 0 && (
-          <ul className="pointer-events-auto w-full list-disc bg-surface px-6 py-2 pl-10 text-sm text-warning">
-            {issues.map((issue, i) => (
-              <li key={`${issue.rule}-${i}`}>{issue.message}</li>
-            ))}
-          </ul>
-        )}
         {/* 見出し・操作・ヒントを1行に畳む。**ヒントをボタンの下段に置かない**
             ——キャンバスは縦を図に使いたいので、帯が2段になるぶんだけ図が下がる */}
         <div className="pointer-events-none m-2 flex items-center gap-3">

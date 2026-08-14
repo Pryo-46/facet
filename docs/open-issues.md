@@ -18,6 +18,8 @@
 - **`ChoiceDialog` のオーバーレイクリックのテストが無い**。`onOpenChange` を渡さないことで構造的に担保され、同じ機構を Esc のテストが固定している `[M5]`
 - **`AppController.openFolder` の `boolean` 契約を直接固定する単体テストが無い**（`src/core/app-controller.test.ts`）: false を返す分岐は4つ（`closeCurrentFile` の flush 失敗／トークンすり替わり2箇所／`scan.unreadable`／catch）。**この契約はフォルダ切替時の破壊的な `kill` が依存しているので load-bearing** `[M11]`
 
+- **指摘バナーと額縁の配線を固定するテストが無い**（`src/App.dom.test.tsx`）: M13 で指摘の一覧を各エディタから額縁（`IssueBanner`）へ寄せたが、App の DOM テストは `listJsonFiles` が空配列を返すモックなので**ファイルを選んだ状態を作れない**。`IssueBanner` 単体のテストと、各エディタが一覧を出さないことのテストはあるが、**両者を繋ぐ配線**（`<section>` の縦フレックス、バナーがエディタの上に出ること、編集可能なファイルでも出ること）を固定するものが無い。モックにファイルを1本足せば書けるが、既存の App テスト全体に影響するため見送った `[M13]`
+
 ## 将来の機能を作った瞬間に踏むもの
 
 - **`ensureFileOfType` は将来のインライン登録から呼ぶと二択と競合する**（`src/core/app-controller.ts`）: 内部で `rescan()` を回すので、`ask` が出た直後に `selectFile` で選択を移してしまい、回答が「選択が変わったため書き戻しませんでした」に倒れる。今日は「用語集を作る」ボタンが空状態（未選択時）にしか出ないので到達不能だが、**インライン登録を実装した時点で踏む**（[`history/m4-core-file-operations.md`](history/m4-core-file-operations.md) の `ensureFileOfType` に関する項と併せて読むこと） `[M6]`
@@ -37,7 +39,6 @@
 - **`GhostSlot` の ✕ が `layout.totalWidth` の外に約20px はみ出す**（`src/modules/sequence/GhostSlot.tsx` / `layout.ts`）: 図の幅の帳簿（`layout.totalWidth`）と実描画がずれている——ghost の削除ボタンは `layout.totalWidth` を考慮せず配置されるため、右端に固定幅ぶんはみ出す。sequence M2 の実機確認では崩れとして問題視されなかったが、**構造的なずれなのでガターに列を足す等、図の右端を扱う変更をするとき必ず踏む** `[sequence-m2]`
 - **`resolveCommand` の細かい非対称**（`src/core/keyboard/keymap.ts`）: macOS の `Ctrl+Backspace`（主修飾キーは Cmd なので素の Backspace として通る）と `Alt+Shift+↑↓`（`altKey` を先に見るため並び替えになる） `[M3]`
 - **ID が重複しているファイルでは、その ID を親に指すノードが先頭の1つにだけ付く**（`src/modules/logic-tree/tree.ts`）: 挙動は決めてあるが、**画面に出るのは「ID が重複しています」だけ**で、木の形が想定と違って見える理由が読み手に繋がらない。ID 重複を直せば解消するので実害は小さいが、原因の説明が要る `[logic-tree-m1]`
-- **検証エラーのバナーが木の上部を覆う**（`src/modules/logic-tree/LogicTreeEditor.tsx`）: `absolute top-0` で敷いており、指摘が2件出ると最初のノードに重なる。`max-height` も無いので件数が多いと広く覆う。**赤表示が出ているファイルほどノードを触りたいのに、そのノードが隠れる**という逆向きの挙動になっている `[logic-tree-m1]`
 - **ドラッグ中にアンマウントすると d3 が window に張ったリスナーが残る**（`src/modules/logic-tree/useViewport.ts`）: 体感とは無関係に成立し、実機確認を終えても解消しない `[logic-tree-m1]`
 - **`FOLLOW_MARGIN`(48) > `CANVAS_MARGIN`(40) で初回の追従が 8px ずれる**（`src/modules/logic-tree/useViewport.ts` / `viewport.ts`）: 完全に見えているノードでも初回の追従だけ 8px 余分に動く。**実機確認の前に載せておく必要がある**——載せておかないと、実機で「1回だけカクッと動く」を見た人が I-1（二重スクロール）の再発と誤診する `[logic-tree-m1]`
 - **一度端末をクリックするとキーボードだけでは本体へ戻れない**（`src/components/TerminalPane.tsx`）: xterm が `Tab` を消費するため。ペインの開閉にショートカットを割り当てない判断（設計 決定11。**人間が「キーは割り当てない」と裁定**）の帰結で、マウスで本体をクリックする必要がある。**facet は入力速度最優先（rev 2章）を掲げているので、体験としては未達である** `[M11]`

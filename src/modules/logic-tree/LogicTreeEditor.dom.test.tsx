@@ -101,7 +101,9 @@ describe('LogicTreeEditor（描画）', () => {
     expect(screen.queryByRole('button', { name: 'ノードを追加' })).toBe(null)
   })
 
-  it('整合性検証の指摘を画面に出す', () => {
+  // 指摘の一覧を出すのは額縁（IssueBanner）で、エディタではない（rev 6章）。
+  // ここに戻すと件数が増えるほど木の上部を覆う——それが M13 で直した欠陥
+  it('整合性検証の指摘の一覧はエディタが出さない', () => {
     render(
       <LogicTreeEditor
         data={file([[1, null, 'x']])}
@@ -110,7 +112,7 @@ describe('LogicTreeEditor（描画）', () => {
         modalOpen={false}
       />,
     )
-    expect(screen.getByText('ルートが2件あります')).toBeDefined()
+    expect(screen.queryByText('ルートが2件あります')).toBe(null)
   })
 
   it('親子の数だけエッジを描く', () => {

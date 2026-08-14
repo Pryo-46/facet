@@ -7,6 +7,7 @@ import { EDITOR_MIN_WIDTH, PANE_MIN_WIDTH, PaneSplitter } from '@/components/Pan
 import { TerminalPane } from '@/components/TerminalPane'
 import { buttonBase } from '@/components/button-styles'
 import { FileList } from '@/components/FileList'
+import { IssueBanner } from '@/components/IssueBanner'
 import { ToastStack } from '@/components/Toast'
 import { Button } from '@/components/ui/button'
 import {
@@ -635,7 +636,16 @@ function App() {
         {/* 幅を測る対象はエディタとペインの区間だけ（サイドバーの開閉に幅の
             上限計算が影響されないよう、splitRef はこの内側の div に置く） */}
         <div ref={splitRef} className="flex min-h-0 min-w-0 flex-1">
-          <section className="min-w-0 flex-1 overflow-auto">
+          {/* **指摘の一覧は額縁が出す（rev 6章）。** エディタの中に置くと、
+              キャンバス系では絶対配置の帯に載せることになり図を覆う。ここに
+              出して縦フレックスの兄弟にすると、指摘が増えたぶんだけ下の
+              領域が縮む＝図や表が押し下げられて重ならない */}
+          <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            {selected !== null && (
+              // key でファイルを跨いだ「展開したまま」を持ち越さない
+              <IssueBanner key={selected.path} issues={selected.issues} className="shrink-0" />
+            )}
+            <div className="min-h-0 flex-1 overflow-auto">
             {selected === null && (
               <div className="p-6">
                 <p className="text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
@@ -654,13 +664,6 @@ function App() {
                   </div>
                 )}
               </div>
-            )}
-            {selected && selected.result.status !== 'editable' && selected.issues.length > 0 && (
-              <ul className="list-disc px-6 pt-4 pl-10 text-sm text-warning">
-                {selected.issues.map((issue, i) => (
-                  <li key={`${issue.rule}-${i}`}>{issue.message}</li>
-                ))}
-              </ul>
             )}
             {selected?.result.status === 'rejected' && (
               <div className="p-6">
@@ -692,6 +695,7 @@ function App() {
                 }}
               />
             )}
+            </div>
           </section>
 
           {paneOpen && projectDir !== null && (

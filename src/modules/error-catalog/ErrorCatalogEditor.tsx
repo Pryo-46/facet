@@ -375,13 +375,8 @@ export function ErrorCatalogEditor({
           </span>
         )}
       </div>
-      {issues.length > 0 && (
-        <ul className="mb-3 list-disc pl-5 text-sm text-warning">
-          {issues.map((issue, i) => (
-            <li key={`${issue.rule}-${i}`}>{issue.message}</li>
-          ))}
-        </ul>
-      )}
+      {/* 指摘の一覧は額縁が出す（rev 6章）。ここで `issues` を使うのは
+          セル・行の赤表示だけ */}
       {/* テーブルは surface の面に載せ、外枠だけ rule で締める（M8 決定2）。
           **overflow を掛けない**——既定幅は横スクロールが出ない前提で決めてあり
           （columns.test.ts が検査）、overflow を足すと sticky の親が変わって

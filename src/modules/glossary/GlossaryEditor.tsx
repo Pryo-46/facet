@@ -252,13 +252,8 @@ export function GlossaryEditor({
           </span>
         )}
       </div>
-      {issues.length > 0 && (
-        <ul className="mb-3 list-disc pl-5 text-sm text-warning">
-          {issues.map((issue, i) => (
-            <li key={`${issue.rule}-${i}`}>{issue.message}</li>
-          ))}
-        </ul>
-      )}
+      {/* 指摘の一覧は額縁が出す（rev 6章）。ここで `issues` を使うのは
+          セル・行の赤表示だけ（下の cellClass / marks） */}
       {/* テーブルは surface の面に載せ、外枠だけ rule で締める。内側の罫は
           grid（装飾）に落とす——M7 が rule と grid を2トークンに分けた理由が
           そのまま効く階層である（M8 決定2）。

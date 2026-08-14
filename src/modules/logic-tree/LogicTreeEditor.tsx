@@ -285,14 +285,9 @@ export function LogicTreeEditor({
         あ
       </span>
 
+      {/* **指摘の一覧はここに置かない**（rev 6章。額縁がキャンバスの外に出す）
+          ——ここに置くと件数が増えるほど木の上部を覆う */}
       <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex flex-col items-stretch">
-        {issues.length > 0 && (
-          <ul className="pointer-events-auto w-full list-disc bg-surface px-6 py-2 pl-10 text-sm text-warning">
-            {issues.map((issue, i) => (
-              <li key={`${issue.rule}-${i}`}>{issue.message}</li>
-            ))}
-          </ul>
-        )}
         {/* 見出しとヒントの帯。**面は透過させる**——下のキャンバスのパンと
             ヒットテストを、帯の外側で奪わないため */}
         <div className="pointer-events-none m-2 flex items-center gap-3">
