@@ -45,6 +45,7 @@ import {
   layoutSequence,
   QUESTION_LABEL_WIDTH,
   RAIL_WIDTH,
+  ROW_GAP,
   type SeqLayoutInput,
 } from './layout'
 import {
@@ -689,7 +690,7 @@ export function SequenceEditor({
 
       {/* 額縁の帯（指摘一覧と常設のボタン）。**面は透過させる**——下にある
           キャンバスのパンとヒットテストを、帯の外側で奪わないため */}
-      <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex flex-col items-start">
+      <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex flex-col items-stretch">
         {issues.length > 0 && (
           <ul className="pointer-events-auto w-full list-disc bg-surface px-6 py-2 pl-10 text-sm text-warning">
             {issues.map((issue, i) => (
@@ -697,12 +698,13 @@ export function SequenceEditor({
             ))}
           </ul>
         )}
-        {/* **参加者0人でも出す。** 空状態の中央ボタンを廃止したので、
-            既存の0人ファイルを開いたときの唯一のマウス動線がここになる */}
-        <div className="pointer-events-none m-2 flex gap-2">
+        {/* 見出し・操作・ヒントを1行に畳む。**ヒントをボタンの下段に置かない**
+            ——キャンバスは縦を図に使いたいので、帯が2段になるぶんだけ図が下がる */}
+        <div className="pointer-events-none m-2 flex items-center gap-3">
+          <h2 className="shrink-0 text-base font-bold text-ink">{data.title}</h2>
           <button
             type="button"
-            className={`${buttonBase} pointer-events-auto gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
             onClick={() => apply(addStepLast(data), 'from')}
           >
             <Plus aria-hidden className="size-4" />
@@ -711,7 +713,7 @@ export function SequenceEditor({
           {/* マウスだけの人の唯一の参加者追加手段（sequence M3 で from/to のインライン作成を外したため） */}
           <button
             type="button"
-            className={`${buttonBase} pointer-events-auto gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
             onClick={() =>
               apply(
                 data.actors.length === 0
@@ -723,11 +725,8 @@ export function SequenceEditor({
             <Plus aria-hidden className="size-4" />
             参加者を追加
           </button>
+          <KeyHints hints={SEQ_HINTS} className="ml-auto shrink-0 bg-surface/80 px-2 py-1" />
         </div>
-        {/* 操作ヒント。**額縁の帯の中に置き、self-end で右寄せする**——
-            transform の外側なのでズームと独立に読め、フローに乗せているので
-            バナー（issues banner）が出ているときはその下に押し出され重ならない */}
-        <KeyHints hints={SEQ_HINTS} className="self-end p-2" />
       </div>
 
       {/* 背景レイヤ: ライフライン・責任境界の縦線・行全体の赤表示
@@ -1050,6 +1049,26 @@ export function SequenceEditor({
             </div>
           )
         })}
+
+        {/* 末尾のステップの下にも1つ。帯のボタンは図をスクロールしても
+            消えない動線として残す（こちらは「続きを足す」位置の手がかり） */}
+        <div
+          className="pointer-events-auto absolute"
+          style={{
+            left: DIAGRAM_MARGIN,
+            top: layout.totalHeight + ROW_GAP,
+          }}
+        >
+          <button
+            type="button"
+            aria-label="末尾にステップを追加"
+            className={`${buttonBase} gap-1 border border-dashed border-rule bg-surface px-3 py-1 text-sm text-ink-muted hover:bg-canvas hover:text-ink`}
+            onClick={() => apply(addStepLast(data), 'from')}
+          >
+            <Plus aria-hidden className="size-4" />
+            ステップを追加
+          </button>
+        </div>
       </div>
 
       <ConfirmDialog

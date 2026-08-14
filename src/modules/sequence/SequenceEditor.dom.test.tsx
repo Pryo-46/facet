@@ -162,7 +162,9 @@ describe('ステップ行', () => {
   it('「ステップを追加」ボタンで新ステップの from にフォーカスが移る', () => {
     const onChange = vi.fn()
     render(<Harness initial={doc()} onChange={onChange} />)
-    fireEvent.click(screen.getByText('ステップを追加'))
+    // 末尾のステップ下にも同じ見出しのボタンが増えたため、テキストでなく
+    // 常設ボタンの accessible name（getByRole）で一意に引く
+    fireEvent.click(screen.getByRole('button', { name: 'ステップを追加' }))
     expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ4の送り手')
   })
 
@@ -689,5 +691,18 @@ describe('赤表示', () => {
     ])
     const cell = screen.getByLabelText('ステップ1の送り手') as HTMLInputElement
     expect(cell.className).toContain('bg-warning/20')
+  })
+})
+
+describe('額縁の帯', () => {
+  it('タイトルを出す（他ツールと同じ）', () => {
+    setup({ ...doc(), title: '注文確定' })
+    expect(screen.getByRole('heading', { name: '注文確定' })).toBeTruthy()
+  })
+
+  it('末尾のステップ追加は常設のボタンと名前で区別できる', () => {
+    const { onChange } = setup()
+    fireEvent.click(screen.getByRole('button', { name: '末尾にステップを追加' }))
+    expect(last(onChange).steps).toHaveLength(4)
   })
 })
