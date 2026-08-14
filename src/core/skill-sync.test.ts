@@ -113,6 +113,17 @@ describe('shouldSyncSkillFile', () => {
     expect(shouldSyncSkillFile('.gitignore')).toBe(false)
   })
 
+  it('node_modules/ 配下は同期しない（Skill が npm install したもの）', () => {
+    expect(shouldSyncSkillFile('node_modules')).toBe(false)
+    expect(shouldSyncSkillFile('node_modules/ajv/package.json')).toBe(false)
+    // 実機で `allow-write-text-file` の許可スコープ外として書き込みに失敗した実例
+    expect(shouldSyncSkillFile('node_modules/json-schema-traverse/.eslintrc.yml')).toBe(false)
+  })
+
+  it('名前が node_modules を含むだけの別ディレクトリは同期する（文字列の前方一致ではなくパス区切りで判定する）', () => {
+    expect(shouldSyncSkillFile('node_modules_backup/README.md')).toBe(true)
+  })
+
   it('SKILL.md と scripts/*.mjs は同期する', () => {
     expect(shouldSyncSkillFile('SKILL.md')).toBe(true)
     expect(shouldSyncSkillFile('scripts/glossary-write.mjs')).toBe(true)

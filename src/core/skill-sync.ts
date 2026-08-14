@@ -33,11 +33,14 @@ export const BUNDLED_SKILLS: readonly string[] = [
  * - `evals/` 配下（Skill の評価ハーネス。会議で使う人には無意味なノイズ）
  * - Skill 直下の `package.json`（evals の依存宣言）
  * - Skill 直下の `.gitignore`（開発用）
+ * - `node_modules/` 配下（`npm install` で足された依存。数が多く、
+ *   Tauri の書き込み許可スコープ外のファイルを含むこともあって同期が壊れる）
  */
 export function shouldSyncSkillFile(path: string): boolean {
   if (path === 'evals' || path.startsWith('evals/')) return false
   if (path === 'package.json') return false
   if (path === '.gitignore') return false
+  if (path === 'node_modules' || path.startsWith('node_modules/')) return false
   return true
 }
 
