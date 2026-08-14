@@ -199,9 +199,9 @@ node scripts/error-catalog-write.mjs --in <下書き.json> --out <プロジェ�
 
 検証だけしたいときは `--check <ファイル>`。終了コードは 0＝成功（警告はあり得る）／1＝スキーマ検証失敗／2＝使い方の誤り。**0 でも未記入の要約と整合性の警告は出ている**ことがあるので、終了コードだけを見ず標準出力を読むこと（手順6で報告する材料はここにしか出ない）。
 
-スキーマはスクリプトが実行時に探索する（`error-catalog.schema.json` のコピーは同梱していない。正が2つあると、片方だけ古いまま検証が通ってしまう）。見つからないと言われたら `--schema <path>` か環境変数 `FACET_ERROR_CATALOG_SCHEMA` で指定する。
+スキーマはスクリプトが実行時に探索する。**この Skill は `schemas/error-catalog.schema.json` に自分のコピーを持つ**ので、facet のチェックアウトが無いマシンでも見つかる（コピーは facet の原本とのバイト一致をアプリのテストが強制している。ズレたまま古い版で検証が通ることはない）。それでも見つからないと言われたら `--schema <path>` か環境変数 `FACET_ERROR_CATALOG_SCHEMA` で指定する。
 
-構造（詳細は `error-catalog.schema.json` を読む。スキーマが正）:
+構造（詳細は `schemas/error-catalog.schema.json` を読む。スキーマが正）:
 
 ```json
 {

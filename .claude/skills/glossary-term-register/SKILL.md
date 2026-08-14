@@ -155,7 +155,9 @@ node scripts/glossary-write.mjs --in <下書き.json> --out <プロジェクト>
 
 検証だけしたいときは `--check <ファイル>`。
 
-構造（詳細は `glossary.schema.json` を読む。スキーマが正）:
+スキーマはスクリプトが実行時に探索する。**この Skill は `schemas/glossary.schema.json` に自分のコピーを持つ**ので、facet のチェックアウトが無いマシンでも見つかる（コピーは facet の原本とのバイト一致をアプリのテストが強制している。ズレたまま古い版で検証が通ることはない）。それでも見つからないと言われたら `--schema <path>` か環境変数 `FACET_GLOSSARY_SCHEMA` で指定する。
+
+構造（詳細は `schemas/glossary.schema.json` を読む。スキーマが正）:
 
 ```json
 {
