@@ -1,5 +1,5 @@
 import type { ConsistencyIssue } from './consistency'
-import type { LoadResult } from './load'
+import { UNTITLED, type LoadResult } from './load'
 import { checkProjectConsistency } from './project-consistency'
 import type { ModuleRegistry } from './registry'
 
@@ -14,6 +14,21 @@ export interface ProjectFile {
 
 export function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path
+}
+
+/**
+ * 一覧の行の主表示（rev 5章。ファイル名は識別子ではないので、
+ * 大きく出すのは人間がつけた名前の方）。
+ *
+ * **開けないファイルでも title を出す**——`classifyFile` は title を
+ * スキーマ検証より前に読む（`src/core/load.ts`）ので、壊れたシーケンスでも
+ * 「受注フロー」だと分かることが多い。パースすらできなければ null なので
+ * ファイル名に落ちる
+ */
+export function displayTitle(file: ProjectFile): string {
+  const { result } = file
+  if (result.status === 'editable') return result.title === '' ? UNTITLED : result.title
+  return result.title !== null && result.title !== '' ? result.title : file.name
 }
 
 /**
