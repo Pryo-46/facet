@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Moon, PanelLeft, Redo2, Sun, SquareTerminal, Undo2 } from 'lucide-react'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ExportMenu } from '@/components/ExportMenu'
+import { FileHeader } from '@/components/FileHeader'
 import { EDITOR_MIN_WIDTH, PANE_MIN_WIDTH, PaneSplitter } from '@/components/PaneSplitter'
 import { TerminalPane } from '@/components/TerminalPane'
 import { buttonBase } from '@/components/button-styles'
@@ -20,6 +21,7 @@ import {
 import { createAutoSaver } from '@/core/autosave'
 import { createCoalescer } from '@/core/coalesce'
 import { createColumnWidthStore, resizeColumns } from '@/core/column-resize'
+import { groupFiles } from '@/core/file-grouping'
 import { canCreateFileOfType } from '@/core/file-ops'
 import {
   canRedo,
@@ -33,6 +35,7 @@ import {
 import { isOutsideGlobalLayer } from '@/core/keyboard/global-layer'
 import { resolveCommand, toKeyEventLike, type KeyContext } from '@/core/keyboard/keymap'
 import { currentPlatform } from '@/core/keyboard/platform'
+import { titleOf, withTitle } from '@/core/load'
 import { dropModal, pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
 import type { ProjectFile } from '@/core/project-file'
 import { READING_GUIDE_FILENAME, syncReadingGuide } from '@/core/reading-guide'
@@ -107,6 +110,53 @@ const appIo: AppIo = {
     await forceClose()
   },
   createSaver: (spec) => createAutoSaver({ delayMs: AUTOSAVE_DELAY_MS, ...spec }),
+}
+
+/**
+ * 走っている最中の Skill 同期（フォルダごとに1本）。
+ *
+ * **同じフォルダの同期を並走させない（レビュー指摘）。置き直しは冪等ではない:**
+ * - 削除は tauri-plugin-fs が先に `symlink_metadata` を見るため、相手が先に
+ *   消したパスでは「メタデータが取れない」で失敗する
+ * - 片方の削除ループが相手の書き込みより後ろへずれ込むと、**置いたばかりの
+ *   `scripts/` を消してしまう**（そちらの書き込みが ENOENT で落ちる）
+ *
+ * 出る症状は「Skill をプロジェクトへ配置できませんでした」——このタスクで
+ * 直した2つの実バグと同じ文言なので、次の実機確認を誤診させる。
+ *
+ * **並走が起きる経路（レビューの前提は測って訂正した）。** レビューは
+ * 「StrictMode が effect を2回起こすので `tauri dev` では常に2本走る」と
+ * 述べていたが、**今のコードでは起きない**——StrictMode が二重に起こすのは
+ * マウント時の effect だけで、マウント時点の `projectDir` は `null` なので
+ * この effect は即 return する。同期が始まるのはフォルダを開いた**更新**時で、
+ * 更新の effect は二重に起こらない（`src/App.dom.test.tsx` を StrictMode で
+ * 包んで実測: `interceptClose` は2回呼ばれるのに、同期は1回だけだった）。
+ *
+ * それでも並走はしうる: 同期が終わる前に**別のフォルダへ切り替えて戻る**と、
+ * 前の同期が走ったまま同じフォルダの同期がもう1本始まる。将来「起動時に
+ * 前回のフォルダを復元する」を足せば、マウント時に `projectDir` が入るので
+ * StrictMode の二重起動も本当に効くようになる。**先に塞いでおく**
+ */
+const skillSyncInFlight = new Map<string, Promise<void>>()
+
+/**
+ * フォルダ `dir` へ同梱 Skill を置く。走っている最中なら**その同じ実行を待つ**。
+ *
+ * `allowSkillDir` は同期の**前**に呼ぶ。mac では `.claude/` がダイアログ由来の
+ * scope に入らないので、これが無いと同期の最初の `exists` で落ちる
+ */
+function syncSkillsOnce(dir: string): Promise<void> {
+  const running = skillSyncInFlight.get(dir)
+  if (running !== undefined) return running
+  const task = (async () => {
+    await allowSkillDir(dir)
+    await syncBundledSkills(dir, tauriSkillSyncIo, BUNDLED_SKILLS)
+  })().finally(() => {
+    // 終わったら忘れる。次にフォルダを開き直したときは改めて置き直す
+    skillSyncInFlight.delete(dir)
+  })
+  skillSyncInFlight.set(dir, task)
+  return task
 }
 
 /**
@@ -197,28 +247,13 @@ function App() {
     })[0] ?? paneWidth[0]
 
   /**
-   * タブを1本足す。**開く直前に必ず Skill を同期する**（設計 決定10）——
-   * Skill の更新・追加が黙って取り残されないようにするため。
-   * 同期に失敗しても起動は続ける（Skill が無くても端末は使える。設計 決定13）
+   * タブを1本足す。**Skill の同期はここでは行わない**——Skill はプロジェクトに
+   * 属するものであって端末セッションに属するものではない。同期は
+   * `projectDir` の effect（下の「同梱 Skill の配置」）がフォルダ1つにつき
+   * 1回だけ走らせる。ここに置くと「＋ タブを追加」を押した回数だけ
+   * 「消して置き直す」が起きる（sequence M4 の実機確認）
    */
-  const openTerminal = async () => {
-    const dir = projectDir
-    if (dir === null) return
-    try {
-      // scope の付与を先に。mac では `.claude/` がダイアログ由来の scope に
-      // 入らないので、これが無いと同期の最初の exists で落ちる
-      await allowSkillDir(dir)
-      await syncBundledSkills(dir, tauriSkillSyncIo, BUNDLED_SKILLS)
-    } catch (err: unknown) {
-      showToast({
-        message: `Skill をプロジェクトへ配置できませんでした（Skill 無しで起動します）: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-        key: 'skill-sync',
-      })
-    }
-    setTerminals((prev) => openSession(prev))
-  }
+  const openTerminal = () => setTerminals((prev) => openSession(prev))
 
   const closeTerminalNow = (id: number) => {
     // **updater の外で殺す。** setState の updater は純粋でなければならない
@@ -420,6 +455,10 @@ function App() {
     selected && selected.result.status === 'editable'
       ? appRegistry.get(selected.result.type)
       : undefined
+  // **`appRegistry.list()` を JSX の中で呼ばないこと。** 毎レンダーで新しい
+  // 配列が返るため、下の groups の useMemo が毎回作り直しになる
+  const modules = useMemo(() => appRegistry.list(), [])
+  const groups = useMemo(() => groupFiles(files, modules), [files, modules])
   // 走査済み全ファイルの type（読めなかったファイルは null）。singleton 判定は
   // 型でなく物理条件（type が2件以上）なので、rejected/listOnly の type も含める
   const existingTypes = files.map((f) => f.result.type)
@@ -464,6 +503,44 @@ function App() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  /**
+   * 同梱 Skill の配置（設計 決定10）。**フォルダ1つにつき1回**——Skill は
+   * プロジェクトに属するもので、端末セッションの数とは関係が無い。
+   * `projectDir` をキーにした effect にすることで、`openFolder` /
+   * `switchFolder`、そして将来足しうる起動時の復元まで、**フォルダが変わる
+   * すべての経路が自動的に1本にまとまる**（経路を足すたびに同期の呼び出しを
+   * 書き足して回る必要が無い）。
+   *
+   * 同期に失敗しても起動は続ける（Skill が無くても端末は使える。設計 決定13）。
+   *
+   * **後片付けは「トーストを出さない」だけ。** 書き込み先のパスは捕まえた `dir`
+   * から作るので、同期中にフォルダを切り替えても新しいフォルダには一切書かない
+   *（走り切って古いフォルダを置き直して終わるだけで、実害が無い）。
+   * 一方、そのとき失敗のトーストを出すと、ユーザーには**いま開いている**
+   * フォルダの話に読める。だから切り替え後は黙って捨てる
+   */
+  useEffect(() => {
+    const dir = projectDir
+    if (dir === null) return
+    let current = true
+    void (async () => {
+      try {
+        await syncSkillsOnce(dir)
+      } catch (err: unknown) {
+        if (!current) return
+        showToast({
+          message: `Skill をプロジェクトへ配置できませんでした（Skill 無しで起動します）: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+          key: 'skill-sync',
+        })
+      }
+    })()
+    return () => {
+      current = false
+    }
+  }, [projectDir, showToast])
 
   // フォルダ単位の監視（rev 3章。ファイル単位では外部リネームが取れない）。
   // イベントの種類は見ず、束ねて再走査する。フォルダを切り替えたら張り替える
@@ -617,12 +694,15 @@ function App() {
       )}
 
       <div className="flex min-h-0 flex-1">
+        {/* スクロールは FileList の中（一覧の領域だけ）が持つ。ここを
+            overflow-y-auto にすると新規作成ボタンの帯ごと流れてしまう。
+            エディタ側の section と同じ形（帯は固定・中身だけスクロール） */}
         {sidebarOpen && (
-          <aside className="w-64 shrink-0 overflow-y-auto border-r border-rule bg-surface">
+          <aside className="w-64 shrink-0 overflow-hidden border-r border-rule bg-surface">
             <FileList
-              files={files}
+              groups={groups}
               selectedPath={selectedPath}
-              modules={appRegistry.list()}
+              modules={modules}
               existingTypes={existingTypes}
               projectOpen={projectDir !== null}
               projectDir={projectDir}
@@ -636,65 +716,88 @@ function App() {
         {/* 幅を測る対象はエディタとペインの区間だけ（サイドバーの開閉に幅の
             上限計算が影響されないよう、splitRef はこの内側の div に置く） */}
         <div ref={splitRef} className="flex min-h-0 min-w-0 flex-1">
-          {/* **指摘の一覧は額縁が出す（rev 6章）。** エディタの中に置くと、
-              キャンバス系では絶対配置の帯に載せることになり図を覆う。ここに
-              出して縦フレックスの兄弟にすると、指摘が増えたぶんだけ下の
-              領域が縮む＝図や表が押し下げられて重ならない */}
           <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            {selected !== null && (
+              <FileHeader
+                title={
+                  selected.result.status === 'editable' && editingData !== null
+                    ? titleOf(editingData)
+                    : (selected.result.title ?? '')
+                }
+                fileName={selected.name}
+                editable={selected.result.status === 'editable' && editingData !== null}
+                onTitleChange={(next) => {
+                  if (editingData === null || selectedModule === undefined) return
+                  const updated = withTitle(editingData, next)
+                  // エディタの onChange と同じ2本立て。**片方だけにしないこと**
+                  //（record が無いと Undo が効かず、applyEdit が無いと保存されない）
+                  setHistory((h) =>
+                    h === null ? h : record(h, updated, 'title', Date.now()),
+                  )
+                  controller.applyEdit(selected.path, selectedModule, updated)
+                }}
+              />
+            )}
+            {/* **指摘の一覧は額縁が出す（rev 6章）。** エディタの中に置くと、
+                キャンバス系では絶対配置の帯に載せることになり図を覆う。ここに
+                出して縦フレックスの兄弟にすると、指摘が増えたぶんだけ下の
+                領域が縮む＝図や表が押し下げられて重ならない。
+                **編集できないファイルでも同じ部品で出す**——以前は
+                `status !== 'editable'` のときだけ別の `<ul>` を出していた */}
             {selected !== null && (
               // key でファイルを跨いだ「展開したまま」を持ち越さない
               <IssueBanner key={selected.path} issues={selected.issues} className="shrink-0" />
             )}
             <div className="min-h-0 flex-1 overflow-auto">
-            {selected === null && (
-              <div className="p-6">
-                <p className="text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
-                {projectDir !== null && canCreateGlossary && glossaryModule !== undefined && (
-                  <div className="mt-4">
-                    <p className="text-sm text-ink-muted">
-                      このプロジェクトにはまだ用語集がありません（新規プロジェクトでは正常な状態です）。
-                    </p>
-                    <button
-                      type="button"
-                      className={`${buttonBase} mt-2 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
-                      onClick={() => void controller.ensureFileOfType(glossaryModule)}
-                    >
-                      用語集を作る
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            {selected?.result.status === 'rejected' && (
-              <div className="p-6">
-                <h2 className="mb-2 font-bold text-warning">
-                  このファイルは開けません（{selected.result.reason}）
-                </h2>
-                <ul className="list-disc pl-5 text-sm text-ink">
-                  {selected.result.errors.map((err) => (
-                    <li key={err}>{err}</li>
-                  ))}
-                </ul>
-                <p className="mt-3 text-sm text-ink-muted">
-                  外部エディタで修正してからフォルダを開き直してください。
-                </p>
-              </div>
-            )}
-            {selected?.result.status === 'listOnly' && (
-              <p className="p-6 text-sm text-ink-muted">{selected.result.reason}</p>
-            )}
-            {selected?.result.status === 'editable' && selectedModule && editingData !== null && (
-              <selectedModule.Editor
-                key={selected.path}
-                data={editingData}
-                issues={selected.issues}
-                modalOpen={modalOpen}
-                onChange={(next: unknown, mergeKey?: string | null) => {
-                  setHistory((h) => (h === null ? h : record(h, next, mergeKey ?? null, Date.now())))
-                  controller.applyEdit(selected.path, selectedModule, next)
-                }}
-              />
-            )}
+              {selected === null && (
+                <div className="p-6">
+                  <p className="text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
+                  {projectDir !== null && canCreateGlossary && glossaryModule !== undefined && (
+                    <div className="mt-4">
+                      <p className="text-sm text-ink-muted">
+                        このプロジェクトにはまだ用語集がありません（新規プロジェクトでは正常な状態です）。
+                      </p>
+                      <button
+                        type="button"
+                        className={`${buttonBase} mt-2 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
+                        onClick={() => void controller.ensureFileOfType(glossaryModule)}
+                      >
+                        用語集を作る
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {selected?.result.status === 'rejected' && (
+                <div className="p-6">
+                  <h2 className="mb-2 font-bold text-warning">
+                    このファイルは開けません（{selected.result.reason}）
+                  </h2>
+                  <ul className="list-disc pl-5 text-sm text-ink">
+                    {selected.result.errors.map((err) => (
+                      <li key={err}>{err}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-3 text-sm text-ink-muted">
+                    外部エディタで修正してからフォルダを開き直してください。
+                  </p>
+                </div>
+              )}
+              {selected?.result.status === 'listOnly' && (
+                <p className="p-6 text-sm text-ink-muted">{selected.result.reason}</p>
+              )}
+              {selected?.result.status === 'editable' && selectedModule && editingData !== null && (
+                <selectedModule.Editor
+                  key={selected.path}
+                  data={editingData}
+                  issues={selected.issues}
+                  modalOpen={modalOpen}
+                  onChange={(next: unknown, mergeKey?: string | null) => {
+                    setHistory((h) => (h === null ? h : record(h, next, mergeKey ?? null, Date.now())))
+                    controller.applyEdit(selected.path, selectedModule, next)
+                  }}
+                />
+              )}
             </div>
           </section>
 
@@ -725,7 +828,7 @@ function App() {
                 cwd={projectDir}
                 ptyIo={tauriPtyIo}
                 paneVisible={paneOpen}
-                onOpen={() => void openTerminal()}
+                onOpen={openTerminal}
                 onClose={closeTerminal}
                 onActivate={(id) => setTerminals((prev) => activateSession(prev, id))}
                 onRunning={(id, ptyId) => setTerminals((prev) => markRunning(prev, id, ptyId))}

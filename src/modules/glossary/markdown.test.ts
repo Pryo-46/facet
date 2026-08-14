@@ -26,6 +26,14 @@ describe('glossaryToMarkdown', () => {
     expect(md.split('\n').some((line) => /^# /.test(line))).toBe(false)
   })
 
+  // M13: 帯から title を空にできるようになったので、空欄が出力に漏れる経路が
+  // 生まれた。空のまま出すと `## ` だけの行になり、Markdown 上で見出しですらない
+  it('title が空なら (無題) を出す（`## ` だけの行にしない）', () => {
+    const md = glossaryToMarkdown(glossary([term({ kind: 'actor' })], ''))
+    expect(md).toContain('## (無題)')
+    expect(md.split('\n').some((line) => line === '## ')).toBe(false)
+  })
+
   it('グループは kind enum の定義順に並ぶ（データの登場順ではない）', () => {
     const md = glossaryToMarkdown(
       glossary([

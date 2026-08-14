@@ -55,7 +55,12 @@ export const tauriSkillSyncIo: SkillSyncIo = {
     return collect(root, root)
   },
   exists: (path) => exists(path),
-  removeDir: (path) => remove(path, { recursive: true }),
+  // ディレクトリ直下の名前だけを返す（中身の再帰は要らない。消す判定は
+  // 直下の名前 1 段でつく——`isRemovableSkillEntry`）
+  listEntries: async (path) => (await readDir(path)).map((entry) => entry.name),
+  // ファイルにもディレクトリにも使う。`remove` は両方を扱えるので、
+  // 直下の要素を種別で分けずに1本で消せる
+  removeEntry: (path) => remove(path, { recursive: true }),
   mkdir: (path) => mkdir(path, { recursive: true }),
   writeText: (path, text) => writeTextFile(path, text),
   join: (...parts) => join(...parts),

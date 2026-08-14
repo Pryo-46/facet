@@ -230,7 +230,8 @@ M1 は `outputs: []` で開始（rev 6章の「0本以上」規約。額縁が�
 | **sequence M1** | ステップ入力＋個別の問い（キーボードのみ） | 済。[`sequence-m1-scope.md`](sequence-m1-scope.md) が正 |
 | **sequence M2** | 使い勝手改善9点（初期フォーカス・0件 Tab・グレースロット・行ブラケット等） | 済（2026-08-11）。**当初この段に予定していたゾーンより先に、M1 の会議使用のフィードバックを入れた。** 経緯は [`../history/sequence-m2-usability.md`](../history/sequence-m2-usability.md) |
 | **sequence M3** | マウス操作（actor・kind のドロップダウン化。論点9）／出力（Markdown・Mermaid。論点11） | 済（2026-08-12）。経緯は [`../history/sequence-m3-mouse-and-output.md`](../history/sequence-m3-mouse-and-output.md) |
-| M4+ | ゾーン（`zone_`、範囲束ね、背景帯）／`Tab` の2ゾーン化（骨格→答え）／`errorRefs`／`replyTo` | 優先順は実使用が決める。ゾーンは「同じ答えを何度も書いた」実感を得てから（open-issues に条件付きで記録済み） |
+| **sequence M4** | シーケンス登録 Skill（会話→ JSON。`questions.ts` / `canonical.ts` のバイト一致コピーを同梱） | 済（2026-08-14）。経緯は [`../history/sequence-m4-register-skill.md`](../history/sequence-m4-register-skill.md) |
+| M5+ | ゾーン（`zone_`、範囲束ね、背景帯）／`Tab` の2ゾーン化（骨格→答え）／`errorRefs`／`replyTo` | 優先順は実使用が決める。ゾーンは「同じ答えを何度も書いた」実感を得てから（open-issues に条件付きで記録済み） |
 
 - **M1 と M2 の間に実際の会議を1回挟む**（logic-tree と同じ手順）
 - **`core/canvas` への共通化はシーケンス実装中には行わない**。2本目が完成した後に、別マイルストーンとして一般化を判断する（rev4 が用語集とエラーカタログで採った手順）。既存コア（`src/core/keyboard/`、`CellInput`、`list-ops`）の**利用**は当然行う——禁じるのは新しい抽象の創設

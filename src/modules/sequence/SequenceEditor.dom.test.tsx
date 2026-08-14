@@ -695,9 +695,11 @@ describe('赤表示', () => {
 })
 
 describe('額縁の帯', () => {
-  it('タイトルを出す（他ツールと同じ）', () => {
+  // ファイル名を出すのは額縁（FileHeader）で、エディタではない（rev 6章）。
+  // ここに戻すと帯と二重になる
+  it('ファイル名はエディタが出さない', () => {
     setup({ ...doc(), title: '注文確定' })
-    expect(screen.getByRole('heading', { name: '注文確定' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: '注文確定' })).toBe(null)
   })
 
   it('末尾のステップ追加は常設のボタンと名前で区別できる', () => {

@@ -1,7 +1,7 @@
 import { insertAt, moveItem, removeAt } from '@/core/list-ops'
 import { newId } from '@/core/new-id'
 import type { SequenceActor, SequenceSchemaVersion1, SequenceStep } from '@/types/sequence'
-import type { AnswerPath } from './questions'
+import { readSlot, type AnswerPath } from './questions'
 
 export interface SeqFocus {
   kind: 'actor' | 'step'
@@ -239,26 +239,6 @@ function cleanupFailures(step: SequenceStep, failures: Failures): SequenceStep {
   if (cleanedUnknown !== undefined) next.unknown = cleanedUnknown
   const { failures: _old, ...rest } = step
   return Object.keys(next).length === 0 ? rest : { ...rest, failures: next }
-}
-
-/**
- * スロットの生の値（decision / text）を読む。
- *
- * **同じ読み方が3箇所にある**（ここ・`SequenceEditor.tsx` の `readAnswer`・
- * `consistency.ts` の `presentAnswers`）。M2 の申し送りに既知の負債として
- * 記録されている。**4本目を作らないため**に export した——出力（`markdown.ts`）は
- * これを使うこと
- */
-export function readSlot(
-  step: SequenceStep,
-  path: AnswerPath,
-): { decision?: 'handled' | 'notApplicable'; text?: string } {
-  if (path === 'failed') return step.failures?.failed ?? {}
-  if (path === 'unknown') {
-    const u = step.failures?.unknown
-    return u === undefined ? {} : { decision: u.decision, text: u.text }
-  }
-  return step.failures?.unknown?.ifExecuted ?? {}
 }
 
 /**

@@ -10,6 +10,8 @@
  * という最悪の挙動になる（`normalizeForMatch` を1つに保っているのと同じ理由）
  */
 
+import { UNTITLED } from './load'
+
 /**
  * 表のセルに収める。`|` は列区切りと衝突するのでエスケープし、改行は `<br>` にする。
  * **バックスラッシュを先に処理する**——順序を逆にすると、`|` エスケープで入れた
@@ -40,4 +42,19 @@ export function dividerRow(count: number): string {
  */
 export function headingText(text: string): string {
   return text.replace(/\r\n|\r|\n/g, ' ')
+}
+
+/**
+ * 文書全体の見出し（`## <title>`）。**空の `title` は `(無題)` に落とす**——
+ * 空欄は許された状態（rev 5章。「まだ決めていない」の意思表示なので、
+ * 入力を拒否も矯正もしない）だが、そのまま出すと `## ` だけの行になり、
+ * Markdown 上で見出しですらなくなる。表示側（一覧・帯）が空を `(無題)` に
+ * 落とすのと同じ扱いを出力側にも与える。
+ *
+ * **`headingText` 自体に落とし込まないこと。** `headingText` は種別ラベルや
+ * 解決レベルのラベルにも使われており、そちらの空文字まで `(無題)` に化ける。
+ * 3ツールが同じ判断を3回書かないよう、`## ` の組み立てごとここに置く
+ */
+export function documentHeading(title: string): string {
+  return `## ${headingText(title === '' ? UNTITLED : title)}`
 }

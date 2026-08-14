@@ -1,4 +1,4 @@
-import { dividerRow, escapeCell, headingText, row } from '@/core/markdown-table'
+import { dividerRow, documentHeading, escapeCell, headingText, row } from '@/core/markdown-table'
 import type { ErrorCatalogSchemaVersion1, ErrorEntry } from '@/types/error-catalog'
 import errorCatalogSchema from '../../../schemas/error-catalog.schema.json'
 import { NO_COLUMN_LABEL } from './columns'
@@ -55,7 +55,7 @@ export function errorCatalogToMarkdown(
   const header = row([NO_COLUMN_LABEL, ...fields.map((f) => FIELD_LABELS[f])])
   // No 列のぶんを足す。見出しと本数がずれないよう列数から作る
   const divider = dividerRow(fields.length + 1)
-  const blocks: string[] = [`## ${headingText(data.title)}`]
+  const blocks: string[] = [documentHeading(data.title)]
   for (const [level, indices] of groups) {
     if (indices.length === 0) continue
     blocks.push(`### ${headingText(resolutionLabel(level))}`)

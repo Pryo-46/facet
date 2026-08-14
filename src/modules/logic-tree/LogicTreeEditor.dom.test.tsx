@@ -102,7 +102,7 @@ describe('LogicTreeEditor（描画）', () => {
   })
 
   // 指摘の一覧を出すのは額縁（IssueBanner）で、エディタではない（rev 6章）。
-  // ここに戻すと件数が増えるほど木の上部を覆う——それが M13 で直した欠陥
+  // ここに戻すと件数が増えるほど木の上部を覆う——それが M14 で直した欠陥
   it('整合性検証の指摘の一覧はエディタが出さない', () => {
     render(
       <LogicTreeEditor
@@ -499,10 +499,12 @@ describe('LogicTreeEditor（キーボード操作）', () => {
 })
 
 describe('額縁の帯', () => {
-  it('タイトルを出す（他ツールと同じ）', () => {
+  // ファイル名を出すのは額縁（FileHeader）で、エディタではない（rev 6章）。
+  // ここに戻すと帯と二重になる
+  it('ファイル名はエディタが出さない', () => {
     const data = file([[1, null, '退会できない']])
     render(<Harness initial={{ ...data, title: '退会の導線' }} />)
-    expect(screen.getByRole('heading', { name: '退会の導線' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: '退会の導線' })).toBe(null)
   })
 
   it('操作ヒントを常時出す', () => {

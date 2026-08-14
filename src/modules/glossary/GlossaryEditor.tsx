@@ -210,7 +210,6 @@ export function GlossaryEditor({
 
   return (
     <div ref={rows.containerRef} className="p-4">
-      <h2 className="mb-3 text-base font-bold text-ink">{data.title}</h2>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input
           type="search"

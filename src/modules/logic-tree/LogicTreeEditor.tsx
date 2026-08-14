@@ -291,10 +291,12 @@ export function LogicTreeEditor({
         {/* 見出しとヒントの帯。**面は透過させる**——下のキャンバスのパンと
             ヒットテストを、帯の外側で奪わないため */}
         <div className="pointer-events-none m-2 flex items-center gap-3">
-          <h2 className="shrink-0 text-base font-bold text-ink">{data.title}</h2>
+          {/* **ファイル名（title）はここに出さない。** 額縁の `FileHeader` が
+              4ツール共通で出しており、ここに置くと二重になる（rev 6章。
+              指摘の一覧を額縁へ寄せたのと同じ理由） */}
           {/* **0件のときだけ出す。** 雛形はルート1件を持つので、ここに来るのは
               外部で作られた0件ファイルだけ。マウスだけの人がノードを増やす
-              一般的な動線が無いのは M13 以前からの別の穴（open-issues 参照） */}
+              一般的な動線が無いのは M14 以前からの別の穴（open-issues 参照） */}
           {data.nodes.length === 0 && (
             <button
               type="button"

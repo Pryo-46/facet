@@ -25,27 +25,56 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
  * 確認ダイアログの `onConfirm` が古い state を掴まないことを検証するテスト
  * （レビュー指摘2）専用で、それ以外のテストは呼ばない
  */
+/**
+ * `skillCalls` は「Skill の同期がいつ走ったか」を順番ごと記録する口。
+ * 呼ばれた回数だけでなく `allowSkillDir` → `syncBundledSkills` の順序も
+ * 見たいので、2つのモックが同じ配列へ積む。
+ *
+ * `pickedFolder` は「フォルダを開く」で選ばれるフォルダ。既定は `/proj` で、
+ * **A→B→A を組みたいテストだけ**が書き換える（`afterEach` で戻す）。
+ * `syncGate` は同期を途中で止めておく口——「まだ終わっていない同期」が
+ * 無いと重複排除は観測できない。
+ *
+ * `disk` は「/proj の中身」をテストから差し替えるための可変状態（M13）。
+ * 既定は空なので、**このファイルの既存テストが前提にしている「listJsonFiles は
+ * 常に []」はそのまま保たれる**——中身を置くテストだけが自分で足し、
+ * afterEach で片付ける
+ */
 const {
   closeState,
   killAllPtysMock,
   requestCloseOverride,
   ptyKillMock,
   ptyExitHandlers,
+  skillCalls,
+  pickedFolder,
+  syncGate,
   syncReadingGuideMock,
+  disk,
+  writeProjectFileMock,
 } = vi.hoisted(() => ({
   closeState: { callback: null as (() => Promise<boolean>) | null },
   killAllPtysMock: vi.fn(async () => undefined),
   requestCloseOverride: { value: null as boolean | null },
   ptyKillMock: vi.fn(async () => undefined),
   ptyExitHandlers: new Map<number, (code: number | null) => void>(),
+  skillCalls: [] as string[],
+  pickedFolder: { value: '/proj' },
+  syncGate: { promise: null as Promise<void> | null, release: null as (() => void) | null },
   syncReadingGuideMock: vi.fn(async () => undefined),
+  disk: new Map<string, string>(),
+  writeProjectFileMock: vi.fn(async (_path: string, _text: string) => undefined),
 }))
 
 vi.mock('@/fs/project-fs', () => ({
-  pickProjectFolder: async () => '/proj',
-  listJsonFiles: async () => [],
-  readProjectFile: async () => '',
-  writeProjectFile: async () => undefined,
+  // **`pickedFolder.value` を `'/proj'` に固定し直さないこと**——フォルダ切替
+  // （A→B→A）のテストがこれを書き換えて成立している
+  pickProjectFolder: async () => pickedFolder.value,
+  // `disk` 経由に変えたが、既定は空なので「listJsonFiles は常に []」という
+  // 既存テストの前提はそのまま（M13）
+  listJsonFiles: async () => [...disk.keys()],
+  readProjectFile: async (path: string) => disk.get(path) ?? '',
+  writeProjectFile: writeProjectFileMock,
   fileExists: async () => false,
   moveFileToTrash: async () => undefined,
   joinPath: async (dir: string, name: string) => `${dir}/${name}`,
@@ -78,11 +107,17 @@ vi.mock('@/fs/pty', () => ({
 }))
 vi.mock('@/fs/skill-resources', () => ({
   tauriSkillSyncIo: {},
-  allowSkillDir: async () => undefined,
+  allowSkillDir: async (dir: string) => {
+    skillCalls.push(`allow:${dir}`)
+  },
 }))
 vi.mock('@/core/skill-sync', async (orig) => ({
   ...(await orig<typeof import('@/core/skill-sync')>()),
-  syncBundledSkills: async () => undefined,
+  syncBundledSkills: async (dir: string) => {
+    skillCalls.push(`sync:${dir}`)
+    // 既定（`promise` が null）では素通り。gate が張られている間だけ止まる
+    await syncGate.promise
+  },
 }))
 vi.mock('@/fs/reading-guide-io', () => ({ tauriReadingGuideIo: {} }))
 // READING_GUIDE_FILENAME 等は実物のまま、同期関数だけ差し替える（skill-sync の mock と同じ形）
@@ -149,6 +184,25 @@ afterEach(cleanup)
 afterEach(() => {
   ptyExitHandlers.clear()
   ptyKillMock.mockClear()
+  skillCalls.length = 0
+  disk.clear()
+  writeProjectFileMock.mockClear()
+})
+/**
+ * **止めたままの同期を次のテストへ持ち越さない（レビュー指摘）。**
+ * 重複排除の台帳（`App.tsx` の `skillSyncInFlight`）はモジュール変数なので
+ * テスト間で共有される。gate で止めた同期を残すと、そのフォルダは次のテストで
+ * 「まだ走っている」扱いになり、**同期が黙って走らなくなる**。
+ * テスト本体ではなくここで開けるのは、assertion で落ちた場合も必ず通すため
+ */
+afterEach(async () => {
+  syncGate.release?.()
+  syncGate.promise = null
+  syncGate.release = null
+  pickedFolder.value = '/proj'
+  // 台帳から消えるのは同期が解決したあとの `.finally`。マクロタスクを1回
+  // 挟んで、溜まっているマイクロタスクを全部流してから次のテストへ渡す
+  await new Promise((resolve) => setTimeout(resolve, 0))
 })
 
 /**
@@ -183,6 +237,63 @@ describe('グローバル層と端末ペインの境界', () => {
     const tab = await openPane()
     const notPrevented = fireEvent.keyDown(tab, { key: 'Z', ctrlKey: true, shiftKey: true })
     expect(notPrevented).toBe(true)
+  })
+})
+
+describe('Skill の同期のタイミング', () => {
+  /**
+   * Skill はプロジェクトに属するものであって端末セッションに属さない。
+   * 以前は `openTerminal` が同期していたため、「＋ タブを追加」を押した
+   * 回数だけ「消して置き直す」が走っていた（sequence M4 の実機確認）
+   */
+  it('フォルダを開いたときに走る（scope の付与が先）', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    // mac では `.claude/` がダイアログ由来の scope に入らないので、
+    // allowSkillDir が先でないと同期の最初の exists で落ちる
+    await waitFor(() => expect(skillCalls).toEqual(['allow:/proj', 'sync:/proj']))
+  })
+
+  /**
+   * 重複排除（`App.tsx` の `skillSyncInFlight`）。**同期が終わる前に別の
+   * フォルダへ切り替えて戻る**と、同じフォルダの同期が2本並走しうる。
+   * 置き直しは冪等ではないので、並走すると片方の削除ループが相手の書き込みを
+   * 追い越し、置いたばかりの `scripts/` を消してしまう。
+   *
+   * **この経路を塞いでいるのは重複排除だけ**——1件ごとの削除失敗を握りつぶす
+   * ようにした（＝もう中断しない）ぶん、並走時に相手を壊す窓はむしろ開いた
+   */
+  it('**同期の途中で戻ってきても、同じフォルダを二重に同期しない**', async () => {
+    syncGate.promise = new Promise<void>((resolve) => {
+      syncGate.release = resolve
+    })
+    pickedFolder.value = '/a'
+    render(<App />)
+    const open = screen.getByRole('button', { name: 'フォルダを開く' })
+    fireEvent.click(open)
+    // /a の同期が始まり、gate で止まったまま先へ進まない
+    await waitFor(() => expect(skillCalls).toContain('sync:/a'))
+    pickedFolder.value = '/b'
+    fireEvent.click(open)
+    await waitFor(() => expect(skillCalls).toContain('sync:/b'))
+    // まだ終わっていない /a へ戻る
+    pickedFolder.value = '/a'
+    fireEvent.click(open)
+    // パスはサイドメニュー（FileList）が出す。**getByText で引かないこと**——
+    // 頭を省く `dir="rtl"` の副作用を打ち消すため中身の先頭に不可視の
+    // LTR_MARK が入っており、テキスト一致では拾えない。title は生のパス
+    await waitFor(() => expect(screen.getByTitle('/a')).toBeTruthy())
+    // 走っている同期に合流するだけで、2本目は始まらない
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(skillCalls).toEqual(['allow:/a', 'sync:/a', 'allow:/b', 'sync:/b'])
+  })
+
+  it('**タブを追加しても走らない**', async () => {
+    await openPane()
+    await waitFor(() => expect(skillCalls).toEqual(['allow:/proj', 'sync:/proj']))
+    fireEvent.click(screen.getByRole('button', { name: 'タブを追加' }))
+    await screen.findByRole('button', { name: 'Claude 2' })
+    expect(skillCalls).toEqual(['allow:/proj', 'sync:/proj'])
   })
 })
 
@@ -278,6 +389,93 @@ describe('タブを閉じる確認', () => {
     // 承認された時点で ptyId は既に null。古い（自然終了前の）ptyId で
     // kill を呼んでいたら、この期待は壊れる
     expect(ptyKillMock).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * 名前の帯（M13）。**ここが守っているのは配線の2本立て**——帯の
+ * `onTitleChange` は `record`（履歴）と `applyEdit`（自動保存＋一覧）の
+ * 両方を呼ぶ必要があり、片方を落としても TypeScript もユニットテストも
+ * 何も言わない。`record` だけなら名前が保存されず、`applyEdit` だけなら
+ * Undo が静かに効かなくなる。どちらも「動いているように見える」壊れ方をする
+ */
+describe('名前の帯（M13）', () => {
+  const GLOSSARY_PATH = '/proj/用語集.json'
+
+  const putGlossary = (title: string, over: Record<string, unknown> = {}) => {
+    disk.set(
+      GLOSSARY_PATH,
+      JSON.stringify({ schemaVersion: 1, type: 'glossary', title, terms: [], ...over }),
+    )
+  }
+
+  /** フォルダを開いて用語集を選び、帯の入力欄を返す */
+  async function openBand(rowName: string) {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: `${rowName} を開く` }))
+    return await screen.findByRole('textbox', { name: 'ファイルの名前' })
+  }
+
+  it('帯で名前を変えると、保存もされ Undo も効く（record と applyEdit の両方）', async () => {
+    putGlossary('古い名前')
+    const input = await openBand('古い名前（用語集.json）')
+    fireEvent.change(input, { target: { value: '新しい名前' } })
+
+    // **applyEdit 側**: 自動保存（デバウンス 500ms）へ新しい title が渡る。
+    // ここは実タイマーで待つ——このファイルは偽タイマーを使っておらず、
+    // 導入すると xterm/ResizeObserver 側の非同期まで巻き込む
+    await waitFor(
+      () => {
+        expect(writeProjectFileMock).toHaveBeenCalled()
+      },
+      { timeout: 3000 },
+    )
+    const lastCall = writeProjectFileMock.mock.calls.at(-1)
+    if (lastCall === undefined) throw new Error('unreachable: write が呼ばれていない')
+    expect(lastCall[0]).toBe(GLOSSARY_PATH)
+    expect((JSON.parse(lastCall[1]) as { title: string }).title).toBe('新しい名前')
+
+    // **record 側**: 履歴に積まれたので「元に戻す」が押せるようになる
+    expect(screen.getByRole('button', { name: '元に戻す' }).hasAttribute('disabled')).toBe(false)
+
+    // 一覧の行も追随する（applyEdit の result.title 引き直し。ここが無いと
+    // 帯で名前を変えても一覧が古いまま残る）
+    expect(screen.getByRole('button', { name: '新しい名前（用語集.json） を開く' })).not.toBeNull()
+  })
+
+  it('名前を空にしても保存される（空欄は「まだ決めていない」の意思表示。拒否しない）', async () => {
+    putGlossary('消す名前')
+    const input = await openBand('消す名前（用語集.json）')
+    fireEvent.change(input, { target: { value: '' } })
+    await waitFor(
+      () => {
+        expect(writeProjectFileMock).toHaveBeenCalled()
+      },
+      { timeout: 3000 },
+    )
+    const lastCall = writeProjectFileMock.mock.calls.at(-1)!
+    expect((JSON.parse(lastCall[1]) as { title: string }).title).toBe('')
+    // 一覧の主表示だけが (無題) に落ちる（データは空のまま）
+    expect(screen.getByRole('button', { name: '(無題)（用語集.json） を開く' })).not.toBeNull()
+  })
+
+  it('スキーマ検証に落ちたファイルの帯は読み取り専用で、種類名も出さない', async () => {
+    // terms が配列でないのでスキーマ検証に落ちる（＝ rejected）。それでも
+    // type は読めているので、一覧は「用語集」の見出しの下に置く。
+    // **ファイル名にも title にも「用語集」を含めないこと**——帯に「用語集」が
+    // 出ていないことを確かめたいので、種類名としてしか現れない状況を作る
+    disk.set(
+      '/proj/broken.json',
+      JSON.stringify({ schemaVersion: 1, type: 'glossary', title: 'こわれた', terms: 'x' }),
+    )
+    const input = await openBand('こわれた（broken.json）')
+    const band = input.parentElement
+    if (band === null) throw new Error('unreachable: 帯が無い')
+    // 種類は一覧の見出しが示すので、帯では言わない（M13 実機確認の裁定）
+    expect(band.textContent).not.toContain('用語集')
+    // 書けないファイルなので入力欄は読み取り専用のまま
+    expect(input.hasAttribute('readonly')).toBe(true)
   })
 })
 

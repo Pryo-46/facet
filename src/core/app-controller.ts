@@ -4,7 +4,7 @@ import type { ConsistencyIssue } from './consistency'
 import { planExternalChange } from './external-change'
 import { createFile, ensureFileOfType as ensureFileOnDisk, trashFile, type CreatedFile } from './file-ops'
 import { createKnownDisk } from './known-disk'
-import { classifyFile } from './load'
+import { classifyFile, titleOf } from './load'
 import type { ModalRequest } from './modal-queue'
 import { computeIssues, type ProjectFile } from './project-file'
 import type { AnyToolModule, ModuleRegistry, OutputProfile } from './registry'
@@ -287,7 +287,9 @@ export function createAppController(
     applyFiles(
       files.map((f) =>
         f.path === path && f.result.status === 'editable'
-          ? { ...f, result: { ...f.result, data: next } }
+          // title も引き直す。**data だけ差し替えると一覧の表示が古いまま残る**
+          //（額縁の帯で名前を変えても一覧が変わらない、という形で出る）
+          ? { ...f, result: { ...f.result, data: next, title: titleOf(next) } }
           : f,
       ),
     )
