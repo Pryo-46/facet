@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "type": "glossary",
+  "title": "中途採用の応募管理 用語集",
+  "terms": [
+    {
+      "id": "term_hyINdxPCSG",
+      "name": "応募者",
+      "kind": "actor",
+      "definition": "自社の求人に応募した個人。応募の経路（自社サイト・人材エージェント）を問わない。",
+      "aliases": [
+        "候補者",
+        "エントリー者"
+      ],
+      "notes": "会議では「候補者」と呼ばれることが多いが、正式表記は「応募者」に寄せた。"
+    },
+    {
+      "id": "term_eTAeLgM32W",
+      "name": "採用担当",
+      "kind": "actor",
+      "definition": "自社側で選考を進める担当者。書類選考の合否と面接日程の確定を行う。",
+      "aliases": [
+        "リクルーター"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "term_UBYaXFERPT",
+      "name": "人材エージェント",
+      "kind": "actor",
+      "definition": "応募者を自社に紹介する外部の事業者。応募者の連絡窓口を代行する。",
+      "aliases": [
+        "エージェント"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "term_pB6dgHMifZ",
+      "name": "求人",
+      "kind": "data",
+      "definition": "募集中のポジション1件。職種・必須要件・募集人数を持つ。",
+      "aliases": [
+        "ポジション",
+        "募集要項"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "term_OovHrfSzeD",
+      "name": "応募",
+      "kind": "event",
+      "definition": "応募者が特定の求人に対して応募フォームを送信し、選考の対象になること。",
+      "aliases": [
+        "エントリー"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "term_wtNCR76S67",
+      "name": "書類選考",
+      "kind": "event",
+      "definition": "応募内容と提出書類だけを見て、面接に進めるかを採用担当が判断する工程。",
+      "aliases": [],
+      "notes": ""
+    },
+    {
+      "id": "term_E30qSaP67G",
+      "name": "面接",
+      "kind": "event",
+      "definition": "採用担当または現場社員が応募者と対話して評価する工程。一次・二次と複数回ある。",
+      "aliases": [],
+      "notes": ""
+    },
+    {
+      "id": "term_haDB9BD06O",
+      "name": "内定",
+      "kind": "state",
+      "definition": "自社が採用の意思を応募者へ正式に通知し、応募者の承諾を待っている状態。",
+      "aliases": [],
+      "notes": ""
+    },
+    {
+      "id": "term_1x7UxOS3pI",
+      "name": "辞退",
+      "kind": "event",
+      "definition": "",
+      "aliases": [],
+      "notes": "応募者が選考の途中で降りることと、内定を受けたあとで断ることを、現場では同じ「辞退」で呼んでいる。分けるかどうかが決まっていないので定義を空のままにしている。"
+    },
+    {
+      "id": "term_EHHsZznkH8",
+      "name": "見送り",
+      "kind": "event",
+      "definition": "自社の判断で選考を打ち切ること。応募者からの辞退とは主体が逆である。",
+      "aliases": [
+        "お見送り"
+      ],
+      "notes": ""
+    },
+    {
+      "id": "term_46GJVfZ9uM",
+      "name": "選考ステータス",
+      "kind": "undecided",
+      "definition": "応募1件が選考のどの段階にあるかを表す値。応募受付・書類選考中・面接中・内定・終了。",
+      "aliases": [],
+      "notes": "状態そのものなのか、状態を保持するデータ項目なのかで種別が割れた。状態遷移エディタを作るときに決める。"
+    },
+    {
+      "id": "term_fuFch7Gbgy",
+      "name": "タレントプール",
+      "kind": "data",
+      "definition": "",
+      "aliases": [],
+      "notes": "見送った応募者を将来の求人のために残しておく仕組み、として話には出たが、誰がいつまで残せるのかを詰めていない。"
+    },
+    {
+      "id": "term_g28sBxTQI6",
+      "name": "ATS",
+      "kind": "other",
+      "definition": "応募から内定までを管理する外部の採用管理システム。自社では選考ステータスの正として使う。",
+      "aliases": [
+        "採用管理システム"
+      ],
+      "notes": "actor でも data でもないと検討した上で other にした。undecided（未決）ではない。"
+    }
+  ]
+}
