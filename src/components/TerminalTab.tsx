@@ -35,6 +35,16 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   const fitRef = useRef<FitAddon | null>(null)
   const ptyIdRef = useRef<number | null>(null)
 
+  /**
+   * **起動待ちの間に打たれた入力。** `spawn` が解決するまで PTY の ID が
+   * 無いので送れない。捨てると起動までの約1秒だけ打鍵が無音で消えるので、
+   * ここへ積んで解決後に打たれた順で流す。
+   *
+   * **上限は設けない**（溜まるのは約1秒ぶん。上限を設けると「どこから
+   * 捨てるか」という新しい判断が要る）
+   */
+  const pendingRef = useRef<string[]>([])
+
   // コールバックは最新を ref から読む。**起動の effect は1回だけ**——
   // 依存に入れると props が変わるたびに端末がもう1本立つ
   const cb = useRef({ onRunning, onExited, onFailed })
@@ -57,6 +67,29 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
 
     let disposed = false
 
+    /**
+     * 端末への送信口。**書き込みはすべてここを通す。** ID がまだ無い間は
+     * 待ち行列へ積むだけにして、`spawn` の解決時に同じ順で流し直す
+     */
+    const send = (data: string): void => {
+      const ptyId = ptyIdRef.current
+      if (ptyId === null) {
+        pendingRef.current.push(data)
+        return
+      }
+      // 書き込みの失敗もタブの中に出す（設計 決定13）。握り潰すと
+      // 「打っても何も起きない端末」になり、原因が画面から読めない
+      void ptyIo.write(ptyId, data).catch((err: unknown) => {
+        // **disposed で守る**——StrictMode で捨てられた側のハンドラが
+        // 書き込みに失敗しても、生きているセッションを failed にしない
+        if (disposed) return
+        cb.current.onFailed(
+          session.id,
+          `端末へ書き込めませんでした: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      })
+    }
+
     // Claude Code の /terminal-setup は iTerm2/VSCode の設定ファイルを
     // 書き換えるコマンドで、埋め込み端末には効かない。キー処理はこちら側が
     // 握っているので Shift+Enter による改行は facet 側で代行する
@@ -70,20 +103,13 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
       // される。溜まった改行が次の入力で送出され、「1回目は改行できるが
       // 2回目以降は改行されず送信されてしまう」症状になる
       event.preventDefault()
-      const ptyId = ptyIdRef.current
-      if (ptyId !== null) {
-        void ptyIo.write(ptyId, SHIFT_ENTER_SEQUENCE).catch((err: unknown) => {
-          // **disposed で守る**——StrictMode で捨てられた側のハンドラが
-          // 書き込みに失敗しても、生きているセッションを failed にしない
-          if (disposed) return
-          cb.current.onFailed(
-            session.id,
-            `端末へ書き込めませんでした: ${err instanceof Error ? err.message : String(err)}`,
-          )
-        })
-      }
+      send(SHIFT_ENTER_SEQUENCE)
       return false
     })
+
+    // **登録は spawn の前。** 解決を待って登録すると、起動までの約1秒に
+    // 打った文字がどこにも届かない
+    term.onData(send)
 
     void ptyIo
       .spawn({
@@ -115,6 +141,11 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
           return
         }
         ptyIdRef.current = ptyId
+        // 起動待ちに積んだ入力を、打たれた順で流す。**配列を先に空にする**
+        // ——send() の中でまた積まれる余地を残さない
+        const queued = pendingRef.current
+        pendingRef.current = []
+        for (const data of queued) send(data)
         // 起動直後の PTY へ実寸を伝える。ここまでの fit()（隠れている間は
         // 測らない effect）は spawn 前——つまり ptyIdRef.current が null の
         // 間——に走っていることがあり、そのときは pty_resize を送れない。
@@ -129,24 +160,12 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
           fitRef.current?.fit()
           void ptyIo.resize(ptyId, term.cols, term.rows).catch(() => undefined)
         }
-        term.onData((data) => {
-          // 書き込みの失敗もタブの中に出す（設計 決定13）。握り潰すと
-          // 「打っても何も起きない端末」になり、原因が画面から読めない
-          void ptyIo.write(ptyId, data).catch((err: unknown) => {
-            // **disposed で守る**——StrictMode で捨てられた側の Terminal に
-            // 残った onData 経由の書き込みが失敗しても、生きているセッション
-            // を failed にしない
-            if (disposed) return
-            cb.current.onFailed(
-              session.id,
-              `端末へ書き込めませんでした: ${err instanceof Error ? err.message : String(err)}`,
-            )
-          })
-        })
         cb.current.onRunning(session.id, ptyId)
       })
       .catch((err: unknown) => {
         if (disposed) return
+        // 起動できなかったので、溜まった入力は行き先が無い
+        pendingRef.current = []
         cb.current.onFailed(
           session.id,
           `Claude Code を起動できませんでした: ${err instanceof Error ? err.message : String(err)}`,

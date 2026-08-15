@@ -693,4 +693,96 @@ describe('TerminalTab', () => {
       expect(onFailed).toHaveBeenCalledWith(1, '端末へ書き込めませんでした: boom'),
     )
   })
+
+  it('起動待ちの間に打った入力を捨てず、spawn の解決後に打った順で送る', async () => {
+    // `term.onData` の登録が spawn の解決後だと、ここで打った文字はどこにも
+    // 届かない（M11 の残件「起動待ちの間に端末へ打った入力が無音で消える」）。
+    // spawn の解決をテストから握って、その窓を作る
+    const writes: Array<[number, string]> = []
+    let release: () => void = () => undefined
+    const io: PtyIo = {
+      spawn: async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+        return 7
+      },
+      write: vi.fn(async (id: number, data: string) => {
+        writes.push([id, data])
+      }),
+      resize: vi.fn(async () => undefined),
+      kill: vi.fn(async () => undefined),
+    }
+    const onRunning = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={io}
+        hidden={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+
+    // **spawn の解決前に onData が登録されていること**が穴そのもの
+    await waitFor(() => expect(term.onData).toHaveBeenCalled())
+    const emit = term.onData.mock.calls.at(-1)?.[0] as (data: string) => void
+    emit('a')
+    emit('b')
+    // まだ PTY の ID が無いので送れない
+    expect(writes).toEqual([])
+
+    release()
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+    // 溜めた2文字が、打った順で流れる
+    expect(writes).toEqual([
+      [7, 'a'],
+      [7, 'b'],
+    ])
+  })
+
+  it('起動待ちの間の Shift+Enter も捨てず、解決後に送る', async () => {
+    // Shift+Enter のハンドラは `ptyId !== null` のときだけ書き込んでいたので、
+    // 起動待ちの改行は黙って落ちていた。上のテストと分けるのは、こちらが
+    // 通る別の経路（attachCustomKeyEventHandler）だから
+    const writes: string[] = []
+    let release: () => void = () => undefined
+    const io: PtyIo = {
+      spawn: async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+        return 7
+      },
+      write: vi.fn(async (_id: number, data: string) => {
+        writes.push(data)
+      }),
+      resize: vi.fn(async () => undefined),
+      kill: vi.fn(async () => undefined),
+    }
+    const onRunning = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={io}
+        hidden={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(term.attachCustomKeyEventHandler).toHaveBeenCalled())
+    const handler = term.attachCustomKeyEventHandler.mock.calls[0]?.[0] as (
+      event: KeyboardEvent,
+    ) => boolean
+    handler(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true }))
+    expect(writes).toEqual([])
+
+    release()
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+    expect(writes).toEqual([`${String.fromCharCode(27)}\r`])
+  })
 })
