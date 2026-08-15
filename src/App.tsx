@@ -839,6 +839,7 @@ function App() {
                 cwd={projectDir}
                 ptyIo={tauriPtyIo}
                 paneVisible={paneOpen}
+                dark={dark}
                 onOpen={openTerminal}
                 onClose={closeTerminal}
                 onActivate={(id) => setTerminals((prev) => activateSession(prev, id))}

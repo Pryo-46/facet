@@ -29,7 +29,7 @@ function setup(state = openSession(emptyTerminalState)) {
     onExited: vi.fn(),
     onFailed: vi.fn(),
   }
-  render(<TerminalPane state={state} cwd="/proj" ptyIo={ptyIo} paneVisible {...handlers} />)
+  render(<TerminalPane state={state} cwd="/proj" ptyIo={ptyIo} paneVisible dark={false} {...handlers} />)
   return handlers
 }
 
@@ -91,6 +91,7 @@ describe('TerminalPane', () => {
         cwd="/proj"
         ptyIo={ptyIo}
         paneVisible={false}
+        dark={false}
         {...handlers}
       />,
     )

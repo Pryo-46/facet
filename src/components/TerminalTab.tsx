@@ -2,15 +2,18 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
+import { buildTerminalTheme, TERMINAL_MIN_CONTRAST } from '@/core/terminal/theme'
 import { CLAUDE_ARGS, CLAUDE_PROGRAM, type PtyIo } from '@/core/terminal/pty-io'
 import type { TerminalSession } from '@/core/terminal/sessions'
 
 /**
  * 端末タブ1本。xterm 1個と PTY 1本が対応する。
  *
- * **端末の中は xterm の既定配色にする。** 端末は端末として読む面であり、
- * rev 9章の「地は方眼、作業する面は無地」の対象外。facet の役割トークンを
- * 流し込まないことで、ソースに色値が現れずに済む（conventions.test.ts）
+ * **面・文字・カーソル・選択は facet の役割トークンから流し込む**（M17）。
+ * 色値はソースに現れない——`palette.css` のトークンを実行時に読んで
+ * 変換する（`src/core/terminal/theme.ts`。conventions.test.ts）。
+ * **ANSI の16色は xterm の既定のまま**で、ライトの面での読みやすさは
+ * `minimumContrastRatio` に任せる（理由は theme.ts）
  */
 
 export interface TerminalTabProps {
@@ -19,6 +22,11 @@ export interface TerminalTabProps {
   ptyIo: PtyIo
   /** 畳んでいる／非アクティブ。**アンマウントはしない**（設計 決定6） */
   hidden: boolean
+  /**
+   * ダーク表示か。**色そのものは渡さない**——色は `palette.css` が持ち、
+   * この値は「トークンを読み直す合図」としてだけ使う
+   */
+  dark: boolean
   onRunning: (id: number, ptyId: number) => void
   onExited: (id: number, message: string) => void
   onFailed: (id: number, message: string) => void
@@ -28,8 +36,15 @@ export interface TerminalTabProps {
 // ソースに直接置かないため String.fromCharCode(27) で組み立てる
 const SHIFT_ENTER_SEQUENCE = `${String.fromCharCode(27)}\r`
 
+/**
+ * 役割トークンを実行時に読む。**jsdom では空文字が返る**ので、テスト環境
+ * では配色を渡さず xterm の既定に落ちる
+ */
+const readToken = (name: string): string =>
+  getComputedStyle(document.documentElement).getPropertyValue(name)
+
 export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
-  const { session, cwd, ptyIo, hidden, onRunning, onExited, onFailed } = props
+  const { session, cwd, ptyIo, hidden, dark, onRunning, onExited, onFailed } = props
   const hostRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -58,7 +73,17 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   useEffect(() => {
     const host = hostRef.current
     if (host === null) return
-    const term = new Terminal({ convertEol: false, fontSize: 13 })
+    const initialTheme = buildTerminalTheme(readToken)
+    const term = new Terminal({
+      convertEol: false,
+      fontSize: 13,
+      // 16色は xterm の既定のまま。ライトの面でも読める濃さへ xterm 自身に
+      // 寄せさせる（core/terminal/theme.ts）
+      minimumContrastRatio: TERMINAL_MIN_CONTRAST,
+      // 読めなければ渡さない。**空の theme を渡さないこと**——xterm の既定を
+      // 上書きして真っ黒でも真っ白でもない中途半端な面になる
+      ...(initialTheme === null ? {} : { theme: initialTheme }),
+    })
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(host)
@@ -190,6 +215,21 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     // タブごと作り直される（設計 決定12）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /**
+   * ライト／ダークの切り替えに追従する。**色の入れ替えは CSS 側で起きる**
+   * ので、ここは「読み直して xterm へ渡し直す」だけ。`dark` はその合図で、
+   * 値そのものは使わない（起動 effect より後に走るので、マウント時は
+   * 同じ配色をもう一度渡すことになるが実害は無い）
+   */
+  useEffect(() => {
+    const term = termRef.current
+    if (term === null) return
+    const theme = buildTerminalTheme(readToken)
+    if (theme !== null) term.options.theme = theme
+    // `dark` は合図として依存に入れる。値は読まない
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dark])
 
   // **隠れている間は測らない。** display:none では clientWidth が 0 になり、
   // ここで fit すると開き直したときだけ表示が崩れる（設計 決定6）
