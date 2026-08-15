@@ -23,6 +23,21 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const SKILL_DIR = path.resolve(fileURLToPath(import.meta.url), "../..");
 
+// ---------- アプリのコピー（手で複製しない） ----------
+//
+// canonical.ts = 正規形シリアライザ（src/core/canonical.ts）
+// バイト一致コピーで、ズレは src/core/skill-canonical-copy.test.ts が検知する
+
+let C;
+try {
+  C = await import("./canonical.ts");
+} catch (e) {
+  die(
+    2,
+    `同梱の .ts を読み込めません。Node の型ストリップが要ります（22.18+ / 23.6+ / 24+。現在 ${process.version}）\n  ${e.message}`
+  );
+}
+
 // ---------- 引数 ----------
 
 const argv = process.argv.slice(2);
@@ -95,8 +110,8 @@ if (!validate(data)) {
 
 // ---------- 正規化 ----------
 
-const normalized = reorder(data, schema, schema);
-const text = JSON.stringify(normalized, null, 2) + "\n";
+const text = C.serialize(data, schema);
+const normalized = JSON.parse(text);
 
 // ---------- 整合性検証（レベル2相当。警告にとどめる） ----------
 
@@ -104,22 +119,31 @@ const warnings = [];
 const errors = normalized.errors ?? [];
 // アプリの normalizeForMatch（src/core/normalize.ts）と同じ規則。
 // **trim を落とさないこと**——末尾に空白を足すだけで重複判定をすり抜けられる。
-// 用語集版のスクリプトの fold は trim を含んでいないが、そちらに合わせない
 const fold = (s) => String(s).normalize("NFKC").trim().toLowerCase();
 
-// ID重複（IDは機械的識別子なので正規化しない完全一致）
-const seenId = new Map();
-for (const e of errors) {
-  if (seenId.has(e.id)) warnings.push(`ID重複: ${e.id}（${seenId.get(e.id)} と ${e.name}）`);
-  else seenId.set(e.id, e.name);
+// ID重複（IDは機械的識別子なので正規化しない完全一致）。
+// 文言・計上規則ともアプリ（src/modules/error-catalog/consistency.ts）と
+// 同一であること——グループごとに1件・件数付き。出現ごとに数えない
+const byId = new Map();
+errors.forEach((e, i) => {
+  if (!byId.has(e.id)) byId.set(e.id, []);
+  byId.get(e.id).push(i);
+});
+for (const [id, indices] of byId) {
+  if (indices.length > 1) warnings.push(`ID が重複しています（${indices.length}件）: ${id}`);
 }
 
 // エラー名の重複（同名2件は「この名前で引ける」という前提の矛盾。アプリで赤表示になる）
-const seenName = new Map();
-for (const e of errors) {
+const byName = new Map();
+errors.forEach((e, i) => {
   const k = fold(e.name);
-  if (seenName.has(k)) warnings.push(`エラー名の重複: 「${e.name}」が複数登録されています（既存: ${seenName.get(k)}）`);
-  else seenName.set(k, e.name);
+  if (!byName.has(k)) byName.set(k, []);
+  byName.get(k).push(i);
+});
+for (const indices of byName.values()) {
+  if (indices.length > 1) {
+    warnings.push(`エラー名が重複しています: ${indices.map((i) => `「${errors[i].name}」`).join(' と ')}`);
+  }
 }
 
 // 宣言したレベルと対応文の矛盾（例: user なのに userAction が空）
@@ -199,35 +223,6 @@ if (warnings.length) {
 }
 
 // ---------- 補助 ----------
-
-function reorder(value, node, root) {
-  const s = deref(node, root);
-  if (Array.isArray(value)) {
-    return s?.items ? value.map((v) => reorder(v, s.items, root)) : value;
-  }
-  if (value && typeof value === "object") {
-    const props = s?.properties ?? {};
-    const inSchema = Object.keys(props).filter((k) => k in value);
-    const rest = Object.keys(value).filter((k) => !(k in props)); // additionalProperties:false なら空
-    const out = {};
-    for (const k of [...inSchema, ...rest]) out[k] = reorder(value[k], props[k] ?? {}, root);
-    return out;
-  }
-  return value;
-}
-
-function deref(node, root) {
-  let s = node;
-  for (let i = 0; s && s.$ref && i < 20; i++) {
-    if (!s.$ref.startsWith("#/")) return s;
-    s = s.$ref
-      .slice(2)
-      .split("/")
-      .map((seg) => decodeURIComponent(seg).replace(/~1/g, "/").replace(/~0/g, "~"))
-      .reduce((acc, k) => (acc == null ? acc : acc[k]), root);
-  }
-  return s;
-}
 
 function readJson(p, label) {
   let raw;

@@ -38,6 +38,28 @@ export const BUNDLED_SKILLS: readonly string[] = [
 const SKILL_DEPS_DIR = 'node_modules'
 
 /**
+ * `npm install` がロックする依存の版（Skill 直下の1件）。
+ *
+ * **同期では置き直さないのに削除だけされると、ロック無しで再解決される。**
+ * `SKILL_DEPS_DIR` と同様、同期の除外・削除の保護の両方でこの1つの名前を見る
+ * 必要があるが、`package-lock.json` 自体は `shouldSyncSkillFile` の対象では
+ * ない（除外リストに乗らない＝同梱物にあれば同期される）。ここで保護するのは
+ * 「利用者の手元で `npm install` した結果」で、facet が同梱する版ではない
+ */
+const SKILL_LOCK_FILE = 'package-lock.json'
+
+/**
+ * 同梱リソースを読むとき、このディレクトリへ降りてよいか（skill-resources.ts の
+ * collect が使う）。`node_modules` は「書かない」（shouldSyncSkillFile）だけでなく
+ * 「読まない」——ビルドマシンで Skill に npm install 済みだと数百ファイルを
+ * IPC で読んで捨てることになり、依存にテキストでないファイルが1つあるだけで
+ * readBundled ごと throw して Skill が黙って現れなくなる
+ */
+export function shouldDescendSkillDir(name: string): boolean {
+  return name !== SKILL_DEPS_DIR
+}
+
+/**
  * 同梱 Skill のファイル（Skill 名からの相対パス、`/` 区切り）を
  * プロジェクトフォルダへ同期してよいかを判定する（純関数）。
  *
@@ -45,23 +67,22 @@ const SKILL_DEPS_DIR = 'node_modules'
  * `assets/` など、開発時点で名前を知らないもの）は既定で同梱されるべきで、
  * 落とすべきは開発・評価用の足場だけだから。除外するのは:
  * - `evals/` 配下（Skill の評価ハーネス。会議で使う人には無意味なノイズ）
- * - Skill 直下の `.gitignore`（開発用。**加えて、mac では置くこと自体ができない**）
  * - `node_modules/` 配下（`npm install` で足された依存。数が多く、
  *   Tauri の書き込み許可スコープ外のファイルを含むこともあって同期が壊れる）
  *
- * **`.gitignore` を同期に戻してはならない（sequence M4 の最終レビューで検証）。**
- * SKILL.md が指示する `npm install` は置いた先に未追跡の `node_modules` を
- * 数千ファイル作るので、`.gitignore`（`node_modules/` を含む）を一緒に置きたく
- * なる。**が、mac では書き込みが `forbidden path` で落ちる。** `allow_skill_dir`
- * が入れる実行時 scope のパターンは `<dir>/.claude` と `<dir>/.claude/**` で、
- * この scope の照合は `require_literal_leading_dot: true`（unix の既定。
- * `tauri.conf.json` の `plugins.fs.requireLiteralLeadingDot: false` は
- * capabilities 由来の scope にしか届かない）。`**` はドット始まりの要素に
- * 一致しないので、`<root>/.gitignore` は許可されない——`.DS_Store` が消せない
- * のと**同じ1つの機構**である。下の書き込みループには try/catch が無いため、
- * 戻すと「消したあとに書けない」＝Skill が半分しか置かれない状態になり、
- * 毎回フォルダを開くたびに失敗トーストが出る。
- * 塞ぐなら `allow_skill_dir` にファイルを literal で許可させる側を直すこと
+ * **`.gitignore` は同期する（sequence M4 の最終レビューで一度除外し、この
+ * タスクで戻した）。** SKILL.md が指示する `npm install` は置いた先に
+ * 未追跡の `node_modules` を数千ファイル作るので、`.gitignore`
+ * （`node_modules/` を含む）を一緒に置かないと利用者の `git status` が汚れる。
+ * **mac では `allow_skill_dir` が Skill ごとの `.gitignore` を `allow_file`
+ * で literal に許可して初めて書ける**（`src-tauri/src/lib.rs`）。実行時
+ * scope の照合は `require_literal_leading_dot: true`（unix の既定）で
+ * `<dir>/.claude/**` のような `**` パターンはドット始まりの要素に一致しない
+ * ——`.DS_Store` が消せないのと同じ1つの機構——ので、`allow_file` を
+ * 個別に呼ばなければ `<root>/.gitignore` への書き込みは `forbidden path`
+ * で落ちる（sequence M4 の実測）。この許可が外れると、下の書き込みループに
+ * try/catch が無いぶん「消したあとに書けない」＝Skill が半分しか置かれない
+ * 状態に戻り、毎回フォルダを開くたびに失敗トーストが出る
  *
  * **`package.json` は除外しない（レビュー指摘。以前は除外していた）。**
  * これは evals の足場ではなく**実行時のマニフェスト**である——`ajv` は
@@ -73,7 +94,6 @@ const SKILL_DEPS_DIR = 'node_modules'
  */
 export function shouldSyncSkillFile(path: string): boolean {
   if (path === 'evals' || path.startsWith('evals/')) return false
-  if (path === '.gitignore') return false
   if (path === SKILL_DEPS_DIR || path.startsWith(`${SKILL_DEPS_DIR}/`)) return false
   return true
 }
@@ -84,9 +104,12 @@ export function shouldSyncSkillFile(path: string): boolean {
  * **消す目的は「Skill の更新でファイルが減ったときに古いファイルを取り残さない」
  * こと**であって、ディレクトリを空にすることではない。facet が書いたものは
  * 消してよいが、ユーザーが `npm install` で作ったものは facet の持ち物ではない
+ * ——`node_modules` そのものだけでなく、その解決結果である `package-lock.json`
+ * も同じ理由で消さない。消すと同期では置き直されないままロックだけ失われ、
+ * 次の `npm install` がロックを見ずに解決し直す
  */
 export function isRemovableSkillEntry(name: string): boolean {
-  return name !== SKILL_DEPS_DIR
+  return name !== SKILL_DEPS_DIR && name !== SKILL_LOCK_FILE
 }
 
 export interface SkillSyncIo {
@@ -155,10 +178,10 @@ export async function syncBundledSkills(
             // mac では実際に起きる: `allow_skill_dir` が入れる実行時 scope は
             // `Scope::default()` 由来で `require_literal_leading_dot: true`
             // なので、`<dir>/.claude/**` はドット始まりの**直下の要素**に
-            // 一致しない。Finder が置く `.DS_Store` や、除外前の版が置いた
-            // `.gitignore` が1つあるだけで、その remove が forbidden path になる
-            //（`scripts/` の中のドットファイルは、親ごと再帰削除されるので
-            // 個別の判定を通らず影響が無い）。
+            // 一致しない。Finder が置く `.DS_Store` が1つあるだけで、その
+            // remove が forbidden path になる（`.gitignore` は `allow_skill_dir`
+            // が literal で許可しているので対象外。`scripts/` の中のドット
+            // ファイルは、親ごと再帰削除されるので個別の判定を通らず影響が無い）。
             //
             // 消し残しはファイルが1つ余分に残るだけで、次の書き込みが
             // 同じ名前を上書きする。Skill を失うより明確に軽い

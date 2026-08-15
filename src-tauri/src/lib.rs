@@ -19,12 +19,26 @@ use tauri_plugin_fs::FsExt as _;
 /// 設定とこのコマンドはどちらも要る。**
 ///
 /// パターンに `.claude` を literal で入れれば判定を通る。ここで許可するのは
-/// `.claude` 配下だけで、判断は一切置かない（rev 7章）
+/// `.claude` 配下だけで、判断は一切置かない（rev 7章）。
+///
+/// **2段になっている。** `allow_directory` の `**` はドット始まりの直下要素に
+/// 一致しないため、Skill ごとの `.gitignore` はこれだけでは書けない。
+/// 同期対象のドットファイルは `allow_file` で1つずつ literal に許可する。
+/// 対象は Skill 直下の `.gitignore` のみ——ここに判断は置かない（rev 7章）。
+/// 対象ファイルが増えたら TS 側（skill-resources.ts）から渡す形を広げる
 #[tauri::command]
-fn allow_skill_dir(app: tauri::AppHandle, dir: String) -> Result<(), String> {
-    app.fs_scope()
-        .allow_directory(std::path::Path::new(&dir).join(".claude"), true)
-        .map_err(|e| e.to_string())
+fn allow_skill_dir(app: tauri::AppHandle, dir: String, skills: Vec<String>) -> Result<(), String> {
+    let scope = app.fs_scope();
+    let claude = std::path::Path::new(&dir).join(".claude");
+    scope
+        .allow_directory(&claude, true)
+        .map_err(|e| e.to_string())?;
+    for skill in &skills {
+        scope
+            .allow_file(claude.join("skills").join(skill).join(".gitignore"))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// ファイルを OS のゴミ箱へ移す。

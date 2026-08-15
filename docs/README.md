@@ -54,6 +54,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [M11](history/m11-core-claude-code-pane.md) | Claude Code ペイン | コア |
 | [M13](history/m13-core-file-titles-and-list-grouping.md) | ファイルの名前と一覧の種類別ソート | コア |
 | [M14](history/m14-core-ui-polish.md) | 額縁・サイドメニュー・各ツール画面の見た目整理 | コア |
+| [M15](history/m15-skill-hygiene.md) | 同梱 Skill とアプリの複製・同期の衛生 | コア |
 | [logic-tree-m1](history/logic-tree-m1-keyboard-editor.md) | キーボードで打ち切れるキャンバスエディタ | ロジックツリー |
 | [sequence-m1](history/sequence-m1-keyboard-editor.md) | ステップ入力＋全ステップに立つ「失敗したら？」の問い | シーケンス |
 | [sequence-m2](history/sequence-m2-usability.md) | 会議で使ってみて出た使い勝手9点 | シーケンス |

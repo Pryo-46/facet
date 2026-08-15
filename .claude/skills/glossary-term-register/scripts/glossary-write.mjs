@@ -23,6 +23,21 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const SKILL_DIR = path.resolve(fileURLToPath(import.meta.url), "../..");
 
+// ---------- アプリのコピー（手で複製しない） ----------
+//
+// canonical.ts = 正規形シリアライザ（src/core/canonical.ts）
+// バイト一致コピーで、ズレは src/core/skill-canonical-copy.test.ts が検知する
+
+let C;
+try {
+  C = await import("./canonical.ts");
+} catch (e) {
+  die(
+    2,
+    `同梱の .ts を読み込めません。Node の型ストリップが要ります（22.18+ / 23.6+ / 24+。現在 ${process.version}）\n  ${e.message}`
+  );
+}
+
 // ---------- 引数 ----------
 
 const argv = process.argv.slice(2);
@@ -95,50 +110,74 @@ if (!validate(data)) {
 
 // ---------- 正規化 ----------
 
-const normalized = reorder(data, schema, schema);
-const text = JSON.stringify(normalized, null, 2) + "\n";
+const text = C.serialize(data, schema);
+const normalized = JSON.parse(text);
 
 // ---------- 整合性検証（レベル2相当。警告にとどめる） ----------
 
 const warnings = [];
 const terms = normalized.terms ?? [];
-const fold = (s) => String(s).normalize("NFKC").toLowerCase();
+// アプリの normalizeForMatch（src/core/normalize.ts）と同じ規則。
+// **trim を落とさないこと**——末尾に空白を足すだけで重複判定をすり抜けられる
+const fold = (s) => String(s).normalize("NFKC").trim().toLowerCase();
 
-const seenId = new Map();
-for (const t of terms) {
-  if (seenId.has(t.id)) warnings.push(`ID重複: ${t.id}（${seenId.get(t.id)} と ${t.name}）`);
-  else seenId.set(t.id, t.name);
+// ID重複（IDは機械的識別子なので正規化しない完全一致）。
+// 文言・計上規則ともアプリ（src/modules/glossary/consistency.ts）と
+// 同一であること——グループごとに1件・件数付き。出現ごとに数えない
+const byId = new Map();
+terms.forEach((t, i) => {
+  if (!byId.has(t.id)) byId.set(t.id, []);
+  byId.get(t.id).push(i);
+});
+for (const [id, indices] of byId) {
+  if (indices.length > 1) warnings.push(`ID が重複しています（${indices.length}件）: ${id}`);
 }
 
 // name の重複（用語集は「この語を正式名とする」宣言なので、同名2件は宣言としての矛盾。
 // IDが違うためスキーマの uniqueItems では防げず、追記のたびに発生確率が上がる）
-const seenName = new Map(); // 正規化name -> 元の表記
-for (const t of terms) {
+const byName = new Map();
+terms.forEach((t, i) => {
   const k = fold(t.name);
-  if (seenName.has(k)) warnings.push(`name重複: 「${t.name}」が複数登録されています（既存: ${seenName.get(k)}）`);
-  else seenName.set(k, t.name);
+  if (!byName.has(k)) byName.set(k, []);
+  byName.get(k).push(i);
+});
+for (const indices of byName.values()) {
+  if (indices.length > 1) {
+    warnings.push(`名称が重複しています: ${indices.map((i) => `「${terms[i].name}」`).join(" と ")}`);
+  }
 }
 
-const aliasOwner = new Map(); // 正規化alias -> [用語名...]
-for (const t of terms) {
-  const inTerm = new Set();
-  for (const a of t.aliases ?? []) {
-    const k = fold(a);
-    if (inTerm.has(k)) warnings.push(`alias重複（同一用語内）: 「${a}」@ ${t.name}`);
-    inTerm.add(k);
-    aliasOwner.set(k, [...(aliasOwner.get(k) ?? []), t.name]);
+// alias 重複（同一用語内・用語間の両方を1つのルールで扱う）。
+// アプリ（src/modules/glossary/consistency.ts）と同じく、いったん
+// 「持ち主の位置つき」に平らへ潰してからグループごとに1件で数える
+const owned = terms.flatMap((t, index) => t.aliases.map((alias) => ({ index, alias })));
+const byAlias = new Map();
+owned.forEach((o, flat) => {
+  const k = fold(o.alias);
+  if (!byAlias.has(k)) byAlias.set(k, []);
+  byAlias.get(k).push(flat);
+});
+for (const group of byAlias.values()) {
+  if (group.length > 1) {
+    warnings.push(`別名「${owned[group[0]].alias}」が重複しています（${group.length}件）`);
   }
 }
-for (const [k, owners] of aliasOwner) {
-  const uniq = [...new Set(owners)];
-  if (uniq.length > 1) warnings.push(`alias重複（用語間）: 「${k}」が ${uniq.join(" / ")} に重複`);
-}
-for (const t of terms) {
-  const owners = aliasOwner.get(fold(t.name)) ?? [];
-  for (const o of new Set(owners)) {
-    if (o !== t.name) warnings.push(`alias が他用語の name と衝突: 「${t.name}」は ${o} の別名に登録されています`);
+
+// alias と他用語の name の衝突（自用語の name は対象外。自他の判定は index）
+const byTermName = new Map();
+terms.forEach((t, index) => {
+  const k = fold(t.name);
+  if (!byTermName.has(k)) byTermName.set(k, []);
+  byTermName.get(k).push(index);
+});
+terms.forEach((t, index) => {
+  for (const alias of t.aliases) {
+    for (const other of byTermName.get(fold(alias)) ?? []) {
+      if (other === index) continue;
+      warnings.push(`「${t.name}」の別名「${alias}」が用語「${terms[other].name}」の名称と衝突しています`);
+    }
   }
-}
+});
 
 // 用語集はプロジェクトにつき1つ（コア横断検証）
 if (targetPath) {
@@ -184,35 +223,6 @@ if (warnings.length) {
 }
 
 // ---------- 補助 ----------
-
-function reorder(value, node, root) {
-  const s = deref(node, root);
-  if (Array.isArray(value)) {
-    return s?.items ? value.map((v) => reorder(v, s.items, root)) : value;
-  }
-  if (value && typeof value === "object") {
-    const props = s?.properties ?? {};
-    const inSchema = Object.keys(props).filter((k) => k in value);
-    const rest = Object.keys(value).filter((k) => !(k in props)); // additionalProperties:false なら空
-    const out = {};
-    for (const k of [...inSchema, ...rest]) out[k] = reorder(value[k], props[k] ?? {}, root);
-    return out;
-  }
-  return value;
-}
-
-function deref(node, root) {
-  let s = node;
-  for (let i = 0; s && s.$ref && i < 20; i++) {
-    if (!s.$ref.startsWith("#/")) return s;
-    s = s.$ref
-      .slice(2)
-      .split("/")
-      .map((seg) => decodeURIComponent(seg).replace(/~1/g, "/").replace(/~0/g, "~"))
-      .reduce((acc, k) => (acc == null ? acc : acc[k]), root);
-  }
-  return s;
-}
 
 function readJson(p, label) {
   let raw;
