@@ -1254,4 +1254,35 @@ describe('interleaving（走査・選択の直列化ガード）', () => {
     expect(h.files().map((f) => f.name)).toEqual(['b.json'])
     expect(h.toasts().every((t) => !t.message.includes('ファイルが増えました'))).toBe(true)
   })
+
+  it('開いていたファイルが外部で消えたら、進行中の selectFile を捨てる（選び直さず、読み込みエラーも出さない）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    // 2度目の selectFile を closeCurrentFile の flush で止める。selectFile が
+    // selectedPath を持ったまま await しているのはこの窓だけ（read 待ちの間は
+    // closeCurrentFile が先に選択を null にしている）ので、「進行中の selectFile が
+    // ある状態で gone が着地する」interleaving はここでしか作れない
+    const saver = h.savers.current()
+    const releaseFlush: { current: (() => void) | null } = { current: null }
+    saver.flush = () =>
+      new Promise((resolve) => {
+        releaseFlush.current = () => resolve(true)
+      })
+    const second = h.controller.selectFile(p('a.json'))
+    // flush を待っている間に、外部で a.json が消えて検知が着地する
+    h.disk.files.delete(p('a.json'))
+    await h.controller.externalChange()
+    expect(h.toasts().at(-1)?.message).toContain('外部で削除されました')
+    expect(h.selectedPath()).toBeNull()
+    releaseFlush.current?.()
+    // ここが reject したら、closeCurrentFile が gone の後始末（saver = null）と
+    // 衝突している（本タスクの修正対象）
+    await second
+    // selectSeq++ の仕事: 着地した selectFile は何もしない——消えたファイルを
+    // 読みに行った失敗を「ファイルの読み込みに失敗しました」としてユーザーに出さない
+    expect(h.selectedPath()).toBeNull()
+    expect(h.document()).toBeNull()
+    expect(h.banners().io).toBeNull()
+  })
 })
