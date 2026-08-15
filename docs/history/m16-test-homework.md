@@ -18,11 +18,11 @@ M16 は `docs/open-issues.md`「テストが無い箇所」に繰り越されて
 
 `selectedPath === null` のときに `currentDocument()` が `null` を返すことを明示的に固定した。ただしこの行自体は直後の `files.find` に**遮蔽**されており、black-box のテストでは変異検知が原理的にできない（`selectedPath` を読む行を消しても `files.find(f => f.path === null)` は同じく見つからず `undefined` を返すため、観測できる結果が変わらない）。挙動としては固定済みで、テスト内コメントにその旨を記録済み。
 
-### 3. interleaving 3分岐（Task 3・4）
+### 3. interleaving 3分岐（Task 3・4・5）
 
-`rescan` の `switchingFolder > 0` ガード（Task 3）と `token !== scanSeq || projectDir !== dir` ガード（Task 4）を、既存の `createHarness`（I/O 注入）に手動 Promise を挟む形で固定した。
+`rescan` の `switchingFolder > 0` ガード（Task 3）、`token !== scanSeq || projectDir !== dir` ガード（Task 4）、`handleSelectedGone` の `selectSeq++` ガード（Task 5、コミット `88b16f4`。件名にも「gone の selectSeq ガードを固定する」と明記）を、既存の `createHarness`（I/O 注入）に手動 Promise を挟む形で固定した。3件目のテスト（「開いていたファイルが外部で消えたら、進行中の selectFile を捨てる」）は Task 4 までのテストと同じ `describe('interleaving（走査・選択の直列化ガード）', ...)` に追記されており、実装修正（下記「見つかった欠陥」）と同じコミットで固定された。
 
-- Task 3 の変異確認だけ、赤が assertion ではなく**決定論的な 5000ms timeout** で出た。ガードを外すと `rescan` が同期的に `io.scan` へ到達し、`deferNextScan` が用意する deferred slot #1 を `openFolder` 側の呼び出しより先に捕まえてしまうため、`openFolder` が永久に解決しない待ちに落ちる。`deferNextScan` の「call #1 の先取り順」は**「`io.scan` に最初に到達した呼び出し」に結合している**——ガードの有無で「どちらの呼び出しが先に `io.scan` へ着くか」が変わるテストでこのヘルパを再利用するときは、赤が assertion ではなく timeout で出ることがある点に注意（レビューが独立にトレースし、検知は決定論的に成立していることを確認済み）。
+- Task 3 の変異確認だけ、赤が assertion ではなく**決定論的な 5000ms timeout** で出た。ガードを外すと `rescan` が同期的に `io.scan` へ到達し、`deferNextScan` が用意する deferred slot #1 を `openFolder` 側の呼び出しより先に捕まえてしまう。`openFolder(DIR2)` は `switchingFolder++` 直後の `await closeCurrentFile()` でサスペンドしており、この時点ではまだ `io.scan(DIR2)` を呼んでいないため、先に `io.scan` へ到達するのは `externalChange()` が同期的に呼ぶ `rescan` 側になる——**ハングするのは `openFolder` ではなく `await h.controller.externalChange()`** で、`release.current?.()` を呼んでも中身が旧フォルダの scan にすり替わっているため解決しない。`deferNextScan` の「call #1 の先取り順」は**「`io.scan` に最初に到達した呼び出し」に結合している**——ガードの有無で「どちらの呼び出しが先に `io.scan` へ着くか」が変わるテストでこのヘルパを再利用するときは、赤が assertion ではなく timeout で出ることがある点に注意（レビューが独立にトレースし、検知は決定論的に成立していることを確認済み）。
 - Task 4 の `token !== scanSeq` 節は単独で赤くできる一方、`projectDir !== dir` 節は `token` 節に常に先取りされるため単独では赤くならない（防御的二重化）。存置する判断とその理由はテスト内コメントに記録済み。
 
 ### 4. 指摘バナーと額縁の配線（Task 6）
