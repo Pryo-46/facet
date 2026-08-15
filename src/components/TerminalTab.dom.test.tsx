@@ -303,6 +303,31 @@ describe('TerminalTab', () => {
     expect(getByText('終了しました（コード 0）')).toBeTruthy()
   })
 
+  it('アンマウントすると自分の PTY を殺す（台帳が ptyId を知る前に閉じられても孤児にしない）', async () => {
+    // プロセスの寿命は台帳（App の closeTerminalNow）に一本化してあるが、
+    // spawn の解決と台帳への反映（onRunning）の隙間で閉じられると台帳は
+    // ptyId を知らない。cleanup でも殺しておけばその窓が消える
+    const pty = fakePty()
+    const onRunning = vi.fn()
+    const { unmount } = render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+    expect(pty.io.kill).not.toHaveBeenCalled()
+
+    unmount()
+
+    await waitFor(() => expect(pty.io.kill).toHaveBeenCalledWith(7))
+  })
+
   it('StrictMode の二重マウントでも running は生き残った1本だけに通知し、捨てた側は kill で回収する', async () => {
     // 開発時の StrictMode は effect を「実行 → 後片付け → 再実行」で二重に
     // 走らせる。spawn は2回起きるが、台帳に2本登録されては困る

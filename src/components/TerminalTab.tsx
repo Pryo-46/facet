@@ -174,6 +174,16 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
 
     return () => {
       disposed = true
+      // **自分の PTY を殺してから捨てる。** 台帳（App.tsx の
+      // closeTerminalNow）も殺すが、`spawn` の解決と台帳への反映
+      //（onRunning）の隙間で閉じられると台帳は ptyId を知らない。
+      // **二重に殺しても無害**——pty_kill は既に消えた id に対して
+      // 何もしない（src-tauri/src/pty.rs の sessions.remove が None を返す）。
+      // ここで ref を null に落とすので、StrictMode で捨てられた側の
+      // cleanup が生き残った側の ID を掴むこともない
+      const ptyId = ptyIdRef.current
+      ptyIdRef.current = null
+      if (ptyId !== null) void ptyIo.kill(ptyId).catch(() => undefined)
       term.dispose()
     }
     // 起動は1回だけ。cwd が変わる経路は「フォルダ切替」で、そのときは
