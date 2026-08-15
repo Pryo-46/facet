@@ -107,19 +107,29 @@ const errors = normalized.errors ?? [];
 // 用語集版のスクリプトの fold は trim を含んでいないが、そちらに合わせない
 const fold = (s) => String(s).normalize("NFKC").trim().toLowerCase();
 
-// ID重複（IDは機械的識別子なので正規化しない完全一致）
-const seenId = new Map();
-for (const e of errors) {
-  if (seenId.has(e.id)) warnings.push(`ID重複: ${e.id}（${seenId.get(e.id)} と ${e.name}）`);
-  else seenId.set(e.id, e.name);
+// ID重複（IDは機械的識別子なので正規化しない完全一致）。
+// 文言・計上規則ともアプリ（src/modules/error-catalog/consistency.ts）と
+// 同一であること——グループごとに1件・件数付き。出現ごとに数えない
+const byId = new Map();
+errors.forEach((e, i) => {
+  if (!byId.has(e.id)) byId.set(e.id, []);
+  byId.get(e.id).push(i);
+});
+for (const [id, indices] of byId) {
+  if (indices.length > 1) warnings.push(`ID が重複しています（${indices.length}件）: ${id}`);
 }
 
 // エラー名の重複（同名2件は「この名前で引ける」という前提の矛盾。アプリで赤表示になる）
-const seenName = new Map();
-for (const e of errors) {
+const byName = new Map();
+errors.forEach((e, i) => {
   const k = fold(e.name);
-  if (seenName.has(k)) warnings.push(`エラー名の重複: 「${e.name}」が複数登録されています（既存: ${seenName.get(k)}）`);
-  else seenName.set(k, e.name);
+  if (!byName.has(k)) byName.set(k, []);
+  byName.get(k).push(i);
+});
+for (const indices of byName.values()) {
+  if (indices.length > 1) {
+    warnings.push(`エラー名が重複しています: ${indices.map((i) => `「${errors[i].name}」`).join(' と ')}`);
+  }
 }
 
 // 宣言したレベルと対応文の矛盾（例: user なのに userAction が空）
