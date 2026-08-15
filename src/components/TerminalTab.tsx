@@ -162,7 +162,9 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
       })
       .then((ptyId) => {
         if (disposed) {
-          void ptyIo.kill(ptyId)
+          // 下の cleanup と同じく `.catch` を付ける。拒否した invoke を
+          // 放っておくと unhandled rejection になる
+          void ptyIo.kill(ptyId).catch(() => undefined)
           return
         }
         ptyIdRef.current = ptyId
@@ -182,7 +184,9 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         // 理由——display:none では寸法が 0 になる。表示に戻ったときは
         // 既存の hidden effect が拾う）
         if (!hiddenRef.current) {
-          fitRef.current?.fit()
+          // **ref ではなくこの effect のローカルの `fit` を使う。** ref は
+          // StrictMode で「別の effect が作った addon」を掴みうる唯一の経路
+          fit.fit()
           void ptyIo.resize(ptyId, term.cols, term.rows).catch(() => undefined)
         }
         cb.current.onRunning(session.id, ptyId)

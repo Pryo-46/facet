@@ -363,6 +363,10 @@ function App() {
   const toggleTheme = () => {
     const next = !dark
     setDark(next)
+    // **この DOM 書き込みを `useEffect` へ移さないこと。** 端末の配色は
+    // `TerminalTab` の `[dark]` effect が `palette.css` のトークンを読み直す
+    // ことで追従するが、**子の effect は親の effect より先に走る**ので、
+    // ここを effect へ移すと端末だけ1回ぶん古い配色を読む
     document.documentElement.classList.toggle('dark', next)
   }
 
@@ -427,7 +431,15 @@ function App() {
    * （exited / failed）のタブは殺す PTY を持たないが、旧フォルダの残骸なので
    * 画面からも消す。**帰結として、端末を使っていなくてもフォルダを切り替えると
    * ペインは畳まれる**——旧フォルダのために開いていたペインを新フォルダで
-   * そのまま開いたままにする理由が無い
+   * そのまま開いたままにする理由が無い。
+   *
+   * **`killAllPtys()` が `setTerminals(closeAll)` より先なので、`await` の
+   * 最中に解決した spawn が一瞬 `running` になる窓がある**（溜まった打鍵を
+   * 既に死んだ PTY へ流しうる）。無害である——`closeAll` が同じバッチで
+   * 着地し、遅れて届く `onFailed` は `patch` が「その id はもう無い」で
+   * 同じ state を返す（`src/core/terminal/sessions.ts`）。M17 で待ち行列
+   *（`pendingRef`）とアンマウント時 kill の両方がこの窓へ流れ込むように
+   * なったので、順序を入れ替えるときはここを読むこと
    */
   const switchFolder = async (dir: string) => {
     const opened = await openProject(dir)

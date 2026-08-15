@@ -53,7 +53,7 @@
 
 `src-tauri/src/pty.rs` の `pty_write` は `state.sessions.lock()` を握ったまま `write_all` / `flush` を呼ぶ。**この錠前を外す**（書き手を `Arc<Mutex<…>>` に隔離し、`sessions` の錠前は書き手を取り出した時点で解放する）。
 
-**`#[tauri::command(async)]` にはしない。** `tauri-macros` 2.6.3 の `src/command/wrapper.rs:248-266` を読むと、既定は `ExecutionContext::Blocking`（`kind = "sync"`）で、`(async)` を付けた同期関数は `"sync_threadpool"` になり `respond_async_serialized` でスレッドプールへ投げられる。**投げた瞬間、複数の `pty_write` の到着順が保証されなくなる**——`src/components/TerminalTab.tsx` は `void ptyIo.write(...)` で待たずに撃つので、打鍵が入れ替わりうる。**打鍵の並び替えは、いま塞ごうとしている穴より重い。**
+**`#[tauri::command(async)]` にはしない。** `tauri-macros` 2.6.3 の `src/command/wrapper.rs` を読むと、既定は `ExecutionContext::Blocking`（`:50`）で `kind = "sync"`（`:266`）。`(async)` を付けた同期関数は `"sync_threadpool"`（`:264`）になり、`:249` 経由で `body_async`（`respond_async_serialized`）へ渡ってスレッドプールへ投げられる。**投げた瞬間、複数の `pty_write` の到着順が保証されなくなる**——`src/components/TerminalTab.tsx` は `void ptyIo.write(...)` で待たずに撃つので、打鍵が入れ替わりうる。**打鍵の並び替えは、いま塞ごうとしている穴より重い。**
 
 したがって本タスクで消えるのは「`pty_write` と `pty_kill` が同じ錠前を取り合う」という**設計上の欠陥**であって、「詰まった端末を必ず殺せる」という**保証ではない**（同期コマンドは main thread で走るため、書き込みが本当に返らなければ後続の IPC ごと止まる）。**根治は「セッションごとの書き込みスレッド＋エラーを `Channel` で返す」だが、それは設計 決定13（書き込み失敗をタブの中に出す）の同期的なエラー経路を作り替える変更なので、本マイルストーンではやらない。** 残る穴として `open-issues.md` に書き直す（Task 8）。
 
@@ -1601,7 +1601,7 @@ npm run tauri dev
 
 `docs/history/m17-core-terminal-fixes.md` を新規作成する。**以後書き換えない記録**なので、含めるのは「実装・レビュー・実機確認で新たに確定した事実」だけにする。最低限これらを書く:
 
-- **`ExecutionContext::Blocking` の発見**（`tauri-macros` 2.6.3 の `src/command/wrapper.rs:248-266`）。PTY コマンド4本はすべて同期コマンドで main thread を使う。**`pty_write` の錠前を外しても「詰まった端末を必ず殺せる」にはならない**——`#[tauri::command(async)]` にしなかった理由（打鍵の並び替え）も書く
+- **`ExecutionContext::Blocking` の発見**（`tauri-macros` 2.6.3 の `src/command/wrapper.rs:50` が既定、`:248-266` が実行文脈の2つの `match`）。PTY コマンド4本はすべて同期コマンドで main thread を使う。**`pty_write` の錠前を外しても「詰まった端末を必ず殺せる」にはならない**——`#[tauri::command(async)]` にしなかった理由（打鍵の並び替え）も書く
 - **`killAllPtys` の取りこぼしは、世代と待ち合わせの両方が要る**こと（片方だけでは足りない理由）
 - **`src/styles/contrast.ts` の契約を変えた**こと（テスト専用 → 実行時にも1箇所から呼ぶ）
 - **端末の ANSI 16色は持たない判断**と、代わりに `minimumContrastRatio` を使ったこと

@@ -84,5 +84,12 @@ describe('buildTerminalTheme', () => {
     delete missing['--ink']
     expect(buildTerminalTheme(reader(missing))).toBeNull()
     expect(buildTerminalTheme(reader({ ...LIGHT, '--surface': 'rebeccapurple' }))).toBeNull()
+    // `--surface-accent` **単独**の欠落も踏む。selectionBackground を null
+    // ガードから落とす／別のトークン名に結ぶ形の退行は、上の2つでは
+    // 素通りする。**`--surface-accent` は palette-retheme で人が選ぶ5つの
+    // 1つ**（rev 9章）なので、配色差し替えで最も落ちやすい
+    const noAccent = { ...LIGHT }
+    delete noAccent['--surface-accent']
+    expect(buildTerminalTheme(reader(noAccent))).toBeNull()
   })
 })
