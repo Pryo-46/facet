@@ -62,7 +62,8 @@ facet は、人間が構造化された UI で入力し、ツールが網羅性�
      撮り方: sample-project/応募から書類選考まで.json を開いた状態。図と、ステップに紐づく
              「失敗したら？」の問い（回答済みと未回答が混在している）が両方写るように。
      置き場所: docs/images/sequence-editor.png -->
-![シーケンスエディタ](docs/images/sequence-editor.png)
+![シーケンスエディタ](docs/images/sequence-editor1.png)
+![シーケンスエディタ](docs/images/sequence-editor2.png)
 
 ### ロジックツリー
 
