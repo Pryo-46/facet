@@ -9,3 +9,8 @@
 # git status に modified が出る（M6 の後片付けで Cargo.toml が実際にそうなった）。
 # index は元から全ファイル LF なので、この指定で内容の差分は出ない。
 * text=auto eol=lf
+
+# README のスクリーンショット。上の text=auto はバイナリを自動判別するので
+# 実害は出ないはずだが、判別に頼らず明示する（誤って LF 変換されると画像が壊れる）。
+*.png binary
+*.gif binary

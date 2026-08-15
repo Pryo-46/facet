@@ -1,0 +1,8 @@
+# facet がプロジェクトフォルダを開いたときに自動で置き直す配布物。
+# 原本は本体リポジトリの src/core/reading-guide.md と .claude/skills/ にある。
+# 追跡すると原本とドリフトする「第2の正」になるので追わない。
+/.claude/
+
+# 動作確認で書き出した Markdown（自動生成の README-for-AI.md を含む）。
+# このフォルダで追跡するのは仕様データの JSON だけ。
+*.md

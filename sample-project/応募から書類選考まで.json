@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "type": "sequence",
+  "title": "応募から書類選考まで",
+  "actors": [
+    {
+      "id": "actor_SZ3Efas4py",
+      "name": "応募者",
+      "domain": "社外"
+    },
+    {
+      "id": "actor_xIqO7SjENz",
+      "name": "採用サイト",
+      "domain": "自社"
+    },
+    {
+      "id": "actor_KN8328b8v6",
+      "name": "採用担当",
+      "domain": "自社"
+    },
+    {
+      "id": "actor_CpEyURZgnk",
+      "name": "ATS",
+      "domain": "外部サービス"
+    },
+    {
+      "id": "actor_GJ5HHvXXeQ",
+      "name": "メール配信サービス",
+      "domain": "外部サービス"
+    }
+  ],
+  "steps": [
+    {
+      "id": "step_H9HrlmSBdm",
+      "kind": "call",
+      "from": "actor_SZ3Efas4py",
+      "to": "actor_xIqO7SjENz",
+      "label": "応募フォームを送信する",
+      "awaitsReply": true,
+      "failures": {
+        "failed": {
+          "decision": "handled",
+          "text": "送信できなかったことを画面に出し、入力内容と添付ファイルを保持したまま再送信させる。応募は成立していない。"
+        }
+      }
+    },
+    {
+      "id": "step_zrXwlUTAh0",
+      "kind": "self",
+      "from": "actor_xIqO7SjENz",
+      "label": "添付書類の形式とサイズを検査する",
+      "failures": {
+        "failed": {
+          "decision": "handled",
+          "text": "どの条件に違反したかを添えて応募フォームへ差し戻す（エラーカタログ「履歴書の形式が対象外」）。"
+        }
+      }
+    },
+    {
+      "id": "step_ADwfZEdBL2",
+      "kind": "call",
+      "from": "actor_xIqO7SjENz",
+      "to": "actor_CpEyURZgnk",
+      "label": "応募を登録する",
+      "awaitsReply": true,
+      "failures": {
+        "failed": {
+          "decision": "handled",
+          "text": "応募自体は自社側に保存済みとして受け付け、未連携キューに積んで復旧後に取り込む（エラーカタログ「ATS の障害で応募を取り込めない」）。応募者には成功として見せる。"
+        },
+        "unknown": {
+          "decision": "handled",
+          "text": "未連携キューに積む。ATS 側に登録されたかどうかは、求人ID＋メールアドレスでの照会で確かめてから決める。",
+          "ifExecuted": {
+            "decision": "handled",
+            "text": "照会で既存の応募が見つかったら二重登録せず、その応募IDを自社側のレコードに紐付ける。"
+          }
+        }
+      }
+    },
+    {
+      "id": "step_txGdc344RG",
+      "kind": "reply",
+      "from": "actor_CpEyURZgnk",
+      "to": "actor_xIqO7SjENz",
+      "label": "応募IDを返す"
+    },
+    {
+      "id": "step_07327kMLgM",
+      "kind": "call",
+      "from": "actor_xIqO7SjENz",
+      "to": "actor_GJ5HHvXXeQ",
+      "label": "応募受付メールの送信を依頼する",
+      "awaitsReply": false,
+      "failures": {
+        "unknown": {
+          "decision": "notApplicable",
+          "text": "応募受付メールは補助的な通知であり、届かなくても応募は成立している。届いたかどうかは追わないと決めた。"
+        }
+      }
+    },
+    {
+      "id": "step_RyubD8WECK",
+      "kind": "reply",
+      "from": "actor_xIqO7SjENz",
+      "to": "actor_SZ3Efas4py",
+      "label": "応募完了画面を表示する"
+    },
+    {
+      "id": "step_qaYsdGLvDa",
+      "kind": "call",
+      "from": "actor_KN8328b8v6",
+      "to": "actor_CpEyURZgnk",
+      "label": "応募一覧を開く",
+      "awaitsReply": true,
+      "failures": {
+        "failed": {
+          "decision": "handled",
+          "text": "ATS の障害として扱い、復旧まで書類選考を止める。応募者への連絡はしない。"
+        }
+      }
+    },
+    {
+      "id": "step_QzopSzH7Xa",
+      "kind": "reply",
+      "from": "actor_CpEyURZgnk",
+      "to": "actor_KN8328b8v6",
+      "label": "応募内容と添付書類を返す"
+    },
+    {
+      "id": "step_yh9OqAdBbV",
+      "kind": "self",
+      "from": "actor_KN8328b8v6",
+      "label": "必須要件と突き合わせて合否を判断する"
+    },
+    {
+      "id": "step_AEgwLcYqtJ",
+      "kind": "call",
+      "from": "actor_KN8328b8v6",
+      "to": "actor_CpEyURZgnk",
+      "label": "選考ステータスを「書類選考通過」に更新する",
+      "awaitsReply": true,
+      "failures": {
+        "failed": {
+          "decision": "handled",
+          "text": "更新できなかったことを画面に出し、採用担当が再試行する。結果通知メールは送らない。"
+        },
+        "unknown": {
+          "decision": "handled",
+          "text": "一覧を再読み込みしてステータスを確かめてから再試行する。"
+        }
+      }
+    },
+    {
+      "id": "step_LrrJCD92A6",
+      "kind": "reply",
+      "from": "actor_CpEyURZgnk",
+      "to": "actor_KN8328b8v6",
+      "label": "更新後の選考ステータスを返す"
+    },
+    {
+      "id": "step_GvjmyHS0o5",
+      "kind": "call",
+      "from": "actor_CpEyURZgnk",
+      "to": "actor_GJ5HHvXXeQ",
+      "label": "書類選考の結果通知メールの送信を依頼する",
+      "awaitsReply": false
+    }
+  ]
+}

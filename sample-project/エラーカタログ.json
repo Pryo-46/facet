@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "type": "errorCatalog",
+  "title": "中途採用の応募管理 エラーカタログ",
+  "errors": [
+    {
+      "id": "error_7V0ZSvW8uL",
+      "name": "同じ求人への重複応募",
+      "occurrence": "応募フォームの送信時",
+      "resolutionLevel": "user",
+      "causeForSupport": "同じ求人に、同じメールアドレスで既に応募している。",
+      "causeForSpec": "求人ID＋メールアドレスの一意制約に違反した。選考が終了済みの応募は制約の対象外とする。",
+      "userAction": "既に応募済みである旨の画面表示を確認する。選考状況はマイページで見られる。別の求人へ応募したい場合は求人一覧から選び直す。",
+      "supportAction": "",
+      "engineerAction": "",
+      "notes": ""
+    },
+    {
+      "id": "error_cKxIRl4j5c",
+      "name": "履歴書の形式が対象外",
+      "occurrence": "応募フォームでのファイル添付時",
+      "resolutionLevel": "user",
+      "causeForSupport": "PDF・Word 以外の形式、または 10MB を超えるファイルを添付した。",
+      "causeForSpec": "拡張子とサイズをクライアント側で検査して弾く。サーバ側でも同じ検査を行う（フォームを経由しない送信への防波堤）。",
+      "userAction": "PDF または Word 形式で、10MB 以内に収めて添付し直す。",
+      "supportAction": "",
+      "engineerAction": "",
+      "notes": ""
+    },
+    {
+      "id": "error_aTYH2xYL2e",
+      "name": "選考結果メールが応募者に届かない",
+      "occurrence": "書類選考・面接の結果通知の送信後",
+      "resolutionLevel": "support",
+      "causeForSupport": "応募者が入力したメールアドレスの誤り、または応募者側の受信拒否設定。",
+      "causeForSpec": "メール配信サービスがバウンスを返す。バウンスは応募レコードに記録するが、送信の成否は自動では再判定しない。",
+      "userAction": "",
+      "supportAction": "バウンスの記録を確認し、人材エージェント経由の応募であればエージェントへ、直接応募であれば電話で連絡する。アドレスの訂正はサポートが代行する。",
+      "engineerAction": "",
+      "notes": ""
+    },
+    {
+      "id": "error_qFdR5puTsF",
+      "name": "面接枠の二重予約",
+      "occurrence": "面接日程の確定時",
+      "resolutionLevel": "engineer",
+      "causeForSupport": "",
+      "causeForSpec": "同じ面接官・同じ時間帯の枠に対して、2件の確定処理がほぼ同時に走った。枠の排他制御が入っていない。",
+      "userAction": "",
+      "supportAction": "",
+      "engineerAction": "重複した予約のどちらを残すかを採用担当に確認し、片方を手で取り消す。恒久対応として枠の排他制御を実装する。",
+      "notes": "業務レベルの原因（サポートに何と説明するか）が詰められていない。実装の話に流れて、そこで会議が終わった。"
+    },
+    {
+      "id": "error_Scupbu0u78",
+      "name": "ATS の障害で応募を取り込めない",
+      "occurrence": "応募受付後の ATS への連携時",
+      "resolutionLevel": "none",
+      "causeForSupport": "外部の採用管理システム（ATS）側の障害。自社システムの不具合ではない。",
+      "causeForSpec": "ATS の API が 5xx を返す。リトライ上限に達した応募は未連携のまま残り、復旧後に手動で取り込む。",
+      "userAction": "応募自体は自社側で受け付けている。応募者が取り直す必要はない。",
+      "supportAction": "ATS の稼働状況を確認し、復旧見込みを採用担当へ共有する。応募者への謝罪連絡は不要。",
+      "engineerAction": "自社側でできる復旧はない。復旧後、未連携で残った応募が無いかを確認する。",
+      "notes": "検討した上で「誰にも解決できない」と決めた。undecided（まだ決めていない）ではない。"
+    },
+    {
+      "id": "error_MVyYR9FEtg",
+      "name": "エージェント経由応募で応募者情報が欠落する",
+      "occurrence": "人材エージェントからの応募データ取り込み時",
+      "resolutionLevel": "undecided",
+      "causeForSupport": "エージェントごとに提出フォーマットが違い、こちらが必須としている項目が埋まっていないことがある。",
+      "causeForSpec": "",
+      "userAction": "",
+      "supportAction": "",
+      "engineerAction": "",
+      "notes": "エージェントに直させるのか、こちらが欠落を許容して後から埋めるのかが決まっていない。決め手は契約条件なので、法務の確認待ち。"
+    }
+  ]
+}

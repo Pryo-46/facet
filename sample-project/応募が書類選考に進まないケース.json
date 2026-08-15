@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "type": "logicTree",
+  "title": "応募が書類選考に進まないケース",
+  "nodes": [
+    {
+      "id": "node_Bbq4uYt1Hi",
+      "parentId": null,
+      "text": "応募が書類選考に進まないのはどんなときか"
+    },
+    {
+      "id": "node_ws5egePuG4",
+      "parentId": "node_Bbq4uYt1Hi",
+      "text": "応募そのものが成立しない"
+    },
+    {
+      "id": "node_wHKd3aXZiD",
+      "parentId": "node_ws5egePuG4",
+      "text": "応募フォームの送信に失敗した"
+    },
+    {
+      "id": "node_6XSXge6syl",
+      "parentId": "node_ws5egePuG4",
+      "text": "添付書類の形式・サイズが対象外だった"
+    },
+    {
+      "id": "node_HEPSIBqCSO",
+      "parentId": "node_ws5egePuG4",
+      "text": "同じ求人に重複応募した"
+    },
+    {
+      "id": "node_LggNZjxMt0",
+      "parentId": "node_Bbq4uYt1Hi",
+      "text": "応募は成立したが自社に届いていない"
+    },
+    {
+      "id": "node_652DnzRNzL",
+      "parentId": "node_LggNZjxMt0",
+      "text": "ATS への連携に失敗し、未連携キューに残っている"
+    },
+    {
+      "id": "node_wzrbRdrOan",
+      "parentId": "node_LggNZjxMt0",
+      "text": "人材エージェント経由の応募で必須項目が欠落している"
+    },
+    {
+      "id": "node_PgciiKgum7",
+      "parentId": "node_Bbq4uYt1Hi",
+      "text": "届いたが選考に着手できない"
+    },
+    {
+      "id": "node_XRLBCqJMPQ",
+      "parentId": "node_PgciiKgum7",
+      "text": "求人が既に募集終了になっている"
+    },
+    {
+      "id": "node_DAqtelcfLS",
+      "parentId": "node_PgciiKgum7",
+      "text": "応募者が着手前に辞退した"
+    },
+    {
+      "id": "node_ebI6OCnEN0",
+      "parentId": "node_PgciiKgum7",
+      "text": ""
+    },
+    {
+      "id": "node_iyDCu3zta9",
+      "parentId": "node_Bbq4uYt1Hi",
+      "text": "着手したが通過しなかった"
+    },
+    {
+      "id": "node_MEpVaiPObG",
+      "parentId": "node_iyDCu3zta9",
+      "text": "必須要件を満たさず見送りにした"
+    },
+    {
+      "id": "node_gqtZY6kCmj",
+      "parentId": "node_iyDCu3zta9",
+      "text": "過去の応募と同一人物と判定し、タレントプールへ回した"
+    }
+  ]
+}
