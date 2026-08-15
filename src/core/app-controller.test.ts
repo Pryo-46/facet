@@ -1166,3 +1166,54 @@ describe('出力: ファイル未選択', () => {
     expect(h.banners().io).toBeNull()
   })
 })
+
+describe('interleaving（走査・選択の直列化ガード）', () => {
+  const DIR2 = 'C:\\proj2'
+  const p2 = (name: string) => `${DIR2}\\${name}`
+
+  /**
+   * io.scan の呼び出しを1回だけ手動 Promise で止める差し込み。
+   * capture: true は「呼ばれた時点のディスク」を即座に読んでおく（古い
+   * スナップショットとして後から着地させるため）。false は release 時に読む
+   */
+  function deferNextScan(h: Harness, capture: boolean) {
+    const realScan = h.io.scan
+    const release: { current: (() => void) | null } = { current: null }
+    const calls = { count: 0 }
+    h.io.scan = (dir) => {
+      calls.count++
+      if (calls.count === 1) {
+        // capture 時は呼ばれた瞬間に読む——release 時に読み直すと最新と同じ
+        // 内容になり、「古い結果を捨てた」ことと区別できなくなる
+        //（教訓「区別したい2つの実装が同じ答えを返す入力を選ばない」）
+        const snapshot = capture ? realScan(dir) : null
+        return new Promise((resolve) => {
+          release.current = () => resolve(snapshot ?? realScan(dir))
+        })
+      }
+      return realScan(dir)
+    }
+    return { release, calls }
+  }
+
+  it('フォルダ切替中に届いた監視イベントでは再走査しない（旧フォルダの通知や一覧上書きを出さない）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A'), [p2('b.json')]: note('B') })
+    await h.controller.openFolder(DIR)
+    const { release, calls } = deferNextScan(h, false)
+    // 新フォルダの走査が止まったまま＝切替中
+    const opening = h.controller.openFolder(DIR2)
+    // その間に旧フォルダで外部変更が起きて監視イベントが届く
+    h.disk.files.set(p('c.json'), note('C'))
+    const from = h.log.length
+    await h.controller.externalChange()
+    // 再走査ごと捨てる: io.scan は呼ばれず、一覧も通知も動かない。
+    // ここを通すと、旧フォルダの「ファイルが増えました」が切替の最中に出たり、
+    // 旧フォルダの内容が新しい一覧を上書きしたりする
+    expect(calls.count).toBe(1)
+    expect(h.log.slice(from)).not.toContain('setFiles')
+    expect(h.log.slice(from)).not.toContain('toast')
+    release.current?.()
+    await expect(opening).resolves.toBe(true)
+    expect(h.files().map((f) => f.name)).toEqual(['b.json'])
+  })
+})
