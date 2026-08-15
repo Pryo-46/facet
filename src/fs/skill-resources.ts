@@ -7,9 +7,9 @@ import { BUNDLED_SKILLS, shouldDescendSkillDir, type SkillSyncIo } from '@/core/
  * 同梱 Skill の読み出しとプロジェクトフォルダへの書き込み（Tauri 境界）。
  *
  * **`readBundled` はディレクトリ配下を無条件・再帰的に集めるだけ**——
- * `evals/`（評価ハーネス）や `package.json` / `.gitignore`（開発用）も含めて
+ * `evals/`（評価ハーネス）や `package.json` なども含めて
  * すべて返す。「何を実際にプロジェクトフォルダへ置くか」の判定
- * （`SKILL.md` や `scripts/*.mjs`, `references/` などは同期し、
+ * （`SKILL.md` や `scripts/*.mjs`, `references/`, `.gitignore` などは同期し、
  * `evals/` 配下や開発用ファイルは同期しない）は、テストで固定できるよう
  * `src/core/skill-sync.ts` の `shouldSyncSkillFile`（純関数）が担う。
  * ここでファイルを絞り込まない。

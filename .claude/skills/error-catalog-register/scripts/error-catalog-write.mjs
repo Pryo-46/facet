@@ -119,7 +119,6 @@ const warnings = [];
 const errors = normalized.errors ?? [];
 // アプリの normalizeForMatch（src/core/normalize.ts）と同じ規則。
 // **trim を落とさないこと**——末尾に空白を足すだけで重複判定をすり抜けられる。
-// 用語集版のスクリプトの fold は trim を含んでいないが、そちらに合わせない
 const fold = (s) => String(s).normalize("NFKC").trim().toLowerCase();
 
 // ID重複（IDは機械的識別子なので正規化しない完全一致）。
