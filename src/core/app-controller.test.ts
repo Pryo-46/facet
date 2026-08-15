@@ -1216,4 +1216,42 @@ describe('interleaving（走査・選択の直列化ガード）', () => {
     await expect(opening).resolves.toBe(true)
     expect(h.files().map((f) => f.name)).toEqual(['b.json'])
   })
+
+  it('遅れて着地した古い走査結果は捨てる（後続の再走査が作った新しい一覧を上書きしない）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    const { release } = deferNextScan(h, true)
+    // 古い走査（c.json をまだ知らないスナップショット）が止まっている
+    const first = h.controller.externalChange()
+    h.disk.files.set(p('c.json'), note('C'))
+    // 新しい走査が先に着地して c.json を一覧へ足す
+    await h.controller.externalChange()
+    expect(h.files().map((f) => f.name)).toContain('c.json')
+    const from = h.log.length
+    release.current?.()
+    await first
+    // 古い結果が着地しても、c.json を「外部で削除された」ことにしない
+    expect(h.files().map((f) => f.name)).toContain('c.json')
+    expect(h.log.slice(from)).not.toContain('setFiles')
+    expect(h.toasts().every((t) => !t.message.includes('削除されました'))).toBe(true)
+  })
+
+  // 書けない側の記録: ガードの `projectDir !== dir` 節だけを単独で赤くする入力は
+  // 存在しない——openFolder も後続の rescan も必ず scanSeq を進めるので、dir が
+  // 変わるときは常に token 節が先に捕まえる。dir 節は防御的な二重化であり、
+  // black-box では変異を検知できない（教訓「書かない判断をしたら、なぜ書けないかを記録する」）
+  it('旧フォルダの遅い走査結果が、切替後の新フォルダの一覧を上書きしない', async () => {
+    const h = createHarness({ [p('a.json')]: note('A'), [p2('b.json')]: note('B') })
+    await h.controller.openFolder(DIR)
+    const { release } = deferNextScan(h, true)
+    // 旧フォルダ A の走査が止まっている間に、B への切替が先に完了する
+    const first = h.controller.externalChange()
+    await h.controller.openFolder(DIR2)
+    expect(h.files().map((f) => f.name)).toEqual(['b.json'])
+    release.current?.()
+    await first
+    // A の走査結果（a.json）が B の一覧に混ざらない
+    expect(h.files().map((f) => f.name)).toEqual(['b.json'])
+    expect(h.toasts().every((t) => !t.message.includes('ファイルが増えました'))).toBe(true)
+  })
 })
