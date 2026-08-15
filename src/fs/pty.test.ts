@@ -88,6 +88,27 @@ describe('killAllPtys', () => {
     expect(invokeMock).toHaveBeenCalledWith('pty_kill', { id: 9 })
   })
 
+  it('**起動中に全殺しされた PTY を台帳へ載せ直さない**（世代の判定そのもの）', async () => {
+    // 上のテストは in-flight の待ち合わせだけでも通る——`pty_kill` が飛ぶ
+    // 事実は待ち合わせが担うため。**世代の判定が無いと、待ち合わせが済んだ
+    // 後に spawn 側が `live.add(id)` してしまい、空にしたはずの台帳に1本
+    // だけ生き残る。** ここはそれを踏む: レースのあともう一度全殺しして、
+    // 同じ id へ kill が飛ばないこと（＝台帳に幽霊が残っていないこと）を見る
+    const gate = gatedSpawn()
+    const spawning = tauriPtyIo.spawn(spec())
+
+    const killing = killAllPtys()
+    gate.resolve(9)
+    await spawning
+    await killing
+
+    invokeMock.mockClear()
+    invokeMock.mockImplementation(async () => undefined)
+    await killAllPtys()
+
+    expect(invokeMock).not.toHaveBeenCalled()
+  })
+
   it('起動中だった PTY の kill が終わるまで解決しない', async () => {
     // ここで待たないと、アプリ終了経路（interceptClose → killAllPtys →
     // close）で kill が間に合わず孤児が残る
