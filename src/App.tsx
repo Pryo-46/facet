@@ -421,6 +421,13 @@ function App() {
    * 留まったまま Claude Code セッションだけを失う。cwd は TerminalTab の
    * 起動 effect がマウント時にしか読まないので、先に openFolder を待っても
    * 生きている端末が古い cwd のまま化けることはない（設計 決定12）
+   *
+   * **フォルダ切替の唯一の経路。** 実行中のタブが1本も無い場合もここを通る
+   *（確認ダイアログを挟むかどうかだけが `openFolder` 側の判断）。終了済み
+   * （exited / failed）のタブは殺す PTY を持たないが、旧フォルダの残骸なので
+   * 画面からも消す。**帰結として、端末を使っていなくてもフォルダを切り替えると
+   * ペインは畳まれる**——旧フォルダのために開いていたペインを新フォルダで
+   * そのまま開いたままにする理由が無い
    */
   const switchFolder = async (dir: string) => {
     const opened = await openProject(dir)
@@ -433,8 +440,12 @@ function App() {
   const openFolder = async () => {
     const dir = await pickProjectFolder()
     if (dir === null) return
+    // **実行中のタブが無くても switchFolder を通す。** `hasRunning` は
+    // starting / running しか見ないので、ここで素通りさせると exited /
+    // failed のタブが旧フォルダの残骸として画面に残る。`hasRunning` は
+    // **確認ダイアログの要否だけ**に使い、後始末は1本の経路に寄せる
     if (!hasRunning(terminals)) {
-      await openProject(dir)
+      await switchFolder(dir)
       return
     }
     setModals((prev) =>

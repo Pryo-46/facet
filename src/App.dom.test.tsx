@@ -325,6 +325,27 @@ describe('フォルダ切替', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'キャンセル' }))
     expect(screen.getByRole('button', { name: 'Claude 1' })).toBeTruthy()
   })
+
+  it('**終了済みのタブしか無くてもフォルダ切替で消える**（確認は出ない）', async () => {
+    // `hasRunning` は starting / running しか見ないので、exited のタブだけが
+    // 残っていると openFolder が確認も後始末もせず素通りしていた——旧フォルダ
+    // の残骸がタブバーに残る（M11 の残件）
+    await openPane()
+    await screen.findByRole('button', { name: 'Claude 1' })
+
+    // 子が自然終了した状態にする（starting / running ではなくなる）
+    act(() => {
+      ptyExitHandlers.get(1)?.(0)
+    })
+    await screen.findByText('終了しました（コード 0）')
+
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+
+    // 旧フォルダの残骸が消える
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
+    // 実行中のタブが無いので、確認ダイアログは出ていない
+    expect(screen.queryByRole('button', { name: '終了して切り替える' })).toBeNull()
+  })
 })
 
 describe('読み方ガイド', () => {
