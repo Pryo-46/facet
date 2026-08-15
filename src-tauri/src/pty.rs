@@ -252,13 +252,21 @@ mod tests {
                 let _ = state.kill(1);
                 let _ = done_tx.send(());
             });
-            done_rx.recv_timeout(Duration::from_secs(2)).expect(
+            let killed_in_time = done_rx.recv_timeout(Duration::from_secs(2)).is_ok();
+
+            // **assert より先に書き込みを解放する。** ここで先に panic すると、
+            // 錠前を握ったままの実装では thread::scope が2本のスレッドの join を
+            // 待って永久に止まる（どちらも錠前待ちのまま畳めない）——テストが
+            // 「2秒で落ちる」ではなく「固まる」になり、退行したときに何が
+            // 起きているのか読めなくなる。解放してから判定すれば、古い実装でも
+            // 2本とも畳めて panic が伝播する
+            let _ = gate_tx.send(());
+
+            assert!(
+                killed_in_time,
                 "書き込みが詰まっている間に kill が返らなかった（sessions の錠前を握ったままになっている）",
             );
             assert!(killed.load(Ordering::SeqCst), "killer.kill() が呼ばれていない");
-
-            // 書き込みを解放してスレッドを畳む
-            let _ = gate_tx.send(());
         });
     }
 }
