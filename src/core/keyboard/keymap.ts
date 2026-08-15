@@ -1,3 +1,4 @@
+import { isImeProcessingKey } from './ime'
 import { isPrimaryModifier, type Platform } from './platform'
 
 /**
@@ -141,7 +142,13 @@ export function resolveCommand(e: KeyEventLike, ctx: KeyContext): Command | null
 
 /**
  * React の合成イベントと DOM の KeyboardEvent の差を吸収する。
- * React の合成イベントは isComposing を持たず nativeEvent 側にある
+ * React の合成イベントは isComposing を持たず nativeEvent 側にある。
+ *
+ * **`keyCode === 229` も「変換中」に畳み込む。** WebKit（macOS の WKWebView /
+ * Linux の WebKitGTK）は composition 系のイベントを keydown より先に投げるので、
+ * 確定の Enter が届く時点では `isComposing` が既に false になっている
+ *（WebKit bug 165004）。ここで畳んでおくと、**操作言語を通る全ての経路**
+ *——各ツールのセルも額縁のグローバル層も——が一度に守られる
  */
 export function toKeyEventLike(e: {
   key: string
@@ -150,14 +157,17 @@ export function toKeyEventLike(e: {
   metaKey: boolean
   shiftKey: boolean
   isComposing?: boolean
-  nativeEvent?: { isComposing?: boolean }
+  keyCode?: number
+  nativeEvent?: { isComposing?: boolean; keyCode?: number }
 }): KeyEventLike {
+  const composing = e.nativeEvent?.isComposing ?? e.isComposing ?? false
+  const keyCode = e.nativeEvent?.keyCode ?? e.keyCode
   return {
     key: e.key,
     altKey: e.altKey,
     ctrlKey: e.ctrlKey,
     metaKey: e.metaKey,
     shiftKey: e.shiftKey,
-    isComposing: e.nativeEvent?.isComposing ?? e.isComposing ?? false,
+    isComposing: composing || isImeProcessingKey(keyCode),
   }
 }

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
+import { isCompositionTail, isImeProcessingKey } from '@/core/keyboard/ime'
 
 /** キー処理に必要な入力欄の状態。操作言語の KeyContext に詰め替えて使う */
 export interface FieldState {
@@ -60,6 +61,10 @@ export interface CellInputProps {
  *   巻き戻り、IME が壊れる（日本語入力アプリ最大の地雷）
  * - 親から来た value が変わったらドラフトを捨てる。これが Undo と
  *   外部変更の取り込みを表示に反映する経路になる
+ * - 変換に属する打鍵は onFieldKeyDown を呼ばない。**変換中だけでなく
+ *   「確定した直後」も含む**——WebKit（macOS / Linux）は確定の Enter を
+ *   compositionend の後に isComposing: false で投げてくるので、操作言語の
+ *   IME ガードだけでは行追加として消費されてしまう（`isCompositionTail`）
  * - キーの意味は決めない。onFieldKeyDown に状態を添えて渡すだけ。
  *   **Enter を止めるのも呼び出し側の仕事**である——素の Enter は
  *   操作言語が行追加として消費し（preventDefault される）、
@@ -81,6 +86,9 @@ export function CellInput(props: CellInputProps) {
   // 直近に見た親の value。変わったらドラフトを捨てる
   const [seenValue, setSeenValue] = useState(value)
   const composing = useRef(false)
+  // 直近に変換が終わった時刻。WebKit はここから遅れて確定の keydown を投げてくる
+  // （`isCompositionTail` の解説を読むこと）。null＝確定の尾を待っていない
+  const composedAt = useRef<number | null>(null)
   const areaRef = useRef<HTMLTextAreaElement>(null)
   const [rows, setRows] = useState(1)
 
@@ -173,14 +181,33 @@ export function CellInput(props: CellInputProps) {
     },
     onCompositionStart: () => {
       composing.current = true
+      composedAt.current = null
     },
     onCompositionEnd: (e: React.CompositionEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       composing.current = false
+      composedAt.current = e.timeStamp
       const raw = e.currentTarget.value
       setDraft(raw)
       commit(raw)
     },
+    // キーを離したら確定の尾は終わり。**これが Chromium 側の安全弁になっている**
+    // ——あちらは compositionend のあとに確定キーの keyup が来るので、
+    // 次の打鍵が窓に入る余地がそもそも無くなる（`isCompositionTail` の解説）
+    onKeyUp: () => {
+      composedAt.current = null
+    },
     onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      // 変換に属する打鍵は呼び出し側へ渡さない。**IME の面倒はここで完結させる**
+      // ——各ツールの keydown ハンドラに同じ判定を撒くと、次に増えるツールが
+      // 落とす（操作言語は「意味」だけを受け取る、が rev 10章の建て付け）
+      if (composing.current) return
+      // IME が食った打鍵（keyCode 229）。WKWebView では確定の Enter がこれで来る
+      if (isImeProcessingKey(e.nativeEvent.keyCode)) return
+      if (isCompositionTail(e.timeStamp, composedAt.current)) {
+        // 一度きり。確定の Enter を捨てたあとの打鍵は普通の操作として通す
+        composedAt.current = null
+        return
+      }
       const el = e.currentTarget
       onFieldKeyDown?.(e, {
         empty: el.value === '',
@@ -197,7 +224,10 @@ export function CellInput(props: CellInputProps) {
       })
     },
     // 反映されなかった入力（空の名称など）を残さない。抜けたら確定値に戻す
-    onBlur: () => setDraft(null),
+    onBlur: () => {
+      composedAt.current = null
+      setDraft(null)
+    },
   }
 
   if (multiline) {

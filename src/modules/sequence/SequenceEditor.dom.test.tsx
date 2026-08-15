@@ -174,6 +174,26 @@ describe('ステップ行', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  // WKWebView の実測: 確定の Enter は keyCode 229・isComposing false で来る。
+  // 229 は IME が食った打鍵の予約値で、composition の記録に頼らず判別できる
+  it('WKWebView の実測どおりの Enter（keyCode 229 / isComposing false）でもステップが増えない', () => {
+    const { onChange } = setup()
+    const el = screen.getByLabelText('ステップ1の文言')
+    fireEvent.keyDown(el, { key: 'Enter', keyCode: 229 })
+    expect(onChange.mock.calls.every(([d]) => d.steps.length === 3)).toBe(true)
+  })
+
+  it('WebKit の順序（compositionend が先）でもステップが増えない', () => {
+    const { onChange } = setup()
+    const el = screen.getByLabelText('ステップ1の文言')
+    fireEvent.compositionStart(el)
+    fireEvent.compositionEnd(el, { target: { value: '注文を確定' } })
+    fireEvent.keyDown(el, { key: 'Enter' })
+    // 確定そのものは値の更新として上がるので「呼ばれないこと」では見られない。
+    // **ステップが増えていないこと**を全ての呼び出しについて見る
+    expect(onChange.mock.calls.every(([d]) => d.steps.length === 3)).toBe(true)
+  })
+
   it('Alt+↓ で並び替え（3行の真ん中から）', () => {
     const { onChange } = setup()
     fireEvent.keyDown(screen.getByLabelText('ステップ2の文言'), { key: 'ArrowDown', altKey: true })
