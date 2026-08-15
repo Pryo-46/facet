@@ -1143,3 +1143,26 @@ describe('出力: 整合性エラーが無いファイル', () => {
     expect(copyText).toHaveBeenCalled()
   })
 })
+
+describe('出力: ファイル未選択', () => {
+  it('未選択では何もしない（コピーも保存ダイアログもモーダルも起きない）', async () => {
+    const copyText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+    const askSavePath = vi.fn<(defaultPath: string) => Promise<string | null>>().mockResolvedValue(null)
+    const h = createHarness({ [p('a.json')]: note('A', '本文') }, { copyText, askSavePath })
+    await h.controller.openFolder(DIR)
+    // 「編集中データなし」分岐と観測を分ける（open-issues が記録していた重なり）——
+    // 編集中データはあるのに選択が無い状況を作る。これで出力が止まる理由は
+    // 選択が無いことの側に限定される。
+    // なお currentDocument の `selectedPath === null` の early return 自体は、
+    // その直後の `files.find` が selectedPath: null で必ず外れるため、行を消しても
+    // 観測差が出ない（black-box では変異を検知できない）。このテストが固定するのは
+    // 「未選択で出力操作を呼んでも無害」という挙動であって、特定の行ではない
+    h.setDocument({ schemaVersion: 1, type: 'note', title: 'A', body: '編集中' })
+    await h.controller.copyMarkdown(firstOutput(h))
+    await h.controller.exportMarkdown(firstOutput(h))
+    expect(copyText).not.toHaveBeenCalled()
+    expect(askSavePath).not.toHaveBeenCalled()
+    expect(h.modals()).toHaveLength(0)
+    expect(h.banners().io).toBeNull()
+  })
+})
