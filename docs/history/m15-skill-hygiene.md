@@ -15,7 +15,7 @@ M15 は「同梱 Skill とアプリの複製・同期」にあった既知の欠
 `consistency.ts`（アプリ側の整合性検証）は値 import と `@/` エイリアスを持つため、`canonical.ts` のようにバイト一致コピーへ寄せられない。代わりに採った形は、各 Skill の `*-write.mjs --check` を `execFileSync` で実際に spawn し、**アプリの `checkXxxConsistency` が返す `message` がその stdout に逐語で（部分文字列として）現れること**を検査する実行 smoke テスト（`src/styles/palette-fit.smoke.test.ts` と同型）。
 
 - `src/modules/error-catalog/skill-write.smoke.test.ts`（Task 1）／`src/modules/glossary/skill-write.smoke.test.ts`（Task 2）を新設し、あわせてエラーカタログ・用語集の両スクリプトの重複2〜4ルールを**グループごとに1件・件数付き**というアプリの計上規則へ揃えた。用語集の `fold` にも `normalizeForMatch`（`src/core/normalize.ts`）と同じ trim を追加した——末尾空白が重複判定をすり抜ける欠陥がここで塞がった。
-- `src/modules/sequence/skill-write.smoke.test.ts`（Task 4）は、sequence の4ルールが実装時点で**既にアプリと一致していた**ことを実測した上で新設した。最初から緑のテストであることは「発見が無い」ことそのものであり、変異（文言を1文字変える）で赤くなることを確認してから元に戻す手順を踏んだ。副産物として、**型ストリップ import 経路（`questions.ts`/`canonical.ts` のコピーを実際に読む）を実行する唯一のテスト**になった。
+- `src/modules/sequence/skill-write.smoke.test.ts`（Task 4）は、sequence の4ルールが実装時点で**既にアプリと一致していた**ことを実測した上で新設した。最初から緑のテストであることは「発見が無い」ことそのものであり、変異（文言を1文字変える）で赤くなることを確認してから元に戻す手順を踏んだ。副産物として、**`questions.ts` と `canonical.ts` の両方のコピーを実際に読む唯一のテスト**になった（Task 3 以後、`canonical.ts` の型ストリップ import 自体は glossary/error-catalog の smoke テストも通るが、`questions.ts` を合わせて通すのはこのテストだけである）。
 - 3本のテストとも、契約が「アプリの message が現れること」であって「スクリプトの出力全体が一致すること」ではない点が同じ形——スクリプト固有の警告（用語集の単一性違反・`.gitattributes`、エラーカタログの `resolution-action-missing` の接頭辞）を足すのは妨げない。
 
 これでエラーカタログ Skill の文言・計上規則ズレ（実害が現存していた唯一の項目）と、登録3 Skill 全ての実行テスト不在の両方が解消した。
@@ -53,7 +53,8 @@ M15 は「同梱 Skill とアプリの複製・同期」にあった既知の欠
 
 - Task 4: brief の fixture をそのまま使うとスキーマの `allOf`（`kind: call` は `awaitsReply` 必須）に違反して die するため、3つの `call` ステップに `awaitsReply: true` を補正した。この値は4ルールにも `unposedAnswers`（`failures` 未設定のため不発）にも影響しないことをレビューで確認済み——計画スニペットへの必要な補正であり、実装の誤りではない
 - Task 1: smoke テストは issue の rule 種類集合だけを固定しており、rule ごとの件数までは固定していない（deferred。brief 要件外）
-- Task 5: `syncBundledSkills` / `shouldSyncSkillFile` / `isRemovableSkillEntry` の doc コメントに残る「開発用」列挙が `.gitignore` を dev-only 扱いのまま（cosmetic。規範判定は `shouldSyncSkillFile` 側にあり実挙動の記述としては誤りではない）
+- Task 2: fixture の非退化コメントが Task 1 版より簡素（ID 3件が「なぜ3件か」の理由を alias 側にしか書いていない。brief の逐語指定の範囲内であり逸脱ではないと判定済み）
+- Task 6: `src/fs/skill-resources.ts` の `readBundled` doc コメントに残る「開発用」列挙が `.gitignore` を dev-only 扱いのまま（cosmetic。規範判定は `shouldSyncSkillFile` 側にあり実挙動の記述としては誤りではない）
 
 ---
 
