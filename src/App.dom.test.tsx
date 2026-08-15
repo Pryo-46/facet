@@ -525,3 +525,59 @@ describe('額縁の帯', () => {
     expect(screen.getByRole('button', { name: 'ライトにする' })).toBeTruthy()
   })
 })
+
+/**
+ * 指摘バナーと額縁の配線（M14 で各エディタから額縁へ寄せた分。M16）。
+ * IssueBanner 単体・「各エディタが一覧を出さない」は別ファイルが押さえて
+ * いるので、ここで固定するのは**両者を繋ぐ配線**だけ——App が selected.issues を
+ * IssueBanner へ渡し、エディタの上（縦フレックスの前の兄弟）に置いていること
+ */
+describe('指摘バナーと額縁の配線（M14）', () => {
+  const GLOSSARY_PATH = '/proj/用語集.json'
+  const DUP_MESSAGE = '名称が重複しています: 「受注」 と 「受注」'
+  const term = (id: string, name: string) => ({
+    id,
+    name,
+    kind: 'undecided',
+    definition: '',
+    aliases: [],
+    notes: '',
+  })
+  const putDuplicated = () => {
+    disk.set(
+      GLOSSARY_PATH,
+      JSON.stringify({
+        schemaVersion: 1,
+        type: 'glossary',
+        title: '重複あり',
+        terms: [term('term_Aaaaaaaaa1', '受注'), term('term_Aaaaaaaaa2', '受注')],
+      }),
+    )
+  }
+  async function openDuplicated() {
+    putDuplicated()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '重複あり（用語集.json） を開く' }))
+    // エディタ（用語テーブル）の描画まで待つ
+    return await screen.findByRole('table')
+  }
+
+  it('編集可能なファイルの指摘が額縁のバナーに1回だけ出る', async () => {
+    await openDuplicated()
+    // 編集可能なファイルであること（rejected の別パネルが出しているのではない）
+    const band = screen.getByRole('textbox', { name: 'ファイルの名前' })
+    expect(band.hasAttribute('readonly')).toBe(false)
+    // 1回だけ＝エディタ側が同じ一覧を二重に出していない
+    expect(screen.getAllByText(DUP_MESSAGE)).toHaveLength(1)
+  })
+
+  it('バナーはエディタより上にある', async () => {
+    const table = await openDuplicated()
+    const item = screen.getByText(DUP_MESSAGE)
+    // 「縦フレックスの兄弟として上に出る」は jsdom ではレイアウトとして観測
+    // できないので、その投影である DOM 順（バナー → エディタ）を固定する。
+    // これが崩れる壊れ方＝バナーをエディタ内・エディタ下へ移す配線ミス
+    expect(item.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
