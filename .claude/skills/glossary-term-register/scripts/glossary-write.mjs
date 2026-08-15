@@ -23,6 +23,21 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const SKILL_DIR = path.resolve(fileURLToPath(import.meta.url), "../..");
 
+// ---------- アプリのコピー（手で複製しない） ----------
+//
+// canonical.ts = 正規形シリアライザ（src/core/canonical.ts）
+// バイト一致コピーで、ズレは src/core/skill-canonical-copy.test.ts が検知する
+
+let C;
+try {
+  C = await import("./canonical.ts");
+} catch (e) {
+  die(
+    2,
+    `同梱の .ts を読み込めません。Node の型ストリップが要ります（22.18+ / 23.6+ / 24+。現在 ${process.version}）\n  ${e.message}`
+  );
+}
+
 // ---------- 引数 ----------
 
 const argv = process.argv.slice(2);
@@ -95,8 +110,8 @@ if (!validate(data)) {
 
 // ---------- 正規化 ----------
 
-const normalized = reorder(data, schema, schema);
-const text = JSON.stringify(normalized, null, 2) + "\n";
+const text = C.serialize(data, schema);
+const normalized = JSON.parse(text);
 
 // ---------- 整合性検証（レベル2相当。警告にとどめる） ----------
 
@@ -208,35 +223,6 @@ if (warnings.length) {
 }
 
 // ---------- 補助 ----------
-
-function reorder(value, node, root) {
-  const s = deref(node, root);
-  if (Array.isArray(value)) {
-    return s?.items ? value.map((v) => reorder(v, s.items, root)) : value;
-  }
-  if (value && typeof value === "object") {
-    const props = s?.properties ?? {};
-    const inSchema = Object.keys(props).filter((k) => k in value);
-    const rest = Object.keys(value).filter((k) => !(k in props)); // additionalProperties:false なら空
-    const out = {};
-    for (const k of [...inSchema, ...rest]) out[k] = reorder(value[k], props[k] ?? {}, root);
-    return out;
-  }
-  return value;
-}
-
-function deref(node, root) {
-  let s = node;
-  for (let i = 0; s && s.$ref && i < 20; i++) {
-    if (!s.$ref.startsWith("#/")) return s;
-    s = s.$ref
-      .slice(2)
-      .split("/")
-      .map((seg) => decodeURIComponent(seg).replace(/~1/g, "/").replace(/~0/g, "~"))
-      .reduce((acc, k) => (acc == null ? acc : acc[k]), root);
-  }
-  return s;
-}
 
 function readJson(p, label) {
   let raw;
