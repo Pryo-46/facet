@@ -4,27 +4,22 @@
 >
 > ここに載るのは「**いつでもよいが、忘れると実害化するもの**」。いま着手すべきものはマイルストーンの計画に入れる。マイルストーン完了時にこのファイルを更新するのは義務（[`../CLAUDE.md`](../CLAUDE.md) 参照）。
 >
-> 最終更新: 2026-08-15 の棚卸し（全項目をコード実物と突き合わせた。解消済み1件を削除、現物とずれていた記述8件を書き直し。その前は M14 完了時点）
+> 最終更新: M16 完了時点（「テストが無い箇所」の4件を解消して削除、Task 5 のレビューで見つかった未修正の interleaving の穴2件を `[M16]` として追加。その前は 2026-08-15 の棚卸し）
 
 各項目の末尾の `[MN]` は**最初に記録されたマイルストーン**。長く開いているものほど「踏まないから残っている」のか「踏むけど後回しにしている」のかを見分ける手がかりになる。**採番は3系統**（コア・用語集・エラーカタログの `MN`、ロジックツリーの `logic-tree-mN`、シーケンスの `sequence-mN`）。
 
 ## 次に手を付ける候補（2026-08-15 の棚卸しより）
 
-全項目をコード実物と突き合わせた結果からの優先順。根拠は各項目の本文にある。**Skill 関連の4項目は M15 で解消し、この一覧から消した**（[`history/m15-skill-hygiene.md`](history/m15-skill-hygiene.md) 参照）。
+全項目をコード実物と突き合わせた結果からの優先順。根拠は各項目の本文にある。**Skill 関連の4項目は M15 で解消し、この一覧から消した**（[`history/m15-skill-hygiene.md`](history/m15-skill-hygiene.md) 参照）。**app-controller の interleaving 3分岐は M16 で解消し、この一覧から消した**（[`history/m16-test-homework.md`](history/m16-test-homework.md) 参照）。
 
 1. **M15 の実機確認（mac）が未実施**——`docs/superpowers/plans/2026-08-15-m15-skill-hygiene.md` Task 7 のチェックリスト（フォルダを開くと各 Skill 直下に `.gitignore` があること・`npm install` 後もフォルダを開き直して `node_modules`/`package-lock.json` が残ること等）は空のまま。**M15 は fs scope の mac 固有の挙動を直すマイルストーンで、`npm test`/`tsc`/`lint` はこの種の欠陥を原理的に捕まえない**（M11・sequence-m4 で実際にここが機械検査をすり抜けた）。mac 実機で `npm run tauri dev` を1回動かし、チェックリストを埋めること。詳細は [`history/m15-skill-hygiene.md`](history/m15-skill-hygiene.md) の「実機確認（Task 7）」
-2. **app-controller の interleaving 3分岐のテスト**（テストが無い箇所の項）——load-bearing なガードが未固定のまま
-3. **端末からキーボードで本体へ戻れない**（挙動の穴の項）——rev 2章の理念との食い違い。ただし「キーは割り当てない」は人間の裁定（設計 決定11）なので、**覆すかどうかは仕様判断**
+2. **端末からキーボードで本体へ戻れない**（挙動の穴の項）——rev 2章の理念との食い違い。ただし「キーは割り当てない」は人間の裁定（設計 決定11）なので、**覆すかどうかは仕様判断**
 
 ## テストが無い箇所
 
-- **`schema.test.ts` の変異耐性に穴が残っている**（`src/modules/sequence/schema.test.ts`）: 未知キーの拒否はトップレベルと `failures` マップは検査済みだが、**入れ子の項目レベル（`actors`・`steps`・`answerSlot`・`unknownSlot`）が未検査**。ほかに `unknownSlot` の `decision` enum に不正値を入れるテストと、`const`（`schemaVersion` / `type`）・`from`-`to` のパターンを崩すテストが無い。最終レビューが実害小と判断して繰り越したもので、**この層に触るときの宿題**（`consistency.test.ts` にあった2穴——actor 側の ID 重複ケース・reply の `to` 欠落ケース——は sequence M2 Task 2 で解消した） `[sequence-m1]`
-- **interleaving を要する3分岐にテストが無い**（`src/core/app-controller.ts`）: `rescan` の `switchingFolder > 0` ガード（フォルダ切替中に届いた旧フォルダのイベントが新しい一覧を上書きする）、`rescan` の `token !== scanSeq || projectDir !== dir` ガード（遅れて着地した古い走査結果が新しい一覧を上書きする）、`handleSelectedGone` の `selectSeq++`（進行中の `selectFile` が着地して消えたファイルを選び直す）。**コントローラは I/O を注入しているので `io.scan` に手動 Promise を挟めば書ける。** この層に触るときの宿題 `[M6]`
-- **`currentDocument()` の「未選択」分岐を明示的に踏むテストが無い**（`src/core/app-controller.ts`）。「編集中データなし」分岐と観測が重なる `[M6]`
 - **`FLUSH_MAX_ROUNDS` の打ち切りパスに直接テストが無い**（`src/core/autosave.ts`）。戻り値は安全側の false なので後回し可 `[M5]`
 - **`fileExists` に専用の単体テストが無い**（`src/fs/project-fs.ts`）。`exists` への1行委譲で、意味のある挙動は `file-ops.test.ts` が押さえている `[M5]`
 - **`ChoiceDialog` のオーバーレイクリックのテストが無い**。`onOpenChange` を渡さないことで構造的に担保され、同じ機構を Esc のテストが固定している `[M5]`
-- **指摘バナーと額縁の配線を固定するテストが無い**（`src/App.dom.test.tsx`）: M14 で指摘の一覧を各エディタから額縁（`IssueBanner`）へ寄せたが、App の DOM テストは `listJsonFiles` が空配列を返すモックなので**ファイルを選んだ状態を作れない**。`IssueBanner` 単体のテストと、各エディタが一覧を出さないことのテストはあるが、**両者を繋ぐ配線**（`<section>` の縦フレックス、バナーがエディタの上に出ること、編集可能なファイルでも出ること）を固定するものが無い。**見送りの前提は既に消えている**——App.dom.test.tsx の名前の帯テスト群（M13）が `disk.set` ＋フォルダを開いてファイルを選ぶ手順（`openBand`）を確立しており、同じ手順でそのまま書ける `[M14]`
 
 ## 将来の機能を作った瞬間に踏むもの
 
@@ -37,6 +32,8 @@
 
 ## 挙動の穴（実害は小さいが残っている）
 
+- **`closeCurrentFile` の尻尾が古いまま実行される残余 interleaving**（`src/core/app-controller.ts`）: flush 待ちの間に `handleSelectedGone` が選択を落とし、続けて新しい `selectFile` が完了して新しい `saver` が張られた場合、遅れて再開した古い `closeCurrentFile` は（M16 の修正により新しい `saver` には触らなくなったが）`setSelected(null)`/`host.setDocument(null)` を無条件に実行する——新しい `saver` が生きたまま選択と編集画面だけが閉じる。`closeCurrentFile` は `selectSeq` トークンを持たないため、塞ぐには契約の変更が要る。M16 修正前は同じ経路で新しい `saver` ごと dispose して pending 編集を黙って捨てていたので、現状は「破壊は減ったが穴は残る」状態 `[M16]`
+- **削除の着地前に飛んだ flush が消えたファイルを復活させうる**（`src/core/app-controller.ts`）: `handleSelectedGone` は意図して flush しない（書き戻すと復活するため）が、その検知より前に `closeCurrentFile` が飛ばした flush は既に in-flight であり、着地すれば外部で消えたファイルを書き戻す。M16 の修正はこの窓を広げても狭めてもいない（flush を呼ぶタイミングは不変） `[M16]`
 - **ロジックツリーにマウスだけでノードを増やす動線が無い**（`src/modules/logic-tree/LogicTreeEditor.tsx`）: 追加は `Enter`（兄弟）／`Tab`（子）のキーだけで、帯のボタンは**0件のときにルートを作る**1本しか無い。M14 は「フォーカス中のノードを持つ」という新しい状態を作らずに済ませるため、意図的に手を付けなかった。シーケンスは「ステップを追加」「参加者を追加」を常設しており、**2本のキャンバスでマウス動線の厚みが揃っていない** `[M14]`
 - **サイドメニューを畳むとフォルダのパスが読めない**（`src/components/FileList.tsx`）: M14 でパスを額縁の帯からファイル一覧の直上へ移した（帯の幅を食う最大の要素だったため）。畳んだ状態でどのフォルダを開いているかを確かめる手段が画面に無い `[M14]`
 - **サイドメニューのパスをコピーすると先頭に不可視文字が付く**（`src/components/FileList.tsx`）: 頭を省いて末尾（フォルダ名）を残すために `dir="rtl"` を当てているが、それだけでは POSIX パスの先頭 `/` が右端へ回る（bidi の N2）。U+200E を先頭に置いて防いでいるので**表示は正しい**が、その文字は DOM のテキストに入るため、選択してコピーした文字列はそのままではシェルに渡せない。`title` は生のパスなので、そちらからは正しく取れる。JS で頭を省く実装に替えれば消えるが、その場合は読み上げに届く文字列が切り詰まる `[M14]`

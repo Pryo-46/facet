@@ -202,12 +202,17 @@ export function createAppController(
 
   /** 現在のファイルを閉じる。false＝保留編集を書き切れず中断（saver は生かしたまま） */
   const closeCurrentFile = async (): Promise<boolean> => {
-    if (saver !== null) {
+    // flush を待っている間に handleSelectedGone / deleteFile が saver を
+    // 差し替える（null にする）ことがある。判断に使う値は関数の中で引いて
+    // 凍結する（M5 の教訓）——自分が掴んだ saver の後始末だけを行い、
+    // 差し替え後の値には触らない
+    const current = saver
+    if (current !== null) {
       // flush 失敗時に dispose すると、catch が復元した pending を破棄してしまう
       //（M1 レビューの二重失敗エッジ）。dispose せず中断する
-      if (!(await saver.flush())) return false
-      saver.dispose()
-      saver = null
+      if (!(await current.flush())) return false
+      current.dispose()
+      if (saver === current) saver = null
     }
     setSelected(null)
     host.setDocument(null)

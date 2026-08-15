@@ -1143,3 +1143,146 @@ describe('出力: 整合性エラーが無いファイル', () => {
     expect(copyText).toHaveBeenCalled()
   })
 })
+
+describe('出力: ファイル未選択', () => {
+  it('未選択では何もしない（コピーも保存ダイアログもモーダルも起きない）', async () => {
+    const copyText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+    const askSavePath = vi.fn<(defaultPath: string) => Promise<string | null>>().mockResolvedValue(null)
+    const h = createHarness({ [p('a.json')]: note('A', '本文') }, { copyText, askSavePath })
+    await h.controller.openFolder(DIR)
+    // 「編集中データなし」分岐と観測を分ける（open-issues が記録していた重なり）——
+    // 編集中データはあるのに選択が無い状況を作る。これで出力が止まる理由は
+    // 選択が無いことの側に限定される。
+    // なお currentDocument の `selectedPath === null` の early return 自体は、
+    // その直後の `files.find` が selectedPath: null で必ず外れるため、行を消しても
+    // 観測差が出ない（black-box では変異を検知できない）。このテストが固定するのは
+    // 「未選択で出力操作を呼んでも無害」という挙動であって、特定の行ではない
+    h.setDocument({ schemaVersion: 1, type: 'note', title: 'A', body: '編集中' })
+    await h.controller.copyMarkdown(firstOutput(h))
+    await h.controller.exportMarkdown(firstOutput(h))
+    expect(copyText).not.toHaveBeenCalled()
+    expect(askSavePath).not.toHaveBeenCalled()
+    expect(h.modals()).toHaveLength(0)
+    expect(h.banners().io).toBeNull()
+  })
+})
+
+describe('interleaving（走査・選択の直列化ガード）', () => {
+  const DIR2 = 'C:\\proj2'
+  const p2 = (name: string) => `${DIR2}\\${name}`
+
+  /**
+   * io.scan の呼び出しを1回だけ手動 Promise で止める差し込み。
+   * capture: true は「呼ばれた時点のディスク」を即座に読んでおく（古い
+   * スナップショットとして後から着地させるため）。false は release 時に読む
+   */
+  function deferNextScan(h: Harness, capture: boolean) {
+    const realScan = h.io.scan
+    const release: { current: (() => void) | null } = { current: null }
+    const calls = { count: 0 }
+    h.io.scan = (dir) => {
+      calls.count++
+      if (calls.count === 1) {
+        // capture 時は呼ばれた瞬間に読む——release 時に読み直すと最新と同じ
+        // 内容になり、「古い結果を捨てた」ことと区別できなくなる
+        //（教訓「区別したい2つの実装が同じ答えを返す入力を選ばない」）
+        const snapshot = capture ? realScan(dir) : null
+        return new Promise((resolve) => {
+          release.current = () => resolve(snapshot ?? realScan(dir))
+        })
+      }
+      return realScan(dir)
+    }
+    return { release, calls }
+  }
+
+  it('フォルダ切替中に届いた監視イベントでは再走査しない（旧フォルダの通知や一覧上書きを出さない）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A'), [p2('b.json')]: note('B') })
+    await h.controller.openFolder(DIR)
+    const { release, calls } = deferNextScan(h, false)
+    // 新フォルダの走査が止まったまま＝切替中
+    const opening = h.controller.openFolder(DIR2)
+    // その間に旧フォルダで外部変更が起きて監視イベントが届く
+    h.disk.files.set(p('c.json'), note('C'))
+    const from = h.log.length
+    await h.controller.externalChange()
+    // 再走査ごと捨てる: io.scan は呼ばれず、一覧も通知も動かない。
+    // ここを通すと、旧フォルダの「ファイルが増えました」が切替の最中に出たり、
+    // 旧フォルダの内容が新しい一覧を上書きしたりする
+    expect(calls.count).toBe(1)
+    expect(h.log.slice(from)).not.toContain('setFiles')
+    expect(h.log.slice(from)).not.toContain('toast')
+    release.current?.()
+    await expect(opening).resolves.toBe(true)
+    expect(h.files().map((f) => f.name)).toEqual(['b.json'])
+  })
+
+  it('遅れて着地した古い走査結果は捨てる（後続の再走査が作った新しい一覧を上書きしない）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    const { release } = deferNextScan(h, true)
+    // 古い走査（c.json をまだ知らないスナップショット）が止まっている
+    const first = h.controller.externalChange()
+    h.disk.files.set(p('c.json'), note('C'))
+    // 新しい走査が先に着地して c.json を一覧へ足す
+    await h.controller.externalChange()
+    expect(h.files().map((f) => f.name)).toContain('c.json')
+    const from = h.log.length
+    release.current?.()
+    await first
+    // 古い結果が着地しても、c.json を「外部で削除された」ことにしない
+    expect(h.files().map((f) => f.name)).toContain('c.json')
+    expect(h.log.slice(from)).not.toContain('setFiles')
+    expect(h.toasts().every((t) => !t.message.includes('削除されました'))).toBe(true)
+  })
+
+  // 書けない側の記録: ガードの `projectDir !== dir` 節だけを単独で赤くする入力は
+  // 存在しない——openFolder も後続の rescan も必ず scanSeq を進めるので、dir が
+  // 変わるときは常に token 節が先に捕まえる。dir 節は防御的な二重化であり、
+  // black-box では変異を検知できない（教訓「書かない判断をしたら、なぜ書けないかを記録する」）
+  it('旧フォルダの遅い走査結果が、切替後の新フォルダの一覧を上書きしない', async () => {
+    const h = createHarness({ [p('a.json')]: note('A'), [p2('b.json')]: note('B') })
+    await h.controller.openFolder(DIR)
+    const { release } = deferNextScan(h, true)
+    // 旧フォルダ A の走査が止まっている間に、B への切替が先に完了する
+    const first = h.controller.externalChange()
+    await h.controller.openFolder(DIR2)
+    expect(h.files().map((f) => f.name)).toEqual(['b.json'])
+    release.current?.()
+    await first
+    // A の走査結果（a.json）が B の一覧に混ざらない
+    expect(h.files().map((f) => f.name)).toEqual(['b.json'])
+    expect(h.toasts().every((t) => !t.message.includes('ファイルが増えました'))).toBe(true)
+  })
+
+  it('開いていたファイルが外部で消えたら、進行中の selectFile を捨てる（選び直さず、読み込みエラーも出さない）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    // 2度目の selectFile を closeCurrentFile の flush で止める。selectFile が
+    // selectedPath を持ったまま await しているのはこの窓だけ（read 待ちの間は
+    // closeCurrentFile が先に選択を null にしている）ので、「進行中の selectFile が
+    // ある状態で gone が着地する」interleaving はここでしか作れない
+    const saver = h.savers.current()
+    const releaseFlush: { current: (() => void) | null } = { current: null }
+    saver.flush = () =>
+      new Promise((resolve) => {
+        releaseFlush.current = () => resolve(true)
+      })
+    const second = h.controller.selectFile(p('a.json'))
+    // flush を待っている間に、外部で a.json が消えて検知が着地する
+    h.disk.files.delete(p('a.json'))
+    await h.controller.externalChange()
+    expect(h.toasts().at(-1)?.message).toContain('外部で削除されました')
+    expect(h.selectedPath()).toBeNull()
+    releaseFlush.current?.()
+    // ここが reject したら、closeCurrentFile が gone の後始末（saver = null）と
+    // 衝突している（本タスクの修正対象）
+    await second
+    // selectSeq++ の仕事: 着地した selectFile は何もしない——消えたファイルを
+    // 読みに行った失敗を「ファイルの読み込みに失敗しました」としてユーザーに出さない
+    expect(h.selectedPath()).toBeNull()
+    expect(h.document()).toBeNull()
+    expect(h.banners().io).toBeNull()
+  })
+})
