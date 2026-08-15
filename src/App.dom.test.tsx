@@ -370,6 +370,7 @@ describe('タブを閉じる確認', () => {
   // レビュー指摘2: onConfirm は承認まで遅延実行されるので、× を押した瞬間の
   // クロージャではなく、承認された時点の最新の台帳から ptyId を引き直す必要がある
   it('確認待ちの間にタブが自然終了しても壊れない（古い ptyId で kill を呼ばない）', async () => {
+    ptyKillMock.mockClear()
     await openPane()
     // spawn の解決（onRunning。ptyId が入る）をここで確実に反映させてから
     // 閉じる操作に進む。反映前に閉じると target.ptyId が最初から null になり、
@@ -386,9 +387,14 @@ describe('タブを閉じる確認', () => {
     act(() => onExit(0))
     fireEvent.click(await screen.findByRole('button', { name: '終了する' }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
-    // 承認された時点で ptyId は既に null。古い（自然終了前の）ptyId で
-    // kill を呼んでいたら、この期待は壊れる
-    expect(ptyKillMock).not.toHaveBeenCalled()
+    // **kill はちょうど1回。** 承認された時点で台帳の ptyId は既に null
+    // なので、`closeTerminalNow` は kill を呼ばない。**1回だけ飛ぶのは
+    // TerminalTab の cleanup**（M17。タブが消えてアンマウントされる）で、
+    // 自分が知っている ptyId を無条件に殺す——既に死んだ id への
+    // pty_kill は Rust 側で何も起きず、ID は単調増加なので他人を殺すこともない。
+    // **2回になったら M11 の退行**（controller が古い＝自然終了前の
+    // ptyId で kill を呼んでいる）である
+    expect(ptyKillMock.mock.calls).toEqual([[1]])
   })
 })
 
