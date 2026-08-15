@@ -149,4 +149,74 @@ describe('sequence スキーマ（レベル1）', () => {
     ;(d.steps[0].failures as Record<string, unknown>).failed = { decision: 'handled', text: '' }
     expect(validate(d).ok).toBe(false)
   })
+
+  // ---- 変異耐性の宿題（sequence M1 の最終レビューが「実害小」と判断して繰り越した分。M16）----
+  // 未知キーの拒否はトップレベルと failures マップだけ検査済みだった。
+  // 入れ子の additionalProperties: false を1段ずつ固定する
+
+  it('actors の項目の未知キーを拒否する', () => {
+    const d = valid()
+    ;(d.actors[0] as Record<string, unknown>).color = 'red'
+    expect(validate(d).ok).toBe(false)
+  })
+
+  it('steps の項目の未知キーを拒否する', () => {
+    const d = valid()
+    ;(d.steps[0] as Record<string, unknown>).note = 'x'
+    expect(validate(d).ok).toBe(false)
+  })
+
+  it('answerSlot の未知キーを拒否する', () => {
+    const d = valid()
+    ;(d.steps[0].failures as Record<string, unknown>).failed = {
+      decision: 'handled',
+      text: 'x',
+      reason: 'y',
+    }
+    expect(validate(d).ok).toBe(false)
+  })
+
+  it('unknownSlot の未知キーを拒否する', () => {
+    const d = valid()
+    ;(d.steps[0].failures as Record<string, unknown>).unknown = {
+      decision: 'handled',
+      text: 'x',
+      retries: 3,
+    }
+    expect(validate(d).ok).toBe(false)
+  })
+
+  it('unknownSlot の decision の未知値を拒否する', () => {
+    // answerSlot は decision が const の oneOf、unknownSlot だけが enum。
+    // enum を広げる変異はここでしか捕まらない
+    const d = valid()
+    ;(d.steps[0].failures as Record<string, unknown>).unknown = { decision: 'maybe', text: 'x' }
+    expect(validate(d).ok).toBe(false)
+  })
+
+  it('schemaVersion の const 違反を拒否する', () => {
+    const d = valid()
+    ;(d as Record<string, unknown>).schemaVersion = 2
+    expect(validate(d).ok).toBe(false)
+  })
+
+  it('type の const 違反を拒否する', () => {
+    const d = valid()
+    ;(d as Record<string, unknown>).type = 'glossary'
+    expect(validate(d).ok).toBe(false)
+  })
+
+  it('from のパターン違反を拒否する（actor_ 以外のプレフィクス）', () => {
+    const d = valid()
+    d.steps[0].from = 'step_Aaaaaaaaa1'
+    expect(validate(d).ok).toBe(false)
+  })
+
+  it('to のパターン違反を拒否する（10文字に満たない）', () => {
+    // steps は3種の形の union に推論され、self には to が無いのでキャストして代入する
+    //（既存テストの delete (d.steps[0] as Record<string, unknown>).to と同じ理由）
+    const d = valid()
+    ;(d.steps[0] as Record<string, unknown>).to = 'actor_Aaaaaaaa1'
+    expect(validate(d).ok).toBe(false)
+  })
 })
