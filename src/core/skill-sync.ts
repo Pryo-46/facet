@@ -38,6 +38,17 @@ export const BUNDLED_SKILLS: readonly string[] = [
 const SKILL_DEPS_DIR = 'node_modules'
 
 /**
+ * 同梱リソースを読むとき、このディレクトリへ降りてよいか（skill-resources.ts の
+ * collect が使う）。`node_modules` は「書かない」（shouldSyncSkillFile）だけでなく
+ * 「読まない」——ビルドマシンで Skill に npm install 済みだと数百ファイルを
+ * IPC で読んで捨てることになり、依存にテキストでないファイルが1つあるだけで
+ * readBundled ごと throw して Skill が黙って現れなくなる
+ */
+export function shouldDescendSkillDir(name: string): boolean {
+  return name !== SKILL_DEPS_DIR
+}
+
+/**
  * 同梱 Skill のファイル（Skill 名からの相対パス、`/` 区切り）を
  * プロジェクトフォルダへ同期してよいかを判定する（純関数）。
  *

@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { join, resolveResource } from '@tauri-apps/api/path'
 import { exists, mkdir, readDir, readTextFile, remove, writeTextFile } from '@tauri-apps/plugin-fs'
-import type { SkillSyncIo } from '@/core/skill-sync'
+import { shouldDescendSkillDir, type SkillSyncIo } from '@/core/skill-sync'
 
 /**
  * 同梱 Skill の読み出しとプロジェクトフォルダへの書き込み（Tauri 境界）。
@@ -36,7 +36,7 @@ async function collect(dir: string, base: string): Promise<Array<{ path: string;
   for (const entry of await readDir(dir)) {
     const full = await join(dir, entry.name)
     if (entry.isDirectory) {
-      found.push(...(await collect(full, base)))
+      if (shouldDescendSkillDir(entry.name)) found.push(...(await collect(full, base)))
     } else if (entry.isFile) {
       found.push({
         path: full.slice(base.length + 1).split('\\').join('/'),

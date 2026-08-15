@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   BUNDLED_SKILLS,
   isRemovableSkillEntry,
+  shouldDescendSkillDir,
   shouldSyncSkillFile,
   syncBundledSkills,
   type SkillSyncIo,
@@ -299,6 +300,16 @@ describe('isRemovableSkillEntry', () => {
 
   it('名前が node_modules を含むだけの別ディレクトリは消す', () => {
     expect(isRemovableSkillEntry('node_modules_backup')).toBe(true)
+  })
+})
+
+describe('shouldDescendSkillDir', () => {
+  it('node_modules へは降りない（読む前に除外する。読んでから捨てるのではない）', () => {
+    expect(shouldDescendSkillDir('node_modules')).toBe(false)
+  })
+  it('それ以外のディレクトリへは降りる', () => {
+    expect(shouldDescendSkillDir('scripts')).toBe(true)
+    expect(shouldDescendSkillDir('schemas')).toBe(true)
   })
 })
 
