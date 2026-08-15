@@ -4,7 +4,7 @@
 >
 > ここに載るのは「**いつでもよいが、忘れると実害化するもの**」。いま着手すべきものはマイルストーンの計画に入れる。マイルストーン完了時にこのファイルを更新するのは義務（[`../CLAUDE.md`](../CLAUDE.md) 参照）。
 >
-> 最終更新: M16 完了時点（「テストが無い箇所」の4件を解消して削除、Task 5 のレビューで見つかった未修正の interleaving の穴2件を `[M16]` として追加。その前は 2026-08-15 の棚卸し）
+> 最終更新: M17 完了時点（端末ペインの M11 由来の6件を解消して削除、残る留意点3件を M17 のタグで追加、最終レビューの fix wave で「テストが無い箇所」に `pty_kill` の冪等性の1件を追加。**M17 の実機確認は人間が mac 実機で一巡して問題が出なかったため、「次に手を付ける候補」へは載せていない**——M15 のぶんは未実施のまま1番に残る。その前は M16 完了時点）
 
 各項目の末尾の `[MN]` は**最初に記録されたマイルストーン**。長く開いているものほど「踏まないから残っている」のか「踏むけど後回しにしている」のかを見分ける手がかりになる。**採番は3系統**（コア・用語集・エラーカタログの `MN`、ロジックツリーの `logic-tree-mN`、シーケンスの `sequence-mN`）。
 
@@ -20,6 +20,7 @@
 - **`FLUSH_MAX_ROUNDS` の打ち切りパスに直接テストが無い**（`src/core/autosave.ts`）。戻り値は安全側の false なので後回し可 `[M5]`
 - **`fileExists` に専用の単体テストが無い**（`src/fs/project-fs.ts`）。`exists` への1行委譲で、意味のある挙動は `file-ops.test.ts` が押さえている `[M5]`
 - **`ChoiceDialog` のオーバーレイクリックのテストが無い**。`onOpenChange` を渡さないことで構造的に担保され、同じ機構を Esc のテストが固定している `[M5]`
+- **「二重に `pty_kill` しても無害」を直接踏む Rust テストが無い**（`src-tauri/src/pty.rs`）。`TerminalTab` のアンマウント時 kill（M17）はこの性質に依存しているが、保証しているのは `sessions.remove` が消えた id に対して `None` を返すという構造だけで、テストは無い `[M17]`
 
 ## 将来の機能を作った瞬間に踏むもの
 
@@ -45,13 +46,10 @@
 - **ドラッグ中にアンマウントすると d3 が window に張ったリスナーが残る**（`src/modules/logic-tree/useViewport.ts`）: 体感とは無関係に成立し、実機確認を終えても解消しない `[logic-tree-m1]`
 - **`FOLLOW_MARGIN`(48) > `CANVAS_MARGIN`(40) で初回の追従が 8px ずれる**（`src/modules/logic-tree/useViewport.ts` / `viewport.ts`）: 完全に見えているノードでも初回の追従だけ 8px 余分に動く。**実機確認の前に載せておく必要がある**——載せておかないと、実機で「1回だけカクッと動く」を見た人が I-1（二重スクロール）の再発と誤診する `[logic-tree-m1]`
 - **一度端末をクリックするとキーボードだけでは本体へ戻れない**（`src/components/TerminalTab.tsx` の `attachCustomKeyEventHandler`——`Shift+Enter` 以外はすべて xterm へ渡す）: xterm が `Tab` を消費するため。ペインの開閉にショートカットを割り当てない判断（設計 決定11。**人間が「キーは割り当てない」と裁定**）の帰結で、マウスで本体をクリックする必要がある。**facet は入力速度最優先（rev 2章）を掲げているので、体験としては未達である** `[M11]`
-- **端末の中だけライト表示でも暗い**（`src/components/TerminalTab.tsx`）: xterm の既定配色を使い、facet の役割トークンを流し込んでいない（端末は rev 9章の対象外という判断）。実機で違和感が出たら、CSS カスタムプロパティを実行時に解決して xterm の `theme` へ渡す形を検討する——**その際もソースに色値を書かないこと**（`conventions.test.ts`） `[M11]`
 - **ペインが壁に当たった状態でさらに広げようとすると、記憶している幅が縮む**（`src/core/column-resize.ts` / `src/components/PaneSplitter.tsx`）: `upper` に達している状態でドラッグすると、クランプ後の値が「意図」として書き戻される。ウィンドウを広げても元の幅に戻らない（ダブルクリック／`Home` で復帰可能）。**表エディタと共有しているモジュールなので、直すなら両方の挙動を見る必要がある** `[M11]`
-- **起動待ちの間に端末へ打った入力が無音で消える**（`src/components/TerminalTab.tsx`）: `term.onData` の登録が `spawn` の解決後のため。実害は起動までの約1秒 `[M11]`
-- **`killAllPtys` が `starting` 状態の PTY を取りこぼしうる**（`src/fs/pty.ts`）: `live` への登録が `pty_spawn` の解決後なので、invoke が in-flight の間に呼ばれると漏れる `[M11]`
-- **`TerminalTab` がアンマウント時に自分の PTY を殺さない**（`src/components/TerminalTab.tsx`）: 起動 effect の cleanup（`disposed = true; term.dispose()`）は `ptyIdRef.current` を kill しない。プロセスの寿命は台帳（`ptyId` 経由）に一本化してあるため、`spawn` の解決と台帳への反映の隙間で閉じられると取りこぼす。ただし `src/fs/pty.ts` の `live` に載るのでアプリ終了時には必ず回収され、facet 終了後に `claude` が残る経路はない（5経路すべてを追って確認済み）。cleanup で `ptyIdRef.current` を殺せばこの狭いレースも消える `[M11]`
-- **実行中のタブが無いフォルダ切替では `closeAll` を通らない**（`src/App.tsx`）: `openFolder` は `hasRunning(terminals)` が false のとき確認ダイアログを出さず `controller.openFolder(dir)` だけ呼んで返る。`hasRunning` は `starting` / `running` しか見ないため、`exited` / `failed` のタブが旧フォルダの残骸として画面に残る。プロセスは既に無いので実害は表示だけ `[M11]`
-- **`pty_write` が Mutex を保持したままブロッキング書き込みをする**（`src-tauri/src/pty.rs`）: `pty_write` は `state.sessions.lock()` を握ったまま `writer.write_all` / `flush` を呼ぶ。同じロックを取る `pty_kill` も待たされる——詰まった端末を殺せなくなる、という形で出る。キー入力程度のデータ量では問題にならないが、複数タブ運用時の設計上の留意点 `[M11]`
+- **`pty_write` は同期コマンドのままなので、本当に詰まると UI ごと止まる**（`src-tauri/src/pty.rs`）: M17 で `sessions` の錠前は外した（書き手を別の `Arc<Mutex<…>>` へ隔離し、`pty_kill` が錠前待ちにならないようにした）が、**Tauri の同期コマンドは main thread で走る**（`tauri-macros` の `ExecutionContext::Blocking`。既定は `kind = "sync"`）ため、書き込みが返らなければ後続の IPC も処理されない。根治は「セッションごとの書き込みスレッド＋エラーを `Channel` で返す」だが、設計 決定13（書き込み失敗をタブの中に出す）の同期的なエラー経路を作り替える変更になる。**`#[tauri::command(async)]` は採ってはいけない**——複数の `pty_write` が待たれずに撃たれるので**打鍵が並び替わる** `[M17]`
+- **起動待ちの入力の待ち行列に上限が無い**（`src/components/TerminalTab.tsx` の `pendingRef`）: 溜まるのは `spawn` が解決するまでの約1秒ぶんで、上限を設けると「どこから捨てるか」という新しい判断が要るため**意図的に持たない**。`spawn` が永遠に解決しない経路ができたときに踏む `[M17]`
+- **端末の ANSI 16色は xterm の既定のまま**（`src/core/terminal/theme.ts`）: facet の役割トークン（11個）に対応物が無いため**持たない判断**で、流し込むのは面・文字・カーソル・選択の4系統だけ。ライトの面での読みやすさは xterm の `minimumContrastRatio`（`TERMINAL_MIN_CONTRAST = 4.5`）に任せている。**実機で「色が寄りすぎて区別が付かない」と感じたら、値を下げるか16色を持つかを決め直す** `[M17]`
 - **`domain`（責任境界）が問いの導出に一切関与していない**（`schemas/sequence.schema.json` / `src/modules/sequence/layout.ts`）: design-notes 論点3 の当初構想では境界跨ぎが問いの導出に効くはずだったが、「`ifExecuted` は境界に関係なく常に立つ」と決めたため、論点4 が「**境界は問いの導出に一切関与しない**」と明記している。現在 `domain` は rev 2章の一行を裏切らないためだけに残る属性で、M3 の出力にも出していない。**UML のシーケンス図に「境界」という標準概念は無い**（スイムレーンはアクティビティ図）。存置するか廃止するかを決めること `[sequence-m3]`
 - **`describeSequenceIssueEffect` の `to-mismatch` 分岐が2条件を1つの説明文に束ねている**（`src/modules/sequence/markdown.ts`）: `to-mismatch` は「`self` に余分な `to`」と「非 `self` に `to` が無い」の2条件を1つの rule 名に束ねており、確認文はどちらでも「図には『（未解決）』という参加者が立ち、宛先を引けない矢印はそこへ向きます」と言う。**前者だけのファイルでは実際は（未解決）は1つも出ない。** また `missing-actor` が `from` 側だけのときも同じ文言が「宛先」と言うが、実際に（未解決）になるのは**送り手**の方である。到達性は低い（`setStepShape` が self 化のとき `to` を落とすため UI からは作れず、外部編集ファイル限定）。根治は rule を2つに割るか `describeIssueEffect` に data を渡す設計変更で、`markdown.test.ts` の「to-mismatch でも同じ説明になる」がこの粗い近似を固定している。M3 のスコープ外として繰り越し `[sequence-m3]`
 - **一覧の並び順が、漢字の `title` では画面から説明できない**（`src/core/file-grouping.ts` の `sorted`）: グループ内は `displayTitle` の `localeCompare('ja')` 順で、**これは五十音順ではない**——漢字は ICU の照合順（部首・画数）で並ぶ（実測: 受注 → 返品 → 問合せ。読みなら 受注 → 問合せ → 返品）。読みはデータに無いので求めようがなく、順は決定的なので挙動は確定として据えた。ただし**M13 設計スペック決定5 が並び順の根拠に挙げた「画面に大きく出ているもので並ぶので、順の根拠が見て分かる」は、漢字の `title` については達成されていない**（実運用の名前はこちらが多い）。読み仮名を持たせる／手動の並び順を持たせる案は、必要が出てから検討する `[M13]`

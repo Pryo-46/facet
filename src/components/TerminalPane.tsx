@@ -7,8 +7,8 @@ import type { TerminalState } from '@/core/terminal/sessions'
 /**
  * 端末ペインの枠とタブバー。
  *
- * **ペインの枠は facet の役割トークン、端末の中は xterm の既定配色**
- *（理由は TerminalTab.tsx）
+ * **枠も端末の中も facet の役割トークンに合わせる**（M17。ANSI の16色
+ * だけは xterm の既定のまま。理由は `src/core/terminal/theme.ts`）
  */
 
 export interface TerminalPaneProps {
@@ -21,6 +21,8 @@ export interface TerminalPaneProps {
    * 「見えているか」は props で受け取る
    */
   paneVisible: boolean
+  /** ダーク表示か。`TerminalTab` へ中継するだけ（配色の読み直しの合図） */
+  dark: boolean
   onOpen: () => void
   onClose: (id: number) => void
   onActivate: (id: number) => void
@@ -30,7 +32,7 @@ export interface TerminalPaneProps {
 }
 
 export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
-  const { state, cwd, ptyIo, paneVisible, onOpen, onClose, onActivate } = props
+  const { state, cwd, ptyIo, paneVisible, dark, onOpen, onClose, onActivate } = props
   const { onRunning, onExited, onFailed } = props
 
   return (
@@ -93,6 +95,7 @@ export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
             cwd={cwd}
             ptyIo={ptyIo}
             hidden={!paneVisible || state.activeId !== session.id}
+            dark={dark}
             onRunning={onRunning}
             onExited={onExited}
             onFailed={onFailed}

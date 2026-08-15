@@ -13,6 +13,9 @@ const term = {
   dispose: vi.fn(),
   loadAddon: vi.fn(),
   attachCustomKeyEventHandler: vi.fn(),
+  // xterm の `options` は書き換え可能で（typings/xterm.d.ts の
+  // `options: ITerminalOptions`）、配色の差し替えはここへ代入する
+  options: {} as Record<string, unknown>,
   cols: 80,
   rows: 24,
 }
@@ -59,6 +62,7 @@ class FakeResizeObserver {
 }
 vi.stubGlobal('ResizeObserver', FakeResizeObserver)
 
+const { Terminal: TerminalMock } = await import('@xterm/xterm')
 const { TerminalTab } = await import('./TerminalTab')
 
 function session(over: Partial<TerminalSession> = {}): TerminalSession {
@@ -124,6 +128,7 @@ beforeEach(() => {
   // 変えるテストがあるため）
   term.cols = 80
   term.rows = 24
+  term.options = {}
   FakeResizeObserver.instances = []
 })
 afterEach(cleanup)
@@ -138,6 +143,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={onRunning}
         onExited={vi.fn()}
         onFailed={vi.fn()}
@@ -155,6 +161,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={vi.fn()}
         onExited={vi.fn()}
         onFailed={vi.fn()}
@@ -175,6 +182,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={vi.fn()}
         onExited={onExited}
         onFailed={vi.fn()}
@@ -197,6 +205,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={vi.fn()}
         onExited={vi.fn()}
         onFailed={onFailed}
@@ -237,6 +246,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={onRunning}
         onExited={vi.fn()}
         onFailed={vi.fn()}
@@ -257,6 +267,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden
+        dark={false}
         onRunning={vi.fn()}
         onExited={vi.fn()}
         onFailed={vi.fn()}
@@ -274,6 +285,7 @@ describe('TerminalTab', () => {
       session: session({ status: 'running', ptyId: 7 }),
       cwd: '/proj',
       ptyIo: pty.io,
+      dark: false,
       onRunning: vi.fn(),
       onExited: vi.fn(),
       onFailed: vi.fn(),
@@ -295,12 +307,39 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={vi.fn()}
         onExited={vi.fn()}
         onFailed={vi.fn()}
       />,
     )
     expect(getByText('終了しました（コード 0）')).toBeTruthy()
+  })
+
+  it('アンマウントすると自分の PTY を殺す（台帳が ptyId を知る前に閉じられても孤児にしない）', async () => {
+    // プロセスの寿命は台帳（App の closeTerminalNow）に一本化してあるが、
+    // spawn の解決と台帳への反映（onRunning）の隙間で閉じられると台帳は
+    // ptyId を知らない。cleanup でも殺しておけばその窓が消える
+    const pty = fakePty()
+    const onRunning = vi.fn()
+    const { unmount } = render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden={false}
+        dark={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+    expect(pty.io.kill).not.toHaveBeenCalled()
+
+    unmount()
+
+    await waitFor(() => expect(pty.io.kill).toHaveBeenCalledWith(7))
   })
 
   it('StrictMode の二重マウントでも running は生き残った1本だけに通知し、捨てた側は kill で回収する', async () => {
@@ -317,6 +356,7 @@ describe('TerminalTab', () => {
           cwd="/proj"
           ptyIo={pty.io}
           hidden={false}
+          dark={false}
           onRunning={onRunning}
           onExited={vi.fn()}
           onFailed={vi.fn()}
@@ -354,6 +394,7 @@ describe('TerminalTab', () => {
           cwd="/proj"
           ptyIo={pty.io}
           hidden={false}
+          dark={false}
           onRunning={onRunning}
           onExited={onExited}
           onFailed={vi.fn()}
@@ -388,6 +429,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={onRunning}
         onExited={vi.fn()}
         onFailed={vi.fn()}
@@ -425,6 +467,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={onRunning}
         onExited={vi.fn()}
         onFailed={vi.fn()}
@@ -453,6 +496,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={onRunning}
         onExited={vi.fn()}
         onFailed={vi.fn()}
@@ -480,6 +524,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={onRunning}
         onExited={vi.fn()}
         onFailed={vi.fn()}
@@ -516,6 +561,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={onRunning}
         onExited={vi.fn()}
         onFailed={vi.fn()}
@@ -547,6 +593,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={onRunning}
         onExited={vi.fn()}
         onFailed={vi.fn()}
@@ -587,6 +634,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={onRunning}
         onExited={vi.fn()}
         onFailed={onFailed}
@@ -625,6 +673,7 @@ describe('TerminalTab', () => {
         cwd="/proj"
         ptyIo={pty.io}
         hidden={false}
+        dark={false}
         onRunning={onRunning}
         onExited={vi.fn()}
         onFailed={onFailed}
@@ -657,6 +706,7 @@ describe('TerminalTab', () => {
           cwd="/proj"
           ptyIo={pty.io}
           hidden={false}
+          dark={false}
           onRunning={onRunning}
           onExited={vi.fn()}
           onFailed={onFailed}
@@ -692,5 +742,218 @@ describe('TerminalTab', () => {
     await waitFor(() =>
       expect(onFailed).toHaveBeenCalledWith(1, '端末へ書き込めませんでした: boom'),
     )
+  })
+
+  it('起動待ちの間に打った入力を捨てず、spawn の解決後に打った順で送る', async () => {
+    // `term.onData` の登録が spawn の解決後だと、ここで打った文字はどこにも
+    // 届かない（M11 の残件「起動待ちの間に端末へ打った入力が無音で消える」）。
+    // spawn の解決をテストから握って、その窓を作る
+    const writes: Array<[number, string]> = []
+    let release: () => void = () => undefined
+    const io: PtyIo = {
+      spawn: async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+        return 7
+      },
+      write: vi.fn(async (id: number, data: string) => {
+        writes.push([id, data])
+      }),
+      resize: vi.fn(async () => undefined),
+      kill: vi.fn(async () => undefined),
+    }
+    const onRunning = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={io}
+        hidden={false}
+        dark={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+
+    // **spawn の解決前に onData が登録されていること**が穴そのもの
+    await waitFor(() => expect(term.onData).toHaveBeenCalled())
+    const emit = term.onData.mock.calls.at(-1)?.[0] as (data: string) => void
+    emit('a')
+    emit('b')
+    // まだ PTY の ID が無いので送れない
+    expect(writes).toEqual([])
+
+    release()
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+    // 溜めた2文字が、打った順で流れる
+    expect(writes).toEqual([
+      [7, 'a'],
+      [7, 'b'],
+    ])
+  })
+
+  it('起動待ちの間の Shift+Enter も捨てず、解決後に送る', async () => {
+    // Shift+Enter のハンドラは `ptyId !== null` のときだけ書き込んでいたので、
+    // 起動待ちの改行は黙って落ちていた。上のテストと分けるのは、こちらが
+    // 通る別の経路（attachCustomKeyEventHandler）だから
+    const writes: string[] = []
+    let release: () => void = () => undefined
+    const io: PtyIo = {
+      spawn: async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+        return 7
+      },
+      write: vi.fn(async (_id: number, data: string) => {
+        writes.push(data)
+      }),
+      resize: vi.fn(async () => undefined),
+      kill: vi.fn(async () => undefined),
+    }
+    const onRunning = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={io}
+        hidden={false}
+        dark={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(term.attachCustomKeyEventHandler).toHaveBeenCalled())
+    const handler = term.attachCustomKeyEventHandler.mock.calls[0]?.[0] as (
+      event: KeyboardEvent,
+    ) => boolean
+    handler(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true }))
+    expect(writes).toEqual([])
+
+    release()
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+    expect(writes).toEqual([`${String.fromCharCode(27)}\r`])
+  })
+})
+
+describe('端末の配色', () => {
+  /**
+   * jsdom は `palette.css` を読まないので `getPropertyValue` は空文字を返す。
+   * ルート要素への問い合わせだけを差し替え、**他の要素は実物へ委ねる**
+   *（testing-library の内部も getComputedStyle を使うため、丸ごと
+   * 差し替えるとクエリが壊れる）
+   */
+  const tokens: Record<string, string> = {}
+  let spy: { mockRestore: () => void } | null = null
+
+  const LIGHT: Record<string, string> = {
+    '--surface': 'oklch(0.961 0.007 88.6)',
+    '--ink': 'oklch(0.205 0 89.9)',
+    '--surface-accent': 'oklch(0.87 0.04 126)',
+  }
+  const DARK: Record<string, string> = {
+    '--surface': 'oklch(0.205 0 89.9)',
+    '--ink': 'oklch(0.85 0.007 88.6)',
+    '--surface-accent': 'oklch(0.28 0.04 126)',
+  }
+
+  const setTokens = (next: Record<string, string>): void => {
+    for (const key of Object.keys(tokens)) delete tokens[key]
+    Object.assign(tokens, next)
+  }
+
+  beforeEach(() => {
+    const real = window.getComputedStyle.bind(window)
+    spy = vi.spyOn(window, 'getComputedStyle').mockImplementation(((
+      element: Element,
+      pseudo?: string | null,
+    ) =>
+      element === document.documentElement
+        ? ({
+            getPropertyValue: (name: string) => tokens[name] ?? '',
+          } as unknown as CSSStyleDeclaration)
+        : real(element, pseudo)) as typeof window.getComputedStyle)
+  })
+  afterEach(() => {
+    spy?.mockRestore()
+    spy = null
+  })
+
+  it('マウント時に役割トークンから配色を作って xterm へ渡す', async () => {
+    setTokens(LIGHT)
+    const pty = fakePty()
+    const onRunning = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden={false}
+        dark={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+
+    const options = (TerminalMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+      minimumContrastRatio?: number
+      theme?: { background?: string }
+    }
+    // 16色は xterm の既定のまま。ライトの面でも読める濃さへ寄せさせる
+    expect(options.minimumContrastRatio).toBe(4.5)
+    expect(options.theme?.background).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
+  it('ライトからダークへ切り替えると配色を渡し直す', async () => {
+    setTokens(LIGHT)
+    const pty = fakePty()
+    const props = {
+      session: session(),
+      cwd: '/proj',
+      ptyIo: pty.io,
+      hidden: false,
+      onRunning: vi.fn(),
+      onExited: vi.fn(),
+      onFailed: vi.fn(),
+    }
+    const { rerender } = render(<TerminalTab {...props} dark={false} />)
+    await waitFor(() => expect(term.options.theme).toBeDefined())
+    const light = (term.options.theme as { background: string }).background
+
+    setTokens(DARK)
+    rerender(<TerminalTab {...props} dark />)
+
+    await waitFor(() =>
+      expect((term.options.theme as { background: string }).background).not.toBe(light),
+    )
+  })
+
+  it('トークンが読めなければ配色を渡さない（xterm の既定に任せる）', async () => {
+    setTokens({})
+    const pty = fakePty()
+    const onRunning = vi.fn()
+    render(
+      <TerminalTab
+        session={session()}
+        cwd="/proj"
+        ptyIo={pty.io}
+        hidden={false}
+        dark={false}
+        onRunning={onRunning}
+        onExited={vi.fn()}
+        onFailed={vi.fn()}
+      />,
+    )
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+
+    const options = (TerminalMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+      theme?: unknown
+    }
+    expect(options.theme).toBeUndefined()
   })
 })

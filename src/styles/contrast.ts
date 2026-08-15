@@ -1,5 +1,7 @@
 /**
- * 色の検証に使う計算。**アプリの実行時には使わない**（テストからのみ呼ぶ）。
+ * 色の計算。**主な用途は色の検証（テスト）だが、実行時にも1箇所から呼ぶ**
+ * ——端末（xterm）は `oklch()` を解釈しないので、役割トークンを sRGB の
+ * 16進へ変換する必要がある（M17。`src/core/terminal/theme.ts`）。
  *
  * 依存を足さない方針（M7 設計スペック 決定4）のため、oklch → 線形 sRGB →
  * 相対輝度の変換を自前で持つ。変換式は CSS Color 4 の定義そのまま。
@@ -309,7 +311,11 @@ export function composite(fg: LinearRgb, bg: LinearRgb, alpha: number): LinearRg
   return [mix(0), mix(1), mix(2)]
 }
 
-/** テストの出力に人が読める色を出すため。判定には使わない */
+/**
+ * 線形 sRGB を `#rrggbb` へ。**判定には使わない**（丸めが入る）。
+ * テストの出力に人が読める色を出すためと、oklch を解釈しない相手
+ *（xterm）へ色を渡すために使う
+ */
 export function toHex(rgb: LinearRgb): string {
   const channel = (v: number): string =>
     Math.round(clamp01(encodeSrgb(v)) * 255)

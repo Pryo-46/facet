@@ -363,6 +363,10 @@ function App() {
   const toggleTheme = () => {
     const next = !dark
     setDark(next)
+    // **この DOM 書き込みを `useEffect` へ移さないこと。** 端末の配色は
+    // `TerminalTab` の `[dark]` effect が `palette.css` のトークンを読み直す
+    // ことで追従するが、**子の effect は親の effect より先に走る**ので、
+    // ここを effect へ移すと端末だけ1回ぶん古い配色を読む
     document.documentElement.classList.toggle('dark', next)
   }
 
@@ -421,6 +425,21 @@ function App() {
    * 留まったまま Claude Code セッションだけを失う。cwd は TerminalTab の
    * 起動 effect がマウント時にしか読まないので、先に openFolder を待っても
    * 生きている端末が古い cwd のまま化けることはない（設計 決定12）
+   *
+   * **フォルダ切替の唯一の経路。** 実行中のタブが1本も無い場合もここを通る
+   *（確認ダイアログを挟むかどうかだけが `openFolder` 側の判断）。終了済み
+   * （exited / failed）のタブは殺す PTY を持たないが、旧フォルダの残骸なので
+   * 画面からも消す。**帰結として、端末を使っていなくてもフォルダを切り替えると
+   * ペインは畳まれる**——旧フォルダのために開いていたペインを新フォルダで
+   * そのまま開いたままにする理由が無い。
+   *
+   * **`killAllPtys()` が `setTerminals(closeAll)` より先なので、`await` の
+   * 最中に解決した spawn が一瞬 `running` になる窓がある**（溜まった打鍵を
+   * 既に死んだ PTY へ流しうる）。無害である——`closeAll` が同じバッチで
+   * 着地し、遅れて届く `onFailed` は `patch` が「その id はもう無い」で
+   * 同じ state を返す（`src/core/terminal/sessions.ts`）。M17 で待ち行列
+   *（`pendingRef`）とアンマウント時 kill の両方がこの窓へ流れ込むように
+   * なったので、順序を入れ替えるときはここを読むこと
    */
   const switchFolder = async (dir: string) => {
     const opened = await openProject(dir)
@@ -433,8 +452,12 @@ function App() {
   const openFolder = async () => {
     const dir = await pickProjectFolder()
     if (dir === null) return
+    // **実行中のタブが無くても switchFolder を通す。** `hasRunning` は
+    // starting / running しか見ないので、ここで素通りさせると exited /
+    // failed のタブが旧フォルダの残骸として画面に残る。`hasRunning` は
+    // **確認ダイアログの要否だけ**に使い、後始末は1本の経路に寄せる
     if (!hasRunning(terminals)) {
-      await openProject(dir)
+      await switchFolder(dir)
       return
     }
     setModals((prev) =>
@@ -828,6 +851,7 @@ function App() {
                 cwd={projectDir}
                 ptyIo={tauriPtyIo}
                 paneVisible={paneOpen}
+                dark={dark}
                 onOpen={openTerminal}
                 onClose={closeTerminal}
                 onActivate={(id) => setTerminals((prev) => activateSession(prev, id))}

@@ -17,6 +17,24 @@ type PtyEvent = { event: 'data'; data: { base64: string } } | { event: 'exit'; d
  */
 const live = new Set<number>()
 
+/**
+ * 起動中（`pty_spawn` の invoke が in-flight）の spawn。**`killAllPtys` が
+ * 取りこぼさないために要る**——`live` への登録は解決後なので、この間に
+ * 全殺しが走ると素通りしてしまう
+ */
+const inflight = new Set<Promise<number>>()
+
+/**
+ * 全殺しの世代。`killAllPtys` のたびに1つ進む。in-flight だった spawn は
+ * 解決時に自分が始まった世代と比べ、違っていれば `live` へ入れない
+ *（`live` は既に空にされているので、入れると次の全殺しまで生き残る）。
+ *
+ * **真偽値のフラグにしないこと。** 全殺しはアプリ終了だけでなくフォルダ
+ * 切替でも走るので、立てっぱなしにすると次のフォルダの端末が台帳に
+ * 載らなくなる
+ */
+let generation = 0
+
 function decodeBase64(base64: string): Uint8Array {
   const binary = atob(base64)
   const bytes = new Uint8Array(binary.length)
@@ -26,6 +44,7 @@ function decodeBase64(base64: string): Uint8Array {
 
 export const tauriPtyIo: PtyIo = {
   async spawn(spec: PtySpawnSpec): Promise<number> {
+    const startedAt = generation
     const channel = new Channel<PtyEvent>()
     // pty_spawn 呼び出し前は id が無いので、後で束縛する（下の invoke の結果を待つ）
     let id: number | undefined
@@ -51,7 +70,7 @@ export const tauriPtyIo: PtyIo = {
       }
       spec.onExit(message.data.code)
     }
-    id = await invoke<number>('pty_spawn', {
+    const request = invoke<number>('pty_spawn', {
       program: spec.program,
       args: spec.args,
       cwd: spec.cwd,
@@ -59,10 +78,18 @@ export const tauriPtyIo: PtyIo = {
       rows: spec.rows,
       channel,
     })
-    // exit が先着していたら live に入れず、Rust 側の台帳もその場で片付ける
-    // （先着していなければ通常どおり生存扱いにする）
+    inflight.add(request)
+    try {
+      id = await request
+    } finally {
+      inflight.delete(request)
+    }
+    // exit が先着していたら、その場で Rust 側の台帳を片付ける
     if (exited) void invoke('pty_kill', { id }).catch(() => undefined)
-    else live.add(id)
+    // 待っている間に全殺しが走っていたら `live` へ入れない。**kill は
+    // ここから飛ばさない**——`killAllPtys` がこの spawn の解決を待って
+    // 殺すので、二重に飛ばす必要がない
+    else if (generation === startedAt) live.add(id)
     return id
   },
   async write(id, data) {
@@ -77,9 +104,32 @@ export const tauriPtyIo: PtyIo = {
   },
 }
 
-/** 生きている PTY を全部殺す（アプリを閉じる経路から呼ぶ） */
+/**
+ * 生きている PTY を全部殺す（アプリを閉じる経路とフォルダ切替から呼ぶ）。
+ *
+ * **「これ以降 spawn されない」ことは保証しない。** 待ち合わせるのは
+ * `[...inflight]` を取った時点のスナップショットだけで、**それより後に
+ * 始まった spawn はこの呼び出しの待ち合わせには入らない**（`live` へは
+ * 載る——進めた後の世代を読んで始まるので `generation === startedAt` が
+ * 成り立つ。殺されないのはこの呼び出しに限った話で、後続の kill が無い
+ * 経路——アプリ終了——でだけ孤児になる）。
+ *
+ * 現在この不変条件は呼び出し側が守っている——アプリ終了経路では
+ * `requestClose()` の解決と `killAllPtys()` の間に何も走らず、フォルダ
+ * 切替ではモーダルが入力を止めている。**呼び出し元を増やすときは、
+ * 呼んでいる間に新しい spawn が始まりうるかを確かめること**
+ */
 export async function killAllPtys(): Promise<void> {
+  generation += 1
   const ids = [...live]
   live.clear()
-  await Promise.all(ids.map((id) => invoke('pty_kill', { id }).catch(() => undefined)))
+  // **起動中の spawn も待って殺す。** ここで待たないと、解決した PTY を
+  // 殺す invoke がアプリの終了に間に合わず孤児になる
+  const starting = [...inflight].map((request) =>
+    request.then((id) => invoke('pty_kill', { id })).catch(() => undefined),
+  )
+  await Promise.all([
+    ...ids.map((id) => invoke('pty_kill', { id }).catch(() => undefined)),
+    ...starting,
+  ])
 }

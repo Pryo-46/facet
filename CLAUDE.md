@@ -47,6 +47,7 @@ npm install                 # ← 省略しない
 
 ```
 npm test && npx tsc -b && npm run lint   # ここで緑を確認してから次へ
+(cd src-tauri && cargo test)             # Rust 側（M17 から。npm test には含まれない）
 ```
 
 **4. worktree を消す**
