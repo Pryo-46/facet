@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { join, resolveResource } from '@tauri-apps/api/path'
 import { exists, mkdir, readDir, readTextFile, remove, writeTextFile } from '@tauri-apps/plugin-fs'
-import { shouldDescendSkillDir, type SkillSyncIo } from '@/core/skill-sync'
+import { BUNDLED_SKILLS, shouldDescendSkillDir, type SkillSyncIo } from '@/core/skill-sync'
 
 /**
  * 同梱 Skill の読み出しとプロジェクトフォルダへの書き込み（Tauri 境界）。
@@ -25,9 +25,14 @@ import { shouldDescendSkillDir, type SkillSyncIo } from '@/core/skill-sync'
  * **`syncBundledSkills` の前に必ず呼ぶ。** これが無いと mac では最初の
  * `exists` が「forbidden path」で落ちる（理由は `src-tauri/src/lib.rs` の
  * `allow_skill_dir`）。自前コマンドなので capabilities への追記は要らない
+ *
+ * `BUNDLED_SKILLS` を渡すのは、Skill ごとの `.gitignore` を `allow_file` で
+ * literal 許可させるため（`allow_directory` の `**` はドット始まりの要素に
+ * 一致しない）。これが無いと `.gitignore` の書き込みだけが mac で
+ * 「forbidden path」になる
  */
 export async function allowSkillDir(dir: string): Promise<void> {
-  await invoke('allow_skill_dir', { dir })
+  await invoke('allow_skill_dir', { dir, skills: BUNDLED_SKILLS })
 }
 
 /** `dir` 配下のファイルを再帰的に集める（`base` からの相対パスで返す） */
