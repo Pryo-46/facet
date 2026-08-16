@@ -52,11 +52,13 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [M9](history/m9-core-list-editor-and-output-profiles.md) | リストエディタのコア化と出力プロファイル | コア |
 | [M10](history/m10-error-catalog-editor.md) | エラーカタログエディタ | エラーカタログ |
 | [M11](history/m11-core-claude-code-pane.md) | Claude Code ペイン | コア |
+| [M12](history/m12-core-reading-guide.md) | 読み方ガイド（`README-for-AI.md`）の同梱 | コア |
 | [M13](history/m13-core-file-titles-and-list-grouping.md) | ファイルの名前と一覧の種類別ソート | コア |
 | [M14](history/m14-core-ui-polish.md) | 額縁・サイドメニュー・各ツール画面の見た目整理 | コア |
 | [M15](history/m15-skill-hygiene.md) | 同梱 Skill とアプリの複製・同期の衛生 | コア |
 | [M16](history/m16-test-homework.md) | テストの宿題 | コア・シーケンス |
 | [M17](history/m17-core-terminal-fixes.md) | 端末ペインの残件6件（配色・入力・プロセスの寿命） | コア |
+| [M18](history/m18-core-image-export.md) | 画像出力（図を PNG でコピー・保存） | コア・シーケンス・ロジックツリー |
 | [logic-tree-m1](history/logic-tree-m1-keyboard-editor.md) | キーボードで打ち切れるキャンバスエディタ | ロジックツリー |
 | [sequence-m1](history/sequence-m1-keyboard-editor.md) | ステップ入力＋全ステップに立つ「失敗したら？」の問い | シーケンス |
 | [sequence-m2](history/sequence-m2-usability.md) | 会議で使ってみて出た使い勝手9点 | シーケンス |

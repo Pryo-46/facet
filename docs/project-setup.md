@@ -29,7 +29,7 @@
 - **PTY（擬似端末）のコマンド4本**（`pty_spawn` / `pty_write` / `pty_resize` / `pty_kill`。M11。Claude Code の端末ペインを本物の端末として動かすため）。判断は置かず、実行ファイル名も引数も TypeScript が渡す。**こちらも自前コマンドなので ACL 対象外**
 - **プラグインの登録**（`lib.rs` の `.plugin(...)` 1行と Cargo 依存1行）。判断もロジックも持たないので原則の例外ではない
 
-**新しい Tauri の JS API を使うたびに `src-tauri/capabilities/default.json` を確認すること。** 権限が無いと**実行時に静かに動かない**。これまでに5回踏んでいる:
+**新しい Tauri の JS API を使うたびに `src-tauri/capabilities/default.json` を確認すること。** 権限が無いと**実行時に静かに動かない**。これまでに5回踏んでいる（最後の2行は M18 で**先回りして入れた**もので、踏んだ実績ではない）:
 
 | API | 必要だったもの | 欠けたときの症状 |
 | --- | --- | --- |
@@ -38,5 +38,11 @@
 | `exists()`（新規作成の名前解決） | `fs:allow-exists` | — |
 | `mkdir()` / `remove()`（M11。同梱 Skill をプロジェクトフォルダの `.claude/skills/` へ置き直す） | `fs:allow-mkdir` / `fs:allow-remove` | Skill が置かれず、端末で Skill が見つからない |
 | `resolveResource()` ＋ `readDir()`（M11。同梱 Skill の読み出し） | `fs:allow-read-dir` / `fs:allow-read-text-file` の `$RESOURCE/skills/**` scope | 同上 |
+| `writeImage()`（M18。図の PNG をクリップボードへ） | `clipboard-manager:allow-write-image` ＋ **Cargo feature `image-png`** | 画像コピーが実行時に失敗する（未確認——M18 の実機確認は未実施） |
+| `writeFile()`（M18。PNG をファイルへ） | `fs:allow-write-file` | 画像保存が実行時に失敗する（同上） |
 
-`dialog:default` は `allow-save` を含むので保存ダイアログに追記は不要。**`save()` で選んだパスは dialog プラグインが fs の実行時 scope へ入れる**ので、プロジェクトフォルダの外へも書ける。
+**`clipboard-manager:allow-write-text` があっても画像は書けない**（別権限）。`fs:allow-write-file` も同様に `fs:allow-write-text-file` とは別で、こちらが**バイナリ書き込み**（`writeFile`）用である。
+
+**Cargo feature `image-png` が要るのは、`writeImage` に生の PNG バイト列を渡す形が documented な契約ではないため。** `@tauri-apps/plugin-clipboard-manager` の `writeImage` は「デコード済みの画像」を受け取る想定で（実装例は生 RGBA の `number[]`）、`html-to-image` が返す**エンコード済み PNG** を渡すには `@tauri-apps/api/image` の `Image.fromBytes(pngBytes)` を通す。この `fromBytes` が Tauri 側で `ico`/`png` のデコーダを要求するので、`src-tauri/Cargo.toml` の `tauri` 依存を `features = ["image-png"]` にしてある（[`overview-rev.md`](overview-rev.md) 7章の「feature 有効化は原則の例外ではない」——判断を持たず、ネイティブ機能を有効にするだけ）。**capabilities だけ足しても動かない**組み合わせなので、片方だけ直しても症状は変わらない。
+
+`dialog:default` は `allow-save` を含むので保存ダイアログに追記は不要。**`save()` で選んだパスは dialog プラグインが fs の実行時 scope へ入れる**ので、プロジェクトフォルダの外へも書ける（画像の保存もこの経路に乗る）。
