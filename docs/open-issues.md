@@ -4,7 +4,7 @@
 >
 > ここに載るのは「**いつでもよいが、忘れると実害化するもの**」。いま着手すべきものはマイルストーンの計画に入れる。マイルストーン完了時にこのファイルを更新するのは義務（[`../CLAUDE.md`](../CLAUDE.md) 参照）。
 >
-> 最終更新: M17 完了時点（端末ペインの M11 由来の6件を解消して削除、残る留意点3件を M17 のタグで追加、最終レビューの fix wave で「テストが無い箇所」に `pty_kill` の冪等性の1件を追加。**M17 の実機確認は人間が mac 実機で一巡して問題が出なかったため、「次に手を付ける候補」へは載せていない**——M15 のぶんは未実施のまま1番に残る。その前は M16 完了時点）
+> 最終更新: M18 完了時点（「テストが無い箇所」に `readLastProjectDir` の空文字列の項を、「小さな負債」に `settingsFilePath()` 未使用の重複の項を、M18 のタグで追加。**M18 の実機確認（`npm run tauri dev` での目視確認）は未実施**——エージェントが Tauri の GUI を操作できないため。「次に手を付ける候補」の2番目に追加した。その前は M17 完了時点: 端末ペインの M11 由来の6件を解消して削除、残る留意点3件を M17 のタグで追加、最終レビューの fix wave で「テストが無い箇所」に `pty_kill` の冪等性の1件を追加。**M17 の実機確認は人間が mac 実機で一巡して問題が出なかったため、「次に手を付ける候補」へは載せていない**——M15 のぶんは未実施のまま残る）
 
 各項目の末尾の `[MN]` は**最初に記録されたマイルストーン**。長く開いているものほど「踏まないから残っている」のか「踏むけど後回しにしている」のかを見分ける手がかりになる。**採番は3系統**（コア・用語集・エラーカタログの `MN`、ロジックツリーの `logic-tree-mN`、シーケンスの `sequence-mN`）。
 
@@ -13,7 +13,8 @@
 全項目をコード実物と突き合わせた結果からの優先順。根拠は各項目の本文にある。**Skill 関連の4項目は M15 で解消し、この一覧から消した**（[`history/m15-skill-hygiene.md`](history/m15-skill-hygiene.md) 参照）。**app-controller の interleaving 3分岐は M16 で解消し、この一覧から消した**（[`history/m16-test-homework.md`](history/m16-test-homework.md) 参照）。
 
 1. **M15 の実機確認（mac）が未実施**——`docs/superpowers/plans/2026-08-15-m15-skill-hygiene.md` Task 7 のチェックリスト（フォルダを開くと各 Skill 直下に `.gitignore` があること・`npm install` 後もフォルダを開き直して `node_modules`/`package-lock.json` が残ること等）は空のまま。**M15 は fs scope の mac 固有の挙動を直すマイルストーンで、`npm test`/`tsc`/`lint` はこの種の欠陥を原理的に捕まえない**（M11・sequence-m4 で実際にここが機械検査をすり抜けた）。mac 実機で `npm run tauri dev` を1回動かし、チェックリストを埋めること。詳細は [`history/m15-skill-hygiene.md`](history/m15-skill-hygiene.md) の「実機確認（Task 7）」
-2. **端末からキーボードで本体へ戻れない**（挙動の穴の項）——rev 2章の理念との食い違い。ただし「キーは割り当てない」は人間の裁定（設計 決定11）なので、**覆すかどうかは仕様判断**
+2. **M18 の実機確認が未実施**——`docs/superpowers/plans/2026-08-16-restore-last-folder.md` Task 5 のチェックリスト（フォルダを開いてから再起動し、同じフォルダが自動で開くことの目視確認／`settings.json` を直接編集して存在しないパスにし、静かに通常起動することの確認）が空のまま。M18 を実装したエージェントは Tauri のネイティブウィンドウを対話的に操作できず、`App.dom.test.tsx` の自動テストと `npm run tauri dev` のビルド・起動可否確認（クラッシュしないことのみ）で代替した。**自動テストは実際の fs scope・実ファイルシステム・実ウィンドウのライフサイクルを検証していない**ため、実際に復元される・静かにフォールバックすることは未確認のまま。詳細は [`history/m18-restore-last-folder.md`](history/m18-restore-last-folder.md) の「実機確認（Step 5）について」
+3. **端末からキーボードで本体へ戻れない**（挙動の穴の項）——rev 2章の理念との食い違い。ただし「キーは割り当てない」は人間の裁定（設計 決定11）なので、**覆すかどうかは仕様判断**
 
 ## テストが無い箇所
 
@@ -21,6 +22,7 @@
 - **`fileExists` に専用の単体テストが無い**（`src/fs/project-fs.ts`）。`exists` への1行委譲で、意味のある挙動は `file-ops.test.ts` が押さえている `[M5]`
 - **`ChoiceDialog` のオーバーレイクリックのテストが無い**。`onOpenChange` を渡さないことで構造的に担保され、同じ機構を Esc のテストが固定している `[M5]`
 - **「二重に `pty_kill` しても無害」を直接踏む Rust テストが無い**（`src-tauri/src/pty.rs`）。`TerminalTab` のアンマウント時 kill（M17）はこの性質に依存しているが、保証しているのは `sessions.remove` が消えた id に対して `None` を返すという構造だけで、テストは無い `[M17]`
+- **`readLastProjectDir` が空文字列を `null` ではなくそのまま返す**（`src/fs/settings-fs.ts`）。`settings.json` の `lastProjectDir` が `""` のとき、意図（「保存されていなければ null」）とズレた値を返す。起動時復元の effect は `dir === null` でしか早期returnしないため `""` が後段まで進むが、`allowProjectDir("")` → `fileExists("")` が `false` を返して通常起動へフォールバックするため実害は無い `[M18]`
 
 ## 将来の機能を作った瞬間に踏むもの
 
@@ -92,4 +94,5 @@
 - **`focusSibling` が `commands.ts` の `siblingsOf` と同一の式**（`src/modules/logic-tree/LogicTreeEditor.tsx`）: 「次の写経で3本目が生える」。`export` 1行で潰せるうちに記録を残す `[logic-tree-m1]`
 - **登録3 Skill は整合性検証の警告文言・計上規則を、アプリと独立に複製している——現在は実行 smoke テストで縛られている**（`.claude/skills/{glossary-term-register,error-catalog-register,sequence-register}/scripts/*-write.mjs`）: `consistency.ts` は値 import と `@/` エイリアスを持つため `canonical.ts` のようにバイト一致コピーへ寄せられず、各 Skill は判定ロジック・文言を手で複製している。**M15 で3本とも `src/modules/<tool>/skill-write.smoke.test.ts` を新設し**、`*-write.mjs --check` を実際に spawn して、アプリの `checkXxxConsistency` が返す `message` がその stdout に逐語で現れることを検査するようにした——ズレた瞬間にテストが赤くなる。エラーカタログ・用語集の重複ルールは M15 時点で実際にズレていた（文言・計上規則とも）ものを追従させ、sequence は元々一致していたことを実測して固定した。**縛られたのは「一致していること」であって「複製そのもの」ではない**——`consistency.ts` のルール・文言を改訂するたびに3スクリプトも書き替える必要がある点は変わらないが、追従漏れは次の `npm test` で検知される `[Skill]`
 - **Mermaid の正規化関数がモジュール内にある**（`src/modules/sequence/mermaid.ts`）: design-notes 論点11 は「先に出力を実装した側が正規化関数を1本立て、後発がそれに乗る」としている。logic-tree の出力を作るときに `core/mermaid.ts` へ引き上げること。`markdown-table.ts` が用語集→コアと辿った道と同じ `[sequence-m3]`
+- **`settingsFilePath()` ヘルパーが `saveLastProjectDir` から使われていない**（`src/fs/settings-fs.ts`）: `readLastProjectDir` は `settingsFilePath()`（`appConfigDir()` + `join`）を経由するが、`saveLastProjectDir` は同じ結合を直接書いており、パス結合ロジックが2箇所に重複している `[M18]`
 - **`palette-fit.mjs` が Node の型ストリップに依存している**（`.claude/skills/palette-retheme/scripts/`）: `.mjs` から `src/styles/contrast.ts` を直接 import しており、型ストリップが unflagged な Node が要る（22.18+ / 23.6+ / 24+。23.0〜23.5 はフラグ無しでは動かない。検証したのは v22.20.0）。また `contrast.ts` に `enum` やコンストラクタのパラメータプロパティを書くと**消去できない構文**として落ちる（型注釈・`interface`・`type` は問題ない）。ロジックを複製しないための選択で、複製との比較では正しいが、**依存が Node のバージョンと構文の制約という見えにくい形で残っている**。**同じ依存が登録3 Skill すべてにある**（`sequence-register` は `questions.ts` / `canonical.ts` を、`glossary-term-register` / `error-catalog-register` は `canonical.ts` のみを同ディレクトリから import する。M15 で旧2本も `canonical.ts` をこの形に揃えた）。ただし**いずれも機械検査が付いている**——コピーがアプリの原本とバイト一致していること・値 import を持たないことを、sequence 側は `src/modules/sequence/skill-copy.test.ts` が、旧2本は `src/core/skill-canonical-copy.test.ts` が検査する。したがって、**コピーが元とズレたときも、元に消去できない構文（`enum` 等）が生えたときも、テストが赤くなる。** `palette-fit.mjs` 側も `src/styles/palette-fit.smoke.test.ts` が実際に spawn して import 経路と終了コードを検査するようになった（`contrast.ts` に `enum` が生えれば赤くなる）ので、残っているのは **Node のバージョン制約（22.18+ / 23.6+ / 24+）が見えにくい依存として存在する**という記録のみ `[Skill]`

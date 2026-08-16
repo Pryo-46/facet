@@ -464,6 +464,10 @@ function App() {
         console.error('起動時のフォルダ復元に失敗しました', err)
       }
     })()
+    // openProject は毎レンダー再生成されるが、上の一回性ガード
+    // （hasAttemptedRestoreRef）で実行は起動時の1回に固定されている。
+    // 依存に加えても実行回数は変わらないまま警告だけが消える
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   /**
