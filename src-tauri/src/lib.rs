@@ -41,6 +41,20 @@ fn allow_skill_dir(app: tauri::AppHandle, dir: String, skills: Vec<String>) -> R
     Ok(())
 }
 
+/// プロジェクトフォルダを fs プラグインの実行時 scope に入れる。
+///
+/// フォルダ選択ダイアログが入れる scope はセッション限りで、次回起動には
+/// 引き継がれない。**起動時に前回のフォルダを自動で復元する**ときはダイアログ
+/// を経由しないため、ここで明示的に取り直す。判断は一切置かない
+/// （`allow_skill_dir` と同じ姿勢。rev 7章）
+#[tauri::command]
+fn allow_project_dir(app: tauri::AppHandle, dir: String) -> Result<(), String> {
+    let scope = app.fs_scope();
+    scope
+        .allow_directory(std::path::Path::new(&dir), true)
+        .map_err(|e| e.to_string())
+}
+
 /// ファイルを OS のゴミ箱へ移す。
 ///
 /// Tauri の fs プラグインにゴミ箱 API が無く、
@@ -69,6 +83,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             move_to_trash,
             allow_skill_dir,
+            allow_project_dir,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,

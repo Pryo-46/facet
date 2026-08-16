@@ -4,6 +4,17 @@ import { open, save } from '@tauri-apps/plugin-dialog'
 import { exists, readDir, readTextFile, watch, writeTextFile } from '@tauri-apps/plugin-fs'
 
 /**
+ * プロジェクトフォルダを fs の実行時 scope へ入れる。**通常はダイアログ選択
+ * （`recursive: true`）が自動で入れるが、その scope はセッション限りで次回
+ * 起動には引き継がれない。** 起動時の自動復元はダイアログを経由しないため、
+ * ここで明示的に取り直す（`.claude/` 向けの `allowSkillDir` と同じ理由。
+ * Rust 側の実装は `src-tauri/src/lib.rs` の `allow_project_dir` を参照）
+ */
+export async function allowProjectDir(dir: string): Promise<void> {
+  await invoke('allow_project_dir', { dir })
+}
+
+/**
  * Tauri のファイルアクセスをここに隔離する（コアは Tauri を知らない）。
  * scope はダイアログ選択で実行時に付与されるため、recursive: true が必須
  * （これがないとフォルダ配下のファイルが scope に入らない）。
