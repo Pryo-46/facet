@@ -58,6 +58,7 @@ import { dismissToast, dismissToastByKey, pushToast, type ToastItem } from '@/co
 import { forceClose, interceptClose } from '@/fs/app-window'
 import { copyToClipboard } from '@/fs/clipboard'
 import {
+  allowProjectDir,
   askSaveMarkdownPath,
   fileExists,
   joinPath,
@@ -70,7 +71,7 @@ import {
 } from '@/fs/project-fs'
 import { killAllPtys, tauriPtyIo } from '@/fs/pty'
 import { tauriReadingGuideIo } from '@/fs/reading-guide-io'
-import { saveLastProjectDir } from '@/fs/settings-fs'
+import { readLastProjectDir, saveLastProjectDir } from '@/fs/settings-fs'
 import { allowSkillDir, tauriSkillSyncIo } from '@/fs/skill-resources'
 import { appRegistry } from '@/modules'
 
@@ -421,6 +422,49 @@ function App() {
     }
     return true
   }
+
+  // **StrictMode 対策の一回性ガード。** 素朴に `cancelled` フラグだけで
+  // 後片付けを実装すると（1回目のマウントの cleanup が `cancelled` を立てて
+  // からでないと2回目のマウントの effect が走らない、という前提のコードは）
+  // 逆に壊れる: StrictMode は1回目の mount → cleanup → 2回目の mount を
+  // 同一タスク内で同期的に行うため、`cancelled` は非同期処理（最初の
+  // `await`）が終わるより前に立つ。ここで「試みたかどうか」自体を ref に
+  // 固定して2回目の実行を弾く一方、1回目の非同期処理は `cancelled` チェックを
+  // 挟まずに最後まで走らせる——2回目に丸ごと引き継がせるのではなく、1回目を
+  // 完走させることで「復元は正確に1回」を保証する
+  const hasAttemptedRestoreRef = useRef(false)
+
+  /**
+   * 起動時に前回開いていたフォルダを自動で復元する（設計 M18）。ダイアログを
+   * 経由しないため、`fileExists` の前に `allowProjectDir` で fs の実行時 scope
+   * を明示的に取り直す必要がある（`allow_project_dir` 参照。ダイアログ由来の
+   * scope はセッション限りで次回起動には引き継がれない）。
+   *
+   * あらゆる失敗（設定の読み込み・scope の再付与・存在確認）は「フォルダ
+   * 未選択」の通常起動として握りつぶす——ユーザーに通知するほどの障害ではない。
+   *
+   * **アンマウント時に中断しない。** App はアプリの生存期間そのままマウント
+   * され続ける唯一のトップレベルであり、実際に unmount されるのは
+   * StrictMode の合成的な二重起動のときだけ（本番でも `App.dom.test.tsx`
+   * の `cleanup()` でも、実 unmount 後に状態更新が意味を持つ場面は無い）。
+   * `cancelled` フラグを持たせると、まさにその合成的 unmount が1回目の
+   * 試み自体を壊してしまう（上の一回性ガードのコメント参照）
+   */
+  useEffect(() => {
+    if (hasAttemptedRestoreRef.current) return
+    hasAttemptedRestoreRef.current = true
+    void (async () => {
+      try {
+        const dir = await readLastProjectDir()
+        if (dir === null) return
+        await allowProjectDir(dir)
+        if (!(await fileExists(dir))) return
+        await openProject(dir)
+      } catch (err: unknown) {
+        console.error('起動時のフォルダ復元に失敗しました', err)
+      }
+    })()
+  }, [])
 
   /**
    * 端末を全部終了してからフォルダを切り替える。**作業ディレクトリが
