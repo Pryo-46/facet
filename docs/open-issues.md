@@ -4,7 +4,7 @@
 >
 > ここに載るのは「**いつでもよいが、忘れると実害化するもの**」。いま着手すべきものはマイルストーンの計画に入れる。マイルストーン完了時にこのファイルを更新するのは義務（[`../CLAUDE.md`](../CLAUDE.md) 参照）。
 >
-> 最終更新: M17 完了時点（端末ペインの M11 由来の6件を解消して削除、残る留意点3件を M17 のタグで追加、最終レビューの fix wave で「テストが無い箇所」に `pty_kill` の冪等性の1件を追加。**M17 の実機確認は人間が mac 実機で一巡して問題が出なかったため、「次に手を付ける候補」へは載せていない**——M15 のぶんは未実施のまま1番に残る。その前は M16 完了時点）
+> 最終更新: M18 最終ブランチレビューの fix wave（`readLastProjectDir` が空文字列を `null` として弾くよう直したため「テストが無い箇所」の該当項を削除、`saveLastProjectDir` が `settingsFilePath()` を使うよう直したため「小さな負債」の該当項を削除、「挙動の穴」に起動時復元中のスキャン失敗で `io` バナーが出る既知の挙動を M18 のタグで追加）。その前は M18 完了時点: 「テストが無い箇所」に `readLastProjectDir` の空文字列の項を、「小さな負債」に `settingsFilePath()` 未使用の重複の項を、M18 のタグで追加。**M18 の実機確認（`npm run tauri dev` での目視確認）は未実施**——エージェントが Tauri の GUI を操作できないため。「次に手を付ける候補」の2番目に追加した。その前は M17 完了時点: 端末ペインの M11 由来の6件を解消して削除、残る留意点3件を M17 のタグで追加、最終レビューの fix wave で「テストが無い箇所」に `pty_kill` の冪等性の1件を追加。**M17 の実機確認は人間が mac 実機で一巡して問題が出なかったため、「次に手を付ける候補」へは載せていない**——M15 のぶんは未実施のまま残る）
 
 各項目の末尾の `[MN]` は**最初に記録されたマイルストーン**。長く開いているものほど「踏まないから残っている」のか「踏むけど後回しにしている」のかを見分ける手がかりになる。**採番は3系統**（コア・用語集・エラーカタログの `MN`、ロジックツリーの `logic-tree-mN`、シーケンスの `sequence-mN`）。
 
@@ -13,7 +13,8 @@
 全項目をコード実物と突き合わせた結果からの優先順。根拠は各項目の本文にある。**Skill 関連の4項目は M15 で解消し、この一覧から消した**（[`history/m15-skill-hygiene.md`](history/m15-skill-hygiene.md) 参照）。**app-controller の interleaving 3分岐は M16 で解消し、この一覧から消した**（[`history/m16-test-homework.md`](history/m16-test-homework.md) 参照）。
 
 1. **M15 の実機確認（mac）が未実施**——`docs/superpowers/plans/2026-08-15-m15-skill-hygiene.md` Task 7 のチェックリスト（フォルダを開くと各 Skill 直下に `.gitignore` があること・`npm install` 後もフォルダを開き直して `node_modules`/`package-lock.json` が残ること等）は空のまま。**M15 は fs scope の mac 固有の挙動を直すマイルストーンで、`npm test`/`tsc`/`lint` はこの種の欠陥を原理的に捕まえない**（M11・sequence-m4 で実際にここが機械検査をすり抜けた）。mac 実機で `npm run tauri dev` を1回動かし、チェックリストを埋めること。詳細は [`history/m15-skill-hygiene.md`](history/m15-skill-hygiene.md) の「実機確認（Task 7）」
-2. **端末からキーボードで本体へ戻れない**（挙動の穴の項）——rev 2章の理念との食い違い。ただし「キーは割り当てない」は人間の裁定（設計 決定11）なので、**覆すかどうかは仕様判断**
+2. **M18 の実機確認が未実施**——`docs/superpowers/plans/2026-08-16-restore-last-folder.md` Task 5 のチェックリスト（フォルダを開いてから再起動し、同じフォルダが自動で開くことの目視確認／`settings.json` を直接編集して存在しないパスにし、静かに通常起動することの確認）が空のまま。M18 を実装したエージェントは Tauri のネイティブウィンドウを対話的に操作できず、`App.dom.test.tsx` の自動テストと `npm run tauri dev` のビルド・起動可否確認（クラッシュしないことのみ）で代替した。**自動テストは実際の fs scope・実ファイルシステム・実ウィンドウのライフサイクルを検証していない**ため、実際に復元される・静かにフォールバックすることは未確認のまま。詳細は [`history/m18-restore-last-folder.md`](history/m18-restore-last-folder.md) の「実機確認（Step 5）について」
+3. **端末からキーボードで本体へ戻れない**（挙動の穴の項）——rev 2章の理念との食い違い。ただし「キーは割り当てない」は人間の裁定（設計 決定11）なので、**覆すかどうかは仕様判断**
 
 ## テストが無い箇所
 
@@ -41,6 +42,7 @@
 - **`layout.totalHeight` が図の実際の一番下を表さない**（`src/modules/sequence/layout.ts` / `SequenceEditor.tsx`）: M14 で追加した「末尾にステップを追加」ボタンは `top: layout.totalHeight + ROW_GAP` に置かれるため、実際に描かれる一番下は `totalHeight` より下（ボタンの高さぶん）にある。右端の `totalWidth`/`GhostSlot` の帳簿ずれ（下記）と同種の欠陥で、**図の下端を扱う変更をするとき必ず踏む** `[M14]`
 - **`replyTo`（応答と呼出の対応）が無く、`reply` 行の説明が一般文言である**（`schemas/sequence.schema.json` / `src/modules/sequence/`）: 「この応答はどの呼出への応答か」をデータが持たないため、行の説明は誰に対しても同じ文になる。design-notes 論点3 は**意図的に持たない**と決めた（対応の明示が要ると分かってから入れる）ので欠陥ではないが、**呼出が入れ子になるシナリオを実際に書いたときに読めるか**は実使用でしか分からない。ホバーで対の呼出をハイライトする等を検討するなら、まずこのフィールドが要る `[sequence-m1]`
 - **`GhostSlot` の ✕ が `layout.totalWidth` の外に約26px はみ出す**（`gap-1` ぶんも帳簿外）（`src/modules/sequence/GhostSlot.tsx` / `layout.ts`）: 図の幅の帳簿（`layout.totalWidth`）と実描画がずれている——ghost の削除ボタンは `layout.totalWidth` を考慮せず配置されるため、右端に固定幅ぶんはみ出す。sequence M2 の実機確認では崩れとして問題視されなかったが、**構造的なずれなのでガターに列を足す等、図の右端を扱う変更をするとき必ず踏む** `[sequence-m2]`
+- **起動時の自動復元中にフォルダ走査が失敗すると `io` バナーが出る**（`src/core/app-controller.ts`）: 復元は「設定読み込み・scope 付与・存在確認」の3つの失敗点だけを静かに握りつぶす設計（spec スコープ節）だが、そこを通過した後の `openProject` 内のフォルダ走査自体が失敗した場合（読めないファイルがある等）は、手動でフォルダを開いたときと同じ `host.setBanner('io', ...)` が起きる。意図的な例外——ユーザーが選んでいないフォルダについてのバナーが起動直後に出うる、という認識共有の記録 `[M18]`
 - **`resolveCommand` の細かい非対称**（`src/core/keyboard/keymap.ts`）: macOS の `Ctrl+Backspace`（主修飾キーは Cmd なので素の Backspace として通る）と `Alt+Shift+↑↓`（`altKey` を先に見るため並び替えになる） `[M3]`
 - **ID が重複しているファイルでは、その ID を親に指すノードが先頭の1つにだけ付く**（`src/modules/logic-tree/tree.ts`）: 挙動は決めてあるが、**画面に出るのは「ID が重複しています」だけ**で、木の形が想定と違って見える理由が読み手に繋がらない。ID 重複を直せば解消するので実害は小さいが、原因の説明が要る `[logic-tree-m1]`
 - **ドラッグ中にアンマウントすると d3 が window に張ったリスナーが残る**（`src/modules/logic-tree/useViewport.ts`）: 体感とは無関係に成立し、実機確認を終えても解消しない `[logic-tree-m1]`

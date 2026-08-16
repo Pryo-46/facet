@@ -17,13 +17,27 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 }))
 
 // モックの登録後に読む必要があるので動的 import にする
-const { askSaveMarkdownPath, moveFileToTrash, watchFolder, WATCH_DEBOUNCE_MS } = await import('./project-fs')
+const { allowProjectDir, askSaveMarkdownPath, moveFileToTrash, watchFolder, WATCH_DEBOUNCE_MS } = await import(
+  './project-fs'
+)
 
 beforeEach(() => {
   invoke.mockReset()
   invoke.mockResolvedValue(undefined)
   watch.mockReset()
   save.mockReset()
+})
+
+describe('allowProjectDir', () => {
+  it('自前コマンド allow_project_dir に dir を渡す', async () => {
+    await allowProjectDir('C:\\proj')
+    expect(invoke).toHaveBeenCalledWith('allow_project_dir', { dir: 'C:\\proj' })
+  })
+
+  it('コマンドが失敗したら例外がそのまま伝わる（呼び出し側が扱う）', async () => {
+    invoke.mockRejectedValue(new Error('forbidden path'))
+    await expect(allowProjectDir('C:\\proj')).rejects.toThrow('forbidden path')
+  })
 })
 
 describe('moveFileToTrash', () => {

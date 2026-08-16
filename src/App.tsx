@@ -58,6 +58,7 @@ import { dismissToast, dismissToastByKey, pushToast, type ToastItem } from '@/co
 import { forceClose, interceptClose } from '@/fs/app-window'
 import { copyToClipboard } from '@/fs/clipboard'
 import {
+  allowProjectDir,
   askSaveMarkdownPath,
   fileExists,
   joinPath,
@@ -70,6 +71,7 @@ import {
 } from '@/fs/project-fs'
 import { killAllPtys, tauriPtyIo } from '@/fs/pty'
 import { tauriReadingGuideIo } from '@/fs/reading-guide-io'
+import { readLastProjectDir, saveLastProjectDir } from '@/fs/settings-fs'
 import { allowSkillDir, tauriSkillSyncIo } from '@/fs/skill-resources'
 import { appRegistry } from '@/modules'
 
@@ -133,9 +135,16 @@ const appIo: AppIo = {
  * 包んで実測: `interceptClose` は2回呼ばれるのに、同期は1回だけだった）。
  *
  * それでも並走はしうる: 同期が終わる前に**別のフォルダへ切り替えて戻る**と、
- * 前の同期が走ったまま同じフォルダの同期がもう1本始まる。将来「起動時に
- * 前回のフォルダを復元する」を足せば、マウント時に `projectDir` が入るので
- * StrictMode の二重起動も本当に効くようになる。**先に塞いでおく**
+ * 前の同期が走ったまま同じフォルダの同期がもう1本始まる。
+ *
+ * **M18 で「起動時に前回のフォルダを復元する」を実装したが、この段落の予測
+ * （マウント時に `projectDir` が入るので StrictMode の二重起動も本当に
+ * 効くようになる）は外れた。** 復元は別の `useEffect` の中で非同期に
+ * `projectDir` をセットするため、マウント直後（この Skill 同期 effect が
+ * 走る時点）ではまだ `projectDir` は `null` のまま——StrictMode の二重
+ * マウントも、Skill 同期に関しては依然として発火しない（重複排除が
+ * ガードしているのは相変わらず A→B→A のケースだけ）。**先に塞いでおいて
+ * 正解だった**
  */
 const skillSyncInFlight = new Map<string, Promise<void>>()
 
@@ -401,6 +410,13 @@ function App() {
   const openProject = async (dir: string): Promise<boolean> => {
     const opened = await controller.openFolder(dir)
     if (!opened) return false
+    // 保存できなくても次回単に復元されないだけで、このセッションの作業には
+    // 影響しない。読み方ガイドの配置失敗（下）とは違いトーストは出さない
+    try {
+      await saveLastProjectDir(dir)
+    } catch (err: unknown) {
+      console.error('最後に開いたフォルダの保存に失敗しました', err)
+    }
     try {
       await syncReadingGuide(dir, tauriReadingGuideIo)
     } catch (err: unknown) {
@@ -413,6 +429,53 @@ function App() {
     }
     return true
   }
+
+  // **StrictMode 対策の一回性ガード。** 素朴に `cancelled` フラグだけで
+  // 後片付けを実装すると（1回目のマウントの cleanup が `cancelled` を立てて
+  // からでないと2回目のマウントの effect が走らない、という前提のコードは）
+  // 逆に壊れる: StrictMode は1回目の mount → cleanup → 2回目の mount を
+  // 同一タスク内で同期的に行うため、`cancelled` は非同期処理（最初の
+  // `await`）が終わるより前に立つ。ここで「試みたかどうか」自体を ref に
+  // 固定して2回目の実行を弾く一方、1回目の非同期処理は `cancelled` チェックを
+  // 挟まずに最後まで走らせる——2回目に丸ごと引き継がせるのではなく、1回目を
+  // 完走させることで「復元は正確に1回」を保証する
+  const hasAttemptedRestoreRef = useRef(false)
+
+  /**
+   * 起動時に前回開いていたフォルダを自動で復元する（設計 M18）。ダイアログを
+   * 経由しないため、`fileExists` の前に `allowProjectDir` で fs の実行時 scope
+   * を明示的に取り直す必要がある（`allow_project_dir` 参照。ダイアログ由来の
+   * scope はセッション限りで次回起動には引き継がれない）。
+   *
+   * あらゆる失敗（設定の読み込み・scope の再付与・存在確認）は「フォルダ
+   * 未選択」の通常起動として握りつぶす——ユーザーに通知するほどの障害ではない。
+   *
+   * **アンマウント時に中断しない。** App はアプリの生存期間そのままマウント
+   * され続ける唯一のトップレベルであり、実際に unmount されるのは
+   * StrictMode の合成的な二重起動のときだけ（本番でも `App.dom.test.tsx`
+   * の `cleanup()` でも、実 unmount 後に状態更新が意味を持つ場面は無い）。
+   * `cancelled` フラグを持たせると、まさにその合成的 unmount が1回目の
+   * 試み自体を壊してしまう（上の一回性ガードのコメント参照）
+   */
+  useEffect(() => {
+    if (hasAttemptedRestoreRef.current) return
+    hasAttemptedRestoreRef.current = true
+    void (async () => {
+      try {
+        const dir = await readLastProjectDir()
+        if (dir === null) return
+        await allowProjectDir(dir)
+        if (!(await fileExists(dir))) return
+        await openProject(dir)
+      } catch (err: unknown) {
+        console.error('起動時のフォルダ復元に失敗しました', err)
+      }
+    })()
+    // openProject は毎レンダー再生成されるが、上の一回性ガード
+    // （hasAttemptedRestoreRef）で実行は起動時の1回に固定されている。
+    // 依存に加えても実行回数は変わらないまま警告だけが消える
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /**
    * 端末を全部終了してからフォルダを切り替える。**作業ディレクトリが
@@ -531,7 +594,7 @@ function App() {
    * 同梱 Skill の配置（設計 決定10）。**フォルダ1つにつき1回**——Skill は
    * プロジェクトに属するもので、端末セッションの数とは関係が無い。
    * `projectDir` をキーにした effect にすることで、`openFolder` /
-   * `switchFolder`、そして将来足しうる起動時の復元まで、**フォルダが変わる
+   * `switchFolder`、そして起動時の自動復元（M18）まで、**フォルダが変わる
    * すべての経路が自動的に1本にまとまる**（経路を足すたびに同期の呼び出しを
    * 書き足して回る必要が無い）。
    *
