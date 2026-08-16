@@ -22,6 +22,7 @@ export function GhostSlot(props: GhostSlotProps) {
   return (
     <div
       className="pointer-events-auto absolute flex items-start gap-1"
+      data-export-role="gutter"
       style={{ left: props.x, top: props.y, height: props.height }}
     >
       <div

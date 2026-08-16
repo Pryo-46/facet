@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { useState } from 'react'
+import { createRef, useState } from 'react'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { CaptureLayers } from '@/core/image-export'
 import type { SequenceSchemaVersion1 } from '@/types/sequence'
 import { DIAGRAM_MARGIN, RAIL_WIDTH } from './layout'
 import { SequenceEditor } from './SequenceEditor'
@@ -725,6 +726,66 @@ describe('額縁の帯', () => {
   it('末尾のステップ追加は常設のボタンと名前で区別できる', () => {
     const { onChange } = setup()
     fireEvent.click(screen.getByRole('button', { name: '末尾にステップを追加' }))
+    expect(last(onChange).steps).toHaveLength(4)
+  })
+})
+
+describe('画像出力の目印（M18）', () => {
+  /**
+   * ガター・ゴーストの3ケース（答えあり／ゴーストあり／どちらも無し）を
+   * 1つのデータで揃える。doc() の内訳:
+   * - ステップ1: call + awaitsReply:true → 問い3本すべて立つ（答え3件）
+   * - ステップ2: reply → 問いが立たない（一般文言の分岐）
+   * - ステップ3: self を改造し、failures.unknown を持たせる
+   *   （self は unknown を問わないので、これは「立っていない問いへの答え」＝
+   *   ゴースト1件。self が持つ failed は元々1件、答えとして立つ）
+   */
+  function docWithGutterVariety(): SequenceSchemaVersion1 {
+    const d = doc()
+    d.steps[2] = {
+      ...d.steps[2],
+      failures: { unknown: { decision: 'handled', text: 'ゴーストテキスト' } },
+    }
+    return d
+  }
+
+  it('ガター要素に data-export-role="gutter" が付く（内訳を数え上げて確認する）', () => {
+    render(
+      <SequenceEditor data={docWithGutterVariety()} onChange={vi.fn()} issues={[]} modalOpen={false} />,
+    )
+    // 内訳: 集計行1 + 行見出し(ブラケット+#N)×3行 + 一般文言1（ステップ2のみ）
+    //       + GutterSlot 4件（step1:3, step3:1） + GhostSlot 1件（step3のunknown）
+    //       = 1 + 3 + 1 + 4 + 1 = 10
+    const gutterMarks = document.querySelectorAll('[data-export-role="gutter"]')
+    expect(gutterMarks.length).toBe(10)
+  })
+
+  it('編集用UI要素に data-export-role="chrome" が付く（見出し帯・末尾の追加ボタン、ちょうど2件）', () => {
+    render(<SequenceEditor data={doc()} onChange={vi.fn()} issues={[]} modalOpen={false} />)
+    const chromeMarks = document.querySelectorAll('[data-export-role="chrome"]')
+    expect(chromeMarks.length).toBe(2)
+  })
+
+  it('captureRef が3レイヤ（背景・エッジのg・ノード）を公開する', () => {
+    const ref = createRef<CaptureLayers | null>()
+    render(
+      <SequenceEditor data={doc()} onChange={vi.fn()} issues={[]} modalOpen={false} captureRef={ref} />,
+    )
+    expect(ref.current?.root).toBeInstanceOf(HTMLElement)
+    expect(ref.current?.cssLayers.length).toBe(2)
+    expect(ref.current?.svgLayers.length).toBe(1)
+    // background/nodes の2層が正しいdata-layerを持つこと
+    const cssLayerNames = ref.current?.cssLayers.map((el) => el.getAttribute('data-layer'))
+    expect(cssLayerNames).toEqual(['background', 'nodes'])
+    // edges の層は <svg> ではなく内側の <g> そのものであること
+    const edgeEl = ref.current?.svgLayers[0]
+    expect(edgeEl?.tagName.toLowerCase()).toBe('g')
+    expect(edgeEl).toBeInstanceOf(SVGGElement)
+  })
+
+  it('captureRef を渡さなくても他の描画・操作に影響しない', () => {
+    const { onChange } = setup()
+    fireEvent.click(screen.getByRole('button', { name: 'ステップを追加' }))
     expect(last(onChange).steps).toHaveLength(4)
   })
 })

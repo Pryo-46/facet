@@ -1,10 +1,11 @@
 import { Plus } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { CellInput } from '@/components/CellInput'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { KeyHints } from '@/components/KeyHints'
 import { buttonBase } from '@/components/button-styles'
+import type { CaptureLayers } from '@/core/image-export'
 import type { KeyHint } from '@/core/keyboard/hint-text'
 import {
   resolveCommand,
@@ -211,8 +212,12 @@ export function SequenceEditor({
   onChange,
   issues,
   modalOpen,
+  captureRef,
 }: EditorProps<SequenceSchemaVersion1>) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const backgroundLayerRef = useRef<HTMLDivElement>(null)
+  const edgesGroupRef = useRef<SVGGElement>(null)
+  const nodesLayerRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const [font, setFont] = useState<SeqFont>(FALLBACK_SEQ_FONT)
   const labelProbeRef = useRef<HTMLSpanElement>(null)
@@ -272,6 +277,22 @@ export function SequenceEditor({
   }
 
   useLayoutEffect(readFont, [])
+
+  // 画像出力対象のDOM層を額縁へ公開する（M18）。3レイヤのいずれかが
+  // まだマウントされていなければ null（額縁側は null を「まだキャプチャできない」
+  // として扱う）。ref オブジェクト自体は毎レンダー同じなので、空配列でよい
+  useImperativeHandle<CaptureLayers | null, CaptureLayers | null>(
+    captureRef,
+    () => {
+      const root = containerRef.current
+      const background = backgroundLayerRef.current
+      const nodes = nodesLayerRef.current
+      const edgesGroup = edgesGroupRef.current
+      if (root === null || background === null || nodes === null || edgesGroup === null) return null
+      return { root, cssLayers: [background, nodes], svgLayers: [edgesGroup] }
+    },
+    [],
+  )
 
   // **Web フォントの読み込み前に測るとフォールバック書体の幅になる。**
   // Geist は日本語グリフを持たず和文はフォールバックに落ちるが、
@@ -766,7 +787,10 @@ export function SequenceEditor({
           パンとヒットテストを、帯の外側で奪わないため。
           **指摘の一覧はここに置かない**（rev 6章。額縁がキャンバスの外に出す）
           ——ここに置くと件数が増えるほど図を覆う */}
-      <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex flex-col items-stretch">
+      <div
+        className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex flex-col items-stretch"
+        data-export-role="chrome"
+      >
         {/* 見出し・操作・ヒントを1行に畳む。**ヒントをボタンの下段に置かない**
             ——キャンバスは縦を図に使いたいので、帯が2段になるぶんだけ図が下がる */}
         <div className="pointer-events-none m-2 flex items-center gap-3">
@@ -803,6 +827,7 @@ export function SequenceEditor({
       {/* 背景レイヤ: ライフライン・責任境界の縦線・行全体の赤表示
           （ゾーン導入時はその帯もこの層に載る） */}
       <div
+        ref={backgroundLayerRef}
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 origin-top-left"
         style={{ transform: cssTransform(transform) }}
@@ -847,7 +872,12 @@ export function SequenceEditor({
         ))}
       </div>
 
-      <SequenceEdges steps={edgeSteps} layout={layout} transform={transform} />
+      <SequenceEdges
+        steps={edgeSteps}
+        layout={layout}
+        transform={transform}
+        groupRef={edgesGroupRef}
+      />
 
       {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面。
           pointer-events を切らないと、この面がキャンバス全体を覆う単一の
@@ -855,6 +885,7 @@ export function SequenceEditor({
           ハンドラまで mousedown が届かなくなる。操作を受けるのはセルの矩形
           だけでよいので、各セル側で auto に戻す */}
       <div
+        ref={nodesLayerRef}
         className="pointer-events-none absolute inset-0 origin-top-left"
         style={{ transform: cssTransform(transform) }}
         data-layer="nodes"
@@ -899,6 +930,7 @@ export function SequenceEditor({
             （`headerHeight`）を超えて最初のステップに重なる */}
         <div
           className="absolute whitespace-nowrap text-sm text-ink-muted"
+          data-export-role="gutter"
           style={{ left: layout.gutterX, top: layout.headerTop, height: layout.headerHeight }}
         >
           {`⚠ 未定義 ${tally.unanswered} ／ ✓ 回答済 ${tally.handled} ／ ─ 考慮不要 ${tally.notApplicable}`}
@@ -1041,7 +1073,7 @@ export function SequenceEditor({
                     ? row.top + GUTTER_HEADING_HEIGHT + 18
                     : row.slotTops[lastIndex] + lastHeight
                 return (
-                  <>
+                  <div data-export-role="gutter">
                     <div
                       aria-hidden="true"
                       className={`absolute border-l-2 ${focusedRow === index ? 'border-ink-muted' : 'border-rule'}`}
@@ -1054,7 +1086,7 @@ export function SequenceEditor({
                     >
                       {step.label === '' ? `#${index + 1}` : `#${index + 1} ${step.label}`}
                     </div>
-                  </>
+                  </div>
                 )
               })()}
 
@@ -1068,6 +1100,7 @@ export function SequenceEditor({
               {view.answers.length === 0 && view.ghosts.length === 0 ? (
                 <div
                   className="absolute text-xs text-ink-muted"
+                  data-export-role="gutter"
                   style={{ left: layout.gutterX, top: row.top + GUTTER_HEADING_HEIGHT, width: layout.gutterWidth }}
                 >
                   {view.shape === 'reply'
@@ -1124,6 +1157,7 @@ export function SequenceEditor({
             消えない動線として残す（こちらは「続きを足す」位置の手がかり） */}
         <div
           className="pointer-events-auto absolute"
+          data-export-role="chrome"
           style={{
             left: DIAGRAM_MARGIN,
             top: layout.totalHeight + ROW_GAP,

@@ -1,6 +1,7 @@
-import type { ComponentType } from 'react'
+import type { ComponentType, Ref } from 'react'
 import type { JsonSchema } from './canonical'
 import type { ConsistencyIssue } from './consistency'
+import type { CaptureLayers } from './image-export'
 
 export interface EditorProps<TData> {
   data: TData
@@ -18,6 +19,12 @@ export interface EditorProps<TData> {
    * 各エディタはこれを KeyContext.modalOpen へそのまま渡すだけでよい
    */
   modalOpen: boolean
+  /**
+   * 画像出力対象のDOM層を公開する口（M18。任意——画像出力を持たないツールは
+   * 実装しなくてよい）。額縁はこの ref 経由で `core/image-export.ts` の
+   * `captureImagePng` を呼ぶ
+   */
+  captureRef?: Ref<CaptureLayers | null>
 }
 
 /**

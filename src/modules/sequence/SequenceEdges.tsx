@@ -12,6 +12,8 @@ export interface SequenceEdgesProps {
   steps: EdgeStep[]
   layout: SeqLayoutResult
   transform: Transform
+  /** エッジレイヤの `<g>` を親（画像出力の captureRef）へ公開するための ref（M18） */
+  groupRef?: React.Ref<SVGGElement>
 }
 
 /**
@@ -50,7 +52,7 @@ export function SequenceEdges(props: SequenceEdgesProps) {
           <path d="M0,0 L8,4.5 L0,9" className="fill-none stroke-ink" strokeWidth="1.3" />
         </marker>
       </defs>
-      <g transform={svgTransform(props.transform)}>
+      <g ref={props.groupRef} transform={svgTransform(props.transform)}>
         {props.steps.map((step, i) => {
           if (step.shape === 'self') return null
           if (step.fromIndex === null || step.toIndex === null) return null

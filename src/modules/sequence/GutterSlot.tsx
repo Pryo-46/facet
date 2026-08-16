@@ -42,6 +42,7 @@ export function GutterSlot(props: GutterSlotProps) {
   return (
     <div
       className="pointer-events-auto absolute flex items-stretch gap-1"
+      data-export-role="gutter"
       style={{ left: props.x + indentPad, top: props.y, height: props.height }}
     >
       <div
