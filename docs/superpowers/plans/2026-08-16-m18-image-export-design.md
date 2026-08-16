@@ -73,47 +73,64 @@ export interface ImageOutputProfile {
 
 `ToolModule` に `imageOutputs: readonly ImageOutputProfile[]` を追加する。ロジックツリーは1本（`excludeRoles` なし）、シーケンス図は2本（「問いを含む」`excludeRoles` なし／「問いを含めない」`excludeRoles: ['gutter']`）。0本のツールは画像ボタンを押せなくする——`outputs` と同じ思想（8章「0本以上」）。
 
-### 決定4: エディタが `ImageCaptureHandle` を `useImperativeHandle` で公開する
+### 決定4: エディタが `CaptureLayers` を `useImperativeHandle` で公開する
+
+3レイヤ（決定6の技術検証で判明した、transformを個別に持つ背景・SVGエッジ・ノード群）をそれぞれ参照できる形で公開する必要があるため、単一の `captureRoot` だけでなくレイヤ配列を持つ：
 
 ```ts
-export interface ImageCaptureHandle {
-  captureRoot: HTMLElement          // transform 適用前の座標系にあるコンテンツ層
-  size: { width: number; height: number }
+export interface CaptureLayers {
+  root: HTMLElement                    // html-to-image に渡すルート（containerRef）
+  cssLayers: readonly HTMLElement[]    // style.transform を持つDOM層（background・nodes）
+  svgLayers: readonly SVGElement[]     // SVG内の <g transform="..."> 属性を持つ層（edges）
 }
 ```
 
-`EditorProps` に `captureRef?: Ref<ImageCaptureHandle>` を追加し、`SequenceEditor`/`LogicTreeEditor` が実装する。ガター関連要素（問いラベル・答えセル・集計行）には `data-export-role="gutter"` を付与する。
+`EditorProps` に `captureRef?: Ref<CaptureLayers>` を追加し、`SequenceEditor`/`LogicTreeEditor` が実装する。ガター関連要素（問いラベル・答えセル・集計行）には `data-export-role="gutter"` を付与する。
 
-### 決定5: `size` は `layout.totalWidth`/`totalHeight` をそのまま信用しない
+### 決定5: サイズは `layout.totalWidth`/`totalHeight` をそのまま信用しない
 
 `open-issues.md` は2件の帳簿ずれを記録している——`layout.totalHeight` は「末尾にステップを追加」ボタン分だけ実際の描画より小さく、`layout.totalWidth` は `GhostSlot` の削除ボタン（約26px）を勘定に入れていない。この帳簿値をそのまま `html-to-image` の `width`/`height` に渡すと、**右端・下端のUI要素が画像で切れる**。
 
-対応: キャプチャ時は編集用のUI要素（追加ボタン・ghost の削除ボタン等）も `data-export-role="chrome"` として除外対象にし、**実測**（`captureRoot.scrollWidth`/`scrollHeight`、またはキャプチャ対象からexcludeされた要素を除いた実際のコンテンツ矩形）からサイズを求める。帳簿値に新しい依存を足さない。
+対応: キャプチャ時は編集用のUI要素（追加ボタン・ghost の削除ボタン等）に `data-export-role="chrome"` を付与し、**実測**（transform を単位行列にリセットした状態での `root.scrollWidth`/`scrollHeight`）からサイズを求める。`overflow: hidden` な要素でも `scrollWidth`/`scrollHeight` は中身の実サイズを返すため、帳簿値に依存せず求まる。**`chrome` を除外指定していてもキャンバスサイズには反映されない**（`filter` は画像に描かないだけで、`scrollWidth`/`scrollHeight` の実測値自体は `chrome` 要素を含んだままなので、その分の余白が画像の右・下に残ることがある）——要素が切れるより余白が残る方がましという判断で、この簡略化を採る。
 
 ### 決定6: 実処理は `core/image-export.ts` に置く（コアはTauriを知らない）
 
-既存の「コアはTauriを知らない／額縁が `AppIo` として注入する」構造（`app-controller.ts`）に倣う。`core/image-export.ts` が担う処理:
+既存の「コアはTauriを知らない／額縁が `AppIo` として注入する」構造（`app-controller.ts`）に倣う。`core/image-export.ts` は `captureImagePng(layers: CaptureLayers, options?: { excludeRoles?: readonly string[] }): Promise<Uint8Array>` を1本公開し、次を行う:
 
-1. `transform` を一時的に単位変換（scale=1, translate=0）へ戻す
-2. `html-to-image` の `toPng` を、`filter`（`excludeRoles` に含まれる `data-export-role` を持つ要素とその子孫を除外）・`width`/`height`（決定5の実測値）オプション付きで呼ぶ
-3. `transform` を元に戻す
+1. `layers.cssLayers`/`layers.svgLayers` の transform を一時的に単位変換（scale=1, translate=0）へ戻す
+2. `layers.root.scrollWidth`/`scrollHeight` を実測し（決定5）、`html-to-image` の `toBlob` を `width`/`height`・`filter`（`excludeRoles` に含まれる `data-export-role` を持つ要素を除外）オプション付きで呼び、返る `Blob` を `Uint8Array` に変換する
+3. `finally` で transform を元に戻す
 
-Tauri依存の副作用（クリップボード書き込み・ファイル保存）は既存の `fs/` 層に置く——`fs/clipboard.ts` に `writeImage` を使う `copyImageToClipboard(bytes: Uint8Array)` を追加し、保存は `fs/project-fs.ts` 相当の経路（保存ダイアログ＋バイナリ書き込み）に乗せる。
+**transform のリセットは実DOMを直接書き換える方式を採る（案A。html-to-imageの`style`オプションを検証した結果の決定）。** `html-to-image` の `style` オプションはキャプチャ対象の**ルート要素にしか適用されない**——ドキュメントの記述は「an object whose properties to be copied to **node's** style」であり、node は単数（キャプチャ対象そのもの）を指す。シーケンス図・ロジックツリーの transform は3レイヤ（背景・SVGエッジ・ノード群）それぞれに個別に掛かっており、`style` オプション1本では書き換えられない。
 
-### 決定7: `capabilities/default.json` を2つ追加する
+両モジュールとも3レイヤに `data-layer="background"|"edges"|"nodes"` が既に付いている（`SequenceEditor.tsx`/`LogicTreeEditor.tsx`/`SequenceEdges.tsx`/`TreeEdges.tsx` に実在。ノード層は元々属性を持たなかったが、ドキュメント上の対応付けのため揃えて付与する）。`core/image-export.ts` 自身は `querySelectorAll` で探さず、**エディタ側が `useImperativeHandle`（決定4の `CaptureLayers`）で自分の3レイヤの参照を直接渡す**——`background`/`nodes` はDOM要素の `style.transform`（React が `style={{ transform: cssTransform(transform) }}` として設定している）、`edges` はSVG内の `<g>` の `transform` **属性**（React が `transform={svgTransform(transform)}` という attribute として渡しており、`style.transform` では書き換わらないため `setAttribute('transform', ...)` を使う）。単位行列は `cssTransform`/`svgTransform` に `{ x: 0, y: 0, k: 1 }` を渡した文字列に相当するリテラル。元の文字列を保存しておき、`toBlob` の Promise が解決した後（`finally`）に書き戻す。**画面上で「キャプチャ中は一瞬、図が全体表示にリセットされてから元の位置へ戻る」ちらつきが生じることを許容する**（この方式を選んだ理由）。React state（`transform`）は一切変更しない——d3-zoom の内部状態とズレさせないため、書き換えるのは描画済みDOM要素のインラインスタイル／属性のみに限定する。
+
+`cssTransform`/`svgTransform` はモジュールごとに複製されている（`sequence/viewport.ts`/`logic-tree/viewport.ts`。open-issues「キャンバス土台の複製」）ため、`core/image-export.ts` はこれらの関数に依存せず、**単位変換の文字列リテラル**（`'translate(0px, 0px) scale(1)'`／`'translate(0,0) scale(1)'`）を直接持つ。コアが2本の複製へ依存を増やさないための選択。
+
+Tauri依存の副作用（クリップボード書き込み・ファイル保存）は既存の `fs/` 層に置く——`fs/clipboard.ts` に `writeImage` を使う `copyImageToClipboard(bytes: Uint8Array)` を追加し、保存は `fs/project-fs.ts` に `askSaveImagePath`（`plugin-dialog` の `save`、フィルタ `png`）と `writeProjectImageFile`（`plugin-fs` の `writeFile`。バイナリなので既存の `writeTextFile` 経由の `writeProjectFile` とは別関数）を追加する。
+
+### 決定6b: オーケストレーションは `core/app-controller.ts` を拡張せず `App.tsx` に置く
+
+`app-controller.ts` は「React も Tauri も知らない」ことが設計原則（ファイル冒頭のコメント）であり、`AppIo`/`AppHost` はいずれも文字列・プリミティブ値だけを受け渡す形で徹底されている。画像キャプチャは `HTMLElement`（`CaptureLayers.root` 等）への参照が要るため、これを `copyMarkdown`/`exportMarkdown` と同じ形で `AppController` のメソッドにすると、コントローラの引数にDOM要素が混入し原則を破る。
+
+したがって、画像コピー/保存のオーケストレーション（キャプチャ実行→クリップボード書き込みまたは保存ダイアログ→バナー/トースト表示）は `App.tsx` に直接書く関数（`doCopyImage`/`doExportImage`）とし、`AppController`/`AppIo`/`AppHost` は変更しない。**保持する規律は「順序」であって「置き場所」ではない**——決定9（キャプチャを保存ダイアログの前に確定させる）・決定10（`guardIssues` を適用しない）の順序は `App.tsx` 内の関数がそのまま体現する。`core/image-export.ts` はDOM要素を引数に取る（Reactには依存しない）ロジック層として、`captureImagePng(layers: CaptureLayers, options: { excludeRoles?: readonly string[] }): Promise<Uint8Array>` を1本公開し、`App.tsx` はこれを呼ぶだけにする。
+
+### 決定7: `capabilities/default.json` を2つ追加し、Cargo.toml に1機能を足す
 
 - `clipboard-manager:allow-write-image`（現状 `allow-write-text` のみ）
 - `fs:allow-write-file`（現状 `fs:allow-write-text-file` のみでバイナリ書き込み権限が無い）
+
+`html-to-image` の `toBlob` はPNGの**エンコード済みバイト列**を返す（`@tauri-apps/plugin-clipboard-manager` の `writeImage` の実装例は生RGBAの `number[]` を渡す形——`[255,0,0,255, ...]` ——であり、これはPNGバイト列とは別物）。エンコード済みPNGを渡すには `@tauri-apps/api/image` の `Image.fromBytes(pngBytes)` でデコードしてから `writeImage(image)` に渡す必要がある。`Image.fromBytes` はTauri側で「`ico`/`png` のみサポートし、対応する Cargo feature（`image-png`）の有効化が要る」——現状 `src-tauri/Cargo.toml` の `tauri` 依存は `features = []` で `image-png` を持たない。`features = ["image-png"]` を追加する（7章の「プラグイン登録・feature有効化は原則の例外ではない」と同種——判断を持たず、ネイティブ機能を有効にするだけ）。
 
 ---
 
 ## 5. UI
 
-### 決定8: ボタンは額縁のヘッダー帯に、Markdown出力の `ExportMenu` と同じ並びで置く
+### 決定8: `ExportMenu` をジェネリック化し、画像出力にも使い回す
 
-`ExportMenu`（`components/ExportMenu.tsx`）は「プロファイルが1本ならボタン直押し、2本以上ならドロップダウン」という分岐を既に持つ。同じ型の `ImageExportMenu` を新設し、`imageOutputs` を渡す。ロジックツリーは1本なので直押し、シーケンス図は2本なのでドロップダウン——「問いを含む」「問いを含めない」を選んでから実行する（エラーカタログのMarkdown出力プロファイル選択と同じ体験）。
+`ExportMenu`（`components/ExportMenu.tsx`）は「プロファイルが1本ならボタン直押し、2本以上ならドロップダウン」という分岐を持つが、内部で使っているのは `profile.id` と `profile.label` だけ（`fileSuffix`/`toMarkdown` は参照していない）。`ImageOutputProfile` も `id`/`label` を持つため、新規コンポーネントを作らず `ExportMenu` を `<P extends { id: string; label: string }>` にジェネリック化し、ラベル文言を `copyLabel`/`exportLabel` プロパティとして外出しする（現状 `COPY_LABEL`/`EXPORT_LABEL` 定数はMarkdown固定文言のハードコード）。
 
-ラベル: 「画像をコピー」「画像で保存」。
+`App.tsx` はMarkdown用（`copyLabel="Markdown をコピー"` `exportLabel="Markdown を書き出す"`）と画像用（`copyLabel="画像をコピー"` `exportLabel="画像で保存"`）の2つを並べて呼ぶ。ロジックツリーは `imageOutputs` が1本なので直押し、シーケンス図は2本なのでドロップダウン——「問いを含む」「問いを含めない」を選んでから実行する（エラーカタログのMarkdown出力プロファイル選択と同じ体験）。
 
 ---
 
@@ -151,6 +168,6 @@ Markdown出力は赤（未定義・参照切れ）が出力から構造的に消
 1. **`docs/history/m18-core-image-export.md` を新規作成**
 2. **`docs/open-issues.md`**
    - 突き合わせる: `layout.totalHeight`/`totalWidth` の帳簿ずれ2件（M14・sequence-m2）——本マイルストーンは実測で回避するだけで根治しない。決定5の対応が「実測に切り替えた」だけで元の帳簿ずれ自体は残ることを明記する
-   - 突き合わせる: 「キャンバスの土台が logic-tree と sequence で丸ごと複製されている」（sequence-m1）——`ImageCaptureHandle` の実装が両モジュールにほぼ同一の形で増える。差分を増やさないよう both を直す
+   - 突き合わせる: 「キャンバスの土台が logic-tree と sequence で丸ごと複製されている」（sequence-m1）——`CaptureLayers` の実装が両モジュールにほぼ同一の形で増える。差分を増やさないよう both を直す
 3. **`docs/overview-rev.md`** — 8章に「画像出力プロファイル」を追記（決定1）
 4. **`docs/project-setup.md`** — capabilities 節に `clipboard-manager:allow-write-image`／`fs:allow-write-file` を追記（決定7）
