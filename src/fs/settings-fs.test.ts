@@ -49,6 +49,11 @@ describe('readLastProjectDir', () => {
     readTextFileMock.mockResolvedValue('{}')
     await expect(readLastProjectDir()).resolves.toBeNull()
   })
+
+  it('lastProjectDir が空文字列でも null（fs scope をルート全体に広げないため）', async () => {
+    readTextFileMock.mockResolvedValue('{"lastProjectDir":""}')
+    await expect(readLastProjectDir()).resolves.toBeNull()
+  })
 })
 
 describe('saveLastProjectDir', () => {

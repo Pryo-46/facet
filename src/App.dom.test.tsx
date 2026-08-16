@@ -646,6 +646,11 @@ describe('起動時のフォルダ復元', () => {
     render(<App />)
     await waitFor(() => expect(screen.getByTitle('/restored')).toBeTruthy())
     expect(allowProjectDirCalls).toEqual(['/restored'])
+    // 復元が `openProject` の全パイプライン（Skill 同期・読み方ガイド配置を
+    // 含む）に正しく乗っていることを直接検証する（最終レビュー指摘）
+    await waitFor(() => {
+      expect(syncReadingGuideMock).toHaveBeenCalledWith('/restored', expect.anything())
+    })
   })
 
   it('保存済みパスが無ければ何も開かず通常起動する', async () => {

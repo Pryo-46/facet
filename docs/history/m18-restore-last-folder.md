@@ -59,3 +59,11 @@ Task 4 完了時点で `npm run lint` は `src/App.tsx` の起動時復元 effec
 - **「小さな負債」**に1件追加: `settingsFilePath()` ヘルパー（`src/fs/settings-fs.ts`）が `saveLastProjectDir` から使われておらず、`appConfigDir()` + `join` のパス結合が2箇所に重複している（`readLastProjectDir` は使い、`saveLastProjectDir` は直接呼ぶ）。
 
 Step 5（実機確認）が未実施であることは、上の節に明記した。これは「開いている残件」というより「まだ着手していないタスク」なので `open-issues.md` には追記していない——次にこの機能に触る人、またはリリース判断をする人が本書を読めば分かる。
+
+---
+
+## 追記: 最終ブランチレビューで見つかった修正（fix wave）
+
+上の「`docs/open-issues.md` への反映」節で「実害は無い」としていた `readLastProjectDir` の空文字列の扱いは、最終ブランチレビューで判断が誤りだったと分かった。`""` がそのまま `allowProjectDir("")` に渡ると、Rust 側 `allow_project_dir` の `scope.allow_directory(Path::new(""), true)` に届き、tauri-2.11.5 の scope 実装は空パスに `MAIN_SEPARATOR + "**"` を足すため、unix では `/**`——fs の実行時 scope をファイルシステム全体へ広げてしまう。「`fileExists("")` が `false` を返すから実害は無い」という当時の判断は、その `false` が scope 付与の**後**に返ることを見落としていた。
+
+修正: `readLastProjectDir()` が `lastProjectDir` の空文字列も `null` として扱うようにし（`src/fs/settings-fs.ts`）、`allow_project_dir`（`src-tauri/src/lib.rs`）にも空文字列を拒む前提条件チェックを追加した（多重防御）。あわせて `saveLastProjectDir` が `settingsFilePath()` ヘルパーを使わず結合ロジックを重複させていた小さな負債も同じ fix wave で解消した。両方とも `docs/open-issues.md` から該当項を削除済み。
