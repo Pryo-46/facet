@@ -72,6 +72,24 @@ export function LogicTreeEditor({
   // モーダルが開いている間は止める（キーはモーダルが取る。rev 10章 境界規則）
   const { transform, spaceHeld, ensureVisible } = useViewport(containerRef, !modalOpen)
 
+  // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
+  const [pendingFocus, setPendingFocus] = useState<string | null>(null)
+
+  // Web フォントの読み込みで canvas の measureText の結果は変わるが、
+  // getComputedStyle が返す値は変わらない（宣言されたファミリ列を返すだけで、
+  // どのフェイスに解決されたかは映らない）。だからフォントの同一性では
+  // 判定できず、読み込み完了を世代として数えて測り直す
+  const [fontGeneration, setFontGeneration] = useState(0)
+
+  const readFont = (): void => {
+    setFont((prev) => {
+      const next = readNodeFont(probeRef.current)
+      return sameFont(prev, next) ? prev : next
+    })
+  }
+
+  useLayoutEffect(readFont, [])
+
   // 画像出力対象のDOM層を額縁へ公開する（M18）。3レイヤのいずれかが
   // まだマウントされていなければ null（額縁側は null を「まだキャプチャできない」
   // として扱う）。ref オブジェクト自体は毎レンダー同じなので、空配列でよい。
@@ -94,24 +112,6 @@ export function LogicTreeEditor({
     },
     [],
   )
-
-  // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
-  const [pendingFocus, setPendingFocus] = useState<string | null>(null)
-
-  // Web フォントの読み込みで canvas の measureText の結果は変わるが、
-  // getComputedStyle が返す値は変わらない（宣言されたファミリ列を返すだけで、
-  // どのフェイスに解決されたかは映らない）。だからフォントの同一性では
-  // 判定できず、読み込み完了を世代として数えて測り直す
-  const [fontGeneration, setFontGeneration] = useState(0)
-
-  const readFont = (): void => {
-    setFont((prev) => {
-      const next = readNodeFont(probeRef.current)
-      return sameFont(prev, next) ? prev : next
-    })
-  }
-
-  useLayoutEffect(readFont, [])
 
   // **Web フォントの読み込み前に測るとフォールバック書体の幅になる。**
   // Geist は日本語グリフを持たず和文はフォールバックに落ちるが、
