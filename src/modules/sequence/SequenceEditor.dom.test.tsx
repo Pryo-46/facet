@@ -766,6 +766,20 @@ describe('画像出力の目印（M18）', () => {
     expect(chromeMarks.length).toBe(2)
   })
 
+  it('立っていない答え（ゴースト）があると、その削除ボタン（✕）も chrome として数えられる（ちょうど3件）', () => {
+    // doc() は failures を持たないため GhostSlot が1件も描画されず、上のテストは
+    // ✕ ボタンの chrome マークの有無を区別できない（無くても2件のまま通ってしまう）。
+    // ghost を持つ docWithGutterVariety()（gutter テストと同じフィクスチャ）を使い、
+    // GhostSlot の ✕ ボタン分を内訳に含めて区別する
+    render(
+      <SequenceEditor data={docWithGutterVariety()} onChange={vi.fn()} issues={[]} modalOpen={false} />,
+    )
+    // 内訳: 見出し帯1 + 末尾の「ステップを追加」ボタン1
+    //       + GhostSlot（step3のunknown）の削除ボタン1 = 3
+    const chromeMarks = document.querySelectorAll('[data-export-role="chrome"]')
+    expect(chromeMarks.length).toBe(3)
+  })
+
   it('captureRef が3レイヤ（背景・エッジのg・ノード）を公開する', () => {
     const ref = createRef<CaptureLayers | null>()
     render(
