@@ -70,6 +70,7 @@ import {
 } from '@/fs/project-fs'
 import { killAllPtys, tauriPtyIo } from '@/fs/pty'
 import { tauriReadingGuideIo } from '@/fs/reading-guide-io'
+import { saveLastProjectDir } from '@/fs/settings-fs'
 import { allowSkillDir, tauriSkillSyncIo } from '@/fs/skill-resources'
 import { appRegistry } from '@/modules'
 
@@ -401,6 +402,13 @@ function App() {
   const openProject = async (dir: string): Promise<boolean> => {
     const opened = await controller.openFolder(dir)
     if (!opened) return false
+    // 保存できなくても次回単に復元されないだけで、このセッションの作業には
+    // 影響しない。読み方ガイドの配置失敗（下）とは違いトーストは出さない
+    try {
+      await saveLastProjectDir(dir)
+    } catch (err: unknown) {
+      console.error('最後に開いたフォルダの保存に失敗しました', err)
+    }
     try {
       await syncReadingGuide(dir, tauriReadingGuideIo)
     } catch (err: unknown) {

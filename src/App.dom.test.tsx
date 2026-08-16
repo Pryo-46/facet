@@ -52,6 +52,7 @@ const {
   syncReadingGuideMock,
   disk,
   writeProjectFileMock,
+  saveLastProjectDirMock,
 } = vi.hoisted(() => ({
   closeState: { callback: null as (() => Promise<boolean>) | null },
   killAllPtysMock: vi.fn(async () => undefined),
@@ -64,6 +65,7 @@ const {
   syncReadingGuideMock: vi.fn(async () => undefined),
   disk: new Map<string, string>(),
   writeProjectFileMock: vi.fn(async (_path: string, _text: string) => undefined),
+  saveLastProjectDirMock: vi.fn(async (_dir: string) => undefined),
 }))
 
 vi.mock('@/fs/project-fs', () => ({
@@ -80,6 +82,10 @@ vi.mock('@/fs/project-fs', () => ({
   joinPath: async (dir: string, name: string) => `${dir}/${name}`,
   watchFolder: async () => () => undefined,
   askSaveMarkdownPath: async () => null,
+}))
+vi.mock('@/fs/settings-fs', () => ({
+  readLastProjectDir: async () => null,
+  saveLastProjectDir: saveLastProjectDirMock,
 }))
 vi.mock('@/fs/app-window', () => ({
   interceptClose: async (beforeClose: () => Promise<boolean>) => {
@@ -187,6 +193,7 @@ afterEach(() => {
   skillCalls.length = 0
   disk.clear()
   writeProjectFileMock.mockClear()
+  saveLastProjectDirMock.mockClear()
 })
 /**
  * **止めたままの同期を次のテストへ持ち越さない（レビュー指摘）。**
@@ -345,6 +352,14 @@ describe('フォルダ切替', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
     // 実行中のタブが無いので、確認ダイアログは出ていない
     expect(screen.queryByRole('button', { name: '終了して切り替える' })).toBeNull()
+  })
+})
+
+describe('最後に開いたフォルダの保存', () => {
+  it('フォルダを開くと保存する', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await waitFor(() => expect(saveLastProjectDirMock).toHaveBeenCalledWith('/proj'))
   })
 })
 
