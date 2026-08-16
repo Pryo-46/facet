@@ -7,6 +7,8 @@ export interface TreeEdgesProps {
   positions: ReadonlyMap<string, Point>
   sizes: ReadonlyMap<string, Size>
   transform: Transform
+  /** エッジレイヤの `<g>` を親（画像出力の captureRef）へ公開するための ref（M18） */
+  groupRef?: React.Ref<SVGGElement>
 }
 
 interface Edge {
@@ -33,7 +35,7 @@ function edgePath(from: Point, fromSize: Size, to: Point, toSize: Size): string 
  * 操作を奪わないため。エッジをクリック可能にする日が来たら、パス要素だけ
  * `auto` に戻す（tech-notes 論点3）
  */
-export function TreeEdges({ roots, positions, sizes, transform }: TreeEdgesProps) {
+export function TreeEdges({ roots, positions, sizes, transform, groupRef }: TreeEdgesProps) {
   const edges: Edge[] = []
   const walk = (node: NodeTree): void => {
     const from = positions.get(node.key)
@@ -55,7 +57,7 @@ export function TreeEdges({ roots, positions, sizes, transform }: TreeEdgesProps
       className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
       data-layer="edges"
     >
-      <g transform={svgTransform(transform)}>
+      <g ref={groupRef} transform={svgTransform(transform)}>
         {edges.map((edge) => (
           <path key={edge.key} d={edge.d} className="fill-none stroke-rule" strokeWidth={1} />
         ))}

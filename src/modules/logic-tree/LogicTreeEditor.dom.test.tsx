@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { useState } from 'react'
+import { createRef, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createHistory, record, undo as undoHistory } from '@/core/history'
+import type { CaptureLayers } from '@/core/image-export'
 import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
+import { addRoot } from './commands'
 import { LogicTreeEditor } from './LogicTreeEditor'
 
 afterEach(cleanup)
@@ -537,5 +539,47 @@ describe('額縁の帯', () => {
     expect(hintSpan('←→: 親子移動')).toBeDefined()
     // $alt は KeyHints が解決する。jsdom は mac 判定にならないので Alt になる
     expect(hintSpan('Alt+↑↓: 並び替え')).toBeDefined()
+  })
+})
+
+describe('画像出力の目印（M18）', () => {
+  it('編集用UI要素に data-export-role="chrome" が付く（見出し・ヒントの帯、ちょうど1件）', () => {
+    // ロジックツリーには sequence のガター相当が無く、編集UIの帯は
+    // 見出し・ヒント（＋0件時の「ノードを追加」ボタン）の1本だけ
+    const data = addRoot({ schemaVersion: 1, type: 'logicTree', title: 't', nodes: [] }).data
+    render(<LogicTreeEditor data={data} onChange={vi.fn()} issues={[]} modalOpen={false} />)
+    const chromeMarks = document.querySelectorAll('[data-export-role="chrome"]')
+    expect(chromeMarks.length).toBe(1)
+  })
+
+  it('captureRef が3レイヤ（背景・エッジのg・ノード）を公開する', () => {
+    const ref = createRef<CaptureLayers | null>()
+    const data = addRoot({ schemaVersion: 1, type: 'logicTree', title: 't', nodes: [] }).data
+    render(
+      <LogicTreeEditor
+        data={data}
+        onChange={vi.fn()}
+        issues={[]}
+        modalOpen={false}
+        captureRef={ref}
+      />,
+    )
+    expect(ref.current?.root).toBeInstanceOf(HTMLElement)
+    expect(ref.current?.cssLayers.length).toBe(2)
+    expect(ref.current?.svgLayers.length).toBe(1)
+    // background/nodes の2層が正しい data-layer を持つこと
+    const cssLayerNames = ref.current?.cssLayers.map((el) => el.getAttribute('data-layer'))
+    expect(cssLayerNames).toEqual(['background', 'nodes'])
+    // edges の層は <svg> ではなく内側の <g> そのものであること
+    const edgeEl = ref.current?.svgLayers[0]
+    expect(edgeEl?.tagName.toLowerCase()).toBe('g')
+    expect(edgeEl).toBeInstanceOf(SVGGElement)
+  })
+
+  it('captureRef を渡さなくても他の描画・操作に影響しない', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={file([[1, null, '親']])} onChange={onChange} />)
+    fireEvent.keyDown(screen.getByLabelText('ノード1'), { key: 'Tab' })
+    expect(screen.getByLabelText('ノード2')).toBeDefined()
   })
 })

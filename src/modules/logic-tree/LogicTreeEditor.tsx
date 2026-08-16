@@ -1,8 +1,9 @@
 import { Plus } from 'lucide-react'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { KeyHints } from '@/components/KeyHints'
 import { buttonBase } from '@/components/button-styles'
+import type { CaptureLayers } from '@/core/image-export'
 import type { KeyHint } from '@/core/keyboard/hint-text'
 import {
   resolveCommand,
@@ -59,13 +60,40 @@ export function LogicTreeEditor({
   onChange,
   issues,
   modalOpen,
+  captureRef,
 }: EditorProps<LogicTreeSchemaVersion1>) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const backgroundLayerRef = useRef<HTMLDivElement>(null)
+  const edgesGroupRef = useRef<SVGGElement>(null)
+  const nodesLayerRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const [font, setFont] = useState<NodeFont>(FALLBACK_NODE_FONT)
   // ズーム・パン（Ctrl+ホイール／Space・中ボタンのドラッグ）と新ノードへの追従。
   // モーダルが開いている間は止める（キーはモーダルが取る。rev 10章 境界規則）
   const { transform, spaceHeld, ensureVisible } = useViewport(containerRef, !modalOpen)
+
+  // 画像出力対象のDOM層を額縁へ公開する（M18）。3レイヤのいずれかが
+  // まだマウントされていなければ null（額縁側は null を「まだキャプチャできない」
+  // として扱う）。ref オブジェクト自体は毎レンダー同じなので、空配列でよい。
+  //
+  // **型引数を明示すること。** `captureRef` は `Ref<CaptureLayers | null>` だが、
+  // useImperativeHandle は `<T, R extends T>` で、T の推論は Ref の内部にある
+  // RefObject（共変）と RefCallback（反変、優先度が高い）の2候補に割れ、
+  // 後者が勝つと T が `CaptureLayers`（null を含まない）に狭まってしまう。
+  // 型引数を両方 `CaptureLayers | null` に固定して R extends T を満たしつつ、
+  // 狭まりを止める（sequence モジュールの Task 7 で踏んだのと同じ罠）
+  useImperativeHandle<CaptureLayers | null, CaptureLayers | null>(
+    captureRef,
+    () => {
+      const root = containerRef.current
+      const background = backgroundLayerRef.current
+      const nodes = nodesLayerRef.current
+      const edgesGroup = edgesGroupRef.current
+      if (root === null || background === null || nodes === null || edgesGroup === null) return null
+      return { root, cssLayers: [background, nodes], svgLayers: [edgesGroup] }
+    },
+    [],
+  )
 
   // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
   const [pendingFocus, setPendingFocus] = useState<string | null>(null)
@@ -287,7 +315,10 @@ export function LogicTreeEditor({
 
       {/* **指摘の一覧はここに置かない**（rev 6章。額縁がキャンバスの外に出す）
           ——ここに置くと件数が増えるほど木の上部を覆う */}
-      <div className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex flex-col items-stretch">
+      <div
+        className="pointer-events-none absolute left-0 right-0 top-0 z-10 flex flex-col items-stretch"
+        data-export-role="chrome"
+      >
         {/* 見出しとヒントの帯。**面は透過させる**——下のキャンバスのパンと
             ヒットテストを、帯の外側で奪わないため */}
         <div className="pointer-events-none m-2 flex items-center gap-3">
@@ -313,13 +344,20 @@ export function LogicTreeEditor({
 
       {/* 背景レイヤ（M1 は空。シーケンスの失敗ゾーンのために枠だけ確保する） */}
       <div
+        ref={backgroundLayerRef}
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 origin-top-left"
         style={{ transform: cssTransform(transform) }}
         data-layer="background"
       />
 
-      <TreeEdges roots={built.roots} positions={positions} sizes={sizes} transform={transform} />
+      <TreeEdges
+        roots={built.roots}
+        positions={positions}
+        sizes={sizes}
+        transform={transform}
+        groupRef={edgesGroupRef}
+      />
 
       {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面。
           pointer-events を切らないと、この面がキャンバス全体を覆う単一の
@@ -327,6 +365,7 @@ export function LogicTreeEditor({
           ハンドラまで mousedown が届かなくなる。操作を受けるのはノードの矩形
           だけでよいので、NodeBox 側で auto に戻す */}
       <div
+        ref={nodesLayerRef}
         className="pointer-events-none absolute inset-0 origin-top-left"
         style={{ transform: cssTransform(transform) }}
         data-layer="nodes"
