@@ -81,11 +81,11 @@ facet は、人間が構造化された UI で入力し、ツールが網羅性�
 
 ### 1. インストールする
 
-<!-- 配布先: GitHub Releases の URL か、社内共有フォルダのパスをここに書く -->
+**[GitHub Releases](https://github.com/Pryo-46/facet/releases/latest)** から、自分の OS のファイルを落とす。
 
 | OS | ファイル | 初回起動でつまずくところ |
 | --- | --- | --- |
-| Windows | `facet_<version>_x64_en-US.msi` | 「Windows によって PC が保護されました」が出る。**［詳細情報］→［実行］** で進む（署名していないため） |
+| Windows | `facet_<version>_x64-setup.exe` | 「Windows によって PC が保護されました」が出る。**［詳細情報］→［実行］** で進む（署名していないため） |
 | macOS | `facet_<version>_aarch64.dmg` | 「開発元を検証できません」が出る。**アプリを右クリック →［開く］→［開く］**。それでも開かないときは `xattr -d com.apple.quarantine /Applications/facet.app` |
 
 署名していないので上の警告は必ず出る。社内配布の前提でそう割り切っている。
@@ -178,6 +178,8 @@ npm run tauri build
 ```
 
 **クロスビルドはできない。** Windows 版インストーラは Windows で、macOS 版は macOS でビルドする必要がある。
+
+**Windows は NSIS（`.exe`）だけを作る。MSI は作らない**（`bundle.targets`）。WiX の `light.exe` はコードページ 1252 に無い文字を拒否するため、同梱 Skill の `evals/fixtures/` にある日本語ファイル名でリンクが落ちるからで、NSIS にその制約は無い。MSI が必要になったときの直し方は [`docs/open-issues.md`](docs/open-issues.md) にある。
 
 ### 設計の芯
 
