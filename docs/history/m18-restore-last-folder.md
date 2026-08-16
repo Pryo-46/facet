@@ -32,7 +32,7 @@ M18 は「起動時、直近に開いていたフォルダを自動で開く」�
 
 ### 4. `openProject` を依存配列から意図的に外した exhaustive-deps 警告に、理由コメントを付けた（Task 5・本タスク）
 
-Task 4 完了時点で `npm run lint` は `src/App.tsx` の起動時復元 effect に `react-hooks/exhaustive-deps` の警告（`openProject` 依存漏れ）を出していたが、理由コメント無しで残っていた（このコードベースは同種の抑制6箇所すべてに理由を添える house style——`TerminalTab.tsx` / `CellInput.tsx` / `SequenceEditor.tsx` / `LogicTreeEditor.tsx`）。SDD ledger が「最終レビューで triage」と明記していたため、本タスクで `// eslint-disable-next-line react-hooks/exhaustive-deps` に理由コメントを添えて解消した（`openProject` は毎レンダー再生成されるが、`hasAttemptedRestoreRef` の一回性ガードで実行は起動時の1回に固定されているため、依存に加えても実行回数は変わらない）。`npm run lint` は警告0件になった。
+Task 4 完了時点で `npm run lint` は `src/App.tsx` の起動時復元 effect に `react-hooks/exhaustive-deps` の警告（`openProject` 依存漏れ）を出していたが、理由コメント無しで残っていた（このコードベースは同種の抑制8箇所すべてに理由を添える house style——`TerminalTab.tsx` 2箇所 / `CellInput.tsx` 2箇所 / `SequenceEditor.tsx` 2箇所 / `LogicTreeEditor.tsx` 2箇所）。SDD ledger が「最終レビューで triage」と明記していたため、本タスクで `// eslint-disable-next-line react-hooks/exhaustive-deps` に理由コメントを添えて解消した（`openProject` は毎レンダー再生成されるが、`hasAttemptedRestoreRef` の一回性ガードで実行は起動時の1回に固定されているため、依存に加えても実行回数は変わらない）。`npm run lint` は警告0件になった。
 
 ---
 
