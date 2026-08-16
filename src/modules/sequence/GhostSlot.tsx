@@ -41,6 +41,9 @@ export function GhostSlot(props: GhostSlotProps) {
         type="button"
         className="shrink-0 rounded-sm border border-rule bg-surface px-1.5 py-0.5 text-xs text-ink-muted hover:bg-canvas focus:ring-2 focus:ring-inset focus:ring-ring"
         aria-label={props['aria-label']}
+        // 削除アクションなので画像出力には描かない（M18）。行内の最後の要素なので
+        // 除外してもレイアウトに穴は残らない（右に何も無いフレックス行）
+        data-export-role="chrome"
         onClick={props.onDelete}
       >
         ✕

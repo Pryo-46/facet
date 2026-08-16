@@ -95,6 +95,21 @@ describe('captureImagePng', () => {
     expect(capturedFilter!(textNode as unknown as Element)).toBe(true)
   })
 
+  it('excludeRoles を渡さなくても data-export-role="chrome" は常に除外する（編集用UIが漏れ出る回帰の防止）', async () => {
+    const layers = makeLayers()
+    let capturedFilter: ((node: Element) => boolean) | null = null
+    toBlob.mockImplementation(async (_node, options) => {
+      capturedFilter = (options as { filter: (node: Element) => boolean }).filter
+      return new Blob([new Uint8Array([1])])
+    })
+
+    await captureImagePng(layers)
+
+    const chromeEl = document.createElement('div')
+    chromeEl.setAttribute('data-export-role', 'chrome')
+    expect(capturedFilter!(chromeEl)).toBe(false)
+  })
+
   it('transform 属性が元々無かった svgLayer は、復元後も属性なしのままにする', async () => {
     const layers = makeLayers()
     layers.svgLayers[0].removeAttribute('transform')

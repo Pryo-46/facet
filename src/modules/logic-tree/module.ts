@@ -20,7 +20,7 @@ export const logicTreeModule: ToolModule<LogicTreeSchemaVersion1> = {
   // 規約5: 出力プロファイルは0本。Markdown / Mermaid 出力は M2 で足す——
   // それまで額縁（ExportMenu）は出力ボタンを押せない状態で出す
   outputs: [],
-  imageOutputs: [],
+  imageOutputs: [{ id: 'default', label: '画像', fileSuffix: '' }],
   // プロジェクトにロジックツリーは何本あってもよい（用語集と違いハブではない）
   singleton: false,
   migrate: migrateLogicTree,

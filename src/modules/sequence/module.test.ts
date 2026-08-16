@@ -51,3 +51,11 @@ describe('sequenceModule', () => {
     expect(sequenceModule.migrate(empty, 1)).toEqual(empty)
   })
 })
+
+describe('sequenceModule.imageOutputs', () => {
+  it('「問いを含む」「問いを含めない」の2本を持つ', () => {
+    expect(sequenceModule.imageOutputs.map((p) => p.id)).toEqual(['with-gutter', 'without-gutter'])
+    expect(sequenceModule.imageOutputs[1].excludeRoles).toEqual(['gutter'])
+    expect(sequenceModule.imageOutputs[0].excludeRoles).toBeUndefined()
+  })
+})

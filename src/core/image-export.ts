@@ -46,7 +46,12 @@ export async function captureImagePng(
   layers: CaptureLayers,
   options: CaptureOptions = {},
 ): Promise<Uint8Array> {
-  const excludeRoles = new Set(options.excludeRoles ?? [])
+  // 'chrome'（編集用UI）は options に関わらず常に除外する。gutter はプロファイルごとに
+  // ユーザーが選ぶもの（with-gutter/without-gutter）だが、chrome は「編集用UIを画像に
+  // 描かない」という不変条件そのもの——各プロファイルの excludeRoles に値として書くと、
+  // 新しいプロファイルを足す人が書き忘れる余地が生まれる（design spec 決定5）。
+  // だからプロファイル側の値としてではなく、ここで構造的に常時追加する
+  const excludeRoles = new Set([...(options.excludeRoles ?? []), 'chrome'])
   const cssOriginal = layers.cssLayers.map((el) => el.style.transform)
   const svgOriginal = layers.svgLayers.map((el) => el.getAttribute('transform'))
 

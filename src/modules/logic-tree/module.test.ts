@@ -63,6 +63,13 @@ describe('出力プロファイル（規約5）', () => {
   })
 })
 
+describe('logicTreeModule.imageOutputs', () => {
+  it('1本だけを持つ（問いに相当する概念が無いため）', () => {
+    expect(logicTreeModule.imageOutputs.map((p) => p.id)).toEqual(['default'])
+    expect(logicTreeModule.imageOutputs[0].excludeRoles).toBeUndefined()
+  })
+})
+
 describe('レジストリ登録', () => {
   it('appRegistry から type で引ける（新規作成メニューに出る）', () => {
     expect(appRegistry.get('logicTree')).toBe(logicTreeModule)

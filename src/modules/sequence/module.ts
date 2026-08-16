@@ -31,7 +31,10 @@ export const sequenceModule: ToolModule<SequenceSchemaVersion1> = {
       describeIssueEffect: describeSequenceIssueEffect,
     },
   ],
-  imageOutputs: [],
+  imageOutputs: [
+    { id: 'with-gutter', label: '問いを含む', fileSuffix: '' },
+    { id: 'without-gutter', label: '問いを含めない', fileSuffix: '-simple', excludeRoles: ['gutter'] },
+  ],
   // プロジェクトにシーケンスは何本あってもよい（機能ごとに分けるのが普通の使い方）
   singleton: false,
   migrate: migrateSequence,
