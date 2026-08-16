@@ -30,6 +30,7 @@
     "clsx": "^2.1.1",
     "d3-selection": "^3.0.0",
     "d3-zoom": "^3.0.0",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^1.28.0",
     "radix-ui": "^1.6.7",
     "react": "^19.2.8",
