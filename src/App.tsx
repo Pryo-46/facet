@@ -524,11 +524,27 @@ function App() {
    * 拡張しないのは、DOM要素（captureLayersRef）を引数に取らせると
    * 「コアはReact/Tauriを知らない」という設計原則を破るため（design spec 決定6b）。
    * 保持する規律は copyMarkdown/exportMarkdown と同じ「順序」——
-   * バナー表示・成功トースト・失敗時のバナーの形はそちらに揃える
+   * バナー表示・成功トースト・失敗時のバナーの形はそちらに揃える。
+   *
+   * **`guardIssues`（整合性エラーの確認ダイアログ）はここでは適用しない。**
+   * Markdown 側が確認を挟むのは、赤いレベル2マーカーがテキスト出力からは
+   * 消えてしまうため。画像は「見たまま」そのものなので、警告はすでに絵の中に
+   * 描かれている——確認で守るべきものが無い
    */
+  // 画像キャプチャの同時実行を防ぐ（レビュー指摘1）。captureImagePng は
+  // transform を実DOMへ直接書き換えて finally で元に戻す非同期処理なので、
+  // 2本が重なると後から始まった方が「もう identity に書き換えられた後」の
+  // 値をスナップショットしてしまい、後に finally が走った方が図の pan/zoom を
+  // 原点に固定して終わる（React 側の transform state は変わらないため、
+  // 再レンダーでは自然に直らない）。doCopyImage/doExportImage の両方で
+  // 同じキャプチャ対象（captureLayersRef）を触るため、フラグは1本共有する
+  const imageCaptureInFlightRef = useRef(false)
+
   const doCopyImage = async (profile: ImageOutputProfile): Promise<void> => {
     const layers = captureLayersRef.current
     if (layers === null) return
+    if (imageCaptureInFlightRef.current) return
+    imageCaptureInFlightRef.current = true
     try {
       const bytes = await captureImagePng(layers, { excludeRoles: profile.excludeRoles })
       await copyImageToClipboard(bytes)
@@ -539,12 +555,16 @@ function App() {
         'io',
         `画像をコピーできませんでした: ${err instanceof Error ? err.message : String(err)}`,
       )
+    } finally {
+      imageCaptureInFlightRef.current = false
     }
   }
 
   const doExportImage = async (profile: ImageOutputProfile): Promise<void> => {
     const layers = captureLayersRef.current
     if (layers === null || selectedPath === null) return
+    if (imageCaptureInFlightRef.current) return
+    imageCaptureInFlightRef.current = true
     try {
       // **キャプチャを保存ダイアログの前に確定させる**（design spec 決定9）。
       // ダイアログが開いている間にウィンドウリサイズ等が起きても、
@@ -561,6 +581,8 @@ function App() {
         'io',
         `画像を書き出せませんでした: ${err instanceof Error ? err.message : String(err)}`,
       )
+    } finally {
+      imageCaptureInFlightRef.current = false
     }
   }
 
