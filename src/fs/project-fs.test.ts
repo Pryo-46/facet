@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const invoke = vi.fn()
 const watch = vi.fn()
 const save = vi.fn()
+const writeFile = vi.fn()
 // project-fs が読む @tauri-apps/* は全部モックする。テストは node 環境で走り、
 // 実物は Tauri の webview を前提にしているため
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...args: unknown[]) => invoke(...args) }))
@@ -13,17 +14,19 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   readDir: vi.fn(),
   readTextFile: vi.fn(),
   writeTextFile: vi.fn(),
+  writeFile: (...args: unknown[]) => writeFile(...args),
   watch: (...args: unknown[]) => watch(...args),
 }))
 
 // モックの登録後に読む必要があるので動的 import にする
-const { askSaveMarkdownPath, moveFileToTrash, watchFolder, WATCH_DEBOUNCE_MS } = await import('./project-fs')
+const { askSaveMarkdownPath, askSaveImagePath, moveFileToTrash, watchFolder, writeProjectImageFile, WATCH_DEBOUNCE_MS } = await import('./project-fs')
 
 beforeEach(() => {
   invoke.mockReset()
   invoke.mockResolvedValue(undefined)
   watch.mockReset()
   save.mockReset()
+  writeFile.mockReset()
 })
 
 describe('moveFileToTrash', () => {
@@ -74,5 +77,30 @@ describe('askSaveMarkdownPath', () => {
   it('キャンセルは null（失敗ではない）', async () => {
     save.mockResolvedValue(null)
     await expect(askSaveMarkdownPath('C:\\proj\\用語集.md')).resolves.toBeNull()
+  })
+})
+
+describe('askSaveImagePath', () => {
+  it('PNGフィルタで保存ダイアログを呼ぶ', async () => {
+    save.mockResolvedValue('/project/diagram.png')
+    const result = await askSaveImagePath('/project/diagram.png')
+    expect(result).toBe('/project/diagram.png')
+    expect(save).toHaveBeenCalledWith({
+      defaultPath: '/project/diagram.png',
+      filters: [{ name: 'PNG', extensions: ['png'] }],
+    })
+  })
+
+  it('キャンセルは null', async () => {
+    save.mockResolvedValue(null)
+    expect(await askSaveImagePath('/project/diagram.png')).toBeNull()
+  })
+})
+
+describe('writeProjectImageFile', () => {
+  it('writeFile へバイト列をそのまま渡す', async () => {
+    const bytes = new Uint8Array([1, 2, 3])
+    await writeProjectImageFile('/project/diagram.png', bytes)
+    expect(writeFile).toHaveBeenCalledWith('/project/diagram.png', bytes)
   })
 })

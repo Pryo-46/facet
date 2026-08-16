@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { join } from '@tauri-apps/api/path'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { exists, readDir, readTextFile, watch, writeTextFile } from '@tauri-apps/plugin-fs'
+import { exists, readDir, readTextFile, watch, writeFile, writeTextFile } from '@tauri-apps/plugin-fs'
 
 /**
  * Tauri のファイルアクセスをここに隔離する（コアは Tauri を知らない）。
@@ -96,4 +96,24 @@ export async function askSaveMarkdownPath(defaultPath: string): Promise<string |
     filters: [{ name: 'Markdown', extensions: ['md'] }],
   })
   return typeof selected === 'string' ? selected : null
+}
+
+/**
+ * 画像の書き出し先を尋ねる。null＝キャンセル（失敗ではない）。
+ * `askSaveMarkdownPath` と同じ理由でフィルタだけ変える（M18）
+ */
+export async function askSaveImagePath(defaultPath: string): Promise<string | null> {
+  const selected = await save({
+    defaultPath,
+    filters: [{ name: 'PNG', extensions: ['png'] }],
+  })
+  return typeof selected === 'string' ? selected : null
+}
+
+/**
+ * PNGバイト列をファイルへ書く（M18）。`writeProjectFile` はテキスト専用
+ *（`writeTextFile`）なので、バイナリは別関数にする
+ */
+export async function writeProjectImageFile(path: string, bytes: Uint8Array): Promise<void> {
+  await writeFile(path, bytes)
 }
