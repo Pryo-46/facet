@@ -32,6 +32,7 @@ export const errorCatalogModule: ToolModule<ErrorCatalogSchemaVersion1> = {
   Editor: ErrorCatalogEditor,
   checkConsistency: checkErrorCatalogConsistency,
   outputs,
+  imageOutputs: [],
   // エラーカタログはプロジェクトにつき1つ（rev 5章の単一性）
   singleton: true,
   migrate: migrateErrorCatalog,

@@ -41,6 +41,7 @@ function noteModule(over: Partial<AnyToolModule> = {}): AnyToolModule {
         toMarkdown: (d: { title: string; body: string }) => `## ${d.title}\n\n${d.body}\n`,
       },
     ],
+    imageOutputs: [],
     singleton: true,
     migrate: (d) => d,
     createEmpty: (title) => ({ schemaVersion: 1, type: 'note', title, body: '' }),

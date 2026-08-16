@@ -22,6 +22,7 @@ export const glossaryModule: ToolModule<GlossarySchemaVersion1> = {
   outputs: [
     { id: 'default', label: 'Markdown', fileSuffix: '', toMarkdown: glossaryToMarkdown },
   ],
+  imageOutputs: [],
   // 用語集はハブなのでプロジェクトにつき1つ（rev 5章の単一性）
   singleton: true,
   migrate: migrateGlossary,

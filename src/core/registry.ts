@@ -56,6 +56,23 @@ export interface OutputProfile<TData> {
 }
 
 /**
+ * 画像出力プロファイル（rev 8章 M18で追加）。`OutputProfile` と違い
+ * **副作用を持たない純関数にはできない**——DOM実測（レイアウト後の座標・
+ * フォントメトリクス）に依存するため、データから画像を導出する関数を
+ * ここには持たない。実処理は `core/image-export.ts` が DOM 要素を受け取って行う
+ */
+export interface ImageOutputProfile {
+  /** 安定識別子。UI の選択状態・テストが参照する */
+  id: string
+  /** ドロップダウンに出す表示名 */
+  label: string
+  /** 書き出しの既定ファイル名に足す接尾辞（単一プロファイルなら ''） */
+  fileSuffix: string
+  /** キャプチャから除外する data-export-role の値（省略時は全部含める） */
+  excludeRoles?: readonly string[]
+}
+
+/**
  * ツールモジュール規約（rev 6章）。M6 の出力ロジック追加で6点セットが埋まった。
  * `createEmpty` は6点セットには無い7つ目のスロット（額縁の新規作成が使う雛形）。
  * M9 で規約5を複数プロファイル（`outputs`）へ拡張した。
@@ -88,6 +105,12 @@ export interface ToolModule<TData = unknown> {
    * 「押せるが壊れた文字列が出るボタン」を作らないため
    */
   outputs: readonly OutputProfile<TData>[]
+  /**
+   * 画像出力プロファイル（rev 8章 M18）。**0本は「画像出力を持たないツール」
+   * の状態として正しい**——`outputs` と同じ思想（額縁は0本のとき画像出力
+   * ボタンを押せなくする）
+   */
+  imageOutputs: readonly ImageOutputProfile[]
   /** プロジェクト内に同 type のファイルを1つしか許さないか（コア横断検証が使う） */
   singleton: boolean
   /** 規約6: マイグレータ（旧 schemaVersion → 現行版。初版は恒等） */

@@ -31,6 +31,7 @@ export const sequenceModule: ToolModule<SequenceSchemaVersion1> = {
       describeIssueEffect: describeSequenceIssueEffect,
     },
   ],
+  imageOutputs: [],
   // プロジェクトにシーケンスは何本あってもよい（機能ごとに分けるのが普通の使い方）
   singleton: false,
   migrate: migrateSequence,
