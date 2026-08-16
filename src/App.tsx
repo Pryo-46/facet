@@ -55,9 +55,12 @@ import {
   type TerminalState,
 } from '@/core/terminal/sessions'
 import { dismissToast, dismissToastByKey, pushToast, type ToastItem } from '@/core/toasts'
+import { captureImagePng, type CaptureLayers } from '@/core/image-export'
+import type { ImageOutputProfile } from '@/core/registry'
 import { forceClose, interceptClose } from '@/fs/app-window'
-import { copyToClipboard } from '@/fs/clipboard'
+import { copyImageToClipboard, copyToClipboard } from '@/fs/clipboard'
 import {
+  askSaveImagePath,
   askSaveMarkdownPath,
   fileExists,
   joinPath,
@@ -67,6 +70,7 @@ import {
   readProjectFile,
   watchFolder,
   writeProjectFile,
+  writeProjectImageFile,
 } from '@/fs/project-fs'
 import { killAllPtys, tauriPtyIo } from '@/fs/pty'
 import { tauriReadingGuideIo } from '@/fs/reading-guide-io'
@@ -478,6 +482,11 @@ function App() {
     selected && selected.result.status === 'editable'
       ? appRegistry.get(selected.result.type)
       : undefined
+  // 画像出力対象のDOM層（M18）。エディタが useImperativeHandle 経由で
+  // 埋める。key={selected.path} でエディタがアンマウント/再マウントする
+  // たびに新しい CaptureLayers（または null）で上書きされるので、
+  // ここでの明示的なリセットは不要
+  const captureLayersRef = useRef<CaptureLayers | null>(null)
   // **`appRegistry.list()` を JSX の中で呼ばないこと。** 毎レンダーで新しい
   // 配列が返るため、下の groups の useMemo が毎回作り直しになる
   const modules = useMemo(() => appRegistry.list(), [])
@@ -509,6 +518,51 @@ function App() {
   // window リスナーからは常に最新の runHistory を呼ぶ（購読はマウント時の1回だけ）
   const runHistoryRef = useRef(runHistory)
   runHistoryRef.current = runHistory
+
+  /**
+   * 画像コピー/保存のオーケストレーション（M18）。`core/app-controller.ts` を
+   * 拡張しないのは、DOM要素（captureLayersRef）を引数に取らせると
+   * 「コアはReact/Tauriを知らない」という設計原則を破るため（design spec 決定6b）。
+   * 保持する規律は copyMarkdown/exportMarkdown と同じ「順序」——
+   * バナー表示・成功トースト・失敗時のバナーの形はそちらに揃える
+   */
+  const doCopyImage = async (profile: ImageOutputProfile): Promise<void> => {
+    const layers = captureLayersRef.current
+    if (layers === null) return
+    try {
+      const bytes = await captureImagePng(layers, { excludeRoles: profile.excludeRoles })
+      await copyImageToClipboard(bytes)
+      setBanner('io', null)
+      showToast({ key: 'export', message: '画像をクリップボードにコピーしました' })
+    } catch (err) {
+      setBanner(
+        'io',
+        `画像をコピーできませんでした: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
+
+  const doExportImage = async (profile: ImageOutputProfile): Promise<void> => {
+    const layers = captureLayersRef.current
+    if (layers === null || selectedPath === null) return
+    try {
+      // **キャプチャを保存ダイアログの前に確定させる**（design spec 決定9）。
+      // ダイアログが開いている間にウィンドウリサイズ等が起きても、
+      // 押した瞬間の見たままを保証する
+      const bytes = await captureImagePng(layers, { excludeRoles: profile.excludeRoles })
+      const base = selectedPath.replace(/\.json$/i, '')
+      const target = await askSaveImagePath(`${base}${profile.fileSuffix}.png`)
+      if (target === null) return
+      await writeProjectImageFile(target, bytes)
+      setBanner('io', null)
+      showToast({ key: 'export', message: `画像を書き出しました: ${target}` })
+    } catch (err) {
+      setBanner(
+        'io',
+        `画像を書き出せませんでした: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
 
   // グローバル層（rev 10章）: Undo/Redo は全ツール共通で額縁が取る。
   // 制御入力ではブラウザ標準の Undo が React の再レンダリングと食い違うため、
@@ -659,6 +713,14 @@ function App() {
             exportLabel="Markdown を書き出す"
             onCopy={(profile) => void controller.copyMarkdown(profile)}
             onExport={(profile) => void controller.exportMarkdown(profile)}
+          />
+          <ExportMenu
+            outputs={selectedModule?.imageOutputs ?? []}
+            disabled={!canExport}
+            copyLabel="画像をコピー"
+            exportLabel="画像で保存"
+            onCopy={(profile) => void doCopyImage(profile)}
+            onExport={(profile) => void doExportImage(profile)}
           />
         </div>
         {/* **右端の3つを絶対に押し出さないこと。** 余白を食って右端へ寄せるのは
@@ -817,6 +879,7 @@ function App() {
                   data={editingData}
                   issues={selected.issues}
                   modalOpen={modalOpen}
+                  captureRef={captureLayersRef}
                   onChange={(next: unknown, mergeKey?: string | null) => {
                     setHistory((h) => (h === null ? h : record(h, next, mergeKey ?? null, Date.now())))
                     controller.applyEdit(selected.path, selectedModule, next)
