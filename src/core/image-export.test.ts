@@ -87,7 +87,42 @@ describe('captureImagePng', () => {
     const gutterEl = document.createElement('div')
     gutterEl.setAttribute('data-export-role', 'gutter')
     const plainEl = document.createElement('div')
+    const textNode = document.createTextNode('x')
     expect(capturedFilter!(gutterEl)).toBe(false)
     expect(capturedFilter!(plainEl)).toBe(true)
+    // html-to-image は DOM ツリーを歩く際に Text ノードにも filter を呼ぶ。
+    // getAttribute を持たないので、除外対象として扱わず true を返す必要がある
+    expect(capturedFilter!(textNode as unknown as Element)).toBe(true)
+  })
+
+  it('transform 属性が元々無かった svgLayer は、復元後も属性なしのままにする', async () => {
+    const layers = makeLayers()
+    layers.svgLayers[0].removeAttribute('transform')
+    toBlob.mockResolvedValue(new Blob([new Uint8Array([1])]))
+
+    await captureImagePng(layers)
+
+    expect(layers.svgLayers[0].hasAttribute('transform')).toBe(false)
+  })
+
+  it('scrollWidth/scrollHeight は transform を単位行列にリセットした後に測って toBlob に渡す', async () => {
+    const layers = makeLayers()
+    Object.defineProperty(layers.root, 'scrollWidth', {
+      configurable: true,
+      get: () => (layers.cssLayers[0].style.transform === 'translate(0px, 0px) scale(1)' ? 900 : 100),
+    })
+    Object.defineProperty(layers.root, 'scrollHeight', {
+      configurable: true,
+      get: () => (layers.cssLayers[0].style.transform === 'translate(0px, 0px) scale(1)' ? 600 : 100),
+    })
+    let capturedOptions: { width: number; height: number } | null = null
+    toBlob.mockImplementation(async (_node, options) => {
+      capturedOptions = options as { width: number; height: number }
+      return new Blob([new Uint8Array([1])])
+    })
+
+    await captureImagePng(layers)
+
+    expect(capturedOptions).toEqual(expect.objectContaining({ width: 900, height: 600 }))
   })
 })

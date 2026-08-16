@@ -60,9 +60,13 @@ export async function captureImagePng(
       width,
       height,
       style: { overflow: 'visible' },
+      // html-to-image は DOM ツリーを歩く途中で Text/Comment ノードにも filter を
+      // 呼ぶ（宣言上の型は `HTMLElement` だが実際には違う）。getAttribute を
+      // 持たないノードが来るので `?.` で無条件に呼ばず、`== null` で
+      // 「Element でない」と「属性が無い」の両方を「除外対象ではない」として扱う
       filter: (node) => {
-        const role = node.getAttribute('data-export-role')
-        return role === null || !excludeRoles.has(role)
+        const role = (node as Element).getAttribute?.('data-export-role')
+        return role == null || !excludeRoles.has(role)
       },
     })
     if (blob === null) throw new Error('画像の生成に失敗しました')
