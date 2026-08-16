@@ -52,6 +52,10 @@ const {
   syncReadingGuideMock,
   disk,
   writeProjectFileMock,
+  captureImagePngMock,
+  copyImageToClipboardMock,
+  askSaveImagePathMock,
+  writeProjectImageFileMock,
 } = vi.hoisted(() => ({
   closeState: { callback: null as (() => Promise<boolean>) | null },
   killAllPtysMock: vi.fn(async () => undefined),
@@ -64,6 +68,12 @@ const {
   syncReadingGuideMock: vi.fn(async () => undefined),
   disk: new Map<string, string>(),
   writeProjectFileMock: vi.fn(async (_path: string, _text: string) => undefined),
+  // M18 の画像出力オーケストレーション（doCopyImage/doExportImage）用。
+  // 実ラスタライズは試みず、captureImagePng はバイト列を返すだけの偽物にする
+  captureImagePngMock: vi.fn(async () => new Uint8Array([1, 2, 3])),
+  copyImageToClipboardMock: vi.fn(async (_bytes: Uint8Array) => undefined),
+  askSaveImagePathMock: vi.fn(async (_suggestedName: string) => '/proj/tree.png' as string | null),
+  writeProjectImageFileMock: vi.fn(async (_path: string, _bytes: Uint8Array) => undefined),
 }))
 
 vi.mock('@/fs/project-fs', () => ({
@@ -80,6 +90,8 @@ vi.mock('@/fs/project-fs', () => ({
   joinPath: async (dir: string, name: string) => `${dir}/${name}`,
   watchFolder: async () => () => undefined,
   askSaveMarkdownPath: async () => null,
+  askSaveImagePath: askSaveImagePathMock,
+  writeProjectImageFile: writeProjectImageFileMock,
 }))
 vi.mock('@/fs/app-window', () => ({
   interceptClose: async (beforeClose: () => Promise<boolean>) => {
@@ -88,7 +100,13 @@ vi.mock('@/fs/app-window', () => ({
   },
   forceClose: async () => undefined,
 }))
-vi.mock('@/fs/clipboard', () => ({ copyToClipboard: async () => undefined }))
+vi.mock('@/fs/clipboard', () => ({
+  copyToClipboard: async () => undefined,
+  copyImageToClipboard: copyImageToClipboardMock,
+}))
+// html-to-image の実ラスタライズは試みない（M18）。App.tsx のオーケストレーション
+// （doCopyImage/doExportImage）だけを検査したいので、captureImagePng はモックする
+vi.mock('@/core/image-export', () => ({ captureImagePng: captureImagePngMock }))
 vi.mock('@/fs/pty', () => ({
   tauriPtyIo: {
     // spec 全体（program/args/cwd/cols/rows/onData/onExit）のうち、ここでは
@@ -187,6 +205,12 @@ afterEach(() => {
   skillCalls.length = 0
   disk.clear()
   writeProjectFileMock.mockClear()
+  captureImagePngMock.mockClear()
+  captureImagePngMock.mockImplementation(async () => new Uint8Array([1, 2, 3]))
+  copyImageToClipboardMock.mockClear()
+  askSaveImagePathMock.mockClear()
+  askSaveImagePathMock.mockImplementation(async () => '/proj/tree.png')
+  writeProjectImageFileMock.mockClear()
 })
 /**
  * **止めたままの同期を次のテストへ持ち越さない（レビュー指摘）。**
@@ -606,5 +630,126 @@ describe('指摘バナーと額縁の配線（M14）', () => {
     // できないので、その投影である DOM 順（バナー → エディタ）を固定する。
     // これが崩れる壊れ方＝バナーをエディタ内・エディタ下へ移す配線ミス
     expect(item.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+/**
+ * 画像出力のオーケストレーション（M18。最終レビューの fix wave）。
+ * `doCopyImage`/`doExportImage`（`src/App.tsx`）がこのマイルストーンの
+ * ユーザーに見える規律を全部持っている——キャプチャ→クリップボード／
+ * キャプチャ→保存ダイアログ→書き込みの**順序**（design spec 決定9。
+ * ダイアログが開いている間のウィンドウリサイズ等が結果に混ざらないよう、
+ * 押した瞬間の見たままを先に凍結する）、キャンセルは無言で復帰、
+ * 失敗時は io バナーだけ出す、成功時はバナーを消してトーストを出す、
+ * `guardIssues`（整合性エラーの確認）は意図的に適用しない——にもかかわらず、
+ * この一巡が入るまで自動でも人力（Task 11 は未実施）でも一度も検証されて
+ * いなかった。Markdown 側の双子は `app-controller.test.ts` が押さえている
+ * （`src/App.tsx` の decision 6b でオーケストレーションだけが画像用に
+ * こちらへ移り、対応するテストが付いてこなかった）。
+ *
+ * ロジックツリーを使うのは `imageOutputs` が1本（`{ id: 'default', … }`）で
+ * `ExportMenu` がドロップダウンを出さない単純な形になるため——シーケンスは
+ * 2本あるのでプロファイル選択のクリックがもう1段要り、ここで検証したい
+ * オーケストレーションの本筋（順序・キャンセル・失敗・成功）には関係が無い
+ */
+describe('画像出力のオーケストレーション（M18）', () => {
+  const LOGIC_TREE_PATH = '/proj/tree.json'
+
+  const putLogicTree = () => {
+    disk.set(
+      LOGIC_TREE_PATH,
+      JSON.stringify({
+        schemaVersion: 1,
+        type: 'logicTree',
+        title: '本番の木',
+        nodes: [{ id: 'node_aaaaaaaaaa', parentId: null, text: 'ルート' }],
+      }),
+    )
+  }
+
+  /**
+   * フォルダを開いてロジックツリーを選び、「画像をコピー」ボタンを返す。
+   * `useImperativeHandle`（captureRef を埋める）は commit 後に走るので、
+   * ボタンが押せる状態になるまで待ってから返す
+   */
+  async function openLogicTree() {
+    putLogicTree()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '本番の木（tree.json） を開く' }))
+    const copyButton = await screen.findByRole('button', { name: '画像をコピー' })
+    await waitFor(() => expect(copyButton.hasAttribute('disabled')).toBe(false))
+    return copyButton
+  }
+
+  it('コピー成功: captureImagePng が返したバイト列がそのままクリップボードへ渡り、トーストが出て io バナーが消える', async () => {
+    const bytes = new Uint8Array([7, 7, 7])
+    const copyButton = await openLogicTree()
+
+    // 先に1回失敗させて io バナーを出しておく——「バナーが消える」ことを
+    // 確かめるには、消える前の状態（バナーが出ている）が要る。デフォルトの
+    // バナーは null なので、それだけでは setBanner('io', null) の呼び出しを
+    // 確認したことにならない
+    captureImagePngMock.mockRejectedValueOnce(new Error('canvas failed'))
+    fireEvent.click(copyButton)
+    expect(await screen.findByText('画像をコピーできませんでした: canvas failed')).toBeTruthy()
+
+    captureImagePngMock.mockResolvedValueOnce(bytes)
+    fireEvent.click(copyButton)
+
+    await waitFor(() => expect(copyImageToClipboardMock).toHaveBeenCalledWith(bytes))
+    expect(await screen.findByText('画像をクリップボードにコピーしました')).toBeTruthy()
+    expect(screen.queryByText(/画像をコピーできませんでした/)).toBeNull()
+  })
+
+  it('保存キャンセル: askSaveImagePath が null を返したら、書き込みもバナーもトーストも起きない', async () => {
+    askSaveImagePathMock.mockResolvedValueOnce(null)
+    await openLogicTree()
+
+    fireEvent.click(screen.getByRole('button', { name: '画像で保存' }))
+
+    await waitFor(() => expect(askSaveImagePathMock).toHaveBeenCalled())
+    // マイクロタスクを流し切ってから「何も起きていない」ことを確認する
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(writeProjectImageFileMock).not.toHaveBeenCalled()
+    expect(screen.queryByText(/画像を書き出しました/)).toBeNull()
+    expect(screen.queryByText(/画像を書き出せませんでした/)).toBeNull()
+  })
+
+  it('キャプチャ失敗: io バナーにエラー文言が出て、トーストは出ない', async () => {
+    captureImagePngMock.mockRejectedValueOnce(new Error('canvas failed'))
+    const copyButton = await openLogicTree()
+
+    fireEvent.click(copyButton)
+
+    expect(await screen.findByText('画像をコピーできませんでした: canvas failed')).toBeTruthy()
+    expect(screen.queryByText('画像をクリップボードにコピーしました')).toBeNull()
+  })
+
+  it('**保存ダイアログはキャプチャが解決したあとにだけ開く**（決定9）', async () => {
+    let resolveCapture: ((bytes: Uint8Array<ArrayBuffer>) => void) | null = null
+    captureImagePngMock.mockImplementationOnce(
+      () =>
+        new Promise<Uint8Array<ArrayBuffer>>((resolve) => {
+          resolveCapture = resolve
+        }),
+    )
+    await openLogicTree()
+
+    fireEvent.click(screen.getByRole('button', { name: '画像で保存' }))
+    await waitFor(() => expect(captureImagePngMock).toHaveBeenCalled())
+
+    // キャプチャがまだ解決していない間は、保存ダイアログを開いてはいけない
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(askSaveImagePathMock).not.toHaveBeenCalled()
+
+    act(() => {
+      resolveCapture?.(new Uint8Array([9]))
+    })
+    await waitFor(() => expect(askSaveImagePathMock).toHaveBeenCalled())
   })
 })

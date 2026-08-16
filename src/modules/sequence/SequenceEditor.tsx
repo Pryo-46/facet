@@ -280,7 +280,14 @@ export function SequenceEditor({
 
   // 画像出力対象のDOM層を額縁へ公開する（M18）。3レイヤのいずれかが
   // まだマウントされていなければ null（額縁側は null を「まだキャプチャできない」
-  // として扱う）。ref オブジェクト自体は毎レンダー同じなので、空配列でよい
+  // として扱う）。ref オブジェクト自体は毎レンダー同じなので、空配列でよい。
+  //
+  // **型引数を明示すること。** `captureRef` は `Ref<CaptureLayers | null>` だが、
+  // useImperativeHandle は `<T, R extends T>` で、T の推論は Ref の内部にある
+  // RefObject（共変）と RefCallback（反変、優先度が高い）の2候補に割れ、
+  // 後者が勝つと T が `CaptureLayers`（null を含まない）に狭まってしまう。
+  // 型引数を両方 `CaptureLayers | null` に固定して R extends T を満たしつつ、
+  // 狭まりを止める（logic-tree モジュールの Task 8 で踏んだのと同じ罠）
   useImperativeHandle<CaptureLayers | null, CaptureLayers | null>(
     captureRef,
     () => {

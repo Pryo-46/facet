@@ -77,10 +77,19 @@ export async function captureImagePng(
     if (blob === null) throw new Error('画像の生成に失敗しました')
     return new Uint8Array(await blob.arrayBuffer())
   } finally {
+    // **無条件には書き戻さない。** await の間に他の誰か（d3-zoom のパン/ズーム等）が
+    // この要素の transform を書き換えていたら、その値が正——ここで identity のまま
+    // 退避値へ戻すと、React state は新しい transform を指しているのに DOM だけ
+    // キャプチャ前の値に固定される。React はレンダー前後で vdom の値が変わらない
+    // 限り DOM へ書き戻さないため（新しい値は既に vdom に反映済み）、
+    // 一度この状態に落ちるとユーザーが再度パン/ズームするまで直らない。
+    // 「まだ自分が書いた identity のまま」の要素だけを復元することで、
+    // 割り込んだ側の書き込みを保護する
     layers.cssLayers.forEach((el, i) => {
-      el.style.transform = cssOriginal[i]
+      if (el.style.transform === IDENTITY_CSS_TRANSFORM) el.style.transform = cssOriginal[i]
     })
     layers.svgLayers.forEach((el, i) => {
+      if (el.getAttribute('transform') !== IDENTITY_SVG_TRANSFORM) return
       const original = svgOriginal[i]
       if (original === null) el.removeAttribute('transform')
       else el.setAttribute('transform', original)

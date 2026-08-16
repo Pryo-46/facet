@@ -33,6 +33,10 @@ export const sequenceModule: ToolModule<SequenceSchemaVersion1> = {
   ],
   imageOutputs: [
     { id: 'with-gutter', label: '問いを含む', fileSuffix: '' },
+    // **既知の限界: ガター列ぶん（約470px）の空白が右側に残る。**
+    // `excludeRoles` は `filter` に渡って描画だけを止めるが、キャンバスサイズは
+    // `root.scrollWidth`（ガター込みで実測）から取るため縮まない。
+    // 詳細と候補案2つは docs/open-issues.md の `[M18]` の当該項目を参照
     { id: 'without-gutter', label: '問いを含めない', fileSuffix: '-simple', excludeRoles: ['gutter'] },
   ],
   // プロジェクトにシーケンスは何本あってもよい（機能ごとに分けるのが普通の使い方）

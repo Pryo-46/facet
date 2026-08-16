@@ -131,7 +131,9 @@ describe('captureImagePng', () => {
       get: () => (layers.cssLayers[0].style.transform === 'translate(0px, 0px) scale(1)' ? 600 : 100),
     })
     let capturedOptions: { width: number; height: number } | null = null
-    toBlob.mockImplementation(async (_node, options) => {
+    let capturedNode: HTMLElement | null = null
+    toBlob.mockImplementation(async (node, options) => {
+      capturedNode = node
       capturedOptions = options as { width: number; height: number }
       return new Blob([new Uint8Array([1])])
     })
@@ -139,5 +141,28 @@ describe('captureImagePng', () => {
     await captureImagePng(layers)
 
     expect(capturedOptions).toEqual(expect.objectContaining({ width: 900, height: 600 }))
+    // toBlob に渡すのは layers.root そのもの。cssLayers[0] のような子レイヤを
+    // 渡す実装でもこのテストの他のアサーションは緑になりうるので、ここで固定する
+    expect(capturedNode).toBe(layers.root)
+  })
+
+  it('キャプチャ中に他所（パン/ズーム等）が transform を書き換えたら、復元でそれを上書きしない', async () => {
+    const layers = makeLayers()
+    toBlob.mockImplementation(async () => {
+      // toBlob の最中に「ユーザーが Ctrl+ホイールでズームした」ことをシミュレートする。
+      // d3-zoom → setTransform → React 再レンダーが DOM へ新しい transform を
+      // 書き込む状況に相当する
+      layers.cssLayers[0].style.transform = 'translate(99px, 99px) scale(2)'
+      layers.svgLayers[0].setAttribute('transform', 'translate(99,99) scale(2)')
+      return new Blob([new Uint8Array([1])])
+    })
+
+    await captureImagePng(layers)
+
+    // 割り込んで書かれた新しい値が生き残る。キャプチャ前の値へ巻き戻ってはいけない
+    expect(layers.cssLayers[0].style.transform).toBe('translate(99px, 99px) scale(2)')
+    expect(layers.svgLayers[0].getAttribute('transform')).toBe('translate(99,99) scale(2)')
+    // 割り込みが起きなかった cssLayers[1] は通常どおり元の値へ戻る
+    expect(layers.cssLayers[1].style.transform).toBe('translate(40px, 40px) scale(1.5)')
   })
 })
