@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 
@@ -52,6 +53,9 @@ const {
   syncReadingGuideMock,
   disk,
   writeProjectFileMock,
+  saveLastProjectDirMock,
+  restoreConfig,
+  allowProjectDirCalls,
 } = vi.hoisted(() => ({
   closeState: { callback: null as (() => Promise<boolean>) | null },
   killAllPtysMock: vi.fn(async () => undefined),
@@ -64,6 +68,11 @@ const {
   syncReadingGuideMock: vi.fn(async () => undefined),
   disk: new Map<string, string>(),
   writeProjectFileMock: vi.fn(async (_path: string, _text: string) => undefined),
+  saveLastProjectDirMock: vi.fn(async (_dir: string) => undefined),
+  // 起動時復元専用の可変状態。既定は「復元対象パス無し」——このファイルの
+  // 既存テストはどれも起動時復元を前提にしていないので、既定を変えない
+  restoreConfig: { lastDir: null as string | null, exists: false, allowError: null as Error | null },
+  allowProjectDirCalls: [] as string[],
 }))
 
 vi.mock('@/fs/project-fs', () => ({
@@ -75,11 +84,19 @@ vi.mock('@/fs/project-fs', () => ({
   listJsonFiles: async () => [...disk.keys()],
   readProjectFile: async (path: string) => disk.get(path) ?? '',
   writeProjectFile: writeProjectFileMock,
-  fileExists: async () => false,
+  fileExists: async () => restoreConfig.exists,
+  allowProjectDir: async (dir: string) => {
+    allowProjectDirCalls.push(dir)
+    if (restoreConfig.allowError !== null) throw restoreConfig.allowError
+  },
   moveFileToTrash: async () => undefined,
   joinPath: async (dir: string, name: string) => `${dir}/${name}`,
   watchFolder: async () => () => undefined,
   askSaveMarkdownPath: async () => null,
+}))
+vi.mock('@/fs/settings-fs', () => ({
+  readLastProjectDir: async () => restoreConfig.lastDir,
+  saveLastProjectDir: saveLastProjectDirMock,
 }))
 vi.mock('@/fs/app-window', () => ({
   interceptClose: async (beforeClose: () => Promise<boolean>) => {
@@ -187,6 +204,11 @@ afterEach(() => {
   skillCalls.length = 0
   disk.clear()
   writeProjectFileMock.mockClear()
+  saveLastProjectDirMock.mockClear()
+  restoreConfig.lastDir = null
+  restoreConfig.exists = false
+  restoreConfig.allowError = null
+  allowProjectDirCalls.length = 0
 })
 /**
  * **止めたままの同期を次のテストへ持ち越さない（レビュー指摘）。**
@@ -345,6 +367,14 @@ describe('フォルダ切替', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
     // 実行中のタブが無いので、確認ダイアログは出ていない
     expect(screen.queryByRole('button', { name: '終了して切り替える' })).toBeNull()
+  })
+})
+
+describe('最後に開いたフォルダの保存', () => {
+  it('フォルダを開くと保存する', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await waitFor(() => expect(saveLastProjectDirMock).toHaveBeenCalledWith('/proj'))
   })
 })
 
@@ -606,5 +636,61 @@ describe('指摘バナーと額縁の配線（M14）', () => {
     // できないので、その投影である DOM 順（バナー → エディタ）を固定する。
     // これが崩れる壊れ方＝バナーをエディタ内・エディタ下へ移す配線ミス
     expect(item.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+describe('起動時のフォルダ復元', () => {
+  it('保存済みパスがあり実在すれば自動で開く', async () => {
+    restoreConfig.lastDir = '/restored'
+    restoreConfig.exists = true
+    render(<App />)
+    await waitFor(() => expect(screen.getByTitle('/restored')).toBeTruthy())
+    expect(allowProjectDirCalls).toEqual(['/restored'])
+    // 復元が `openProject` の全パイプライン（Skill 同期・読み方ガイド配置を
+    // 含む）に正しく乗っていることを直接検証する（最終レビュー指摘）
+    await waitFor(() => {
+      expect(syncReadingGuideMock).toHaveBeenCalledWith('/restored', expect.anything())
+    })
+  })
+
+  it('保存済みパスが無ければ何も開かず通常起動する', async () => {
+    render(<App />)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(allowProjectDirCalls).toEqual([])
+    // `disabled={projectDir === null}`（`App.tsx`）。フォルダが開いていなければ
+    // 無効のまま——`openPane()` ヘルパーが「開けたか」を見るのと同じ指標
+    expect(screen.getByRole('button', { name: 'Claude Code ペインを開く' }).hasAttribute('disabled')).toBe(true)
+  })
+
+  it('保存済みパスが実在しなければ何も開かず通常起動する', async () => {
+    restoreConfig.lastDir = '/gone'
+    restoreConfig.exists = false
+    render(<App />)
+    await waitFor(() => expect(allowProjectDirCalls).toEqual(['/gone']))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByTitle('/gone')).toBeNull()
+  })
+
+  it('scope の再付与が失敗しても通常起動にフォールバックする', async () => {
+    restoreConfig.lastDir = '/restored'
+    restoreConfig.exists = true
+    restoreConfig.allowError = new Error('forbidden path')
+    render(<App />)
+    await waitFor(() => expect(allowProjectDirCalls).toEqual(['/restored']))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByTitle('/restored')).toBeNull()
+  })
+
+  it('StrictMode の二重マウントでも復元は1回しか走らない', async () => {
+    restoreConfig.lastDir = '/restored'
+    restoreConfig.exists = true
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    )
+    await waitFor(() => expect(screen.getByTitle('/restored')).toBeTruthy())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(allowProjectDirCalls).toEqual(['/restored'])
   })
 })

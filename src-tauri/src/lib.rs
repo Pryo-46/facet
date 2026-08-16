@@ -41,6 +41,30 @@ fn allow_skill_dir(app: tauri::AppHandle, dir: String, skills: Vec<String>) -> R
     Ok(())
 }
 
+/// プロジェクトフォルダを fs プラグインの実行時 scope に入れる。
+///
+/// フォルダ選択ダイアログが入れる scope はセッション限りで、次回起動には
+/// 引き継がれない。**起動時に前回のフォルダを自動で復元する**ときはダイアログ
+/// を経由しないため、ここで明示的に取り直す。判断は一切置かない
+/// （`allow_skill_dir` と同じ姿勢。rev 7章）
+///
+/// **前提条件チェック（判断ではない）: `dir` が空文字列なら `Err` を返す。**
+/// 最終ブランチレビューで見つかった欠陥への防御——tauri-2.11.5 の scope 実装は
+/// 空パスに `MAIN_SEPARATOR + "**"` を足すため、`allow_directory(Path::new(""), true)`
+/// は unix では `/**`（fs の実行時 scope をファイルシステム全体へ広げる）に
+/// なる。呼び出し元（`src/fs/settings-fs.ts` の `readLastProjectDir`）は既に
+/// 空文字列を `null` として弾くが、ここでも弾いておく
+#[tauri::command]
+fn allow_project_dir(app: tauri::AppHandle, dir: String) -> Result<(), String> {
+    if dir.is_empty() {
+        return Err("dir must not be empty".to_string());
+    }
+    let scope = app.fs_scope();
+    scope
+        .allow_directory(std::path::Path::new(&dir), true)
+        .map_err(|e| e.to_string())
+}
+
 /// ファイルを OS のゴミ箱へ移す。
 ///
 /// Tauri の fs プラグインにゴミ箱 API が無く、
@@ -69,6 +93,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             move_to_trash,
             allow_skill_dir,
+            allow_project_dir,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,
