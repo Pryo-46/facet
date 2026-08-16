@@ -5,31 +5,31 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import type { OutputProfile } from '@/core/registry'
 
 /**
- * 出力の実行口（rev 8章。コピーと .md 書き出しの両方）。
+ * 出力の実行口（rev 8章。コピーと書き出しの両方）。M18 でジェネリック化し、
+ * Markdown（`OutputProfile`）と画像（`ImageOutputProfile`）の両方に使い回す
+ *（両者とも `id`/`label` は持つが `fileSuffix` 以降の形が違うため、
+ * このコンポーネントが実際に読むのは `id`/`label` だけに絞ってある）。
  *
  * **プロファイルが1本のときはドロップダウンを出さない。** 選択肢が1つしかない
- * メニューは操作を1手増やすだけで何も選ばせない。用語集は1本なので、
- * M8 までと同じ2つのボタンがそのまま出る
+ * メニューは操作を1手増やすだけで何も選ばせない
  */
-export interface ExportMenuProps {
-  outputs: readonly OutputProfile<unknown>[]
+export interface ExportMenuProps<P extends { id: string; label: string }> {
+  outputs: readonly P[]
   /** 出力できる状態にないとき（ファイル未選択・編集中データなし） */
   disabled: boolean
-  onCopy: (profile: OutputProfile<unknown>) => void
-  onExport: (profile: OutputProfile<unknown>) => void
+  copyLabel: string
+  exportLabel: string
+  onCopy: (profile: P) => void
+  onExport: (profile: P) => void
 }
 
-const COPY_LABEL = 'Markdown をコピー'
-const EXPORT_LABEL = 'Markdown を書き出す'
-
-function ProfileMenu(props: {
+function ProfileMenu<P extends { id: string; label: string }>(props: {
   label: string
-  outputs: readonly OutputProfile<unknown>[]
+  outputs: readonly P[]
   disabled: boolean
-  onPick: (profile: OutputProfile<unknown>) => void
+  onPick: (profile: P) => void
 }) {
   return (
     <DropdownMenu>
@@ -49,12 +49,19 @@ function ProfileMenu(props: {
   )
 }
 
-export function ExportMenu({ outputs, disabled, onCopy, onExport }: ExportMenuProps) {
+export function ExportMenu<P extends { id: string; label: string }>({
+  outputs,
+  disabled,
+  copyLabel,
+  exportLabel,
+  onCopy,
+  onExport,
+}: ExportMenuProps<P>) {
   if (outputs.length > 1) {
     return (
       <>
-        <ProfileMenu label={COPY_LABEL} outputs={outputs} disabled={disabled} onPick={onCopy} />
-        <ProfileMenu label={EXPORT_LABEL} outputs={outputs} disabled={disabled} onPick={onExport} />
+        <ProfileMenu label={copyLabel} outputs={outputs} disabled={disabled} onPick={onCopy} />
+        <ProfileMenu label={exportLabel} outputs={outputs} disabled={disabled} onPick={onExport} />
       </>
     )
   }
@@ -68,14 +75,14 @@ export function ExportMenu({ outputs, disabled, onCopy, onExport }: ExportMenuPr
         disabled={disabled || only === undefined}
         onClick={() => only !== undefined && onCopy(only)}
       >
-        {COPY_LABEL}
+        {copyLabel}
       </Button>
       <Button
         variant="outline"
         disabled={disabled || only === undefined}
         onClick={() => only !== undefined && onExport(only)}
       >
-        {EXPORT_LABEL}
+        {exportLabel}
       </Button>
     </>
   )

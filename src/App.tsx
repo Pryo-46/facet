@@ -655,6 +655,8 @@ function App() {
           <ExportMenu
             outputs={selectedModule?.outputs ?? []}
             disabled={!canExport}
+            copyLabel="Markdown をコピー"
+            exportLabel="Markdown を書き出す"
             onCopy={(profile) => void controller.copyMarkdown(profile)}
             onExport={(profile) => void controller.exportMarkdown(profile)}
           />
