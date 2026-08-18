@@ -4,7 +4,7 @@
 
 M18 は「起動時、直近に開いていたフォルダを自動で開く」機能を追加するマイルストーンで、実装計画は [`../superpowers/plans/2026-08-16-restore-last-folder.md`](../superpowers/plans/2026-08-16-restore-last-folder.md)（設計は [`../superpowers/specs/2026-08-16-restore-last-folder-design.md`](../superpowers/specs/2026-08-16-restore-last-folder-design.md)）。
 
-コミット範囲: `f383254`（設計）〜`2a05a8a`（Task 4）＋ Task 5（本コミット）。タスクとコミットの対応は Task 1 = `6a86181`（`src/fs/settings-fs.ts` 新設）、Task 2 = `0261cef`（Rust コマンド `allow_project_dir`）、Task 3 = `f1d30da`（フォルダを開いたら保存）、Task 4 = `2a05a8a`（起動時に復元）、Task 5 = 本コミット（全体検証＋申し送り）。最終状態は `npm test` 114 files / 1411 tests 全緑、`npx tsc -b` / `npm run lint` エラー・警告無し、`cargo build` / `cargo test`（既存1本 `pty::tests::kill_is_not_blocked_by_a_stuck_write`）緑。
+コミット範囲: `38fd39c`（設計）〜`d63f43e`（Task 4）＋ Task 5（本コミット）。タスクとコミットの対応は Task 1 = `d6f59a6`（`src/fs/settings-fs.ts` 新設）、Task 2 = `f6faa6e`（Rust コマンド `allow_project_dir`）、Task 3 = `4bb770d`（フォルダを開いたら保存）、Task 4 = `d63f43e`（起動時に復元）、Task 5 = 本コミット（全体検証＋申し送り）。最終状態は `npm test` 114 files / 1411 tests 全緑、`npx tsc -b` / `npm run lint` エラー・警告無し、`cargo build` / `cargo test`（既存1本 `pty::tests::kill_is_not_blocked_by_a_stuck_write`）緑。
 
 ---
 

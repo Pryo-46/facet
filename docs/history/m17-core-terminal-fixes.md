@@ -4,7 +4,7 @@
 
 M17 は M11 で作った Claude Code 端末ペインに残っていた `[M11]` の6件——端末の中だけライト表示でも暗い／起動待ちの入力が無音で消える／`killAllPtys` が `starting` の PTY を取りこぼす／`TerminalTab` がアンマウント時に自分の PTY を殺さない／実行中のタブが無いフォルダ切替で `closeAll` を通らない／`pty_write` が Mutex を握ったままブロッキング書き込みをする——を潰すマイルストーンで、実装計画は [`../superpowers/plans/2026-08-15-m17-terminal-fixes.md`](../superpowers/plans/2026-08-15-m17-terminal-fixes.md)（決定1〜6 が設計判断）。
 
-コミット範囲: `453e8a9`（計画）〜`0414a4d`（Task 6）。タスクとコミットの対応は Task 1 = `641a46b`、Task 2 = `c4afb10` ＋ `642b64c`（既存テストの追従）、Task 3 = `b3e70a8` ＋ `7e3c0ec`（レビュー指摘によるテスト追加）、Task 4 = `2371c93`、Task 5 = `f016d41`、Task 6 = `a238a6f` ＋ `0414a4d`（テストの落ち方の修正）。最終状態は `npm test` 113 files / 1397 tests 全緑、`npx tsc -b` / `npm run lint` / `cargo test`（1本）/ `cargo build` 緑。Task 5 は `npx vite build` の生成 CSS を変更前と比較し、**ファイル名も内容もバイト一致**であることを確認している（役割トークンを実行時に読むだけで CSS は1バイトも変えていないことの裏取り）。Task 7（実機確認）は**人間が mac 実機で一巡し、問題なし**——下記「実機確認（Task 7）」を参照。
+コミット範囲: `a86feb5`（計画）〜`de17477`（Task 6）。タスクとコミットの対応は Task 1 = `e5b60a9`、Task 2 = `db7d044` ＋ `ce18a02`（既存テストの追従）、Task 3 = `7397976` ＋ `e38b3ef`（レビュー指摘によるテスト追加）、Task 4 = `3198405`、Task 5 = `5eddf40`、Task 6 = `d24143b` ＋ `de17477`（テストの落ち方の修正）。最終状態は `npm test` 113 files / 1397 tests 全緑、`npx tsc -b` / `npm run lint` / `cargo test`（1本）/ `cargo build` 緑。Task 5 は `npx vite build` の生成 CSS を変更前と比較し、**ファイル名も内容もバイト一致**であることを確認している（役割トークンを実行時に読むだけで CSS は1バイトも変えていないことの裏取り）。Task 7（実機確認）は**人間が mac 実機で一巡し、問題なし**——下記「実機確認（Task 7）」を参照。
 
 ---
 
@@ -33,11 +33,11 @@ M17 は M11 で作った Claude Code 端末ペインに残っていた `[M11]` �
 
 ### 3. 計画が書いたテスト5本は、世代ゲートを丸ごと落としても全部緑のまま通った（Task 3・レビューが発見）
 
-`pty_kill` が飛ぶという事実は**待ち合わせだけで満たされ**、「全殺しのあとに載る」形のテストは逐次実行なのでゲート無しでも通っていた。**識別力のあるテストを1本足した**（`7e3c0ec`）——レースのあともう一度 `killAllPtys()` を呼び、同じ id へ kill が飛ばないこと（＝台帳に幽霊が残っていないこと）を見る形で、`generation === startedAt` を一時的に外すとこのテストだけが落ちることを実測した。
+`pty_kill` が飛ぶという事実は**待ち合わせだけで満たされ**、「全殺しのあとに載る」形のテストは逐次実行なのでゲート無しでも通っていた。**識別力のあるテストを1本足した**（`e38b3ef`）——レースのあともう一度 `killAllPtys()` を呼び、同じ id へ kill が飛ばないこと（＝台帳に幽霊が残っていないこと）を見る形で、`generation === startedAt` を一時的に外すとこのテストだけが落ちることを実測した。
 
 ### 4. `TerminalTab` の cleanup が kill するようになったことで、既存の M11 テストの assert が成立しなくなった（Task 2）
 
-`src/App.dom.test.tsx` の「確認待ちの間にタブが自然終了しても壊れない（古い ptyId で kill を呼ばない）」は `expect(ptyKillMock).not.toHaveBeenCalled()` だったが、**呼び出し元が2つ（`closeTerminalNow` と cleanup）になったので「0回」は成立しない。** `expect(ptyKillMock.mock.calls).toEqual([[1]])`（ちょうど1回・id は 1）へ変えた（`642b64c`）——M11 の退行（controller が自然終了前の古い ptyId で殺す）が戻れば2回になるので、**識別力は保たれる。**
+`src/App.dom.test.tsx` の「確認待ちの間にタブが自然終了しても壊れない（古い ptyId で kill を呼ばない）」は `expect(ptyKillMock).not.toHaveBeenCalled()` だったが、**呼び出し元が2つ（`closeTerminalNow` と cleanup）になったので「0回」は成立しない。** `expect(ptyKillMock.mock.calls).toEqual([[1]])`（ちょうど1回・id は 1）へ変えた（`ce18a02`）——M11 の退行（controller が自然終了前の古い ptyId で殺す）が戻れば2回になるので、**識別力は保たれる。**
 
 余分な kill が無害であることは確認済み: `pty_kill` は既に消えた id に対して `sessions.remove` が `None` を返すだけで何もせず、`next_id` は単調増加なので他人の PTY を殺すこともない。
 
@@ -74,7 +74,7 @@ JSDoc は「色の検証に使う計算。**アプリの実行時には使わな
 ## 実装の過程で出たこと
 
 - **計画のテストコードには Rust のコンパイルエラーが2件あった**（`move` 不足。E0373 / E0505）。実装者が機械的に修正した——`let state = &state;` を置いてから両方のクロージャを `move` にする形。
-- **計画は「古い錠前の実装では2秒で FAIL する」と書いていたが、実際には無期限にハングした。** `std::thread::scope` は panic を伝播する前に spawn したスレッドの join を待つが、古い錠前ではその2本とも錠前待ちで畳めない。**退行したときに固まるテストは診断が読めない**ので、判定（`done_rx.recv_timeout`）を先に取り、`gate_tx.send(())` で書き込みを解放してから assert する形へ直した（`0414a4d`）。直した後、錠前を一時的に戻して**2.01秒で期待どおりのメッセージを出して落ちる**ことを実測した。
+- **計画は「古い錠前の実装では2秒で FAIL する」と書いていたが、実際には無期限にハングした。** `std::thread::scope` は panic を伝播する前に spawn したスレッドの join を待つが、古い錠前ではその2本とも錠前待ちで畳めない。**退行したときに固まるテストは診断が読めない**ので、判定（`done_rx.recv_timeout`）を先に取り、`gate_tx.send(())` で書き込みを解放してから assert する形へ直した（`de17477`）。直した後、錠前を一時的に戻して**2.01秒で期待どおりのメッセージを出して落ちる**ことを実測した。
 
 ---
 

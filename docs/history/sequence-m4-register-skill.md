@@ -4,9 +4,9 @@
 
 sequence M4 は「**仕様を詰める会話の最後に『じゃあこれでシーケンス図作って』と言えば、その会話が `type: "sequence"` の JSON になる**」ための Skill（`.claude/skills/sequence-register/`）を作るマイルストーンで、設計スペックは [`../superpowers/specs/2026-08-12-sequence-register-skill-design.md`](../superpowers/specs/2026-08-12-sequence-register-skill-design.md)、実装計画は [`../superpowers/plans/2026-08-12-sequence-m4-register-skill.md`](../superpowers/plans/2026-08-12-sequence-m4-register-skill.md)。
 
-コミット範囲: `07eda85`（設計スペック）〜 本コミット。計画は Task 1〜10 の10本だったが、**実機確認（Task 9）が計画に無い欠陥を掘り当て、その修正がさらに2段階の欠陥を露わにしたため、計画外の Task 8b・8c が生えた**。fix round が入ったのは Task 2（2巡）・Task 5（1巡）・Task 7（1巡）・Task 8c（2巡）の4タスク・計6巡。**Skill を作るマイルストーンなのに、`src/` の追加行の約8割（663行中520行）はコア（`src/core/skill-sync.ts` / `src/App.tsx` / `src/fs/skill-resources.ts` と、その各テスト）に入った**——後述の実機確認がそこを掘ったためである。
+コミット範囲: `7d514f7`（設計スペック）〜 本コミット。計画は Task 1〜10 の10本だったが、**実機確認（Task 9）が計画に無い欠陥を掘り当て、その修正がさらに2段階の欠陥を露わにしたため、計画外の Task 8b・8c が生えた**。fix round が入ったのは Task 2（2巡）・Task 5（1巡）・Task 7（1巡）・Task 8c（2巡）の4タスク・計6巡。**Skill を作るマイルストーンなのに、`src/` の追加行の約8割（663行中520行）はコア（`src/core/skill-sync.ts` / `src/App.tsx` / `src/fs/skill-resources.ts` と、その各テスト）に入った**——後述の実機確認がそこを掘ったためである。
 
-途中で `origin/main` を取り込んでいる（`101ba55`）。mac の fs scope 修正（`fbd10dd`、PR #19）を含み、競合は無かった。この修正が持ち込んだ `require_literal_leading_dot` の性質が、後述の `.DS_Store` の件でそのまま効いてくる。なお `npm install` が `package-lock.json` を揺らした（`peer: true` の付与と optional な `@emnapi/*` の削除）が、プラットフォーム由来の差分なので revert した。
+途中で `origin/main` を取り込んでいる（`8bd1886`）。mac の fs scope 修正（`a6aed92`、PR #19）を含み、競合は無かった。この修正が持ち込んだ `require_literal_leading_dot` の性質が、後述の `.DS_Store` の件でそのまま効いてくる。なお `npm install` が `package-lock.json` を揺らした（`peer: true` の付与と optional な `@emnapi/*` の削除）が、プラットフォーム由来の差分なので revert した。
 
 ---
 
@@ -54,13 +54,13 @@ sequence M4 は「**仕様を詰める会話の最後に『じゃあこれでシ
 
 代償は open-issues が `palette-fit.mjs` について記録しているのと同じ「Node の型ストリップへの依存」で、これは残る（`.mjs` から `.ts` を import している）。ただし**こちらは生えた瞬間にテストが赤くなる**点が違い、その差は open-issues の当該項目に併記した。
 
-**`canonical.ts` のコピーは計画に無かった。** 当初は `reorder` / `deref` を既存2本の Skill から手で複製する計画で、着手前のスキャンで `canonical.ts` が import を持たないことを実測し、**人間に諮って**コピー方式へ変えた（`3c8d3b2`）。結果として、正規形を作る実装が**3本の Skill で2方式に分かれた**——既存2本は手複製のままである。これは open-issues に繰り越した。
+**`canonical.ts` のコピーは計画に無かった。** 当初は `reorder` / `deref` を既存2本の Skill から手で複製する計画で、着手前のスキャンで `canonical.ts` が import を持たないことを実測し、**人間に諮って**コピー方式へ変えた（`50e8e9b`）。結果として、正規形を作る実装が**3本の Skill で2方式に分かれた**——既存2本は手複製のままである。これは open-issues に繰り越した。
 
 ### `readSlot` を `questions.ts` へ移した（4本目の複製を作らないため）
 
 未定義の集計（⚠ 未定義 N ／ ✓ 回答済 N ／ ─ 考慮不要 N）を**アプリのガターと同じ規則で**出すには、答えスロットを読む関数が要る。`unknown` が下位の `ifExecuted` を内包する形なので素直なプロパティアクセスにならず、**この読み方はコードベースで既に3本に複製されていた**（sequence M2 からの既知の負債）。sequence M3 は `commands.ts` の `readSlot` を export して4本目を作らずに済ませ、**その旨のコメントを残していた**。
 
-Skill が `commands.ts` を import することはできない（値 import を持つ）。そこで **`readSlot` を `questions.ts` へ移し**（Task 1、`ca7aa7f`）、`commands.ts` / `markdown.ts` / `SequenceEditor.tsx` がそこを見るようにした。`SequenceEditor.tsx` のローカル複製 `readAnswer` はこのとき消えている。**Skill は「4本目の複製」ではなく、集約先そのもののバイト一致コピーを持つ。**
+Skill が `commands.ts` を import することはできない（値 import を持つ）。そこで **`readSlot` を `questions.ts` へ移し**（Task 1、`13d6186`）、`commands.ts` / `markdown.ts` / `SequenceEditor.tsx` がそこを見るようにした。`SequenceEditor.tsx` のローカル複製 `readAnswer` はこのとき消えている。**Skill は「4本目の複製」ではなく、集約先そのもののバイト一致コピーを持つ。**
 
 後方互換の再輸出は置かなかった（`markdown.ts` が直接 `./questions` を見るようになるため死んだコードになる。これは着手前のスキャンで計画から削った2件のうちの1件）。
 
@@ -98,13 +98,13 @@ Skill をプロジェクトへ配置できませんでした（Skill 無しで�
 3. `readBundled`（`src/fs/skill-resources.ts`）は `resolveResource('skills/<名前>')` の配下を無条件に再帰収集し、「何を置くか」の判断を `shouldSyncSkillFile` に完全に委ねている
 4. その `shouldSyncSkillFile` は `evals/` と直下の `package.json` / `.gitignore` しか除外していなかったので、数千ファイルの依存をプロジェクトフォルダへ書きに行き、許可スコープ外のドットファイルで落ちた
 
-**利用者が置いた先で `npm install` しても、それが読まれることはない**（読み出し元は同梱リソースだけ）。したがって**引き金は「ビルド前に開発者がリポジトリの Skill ディレクトリで `npm install` している」ことである**。既存2本のディレクトリで同じことをしていれば同じ結果になったはずで（今のリポジトリで `node_modules` があるのは `sequence-register` だけ）、**3本目を作って初めて条件が揃った潜在欠陥**である。`node_modules` を同期対象から外して解決した（`3ad2925`）。
+**利用者が置いた先で `npm install` しても、それが読まれることはない**（読み出し元は同梱リソースだけ）。したがって**引き金は「ビルド前に開発者がリポジトリの Skill ディレクトリで `npm install` している」ことである**。既存2本のディレクトリで同じことをしていれば同じ結果になったはずで（今のリポジトリで `node_modules` があるのは `sequence-register` だけ）、**3本目を作って初めて条件が揃った潜在欠陥**である。`node_modules` を同期対象から外して解決した（`7df2879`）。
 
 ### 段階2（Task 8c の3件）: 同期のタイミング・`node_modules` の削除・「読む前に消す」
 
 段階1 を直した実装者が、**直したことで新しく成立する問題**を報告した——`syncBundledSkills` は Skill ディレクトリを丸ごと消して置き直すので、`node_modules` を「置かない」だけにすると、**同期のたびにユーザーの `npm install` が消えて復元されない**。しかもその同期は `openTerminal` から呼ばれており、**端末タブの「＋」を押すたびに走る**。Skill はプロジェクトに属するものであって端末セッションに属するものではない。
 
-同じ削除処理に集まる3件として、M11 から open-issues に載っていた**読む前に消す**（`readBundled` が失敗するとプロジェクト側の Skill が消えたまま復旧しない）も併せて直した（`3c0d40b`〜`96b0314`）:
+同じ削除処理に集まる3件として、M11 から open-issues に載っていた**読む前に消す**（`readBundled` が失敗するとプロジェクト側の Skill が消えたまま復旧しない）も併せて直した（`3f4e933`〜`f2b11bb`）:
 
 1. 同期を `projectDir` の effect へ移した（フォルダ1つにつき1回。`openFolder` / `switchFolder` / 将来の起動時復元がすべて自動的に1本にまとまる）
 2. 削除を**直下の要素ごと**にし、`node_modules` を保護した（`SKILL_DEPS_DIR` 定数1つを「置かない」と「消さない」の両方が参照する。片方だけだと `npm install` が毎回巻き戻る）
@@ -141,22 +141,22 @@ Skill をプロジェクトへ配置できませんでした（Skill 無しで�
 
 **6件あり、いずれも実装ではなく計画が誤っていた。** 次の計画者にとって本書で最も有用なのはこの節である。
 
-1. **整合性警告の文言3件が `src/modules/sequence/consistency.ts` と食い違っていた**（Task 5）。参照切れ（`#N の from（actor_XXX）が参加者にありません` ↔ 実装は `#N の from が指す参加者が存在しません: actor_XXX`）、`self` に `to` がある場合（実装は直し方まで言う長い文言）など。実装者はブリーフの「ブリーフが正」という指示に従って転記したうえで**食い違いを報告した**（正しい対応）。レビューで3件ともアプリ側が正と判定し、`db5086f` で揃えた。計画ファイル自体も `4fcc466` で訂正した
+1. **整合性警告の文言3件が `src/modules/sequence/consistency.ts` と食い違っていた**（Task 5）。参照切れ（`#N の from（actor_XXX）が参加者にありません` ↔ 実装は `#N の from が指す参加者が存在しません: actor_XXX`）、`self` に `to` がある場合（実装は直し方まで言う長い文言）など。実装者はブリーフの「ブリーフが正」という指示に従って転記したうえで**食い違いを報告した**（正しい対応）。レビューで3件ともアプリ側が正と判定し、`9fb0a57` で揃えた。計画ファイル自体も `e3d09d6` で訂正した
 2. **ID 重複の計上規則がアプリと違っていた**（Task 5、Critical）。計画は「重複した2件目以降の出現ごとに1件」警告する形だったが、アプリは **id 単位で1件**（全出現をまとめて1 issue）。同じ id が3回出ると計画実装は2件・アプリは1件で、**未定義の集計と同じく「アプリと数字が食い違う」形の欠陥**だった
-3. **grader のディレクトリ規約と `grading.json` の形が、兄弟2本のどちらとも食い違っていた**（Task 7）。計画は `ITER` 直下の「名前に数字を含むディレクトリ」を1 run として平坦に走査する独自方式で、既存2本の `eval-N/{with_skill,without_skill}` 規約と噛み合わない。`eval-0/with_skill` と `eval-0/without_skill` を両方置くと `eval-0` を1 run として扱って両方のファイルを拾い、「ちょうど1つ」判定が誤って失敗する——**静かに間違った採点**が再現された。`grading.json` のキーも `{eval_id, passed, total, assertions}` で、兄弟2本の `{run_id, expectations, passed, total}` と不一致。エラーカタログ版の末尾をそのまま採用して直した（`4eb1048`。計画も `0ca5f71` で訂正）
-4. **値 import 判定の正規表現が偽陰性を持っていた**（Task 2）。計画のテストコードの `/^import\s*\{\s*type\s/` は行頭が `import { type` であることしか見ないので、`import { type Foo, bar } from './bar'` のような**混在 specifier を「値 import ではない」と誤判定する**。`verbatimModuleSyntax: true` の下では自然に生えうる形で、**バイト一致コピーを守るはずの検査に穴があった**。`3a64bfb` で述語に切り出して直した
-5. **Task 4 Step 3 の期待出力が原理的に成立しなかった**。ブリーフは `✓ 正規形と一致しています` を期待していたが、ブリーフ自身が載せた下書きが `actors` / `steps` の要素を**単一行のオブジェクト**で書いており、`canonical.ts` の `serialize`（`JSON.stringify(..., null, 2)`）は**入れ子を必ず全展開する**（「1行に収まるなら畳む」モードは無い）。したがってその下書きは自分の正規形と一致し得ない。実装者は既存の回帰フィクスチャで裏を取ってから「計画の誤り」として報告し、計画を `930b963` で訂正した（スクリプトは正しかった）
+3. **grader のディレクトリ規約と `grading.json` の形が、兄弟2本のどちらとも食い違っていた**（Task 7）。計画は `ITER` 直下の「名前に数字を含むディレクトリ」を1 run として平坦に走査する独自方式で、既存2本の `eval-N/{with_skill,without_skill}` 規約と噛み合わない。`eval-0/with_skill` と `eval-0/without_skill` を両方置くと `eval-0` を1 run として扱って両方のファイルを拾い、「ちょうど1つ」判定が誤って失敗する——**静かに間違った採点**が再現された。`grading.json` のキーも `{eval_id, passed, total, assertions}` で、兄弟2本の `{run_id, expectations, passed, total}` と不一致。エラーカタログ版の末尾をそのまま採用して直した（`de7a7e8`。計画も `2fe1806` で訂正）
+4. **値 import 判定の正規表現が偽陰性を持っていた**（Task 2）。計画のテストコードの `/^import\s*\{\s*type\s/` は行頭が `import { type` であることしか見ないので、`import { type Foo, bar } from './bar'` のような**混在 specifier を「値 import ではない」と誤判定する**。`verbatimModuleSyntax: true` の下では自然に生えうる形で、**バイト一致コピーを守るはずの検査に穴があった**。`44633c3` で述語に切り出して直した
+5. **Task 4 Step 3 の期待出力が原理的に成立しなかった**。ブリーフは `✓ 正規形と一致しています` を期待していたが、ブリーフ自身が載せた下書きが `actors` / `steps` の要素を**単一行のオブジェクト**で書いており、`canonical.ts` の `serialize`（`JSON.stringify(..., null, 2)`）は**入れ子を必ず全展開する**（「1行に収まるなら畳む」モードは無い）。したがってその下書きは自分の正規形と一致し得ない。実装者は既存の回帰フィクスチャで裏を取ってから「計画の誤り」として報告し、計画を `c9dbaaf` で訂正した（スクリプトは正しかった）
 6. **Task 10（本タスク）の確認コマンドが原理的に0件にならなかった**。計画は `grep -rn "grade.mjs で自己位置解決\|C:/Dev/Projects" docs/ .claude/skills/` に「1件も出ないこと」を期待していたが、**その grep 文字列は計画ファイル自身に書かれており、消したはずの項目の文言は設計スペックが引用している**（どちらも追記専用の記録なので消さない）。**`lessons-for-planning.md` の「計画が書いた確認コマンド自体を1回自分で実行してみる」がそのまま再発した形である。** 実際に効く確認は対象を絞ったもの——`docs/open-issues.md` と `.claude/skills/` に残っていないこと——で、そちらで0件を確認した
 
-**着手前のスキャンでさらに2件の計画の誤りを潰している**（`3c8d3b2`）: Task 1 が「`commands.ts` の import 行は触らない」と書いていたが `commands.ts` は `readSlot` を内部で使っているので値 import が要る／後方互換の再輸出を置く指示があったが Task 6 の時点で死んだコードになる。
+**着手前のスキャンでさらに2件の計画の誤りを潰している**（`50e8e9b`）: Task 1 が「`commands.ts` の import 行は触らない」と書いていたが `commands.ts` は `readSlot` を内部で使っているので値 import が要る／後方互換の再輸出を置く指示があったが Task 6 の時点で死んだコードになる。
 
-**計画の誤りではないが、同じ系統として記録する**——Task 2 の2巡目は、**1巡目の修正が入れた回帰**だった。混在 specifier を直すために `extractImportStatements` を書き直した際、抽出パターンが `from '...'` 節を必須にしたため、**副作用 import（`import './x'`）を抽出段階で丸ごと落とす**ようになっていた。1巡目で直した「値 import の見落とし」と同じ種類の欠陥を、今度は抽出側で作っている。`f0feb0e` で直した。なお同じ検査には**行コメント内に `from '...'` に見える文字列がある複数行 import を早期に打ち切る**限界が残っているが、再レビューで**偽陽性（過剰報告）にしかならず偽陰性は作らない**ことを確認して据え置いた。
+**計画の誤りではないが、同じ系統として記録する**——Task 2 の2巡目は、**1巡目の修正が入れた回帰**だった。混在 specifier を直すために `extractImportStatements` を書き直した際、抽出パターンが `from '...'` 節を必須にしたため、**副作用 import（`import './x'`）を抽出段階で丸ごと落とす**ようになっていた。1巡目で直した「値 import の見落とし」と同じ種類の欠陥を、今度は抽出側で作っている。`264860d` で直した。なお同じ検査には**行コメント内に `from '...'` に見える文字列がある複数行 import を早期に打ち切る**限界が残っているが、再レビューで**偽陽性（過剰報告）にしかならず偽陰性は作らない**ことを確認して据え置いた。
 
 ---
 
 ## 実機確認の結果
 
-計画の Task 9（人間の作業）は4段階のチェックリストで、**2回実施した**。1回目は **Step 1（アプリを起動して Skill が置かれること）で落ちた**——そこから Task 8b、その修正が成立させた問題として Task 8c、さらにそのレビューで2巡、と掘り進んだ（段階2・3 の欠陥はコードの読みとレビューで見つかったもので、実機で3回踏んだわけではない）。2回目は `96b0314` の後に実施し、全項目通過した。
+計画の Task 9（人間の作業）は4段階のチェックリストで、**2回実施した**。1回目は **Step 1（アプリを起動して Skill が置かれること）で落ちた**——そこから Task 8b、その修正が成立させた問題として Task 8c、さらにそのレビューで2巡、と掘り進んだ（段階2・3 の欠陥はコードの読みとレビューで見つかったもので、実機で3回踏んだわけではない）。2回目は `f2b11bb` の後に実施し、全項目通過した。
 
 なお **Step 1 の期待値そのものが途中で変わった。** 計画は「`package.json` が**無い**こと」を期待していたが、Task 8c で `package.json` は**置くべきもの**になった（置かないと `npm install` が機能しない）。計画の期待値のほうが誤りだったことになる。
 
@@ -183,7 +183,7 @@ Skill をプロジェクトへ配置できませんでした（Skill 無しで�
 
 `open-issues` から**消したもの**は2件——「`syncBundledSkills` が読む前に消す」（Task 8c で解消）と、「2本の Skill の `grade.mjs` で自己位置解決の形が揃っていない」（Task 7 で3本とも `import.meta.url` 起点に揃えた）。「`palette-fit.mjs` が Node の型ストリップに依存している」は**残したまま併記した**——同じ依存が `sequence-write.mjs` にもあるが、こちらだけ機械検査が付いている、という非対称を書いてある。
 
-**なお `open-issues.md` の項目に番号は振られていない。** 本書が項目を**文言で**指しているのはそのためで、番号（レビューの通し番号）で書くと、消えた項目・並びが変わった項目を後から引けなくなる。同じ理由で、`src/core/skill-sync.ts` / `skill-sync.test.ts` のコメントに残っていた `#43` も**文言（「読む前に消す」）へ置き換えた**（コメントのみ。挙動は変えていない）。置き換えは本書を書いたコミット（`c7f5be2`。文書のみ）ではなく、後続の2コミットにまたがる——`0e05f79`（`src/core/skill-sync.ts` / `skill-sync.test.ts`）と `4c44dfe`（`src/modules/sequence/skill-copy.test.ts` / `open-issues.md`）の計4ファイルである。
+**なお `open-issues.md` の項目に番号は振られていない。** 本書が項目を**文言で**指しているのはそのためで、番号（レビューの通し番号）で書くと、消えた項目・並びが変わった項目を後から引けなくなる。同じ理由で、`src/core/skill-sync.ts` / `skill-sync.test.ts` のコメントに残っていた `#43` も**文言（「読む前に消す」）へ置き換えた**（コメントのみ。挙動は変えていない）。置き換えは本書を書いたコミット（`7c56d06`。文書のみ）ではなく、後続の2コミットにまたがる——`d29b326`（`src/core/skill-sync.ts` / `skill-sync.test.ts`）と `2c2afbb`（`src/modules/sequence/skill-copy.test.ts` / `open-issues.md`）の計4ファイルである。
 
 ---
 

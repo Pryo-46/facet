@@ -6,7 +6,7 @@
 
 logic-tree M1 は計画12タスク（実装11本＋本ドキュメント）で、目的は **`docs/logic-tree/logic-tree-m1-scope.md` の完了条件**——空の状態から会議1回分（30〜50ノード）のツリーをキーボードだけで打ち切れ、日本語の変換確定 Enter がノード追加に誤爆しない状態——に到達すること。設計の根拠は [`../logic-tree/logic-tree-canvas-tech-notes.md`](../logic-tree/logic-tree-canvas-tech-notes.md)（論点1〜8）にあり、本書はそこから**実装・レビューで新たに確定した事実だけ**を拾う。
 
-コミット範囲: `f16c7d0`（計画）〜 `5683f5e`。
+コミット範囲: `e4b89af`（計画）〜 `791b4cb`。
 
 ---
 

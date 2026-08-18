@@ -4,7 +4,7 @@
 
 M15 は「同梱 Skill とアプリの複製・同期」にあった既知の欠陥5件を塞ぐマイルストーンで、実装計画は [`../superpowers/plans/2026-08-15-m15-skill-hygiene.md`](../superpowers/plans/2026-08-15-m15-skill-hygiene.md)。対象は 2026-08-15 の棚卸し版 `open-issues.md`（`docs-open-issues-inventory` ブランチで main へマージ済み）の「次に手を付ける候補」1〜4番と「小さな負債」の `reorder`/`deref` 手複製の項。
 
-コミット範囲: `1a10897`（Task 1）〜`04cd4a5`（Task 6）。計画は Task 1〜8 の8本で、**Task 1〜6 はすべてレビュー clean（fix round ゼロ）**——sequence M4 のような計画外タスクの派生は無かった。Task 7（実機確認）は人間の作業で本セッションでは未実施（後述）。Task 8 が本書。
+コミット範囲: `9756d3d`（Task 1）〜`48362b5`（Task 6）。計画は Task 1〜8 の8本で、**Task 1〜6 はすべてレビュー clean（fix round ゼロ）**——sequence M4 のような計画外タスクの派生は無かった。Task 7（実機確認）は人間の作業で本セッションでは未実施（後述）。Task 8 が本書。
 
 ---
 

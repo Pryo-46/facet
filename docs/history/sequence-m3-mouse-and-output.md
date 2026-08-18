@@ -4,7 +4,7 @@
 
 sequence M3 は計画10タスク（Task 1〜10。Mermaid/Markdown出力・出力プロファイル登録・確認ダイアログ・境界規則の穴埋め・種別／from/to セルのドロップダウン化・参加者0人ガードの穴塞ぎ・参加者追加ボタン）＋実機確認（Task 11）＋本ドキュメント（Task 12）の実装で、目的は [`../superpowers/plans/2026-08-12-sequence-m3-mouse-and-output.md`](../superpowers/plans/2026-08-12-sequence-m3-mouse-and-output.md) の設計確定事項（Mermaid/Markdown出力の1プロファイル化・from/to/種別のマウス操作化）を実装すること。**実機確認（Task 11）で計画に無い欠陥が1件見つかり、計画外の修正2本（Task 11a → 11b）が追加された。**
 
-コミット範囲: `ee567ed`（計画）〜 `5e0cc7a`。計画10タスク（Task 1〜10）中 fix round が入ったのは2本（Task 2・Task 8）。加えて、計画外の Task 11a（実機確認から発生）にも fix round が1本入った。いずれもレビューで是正済み。
+コミット範囲: `3508a5b`（計画）〜 `081e203`。計画10タスク（Task 1〜10）中 fix round が入ったのは2本（Task 2・Task 8）。加えて、計画外の Task 11a（実機確認から発生）にも fix round が1本入った。いずれもレビューで是正済み。
 
 ---
 
@@ -57,9 +57,9 @@ open-issues に残っていた「モーダルが開いている間もキャン�
 
 ## テストが実装を守っていなかった箇所
 
-- **Task 2: `self` が `to` を無視する契約にテストが無かった。** fix round で `self` ステップに対して `to` を渡してもコマンドが無視する（`to` が構造に反映されない）ことを固定するテストを1本追加した（`c781cff`）。
-- **Task 8: 参加者0人ガードのテストが例外を見逃す穴を持っていた。** 元のテストは `expect(fn).not.toHaveBeenCalled()` の形で、対象の関数を呼ぶ前に例外が飛んだ場合でも真になってしまう（＝ガードが機能していなくても、その手前で別の理由でクラッシュしていれば緑になる）構造だった。修正は `window` の `error` イベントを `onWindowError` スパイで捕捉する形にし、変異注入で当該 `it` が `AssertionError` として個別に FAIL することを確認した上でコミットした（`6a4e043`）。
-- **Task 11a: `react-refresh/only-export-components` の lint 抑制コメントがコードベース初の同ルール抑制だった。** レビューで「既存の慣習（`commands.ts` / `viewport.ts` 等、純粋ロジックを小さな `.ts` ファイルへ切り出す）で回避できる妥協」と指摘され、`nextMenuOpenCount` を `menu-open-count.ts` へ切り出して抑制コメントを消した（`19b69a3`）。この関数と切り出し自体は、後述の Task 11b で意図が取り違いだったと判明し、最終的には削除された。
+- **Task 2: `self` が `to` を無視する契約にテストが無かった。** fix round で `self` ステップに対して `to` を渡してもコマンドが無視する（`to` が構造に反映されない）ことを固定するテストを1本追加した（`a3c2a25`）。
+- **Task 8: 参加者0人ガードのテストが例外を見逃す穴を持っていた。** 元のテストは `expect(fn).not.toHaveBeenCalled()` の形で、対象の関数を呼ぶ前に例外が飛んだ場合でも真になってしまう（＝ガードが機能していなくても、その手前で別の理由でクラッシュしていれば緑になる）構造だった。修正は `window` の `error` イベントを `onWindowError` スパイで捕捉する形にし、変異注入で当該 `it` が `AssertionError` として個別に FAIL することを確認した上でコミットした（`474e3f4`）。
+- **Task 11a: `react-refresh/only-export-components` の lint 抑制コメントがコードベース初の同ルール抑制だった。** レビューで「既存の慣習（`commands.ts` / `viewport.ts` 等、純粋ロジックを小さな `.ts` ファイルへ切り出す）で回避できる妥協」と指摘され、`nextMenuOpenCount` を `menu-open-count.ts` へ切り出して抑制コメントを消した（`4577f2e`）。この関数と切り出し自体は、後述の Task 11b で意図が取り違いだったと判明し、最終的には削除された。
 
 ---
 
@@ -71,13 +71,13 @@ Task 11（人間による実機確認）で、計画に無い欠陥が1件見つ
 
 ### Task 11a: `menuOpen` のカウンタ化 → 意図の取り違えだった
 
-人間の最初の判断は「(A) カウンタ化だけ今直す」だった。これを受けて `menuOpen: boolean` を `openMenuCount: number` に変え、`nextMenuOpenCount(count, open) = open ? count+1 : Math.max(0, count-1)` という純関数で「1つ閉じても他が開いていればキャンバスを復活させない」形にした（`3801148` → lint 対応で `19b69a3`）。
+人間の最初の判断は「(A) カウンタ化だけ今直す」だった。これを受けて `menuOpen: boolean` を `openMenuCount: number` に変え、`nextMenuOpenCount(count, open) = open ? count+1 : Math.max(0, count-1)` という純関数で「1つ閉じても他が開いていればキャンバスを復活させない」形にした（`1317e67` → lint 対応で `4577f2e`）。
 
 **しかしこれは人間の意図の取り違えだった。** 実機で観察された「困りごと」は**「複数開けること自体が邪魔」**という意味であり、実装者（およびその前段の判断）はこれを**「複数開いた状態で1つ閉じるとズームが復活する実害」**という別の問題に翻訳してしまっていた。カウンタ化はその翻訳後の問題（ズームの誤復活）は正しく塞いだが、人間が本来困っていた「同時に3つも開けてしまうこと」自体は何も解決していなかった。
 
 ### Task 11b: 同時に1つだけ開く構造に巻き戻し
 
-人間が訂正: 「複数開けるのがおかしい（邪魔）。ズームの制御は不要」。これを受けて Task 11a を巻き戻し、`SequenceEditor` に `openCell: string | null` を持たせ、`menuPropsFor` ヘルパで from/to/種別の3箇所に `open={openCell === 該当セル値}` / `onOpenChange` を配る**制御コンポーネント化**に変更した（`5e0cc7a`）。**同時に1つのセルしかドロップダウンが開けない**構造になったことで、複数オープンの実害（ズームの誤復活・キー入力の漏れ）は構造的に発生しなくなった。
+人間が訂正: 「複数開けるのがおかしい（邪魔）。ズームの制御は不要」。これを受けて Task 11a を巻き戻し、`SequenceEditor` に `openCell: string | null` を持たせ、`menuPropsFor` ヘルパで from/to/種別の3箇所に `open={openCell === 該当セル値}` / `onOpenChange` を配る**制御コンポーネント化**に変更した（`081e203`）。**同時に1つのセルしかドロップダウンが開けない**構造になったことで、複数オープンの実害（ズームの誤復活・キー入力の漏れ）は構造的に発生しなくなった。
 
 - `menu-open-count.ts` / `.test.ts` と Task 11a が追加した `describe` は削除した。
 - セル部品（`StepShapeCell.tsx` / `ActorRefCell.tsx`）の `open` prop は optional なので、渡さなければ Radix の非制御モードのまま動く。**`StepShapeCell.dom.test.tsx` / `ActorRefCell.dom.test.tsx` は差分ゼロ**（既存テスト無改変）。
