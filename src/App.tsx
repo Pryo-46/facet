@@ -372,6 +372,17 @@ function App() {
    * こちらは実際の多重起動を止める役。**役が違うので両方要る**
    */
   const updateBusyRef = useRef(false)
+  /**
+   * 直前に押したトーストの文字列。**組み立てた文字列が前回と同じなら
+   * `showToast` を呼ばない**（レビュー指摘B）——`showToast` は呼ぶたびに
+   * 新しい id を採番し、`ToastStack` はその `id` を key にしている
+   * （`src/components/Toast.tsx`）。同じ内容のトーストでも id が変われば
+   * React は unmount → remount する。`ToastRow` は `role="status"` の
+   * ライブリージョンなので、2MB のインストーラだと1回の更新で
+   * スクリーンリーダーが約250回読み上げ直し、その間「閉じる」ボタンも
+   * ポインタの下で作り直され続ける
+   */
+  const lastProgressMessage = useRef<string | null>(null)
 
   /**
    * 更新を確認する。**起動時は静かに諦める**——ネットワークが無い環境で
@@ -478,12 +489,20 @@ function App() {
    * チェックの失敗も「最新です」も同じ key なので、常に1本に保たれる
    */
   useEffect(() => {
-    if (updateState.kind !== 'installing') return
+    if (updateState.kind !== 'installing') {
+      // 次の更新（次の installing）で1件目のトーストが出なくなるのを防ぐ
+      lastProgressMessage.current = null
+      return
+    }
     const mb = (n: number) => (n / 1024 / 1024).toFixed(1)
     const message =
       updateState.total === null
         ? `更新をダウンロード中… ${mb(updateState.downloaded)} MB`
         : `更新をダウンロード中… ${mb(updateState.downloaded)} / ${mb(updateState.total)} MB`
+    // 組み立てた文字列が前回と同じなら push しない（上の lastProgressMessage
+    // のコメント参照。理由は id の採番と role="status" の読み上げ直し）
+    if (message === lastProgressMessage.current) return
+    lastProgressMessage.current = message
     showToast({ message, key: 'update' })
   }, [updateState, showToast])
 
