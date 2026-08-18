@@ -5,17 +5,24 @@ import { check } from '@tauri-apps/plugin-updater'
  * 自動アップデート。**Tauri の updater API をここに隔離する。**
  * コアは Tauri を知らない（他の src/fs/* と同じ役割）。
  *
- * 進捗イベントの累計をここで取らないのは、Tauri のイベント型をコアへ漏らさない
- * ため。コア側（core/update-check.ts）が受け取るのは「今回届いたバイト数」と
- * 「総量（分かっていれば）」の2つの数だけ
+ * **この層の仕事は Tauri の進捗イベントを「数2つ」に翻訳することだけ。**
+ * 累計を持たないのは、それがコア側（core/update-check.ts の `progress`）の
+ * 純ロジックだから——状態を2箇所で持つと、どちらが正なのかが決まらない。
+ * 結果として callback のシグネチャは数値だけになり、Tauri のイベント型が
+ * コアへ漏れないという性質も付いてくる
  */
 export interface AvailableUpdate {
   version: string
   /**
    * ダウンロードしてインストールする。**成功しても戻ってこない**——
-   * Windows ではインストールの実行時に OS がプロセスを落とす
+   * Windows ではインストールの実行時に OS がプロセスを落とす。
+   *
+   * `onProgress` の第1引数は **今回届いたチャンクのバイト数**であって累計ではない
+   * （累計は core/update-check.ts の `progress` が `downloaded + chunk` で持つ）。
+   * `downloaded` という名前にすると、この型だけを読んだ人が累計だと思って
+   * もう一度足し込みうるので `chunk` と名乗る
    */
-  install: (onProgress: (downloaded: number, total: number | null) => void) => Promise<void>
+  install: (onProgress: (chunk: number, total: number | null) => void) => Promise<void>
 }
 
 /**
