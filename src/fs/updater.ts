@@ -37,13 +37,11 @@ export async function checkForUpdate(): Promise<AvailableUpdate | null> {
   return {
     version: update.version,
     install: async (onProgress) => {
-      let total: number | null = null
       await update.downloadAndInstall((event) => {
         if (event.event === 'Started') {
-          total = event.data.contentLength ?? null
-          onProgress(0, total)
+          onProgress(0, event.data.contentLength ?? null)
         } else if (event.event === 'Progress') {
-          onProgress(event.data.chunkLength, total)
+          onProgress(event.data.chunkLength, null)
         }
       })
       // **Windows ではここへ到達しない見込み**——インストールの実行時に OS が
