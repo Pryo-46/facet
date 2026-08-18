@@ -754,23 +754,35 @@ describe('自動アップデート（M19）', () => {
   })
 
   it('**起動時チェックが失敗しても画面には何も出ない**', async () => {
+    // spec は「起動時チェックの失敗は console.error のみで握り潰す」と
+    // 定めている。「UI に出ない」だけでは、何もログしない実装でも緑のまま
+    // ————症状を取り違えたテストになる（lessons-for-planning）。呼ばれた
+    // ことまで assert する。spy はこのテスト内で作って必ず戻す
+    // （afterEach に足すと他の describe に影響する）
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     updateConfig.checkError = new Error('繋がらない')
     render(<App />)
     await settleStartupCheck()
     expect(screen.queryByText(/繋がらない/)).toBeNull()
+    expect(consoleError).toHaveBeenCalled()
     // **「出ていない」だけでは、まだ走っていないのか黙っているのかを
     // 区別できない。** 走り終わっていた証拠として、同じ失敗を手で押すと
     // 今度はトーストが出ることまで見る
     fireEvent.click(screen.getByRole('button', { name: '更新を確認' }))
     expect(await screen.findByText(/繋がらない/)).toBeTruthy()
+    consoleError.mockRestore()
   })
 
   it('**手動チェックが失敗するとトーストが出る**', async () => {
+    // 起動時チェックと同じ理由で、console.error が実際に呼ばれたことも見る
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     render(<App />)
     await settleStartupCheck()
     updateConfig.checkError = new Error('繋がらない')
     fireEvent.click(screen.getByRole('button', { name: '更新を確認' }))
     expect(await screen.findByText(/繋がらない/)).toBeTruthy()
+    expect(consoleError).toHaveBeenCalled()
+    consoleError.mockRestore()
   })
 
   it('手動チェックで最新だったらトーストで知らせる', async () => {
@@ -829,5 +841,20 @@ describe('自動アップデート（M19）', () => {
     expect(screen.queryByRole('button', { name: '更新を確認' })).toBeNull()
     // 額縁自体は描画されている（描画そのものが落ちていて全部 null、を弾く）
     expect(screen.getByRole('button', { name: 'フォルダを開く' })).toBeTruthy()
+  })
+
+  it('**ダウンロードの進捗がトーストに積み上がる**', async () => {
+    updateConfig.available = { version: '1.2.3' }
+    // 1MiB を2回。**同じ大きさを2回足す形にしないこと**——「合計する」実装と
+    // 「最後のチャンクを入れる」実装が同じ答えになる。2回目で total を null に
+    // するのは、一度分かった総量が上書きされないことを同時に固定するため
+    installMock.mockImplementationOnce(async (onProgress) => {
+      onProgress(1_048_576, 4_194_304)
+      onProgress(1_048_576, null)
+    })
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'v1.2.3 に更新' }))
+    fireEvent.click(await screen.findByRole('button', { name: '更新する' }))
+    expect(await screen.findByText('更新をダウンロード中… 2.0 / 4.0 MB')).toBeTruthy()
   })
 })
