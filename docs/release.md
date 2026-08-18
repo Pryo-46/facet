@@ -31,6 +31,12 @@ npm run tauri signer generate -- -w "$env:USERPROFILE\.tauri\facet.key"
 `scripts/make-latest-json.mjs` はこの3箇所が揃っているかを検査するだけで、
 揃えにはいかない。揃っていなければ実行時に落ちる。
 
+揃えたら `npm install` を走らせ、`package-lock.json` を追従させること。
+`package-lock.json` は `lock.version` と `lock.packages[""].version` の2箇所に
+版を持つが、`resolveVersion()` はそこを検査しない（`latest.json` に影響しない
+ので正しい）。それでも `npm install` を忘れると、古い版のまま public リポジトリに
+commit されるのを止めるものが何も無くなる。
+
 ## 3. 署名用の環境変数を置く
 
 PowerShell で、鍵のパスとパスワードを環境変数に置く。
@@ -62,9 +68,11 @@ node scripts/make-latest-json.mjs
 
 ## 6. リリースを作る
 
-```bash
-gh release create v<v> --title "v<v>" --notes-file <リリースノート> \
-  "src-tauri/target/release/bundle/nsis/facet_<v>_x64-setup.exe" \
+PowerShell で（バッククォートが行継続。手順3〜5と同じセッションに貼れる形にしてある）:
+
+```powershell
+gh release create v<v> --title "v<v>" --notes-file <リリースノート> `
+  "src-tauri/target/release/bundle/nsis/facet_<v>_x64-setup.exe" `
   latest.json
 ```
 
@@ -76,7 +84,19 @@ updater が参照する `latest.json` が古い版のまま（または存在し
 
 mac の dmg は mac 実機で別に作り、同じリリースへ足す。
 
-```bash
+**mac のビルドでは updater 成果物を切ってビルドすること。** `createUpdaterArtifacts`
+は `src-tauri/tauri.conf.json` の bundle 全体に効くフラグなので、素の
+`npm run tauri build` は mac のビルド機にも minisign の秘密鍵（`TAURI_SIGNING_PRIVATE_KEY`）
+を要求してしまう——これは「秘密鍵を2台に置かない」という M19 の判断（`docs/history/m19-core-auto-update.md`）を崩す。
+以下の上書きで、秘密鍵を Windows の1台だけに留められる。
+
+```
+npm run tauri build -- --config '{"bundle":{"createUpdaterArtifacts":false}}'
+```
+
+できた dmg をリリースへ足す（PowerShell）:
+
+```powershell
 gh release upload v<v> <dmg のパス>
 ```
 

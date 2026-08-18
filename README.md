@@ -179,6 +179,8 @@ Rust ツールチェーン（`cargo`）が必要。`npm run tauri dev` の初回
 npm run tauri build
 ```
 
+素の `npm run tauri build` は updater 用の署名鍵（`TAURI_SIGNING_PRIVATE_KEY` 等の環境変数）を要求する。鍵を持たずにビルドする場合は `--config '{"bundle":{"createUpdaterArtifacts":false}}'` を付けて updater 成果物を切ること。詳しくは [`docs/release.md`](docs/release.md) を参照。
+
 **クロスビルドはできない。** Windows 版インストーラは Windows で、macOS 版は macOS でビルドする必要がある。
 
 **Windows は NSIS（`.exe`）だけを作る。MSI は作らない**（`bundle.targets`）。WiX の `light.exe` はコードページ 1252 に無い文字を拒否するため、同梱 Skill の `evals/fixtures/` にある日本語ファイル名でリンクが落ちるからで、NSIS にその制約は無い。MSI が必要になったときの直し方は [`docs/open-issues.md`](docs/open-issues.md) にある。

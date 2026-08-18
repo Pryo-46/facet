@@ -77,6 +77,10 @@ f52a708 feat(m19): 更新状態の機械をコアに置く
 
 ガードを外しても緑のままだったため、ミューテーションで実際に赤くなることを確かめ直した（詳細はコミットログ・SDD ledger 参照）。
 
+### 4. `createUpdaterArtifacts: true` が mac のビルド機にも署名鍵を要求していた（最終レビューで発見）
+
+`src-tauri/tauri.conf.json` の `createUpdaterArtifacts: true` は bundle 全体に効くフラグで、mac のビルドにも及ぶ。そのため、mac を対象から外した理由の1つ（上記「7. mac を対象から外した判断とその理由」——minisign の秘密鍵を2台に置かないため）の代償が、素の `npm run tauri build` を mac 実機で叩くと復活する。レビュアーが CLI のバイナリから実際のエラー文字列（`A public key has been found, but no private key. Make sure to set \`TAURI_SIGNING_PRIVATE_KEY\` environment variable.`）を取り出して確認済み。**上の1・2件目（フィクスチャの退化・callback の引数名）と違い、この欠陥は出荷される設定（`src-tauri/tauri.conf.json`）にまで残った**——テストやコメントの中だけの誤りではなく、実際のリリース手順を踏むと踏み抜く形で残っていた。`src-tauri/` の設定は変えない判断とし、`docs/release.md`（手順7）と `README.md` に `--config '{"bundle":{"createUpdaterArtifacts":false}}'` での回避を明記して塞いだ。
+
 ---
 
 ## 計画のセルフレビューで潰したもの（実装には届いていない）
@@ -103,6 +107,7 @@ f52a708 feat(m19): 更新状態の機械をコアに置く
 
 4. v1.0.0 を起動して、ボタンが「v1.0.1 に更新」に変わるか
 5. 押して確認ダイアログ → ダウンロード進捗のトースト → インストールまで通るか
+5.5. ダウンロード中に進捗トーストが読める状態か、「閉じる」ボタンが押せるか（レビュー指摘B——トーストが chunk ごとに再 push されず、スクリーンリーダーの読み上げ直しや「閉じる」ボタンの作り直しが起きていないことを実機で見る唯一の方法）
 6. UAC が出ないか（`nsis.installMode: currentUser` の想定どおりか）
 7. SmartScreen が出ないか（updater が起動するインストーラに mark-of-the-web が付かない想定どおりか）
 8. 更新後にアプリが自動で戻ってくるか
