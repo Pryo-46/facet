@@ -87,7 +87,23 @@ function main() {
     'src-tauri/target/release/bundle/nsis',
     `facet_${version}_x64-setup.exe.sig`,
   )
-  const signature = readFileSync(sigPath, 'utf8').trim()
+  let signature
+  try {
+    signature = readFileSync(sigPath, 'utf8').trim()
+  } catch (err) {
+    // 生の ENOENT スタックのままだと原因が読めない。**「まだビルドしていない」
+    // か「TAURI_SIGNING_PRIVATE_KEY を置かずにビルドしたので .sig が
+    // 生成されていない」のどちらかで、後者こそがこのスクリプトの存在理由
+    // そのものである罠**（署名なしでビルドは通ってしまう）
+    if (err.code === 'ENOENT') {
+      throw new Error(
+        `署名ファイルが無い: ${sigPath}\n` +
+          'まだビルドしていないか、TAURI_SIGNING_PRIVATE_KEY を置かずにビルドしたため ' +
+          '.sig が生成されていない。docs/release.md の手順3〜4を参照すること。',
+      )
+    }
+    throw err
+  }
   const out = path.join(ROOT, 'latest.json')
   writeFileSync(out, `${JSON.stringify(buildLatestJson({ version, signature, pubDate: new Date().toISOString() }), null, 2)}\n`)
   console.log(`latest.json を書き出した（v${version}）: ${out}`)

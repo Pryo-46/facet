@@ -81,7 +81,9 @@ const {
     available: null as { version: string } | null,
     checkError: null as Error | null,
   },
-  installMock: vi.fn(async (_onProgress: (d: number, t: number | null) => void) => undefined),
+  installMock: vi.fn(
+    async (_onProgress: (chunk: number, total: number | null) => void) => undefined,
+  ),
 }))
 
 vi.mock('@/fs/project-fs', () => ({
