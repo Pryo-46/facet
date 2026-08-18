@@ -85,10 +85,19 @@ async fn move_to_trash(path: String) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_clipboard_manager::init());
+
+    // 自動アップデート（M19）。**デスクトップ限定のプラグインなので分けてある。**
+    // ここでも判断は持たない——チェックも適用も TypeScript 側から呼ぶ（rev 7章）
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init());
+
+    builder
         .manage(pty::PtyState::default())
         .invoke_handler(tauri::generate_handler![
             move_to_trash,

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "既定の権限。fs はコマンド許可のみで、パスの scope はダイアログで選んだフォルダ（recursive）に実行時付与される。core:window:allow-destroy は close 横取り（onCloseRequested → preventDefault → flush → destroy）に必要。fs:allow-exists は新規作成の名前解決をディスクに問い合わせるため、fs:allow-watch はフォルダ単位の外部変更検知のため（M5）。監視の停止は Resource#close（core:default 内の core:resources:allow-close）を通るが、fs:allow-unwatch も明示しておく（…M5）。clipboard-manager:allow-write-text は Markdown 出力のコピーのため（M6。読み取りは許可しない）。保存ダイアログは dialog:default に allow-save が含まれるので追記不要で、save で選んだパスは dialog プラグインが fs の実行時 scope へ許可を入れる。fs:allow-mkdir / fs:allow-remove は同梱 Skill をプロジェクトフォルダの `.claude/skills/` へ置き直すため（M11。消すのは facet が同梱する名前のディレクトリだけ）。`$RESOURCE/skills` の読み取りは、その同梱物を読むため。**この `**` が Skill 直下の `.gitignore` に一致するには `tauri.conf.json` の `plugins.fs.requireLiteralLeadingDot: false` が要る**——unix では既定が true で、ドット始まりの要素にワイルドカードが一致しないため（mac のみで出る。Windows は既定が false）。ダイアログ由来の実行時 scope はこの設定を見ないので、プロジェクト側の `.claude/` は別に `allow_skill_dir`（自前コマンド）で許可する。起動時に前回開いたフォルダを復元するため、アプリ設定ディレクトリの `settings.json` を `$APPCONFIG` スコープで読み書きする（M18）。フォルダそのものの実行時 scope 再付与はダイアログを経由しないため、`.claude/` と同じ理由で `allow_project_dir`（自前コマンド）が別途必要——capabilities への追記は不要。",
+  "description": "既定の権限。fs はコマンド許可のみで、パスの scope はダイアログで選んだフォルダ（recursive）に実行時付与される。core:window:allow-destroy は close 横取り（onCloseRequested → preventDefault → flush → destroy）に必要。fs:allow-exists は新規作成の名前解決をディスクに問い合わせるため、fs:allow-watch はフォルダ単位の外部変更検知のため（M5）。監視の停止は Resource#close（core:default 内の core:resources:allow-close）を通るが、fs:allow-unwatch も明示しておく（…M5）。clipboard-manager:allow-write-text は Markdown 出力のコピーのため（M6。読み取りは許可しない）。保存ダイアログは dialog:default に allow-save が含まれるので追記不要で、save で選んだパスは dialog プラグインが fs の実行時 scope へ許可を入れる。fs:allow-mkdir / fs:allow-remove は同梱 Skill をプロジェクトフォルダの `.claude/skills/` へ置き直すため（M11。消すのは facet が同梱する名前のディレクトリだけ）。`$RESOURCE/skills` の読み取りは、その同梱物を読むため。**この `**` が Skill 直下の `.gitignore` に一致するには `tauri.conf.json` の `plugins.fs.requireLiteralLeadingDot: false` が要る**——unix では既定が true で、ドット始まりの要素にワイルドカードが一致しないため（mac のみで出る。Windows は既定が false）。ダイアログ由来の実行時 scope はこの設定を見ないので、プロジェクト側の `.claude/` は別に `allow_skill_dir`（自前コマンド）で許可する。起動時に前回開いたフォルダを復元するため、アプリ設定ディレクトリの `settings.json` を `$APPCONFIG` スコープで読み書きする（M18）。フォルダそのものの実行時 scope 再付与はダイアログを経由しないため、`.claude/` と同じ理由で `allow_project_dir`（自前コマンド）が別途必要——capabilities への追記は不要。`updater:default` と `process:allow-restart` は自動アップデートのため（M19。Windows のみが対象で、更新の取得は Rust 側が行うので CSP の `connect-src` は関係しない。`process:default` は使わない——アプリを終了させる権限は要らない）。",
   "windows": [
     "main"
   ],
@@ -27,6 +27,8 @@
     },
     "dialog:default",
     "clipboard-manager:allow-write-text",
+    "updater:default",
+    "process:allow-restart",
     {
       "identifier": "fs:allow-read-text-file",
       "allow": [{ "path": "$APPCONFIG/settings.json" }]

@@ -29,6 +29,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["nsis", "dmg", "app"],
     "icon": [
       "icons/32x32.png",
@@ -42,6 +43,7 @@
     },
     "windows": {
       "nsis": {
+        "installMode": "currentUser",
         "languages": ["Japanese", "English"],
         "installerIcon": "icons/icon.ico",
         "uninstallerIcon": "icons/icon.ico"
@@ -54,6 +56,11 @@
   "plugins": {
     "fs": {
       "requireLiteralLeadingDot": false
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEU0RDQ5NDFCMkQ5NUQyRUQKUldUdDBwVXRHNVRVNVBZZWtaMFR3RytYTXh2RlkvQzQyNTV1ZjVqakV5bE8yRDhMUDhXZ3dWT0cK",
+      "endpoints": ["https://github.com/Pryo-46/facet/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
     }
   }
 }
