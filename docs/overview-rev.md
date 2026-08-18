@@ -261,6 +261,13 @@ Skill群が対話的な共同作成者であるのに対し、**読み方ガイ�
 - 実装はAIに任せる前提。Tailwind＋shadcnはAIのコード生成が最も流暢な組み合わせであり、この前提とも整合する。
 - プロジェクト雛形の必須要素：リポジトリに .gitattributes を置き、*.json text eol=lf を指定する。Windows の autocrlf 環境では、これが無いと commit 時に JSON が CRLF へ変換され、決定的シリアライズの LF 指定（5章）が Git 上で無意味になり毎回全行 diff が出る。正規化の努力を成立させる前提条件。
 
+### 決定：配布は GitHub Releases、自動更新は Windows のみ（M19）
+
+- 配布は GitHub Releases。**Windows のみ Tauri の updater プラグインで自動更新する**（エンドポイントは `releases/latest/download/latest.json`）。
+- **mac を対象にしないのは updater の制約ではなく、未署名の `.app` が Gatekeeper に弾かれる現状が updater の手前にあるため。** 署名（Apple Developer Program）は別の意思決定。
+- **minisign の秘密鍵は1台にしか置かない。** 失うと以後どのバージョンからも自動更新できなくなる。手順は `docs/release.md`。
+- 更新の適用はアプリを終了させる（Windows の制約）ので、**利用者が押したときにしか走らせない**。
+
 ## 8. 出力・入力戦略
 
 ### 入力（インポート）は独立機能として消滅した
