@@ -56,6 +56,8 @@ const {
   saveLastProjectDirMock,
   restoreConfig,
   allowProjectDirCalls,
+  updateConfig,
+  installMock,
 } = vi.hoisted(() => ({
   closeState: { callback: null as (() => Promise<boolean>) | null },
   killAllPtysMock: vi.fn(async () => undefined),
@@ -73,6 +75,13 @@ const {
   // 既存テストはどれも起動時復元を前提にしていないので、既定を変えない
   restoreConfig: { lastDir: null as string | null, exists: false, allowError: null as Error | null },
   allowProjectDirCalls: [] as string[],
+  // 自動アップデート専用の可変状態（M19）。**既定は「更新なし」**——
+  // 既存テストはどれも更新を前提にしていないので、既定を変えない
+  updateConfig: {
+    available: null as { version: string } | null,
+    checkError: null as Error | null,
+  },
+  installMock: vi.fn(async (_onProgress: (d: number, t: number | null) => void) => undefined),
 }))
 
 vi.mock('@/fs/project-fs', () => ({
@@ -184,6 +193,15 @@ vi.mock('@xterm/addon-fit', () => ({
     return { fit: vi.fn() }
   }),
 }))
+// 自動アップデート（M19）。**既定は「更新なし」で即座に解決する**——
+// 起動時チェックは全テストで走るので、ここが遅いと全部が遅くなる
+vi.mock('@/fs/updater', () => ({
+  checkForUpdate: async () => {
+    if (updateConfig.checkError !== null) throw updateConfig.checkError
+    if (updateConfig.available === null) return null
+    return { version: updateConfig.available.version, install: installMock }
+  },
+}))
 // jsdom には ResizeObserver が無い。TerminalTab がペイン幅の追従に使うので
 // ここでは「何もしないフェイク」に差し替えて落ちないようにするだけでよい
 vi.stubGlobal(
@@ -197,6 +215,23 @@ vi.stubGlobal(
 
 const App = (await import('./App')).default
 
+/**
+ * `currentPlatform()` は navigator.userAgent を見る（core/keyboard/platform.ts）。
+ * mac での描画を確かめるテストだけがこれを呼ぶ。afterEach が必ず戻す
+ */
+let restoreUserAgent: (() => void) | null = null
+function pretendMac(): void {
+  const original = Object.getOwnPropertyDescriptor(window.navigator, 'userAgent')
+  Object.defineProperty(window.navigator, 'userAgent', {
+    value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+    configurable: true,
+  })
+  restoreUserAgent = () => {
+    if (original === undefined) delete (window.navigator as { userAgent?: string }).userAgent
+    else Object.defineProperty(window.navigator, 'userAgent', original)
+  }
+}
+
 afterEach(cleanup)
 afterEach(() => {
   ptyExitHandlers.clear()
@@ -209,6 +244,11 @@ afterEach(() => {
   restoreConfig.exists = false
   restoreConfig.allowError = null
   allowProjectDirCalls.length = 0
+  updateConfig.available = null
+  updateConfig.checkError = null
+  installMock.mockClear()
+  restoreUserAgent?.()
+  restoreUserAgent = null
 })
 /**
  * **止めたままの同期を次のテストへ持ち越さない（レビュー指摘）。**
@@ -692,5 +732,102 @@ describe('起動時のフォルダ復元', () => {
     await waitFor(() => expect(screen.getByTitle('/restored')).toBeTruthy())
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(allowProjectDirCalls).toEqual(['/restored'])
+  })
+})
+
+describe('自動アップデート（M19）', () => {
+  /**
+   * 起動時チェックが解決しきるまで待つ。**待たずに手動クリックすると、
+   * 多重起動の錠前（updateBusyRef）に握り潰されて何も起きない。**
+   * 「押しても出ない」という誤った赤／緑になるので、手で押すテストは必ず通す
+   */
+  const settleStartupCheck = async () => {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+  }
+
+  it('起動時に新版が見つかると、ボタンが版番号を名乗る', async () => {
+    updateConfig.available = { version: '1.2.3' }
+    render(<App />)
+    expect(await screen.findByRole('button', { name: 'v1.2.3 に更新' })).toBeTruthy()
+  })
+
+  it('**起動時チェックが失敗しても画面には何も出ない**', async () => {
+    updateConfig.checkError = new Error('繋がらない')
+    render(<App />)
+    await settleStartupCheck()
+    expect(screen.queryByText(/繋がらない/)).toBeNull()
+    // **「出ていない」だけでは、まだ走っていないのか黙っているのかを
+    // 区別できない。** 走り終わっていた証拠として、同じ失敗を手で押すと
+    // 今度はトーストが出ることまで見る
+    fireEvent.click(screen.getByRole('button', { name: '更新を確認' }))
+    expect(await screen.findByText(/繋がらない/)).toBeTruthy()
+  })
+
+  it('**手動チェックが失敗するとトーストが出る**', async () => {
+    render(<App />)
+    await settleStartupCheck()
+    updateConfig.checkError = new Error('繋がらない')
+    fireEvent.click(screen.getByRole('button', { name: '更新を確認' }))
+    expect(await screen.findByText(/繋がらない/)).toBeTruthy()
+  })
+
+  it('手動チェックで最新だったらトーストで知らせる', async () => {
+    render(<App />)
+    await settleStartupCheck()
+    // 起動時チェックは黙って終わっている（トーストを出すのは manual だけ）
+    expect(screen.queryByText('facet は最新版です')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '更新を確認' }))
+    expect(await screen.findByText('facet は最新版です')).toBeTruthy()
+  })
+
+  it('**確認を承諾するまでインストールは始まらない**', async () => {
+    updateConfig.available = { version: '1.2.3' }
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'v1.2.3 に更新' }))
+    expect(await screen.findByText('facet を更新する')).toBeTruthy()
+    expect(installMock).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: '更新する' }))
+    await waitFor(() => expect(installMock).toHaveBeenCalledTimes(1))
+  })
+
+  it('確認を取り消すとインストールされない', async () => {
+    updateConfig.available = { version: '1.2.3' }
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'v1.2.3 に更新' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'キャンセル' }))
+    // ダイアログが閉じたことまで見る。**「呼ばれていない」だけでは、手前で
+    // 例外が飛んで止まっていても緑になる**（lessons-for-planning）
+    await waitFor(() => expect(screen.queryByText('facet を更新する')).toBeNull())
+    expect(installMock).not.toHaveBeenCalled()
+  })
+
+  it('**端末が動いているときは切断を警告する**', async () => {
+    updateConfig.available = { version: '1.2.3' }
+    await openPane()
+    fireEvent.click(await screen.findByRole('button', { name: 'v1.2.3 に更新' }))
+    expect(await screen.findByText(/Claude Code のセッションは切断されます/)).toBeTruthy()
+  })
+
+  it('端末が動いていなければ切断の警告は出ない', async () => {
+    updateConfig.available = { version: '1.2.3' }
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'v1.2.3 に更新' }))
+    expect(await screen.findByText('facet を更新する')).toBeTruthy()
+    expect(screen.queryByText(/Claude Code のセッションは切断されます/)).toBeNull()
+  })
+
+  it('**mac ではボタンを出さない**', async () => {
+    pretendMac()
+    updateConfig.available = { version: '1.2.3' }
+    render(<App />)
+    // 起動時チェックが走りうる時間を与えてから見る。**待たないと「まだ
+    // 出ていないだけ」でも緑になる**
+    await settleStartupCheck()
+    expect(screen.queryByRole('button', { name: 'v1.2.3 に更新' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '更新を確認' })).toBeNull()
+    // 額縁自体は描画されている（描画そのものが落ちていて全部 null、を弾く）
+    expect(screen.getByRole('button', { name: 'フォルダを開く' })).toBeTruthy()
   })
 })
