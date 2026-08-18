@@ -19,8 +19,10 @@ export default defineConfig({
     strictPort: true,
   },
   test: {
-    // src-tauri 配下（Rust）は Vitest の対象外
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // src-tauri 配下（Rust）は Vitest の対象外。
+    // scripts/ はリリース補助スクリプト（M19）。src/ の下に置けないので
+    // 走査対象を明示して足す
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'scripts/**/*.test.mjs'],
     environment: 'node',
   },
 })

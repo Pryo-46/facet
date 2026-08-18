@@ -36,3 +36,6 @@ docs/screenshots/
 # 実装計画の実行ワークスペース（ブリーフ・レポート・レビューパッケージ。
 # 記録は git 履歴側に残るため再生成不要）
 .superpowers/
+
+# リリースのたびに作り直す成果物（M19。GitHub Releases の asset として上げる）
+/latest.json
