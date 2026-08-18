@@ -10,7 +10,7 @@ M11 は計画9タスク（Task 1〜9。実装8本＋実機確認と文書への�
 
 ## Task 1 Step 7: `claude` の起動は PATH から直接通った
 
-設計 決定9 は「`portable-pty` が Windows の `PATHEXT` 解決までやるかは実機で確認するまで分からない」とし、通らなければ `cmd.exe /c claude` への一段フォールバックを予定していた。**実機では不要だった。** `program: 'claude'` のまま `pty_spawn` を呼ぶだけで起動し、`CLAUDE_PROGRAM` / `CLAUDE_ARGS`（`src/core/terminal/pty-io.ts`）はブリーフのコードから変更していない。検証機の実行ファイルは `C:\Users\master\.local\bin\claude.exe`。
+設計 決定9 は「`portable-pty` が Windows の `PATHEXT` 解決までやるかは実機で確認するまで分からない」とし、通らなければ `cmd.exe /c claude` への一段フォールバックを予定していた。**実機では不要だった。** `program: 'claude'` のまま `pty_spawn` を呼ぶだけで起動し、`CLAUDE_PROGRAM` / `CLAUDE_ARGS`（`src/core/terminal/pty-io.ts`）はブリーフのコードから変更していない。検証機の実行ファイルは `C:\Users\<ユーザー名>\.local\bin\claude.exe`。
 
 副次的な観察として、`claude` は起動直後にカーソル位置問い合わせ（`ESC[6n`）を送り、返事が来るまで描画を始めない。xterm は自分で応答するので画面上は問題にならないが、**端末を繋がずに PTY だけを検証すると「1行出て止まる」ように見える**。Task 1 の実装者が生の `console.log` で PTY 検証ボタンを組んだときに踏んだ観察で、次に PTY だけを単体で叩く人が同じ現象を「壊れている」と誤診しないための記録。
 

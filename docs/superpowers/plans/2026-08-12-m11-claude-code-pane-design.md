@@ -135,7 +135,7 @@ Node のサイドカー（`node-pty` ＋ WebSocket）も検討したが採らな
 
 ### 決定9: `claude` の起動可否を実装計画の第1タスクにする
 
-実行ファイルの形が環境で違う。検証機では `C:\Users\master\.local\bin\claude.exe`（ネイティブ実行ファイル）だが、npm 経由で入れた環境では `claude.cmd` になる。`portable-pty` の `CommandBuilder` が Windows の `PATHEXT` 解決までやるかは実機で確認するまで分からない。
+実行ファイルの形が環境で違う。検証機では `C:\Users\<ユーザー名>\.local\bin\claude.exe`（ネイティブ実行ファイル）だが、npm 経由で入れた環境では `claude.cmd` になる。`portable-pty` の `CommandBuilder` が Windows の `PATHEXT` 解決までやるかは実機で確認するまで分からない。
 
 **実装計画の第1タスクを「PTY で `claude` が1本立ち上がり、キーが届き、出力が出ること」にする。** 通らなければ `cmd.exe /c claude` へ一段落とす。ここが通らないと以降の全タスクが無意味になるので、先に潰す。
 

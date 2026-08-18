@@ -3,8 +3,8 @@ name = "facet"
 version = "1.0.0"
 description = "仕様整理ツール詰め合わせ。Rust 側はプラグインの登録のみで、ロジックは TypeScript 側に置く。"
 authors = ["pryo"]
-license = ""
-repository = ""
+license = "MIT"
+repository = "https://github.com/Pryo-46/facet"
 edition = "2021"
 rust-version = "1.77.2"
 
