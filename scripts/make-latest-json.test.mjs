@@ -7,9 +7,18 @@ import {
   tauriConfVersion,
 } from './make-latest-json.mjs'
 
-// **依存の version 行を紛れ込ませてある。** [package] の版だけを取る実装と
-// 「最初に見つかった version 行」を取る実装を区別するため
-const CARGO = `[package]
+// **`[workspace.package]` を [package] より前に置いてある。** これが無いと
+// [package] の version が最初の version 行になってしまい、セクションを
+// 切り出さない素朴な実装でも偶然 1.2.3 に一致して、このフィクスチャが
+// 「[package] の版を取る」ことを何も証明しなくなる。
+// **[dependencies] の裸の version は [package] より後ろなので、前後の
+// 両側に釣り餌を置いたことになる。**
+// workspace 継承（version.workspace = true）は Cargo の実在の機能で、
+// 非現実的なフィクスチャではない
+const CARGO = `[workspace.package]
+version = "0.0.0"
+
+[package]
 name = "facet"
 version = "1.2.3"
 edition = "2021"
