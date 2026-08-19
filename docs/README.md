@@ -15,6 +15,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | シーケンスの仕様がなぜそう決まったか（異常系を「描く」ではなく「問う」） | [`sequence/sequence-design-notes.md`](sequence/sequence-design-notes.md) |
 | エラーカタログの仕様がなぜそう決まったか | [`error-catalog/error-catalog-session-notes.md`](error-catalog/error-catalog-session-notes.md) |
 | 環境・ビルド・Tauri の前提 | [`project-setup.md`](project-setup.md) |
+| リリースの出し方・署名鍵の扱い | [`release.md`](release.md) |
 | **いま何が壊れている／未着手か** | [`open-issues.md`](open-issues.md) — **生きた文書**。解消したら消す |
 | **計画を書く前に知るべき失敗** | [`lessons-for-planning.md`](lessons-for-planning.md) |
 | あのマイルストーンで何が起きたか | [`history/`](history/) — 追記専用。以後変えない |
@@ -58,6 +59,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [M16](history/m16-test-homework.md) | テストの宿題 | コア・シーケンス |
 | [M17](history/m17-core-terminal-fixes.md) | 端末ペインの残件6件（配色・入力・プロセスの寿命） | コア |
 | [M18](history/m18-restore-last-folder.md) | 起動時に直近フォルダを自動で復元する | コア |
+| [M19](history/m19-core-auto-update.md) | Windows の自動アップデート | コア |
 | [logic-tree-m1](history/logic-tree-m1-keyboard-editor.md) | キーボードで打ち切れるキャンバスエディタ | ロジックツリー |
 | [sequence-m1](history/sequence-m1-keyboard-editor.md) | ステップ入力＋全ステップに立つ「失敗したら？」の問い | シーケンス |
 | [sequence-m2](history/sequence-m2-usability.md) | 会議で使ってみて出た使い勝手9点 | シーケンス |

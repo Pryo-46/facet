@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Moon, PanelLeft, Redo2, Sun, SquareTerminal, Undo2 } from 'lucide-react'
+import { Download, Moon, PanelLeft, Redo2, RefreshCw, Sun, SquareTerminal, Undo2 } from 'lucide-react'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ExportMenu } from '@/components/ExportMenu'
@@ -55,6 +55,20 @@ import {
   type TerminalState,
 } from '@/core/terminal/sessions'
 import { dismissToast, dismissToastByKey, pushToast, type ToastItem } from '@/core/toasts'
+import {
+  buttonLabel,
+  canCheck,
+  failed,
+  foundNone,
+  foundUpdate,
+  initialUpdateState,
+  isEmphasized,
+  // **`progress` のままにしないこと。** 額縁の文脈では「何の進捗か」が読めない
+  progress as advanceProgress,
+  startCheck,
+  startInstall,
+  type UpdateState,
+} from '@/core/update-check'
 import { forceClose, interceptClose } from '@/fs/app-window'
 import { copyToClipboard } from '@/fs/clipboard'
 import {
@@ -73,6 +87,7 @@ import { killAllPtys, tauriPtyIo } from '@/fs/pty'
 import { tauriReadingGuideIo } from '@/fs/reading-guide-io'
 import { readLastProjectDir, saveLastProjectDir } from '@/fs/settings-fs'
 import { allowSkillDir, tauriSkillSyncIo } from '@/fs/skill-resources'
+import { checkForUpdate, type AvailableUpdate } from '@/fs/updater'
 import { appRegistry } from '@/modules'
 
 const AUTOSAVE_DELAY_MS = 500
@@ -341,6 +356,155 @@ function App() {
   const dismiss = useCallback((id: number) => {
     setToasts((prev) => dismissToast(prev, id))
   }, [])
+
+  // ── 自動アップデート（M19。Windows のみ。判定は描画時の currentPlatform） ──
+  const [updateState, setUpdateState] = useState<UpdateState>(initialUpdateState)
+  /**
+   * 見つかった更新の実体。**state に入れないこと**——`install` という関数を
+   * 持つので、`useState` に渡すと遅延初期化の関数と取り違えられる
+   */
+  const availableUpdateRef = useRef<AvailableUpdate | null>(null)
+  /**
+   * 更新の非同期処理が走っている間の錠前。**state で判定しないこと**——
+   * `setUpdateState` に渡す更新関数が同期に呼ばれる保証は無いため、そこで
+   * 「始まったか」を見ると、連打や「起動時チェックと手動チェックの重なり」で
+   * 2本走る隙間ができる。`canCheck(state)` はボタンの `disabled` を導く役で、
+   * こちらは実際の多重起動を止める役。**役が違うので両方要る**
+   */
+  const updateBusyRef = useRef(false)
+  /**
+   * 直前に押したトーストの文字列。**組み立てた文字列が前回と同じなら
+   * `showToast` を呼ばない**（レビュー指摘B）——`showToast` は呼ぶたびに
+   * 新しい id を採番し、`ToastStack` はその `id` を key にしている
+   * （`src/components/Toast.tsx`）。同じ内容のトーストでも id が変われば
+   * React は unmount → remount する。`ToastRow` は `role="status"` の
+   * ライブリージョンなので、2MB のインストーラだと1回の更新で
+   * スクリーンリーダーが約250回読み上げ直し、その間「閉じる」ボタンも
+   * ポインタの下で作り直され続ける
+   */
+  const lastProgressMessage = useRef<string | null>(null)
+
+  /**
+   * 更新を確認する。**起動時は静かに諦める**——ネットワークが無い環境で
+   * 起動するたびにエラーが出るのは雑音でしかない。見せるのは利用者が
+   * 自分でボタンを押したときだけ（M19 の設計）
+   */
+  const runUpdateCheck = useCallback(
+    async (manual: boolean) => {
+      if (updateBusyRef.current) return
+      updateBusyRef.current = true
+      setUpdateState(startCheck)
+      try {
+        const update = await checkForUpdate()
+        availableUpdateRef.current = update
+        setUpdateState((prev) =>
+          update === null ? foundNone(prev) : foundUpdate(prev, update.version),
+        )
+        if (manual && update === null) showToast({ message: 'facet は最新版です', key: 'update' })
+      } catch (err: unknown) {
+        console.error('更新の確認に失敗しました', err)
+        const message = err instanceof Error ? err.message : String(err)
+        setUpdateState((prev) => failed(prev, message))
+        if (manual) showToast({ message: `更新を確認できませんでした: ${message}`, key: 'update' })
+      } finally {
+        updateBusyRef.current = false
+      }
+    },
+    [showToast],
+  )
+
+  /**
+   * 起動時に1回だけ確認する（**一回性ガードは起動時のフォルダ復元と同じ形**。
+   * StrictMode の二重マウントで2回チェックしない）。
+   *
+   * **`cancelled` フラグは持たない。** App はアプリの生存期間そのまま
+   * マウントされ続ける唯一のトップレベルで、実際に unmount されるのは
+   * StrictMode の合成的な二重起動とテストの `cleanup()` だけ。React 18 以降は
+   * アンマウント後の setState を警告しないので、握り潰す実害が無い一方、
+   * フラグを持たせると（復元の effect と同じ理屈で）合成的な unmount が
+   * 1回目の試み自体を壊す
+   */
+  const updateCheckedRef = useRef(false)
+  useEffect(() => {
+    if (updateCheckedRef.current) return
+    updateCheckedRef.current = true
+    void runUpdateCheck(false)
+  }, [runUpdateCheck])
+
+  /**
+   * 更新のインストールを要求する。**確認を挟むのは、承諾した瞬間に facet が
+   * 終了するから**——保存済みでも、Claude Code のセッションは切れる。
+   * 確認は既存のモーダルキューに乗せる（生産者を増やすだけで足りる）。
+   *
+   * `description` は**ただの文字列**（`ConfirmDialog` は `whitespace-pre-line`
+   * で改行を活かすだけで、Markdown は解釈しない）。強調記法を書いても
+   * `**` がそのまま出るので使わない
+   */
+  const requestInstall = useCallback(
+    (version: string) => {
+      const running = hasRunning(terminals)
+      setModals((prev) =>
+        pushModal(prev, {
+          kind: 'confirm',
+          key: 'update',
+          title: 'facet を更新する',
+          description: [
+            `v${version} をダウンロードしてインストールします。`,
+            '更新のため facet を終了します。編集内容は自動保存済みです。',
+            ...(running ? ['Claude Code のセッションは切断されます。'] : []),
+            '更新後に facet を開き直してください。',
+          ].join('\n'),
+          confirmLabel: '更新する',
+          onConfirm: async () => {
+            const update = availableUpdateRef.current
+            if (update === null || updateBusyRef.current) return
+            updateBusyRef.current = true
+            setUpdateState((prev) => startInstall(prev))
+            try {
+              await update.install((chunk, total) => {
+                setUpdateState((prev) => advanceProgress(prev, chunk, total))
+              })
+              // **成功してもここへは来ない見込み**（プロセスが落ちる）。
+              // 来てしまった場合は installing のまま置く——`canCheck` が false を
+              // 返し続けるので、更新中に見えるボタンのまま止まる。
+              // **錠前をここで開けないのは意図的**（installing からは error にしか
+              // 抜けない。`src/core/update-check.ts`）
+            } catch (err: unknown) {
+              updateBusyRef.current = false
+              console.error('更新のインストールに失敗しました', err)
+              const message = err instanceof Error ? err.message : String(err)
+              setUpdateState((prev) => failed(prev, message))
+              showToast({ message: `更新できませんでした: ${message}`, key: 'update' })
+            }
+          },
+        }),
+      )
+    },
+    [showToast, terminals],
+  )
+
+  /**
+   * ダウンロードの進捗をトーストで流す。**`key: 'update'` で置き換わる**ので
+   * 積み上がらない（`pushToast` が同じ key を差し替える）。更新まわりの通知は
+   * チェックの失敗も「最新です」も同じ key なので、常に1本に保たれる
+   */
+  useEffect(() => {
+    if (updateState.kind !== 'installing') {
+      // 次の更新（次の installing）で1件目のトーストが出なくなるのを防ぐ
+      lastProgressMessage.current = null
+      return
+    }
+    const mb = (n: number) => (n / 1024 / 1024).toFixed(1)
+    const message =
+      updateState.total === null
+        ? `更新をダウンロード中… ${mb(updateState.downloaded)} MB`
+        : `更新をダウンロード中… ${mb(updateState.downloaded)} / ${mb(updateState.total)} MB`
+    // 組み立てた文字列が前回と同じなら push しない（上の lastProgressMessage
+    // のコメント参照。理由は id の採番と role="status" の読み上げ直し）
+    if (message === lastProgressMessage.current) return
+    lastProgressMessage.current = message
+    showToast({ message, key: 'update' })
+  }, [updateState, showToast])
 
   /**
    * コントローラは1度だけ作る。**state に入れないこと**——作り直すと台帳・選択・
@@ -753,6 +917,38 @@ function App() {
           >
             <SquareTerminal aria-hidden className="size-4" />
           </button>
+          {/* 自動アップデート（M19）。**mac では出さない**——latest.json に
+              darwin-* を載せないので、押せば必ず「最新版です」と言う
+              嘘をつくボタンになる。**`currentPlatform()` は描画のたびに呼ぶ**
+              （モジュールスコープの定数にすると、テストが UA を差し替えても
+              効かない）。強調は TerminalPane の選択中タブと同じ
+              bg-surface-accent（新しい役割トークンは足さない） */}
+          {currentPlatform() !== 'mac' && (
+            <button
+              type="button"
+              aria-label={buttonLabel(updateState)}
+              title={buttonLabel(updateState)}
+              disabled={!canCheck(updateState)}
+              className={
+                isEmphasized(updateState)
+                  ? `${buttonBase} gap-1 bg-surface-accent px-2 py-1 text-ink`
+                  : `${buttonBase} p-1 text-ink-muted`
+              }
+              onClick={() => {
+                if (updateState.kind === 'available') requestInstall(updateState.version)
+                else void runUpdateCheck(true)
+              }}
+            >
+              {isEmphasized(updateState) ? (
+                <>
+                  <Download aria-hidden className="size-4" />
+                  <span className="text-xs">{buttonLabel(updateState)}</span>
+                </>
+              ) : (
+                <RefreshCw aria-hidden className="size-4" />
+              )}
+            </button>
+          )}
           {/* 名前は「今どちらか」でなく「押すとどうなるか」。アイコンだけの
               ボタンは押す前に結果が読めないと意味が取れない */}
           <button
