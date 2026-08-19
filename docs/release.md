@@ -80,6 +80,20 @@ gh release create v<v> --title "v<v>" --notes-file <リリースノート> `
 updater が参照する `latest.json` が古い版のまま（または存在しないまま）なので、
 既存ユーザーには新版が見えない。
 
+**しかも「新版が見えない」では済まない。** エンドポイントの
+`releases/latest/download/` は**常に最新のリリース**を指すので、新しいリリースに
+`latest.json` が無いと、そこから 404 が返るようになる。**Tauri の updater が
+「更新なし」と解釈するのは HTTP 204 だけで、404 はエラーである**——利用者が更新を
+確認するたびに `更新を確認できませんでした: Could not fetch a valid release JSON
+from the remote` が出る状態になる（M19 の実機確認で実際に踏んだ。
+`docs/history/m19-core-auto-update.md`）。
+
+`gh release create` が通ったら、**その場でエンドポイントを叩いて 200 を確かめること**:
+
+```powershell
+curl.exe -sSL -o NUL -w "%{http_code}`n" https://github.com/Pryo-46/facet/releases/latest/download/latest.json
+```
+
 ## 7. mac の dmg を足す
 
 mac の dmg は mac 実機で別に作り、同じリリースへ足す。

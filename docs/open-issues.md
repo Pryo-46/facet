@@ -13,7 +13,7 @@
 全項目をコード実物と突き合わせた結果からの優先順。根拠は各項目の本文にある。**Skill 関連の4項目は M15 で解消し、この一覧から消した**（[`history/m15-skill-hygiene.md`](history/m15-skill-hygiene.md) 参照）。**app-controller の interleaving 3分岐は M16 で解消し、この一覧から消した**（[`history/m16-test-homework.md`](history/m16-test-homework.md) 参照）。**M15・M18 の実機確認は 2026-08-16 に人間の手で完了し、この一覧から消した。**
 
 1. **端末からキーボードで本体へ戻れない**（挙動の穴の項）——rev 2章の理念との食い違い。ただし「キーは割り当てない」は人間の裁定（設計 決定11）なので、**覆すかどうかは仕様判断**
-2. **M19（Windows の自動アップデート）の実機確認が未実施**（[`history/m19-core-auto-update.md`](history/m19-core-auto-update.md) 参照）——エージェントが Tauri の GUI を操作できないため。ネットワーク切断時の静かな失敗・エラートースト・最新版判定・v1.0.0→v1.0.1 の実更新・UAC・SmartScreen・自動再起動の有無・再起動後の版確認、いずれも未実施のまま
+2. **M19（Windows の自動アップデート）の実機確認が、実リリースを要する部分だけ残っている**（[`history/m19-core-auto-update.md`](history/m19-core-auto-update.md) 参照）。**開発ビルドで見える3項目（起動時の静かな失敗・手動チェックのエラートースト・「最新版です」の判定）は人間の手で完了した。** 残るのは **v1.0.1 を本物のリリースとして出さないと確かめられない6項目**——更新ボタンが「v1.0.1 に更新」に変わるか・確認ダイアログからインストールまで通るか・ダウンロード中に進捗トーストが読め「閉じる」が押せるか・UAC が出ないか・SmartScreen が出ないか・更新後にアプリが自動で戻ってくるか。ローカルの静的サーバでは代用しない（HTTPS・GitHub のリダイレクト・`releases/latest/download` の解決という経路が本番と違う）
 3. **未署名配布そのものが未解決**（mac の Gatekeeper・Windows の SmartScreen）——M19 は Windows の自動更新経路を足しただけで、配布物が未署名であること自体（mac の `.app` が quarantine で Gatekeeper に弾かれる・Windows の exe/インストーラで SmartScreen が出る）は解決していない。署名（Apple Developer Program・Windows のコード署名証明書）は別の意思決定
 
 ## テストが無い箇所
