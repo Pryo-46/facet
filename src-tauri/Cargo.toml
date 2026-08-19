@@ -1,6 +1,6 @@
 [package]
 name = "facet"
-version = "1.0.0"
+version = "1.0.1"
 description = "仕様整理ツール詰め合わせ。Rust 側はプラグインの登録のみで、ロジックは TypeScript 側に置く。"
 authors = ["pryo"]
 license = "MIT"
