@@ -83,3 +83,20 @@ open-issues が記録していた1点に加えて、もう1点あった。
 - **6章 拡張要件**: 「キャンバス系ツールのレイアウト関数は当面モジュールが持つ（sequence M1 時点）」の項を、コア化が済んだ現在の状態として書き直した。
 - **9章 確定要素**: フォントトークンの実装パスを `src/core/canvas/canvas-font.ts` へ直した。
 - **10章 実装規約**: キャンバス系ツールの実装構成の項に、土台がコアの共有物になったことを反映した。「3レイヤに同一の transform を当てる」規約自体は変わっていない。
+
+## 最終ブランチレビューとその修正
+
+HEAD `be35403` の時点で最終ブランチレビューを実施。**アプリの挙動の変更は1つも無いことを、移設前後の原本5組（`viewport.ts`/`use-viewport.ts`、`canvas-font.ts`、`wrap.ts`、`edges.ts`、`flat-tree.ts`/`tree-layout.ts`）の機械的な突き合わせで確認した。Critical は0件。** Important 3件・Minor 3件を指摘され、以下のとおり1回のコミットで修正した。
+
+- **JSDoc が移設で丸ごと消えた事故**（`src/core/canvas/wrap.ts`）: 計画 Step 5 は「sequence 版（一般形）をそのまま移す」と指示していたが、sequence 版の `wrapText` には関数 JSDoc が最初から無かった（logic-tree 版にだけあった）。指示に忠実に従った結果、`wrapText` の JSDoc・`WrappedText` のフィールド注釈・`for...of` のインラインコメントが移設先に運ばれず消えていた。**これは実装の逸脱ではなく計画の欠陥である**——「一般形をそのまま移す」という指示が「一般形の側に付いていない説明は運ばれない」という帰結を見落としていた。原本（`git show 471c779:src/modules/logic-tree/measure.ts`）と突き合わせ、`wrapWithin` の JSDoc・`WrappedBlock` のフィールド注釈・`for...of` のコメントとして復元した（「ノード矩形」は「箱」に一般化、それ以外は文面のまま）。失われていたのは測定層が1パスで文字切れを起こさない理由の唯一の説明で、`NODE_INSET_X` の JSDoc・`NodeBox.tsx` の break-all コメントと対になっていたため、実害は「もう存在しない説明を指す参照」を放置することだった。
+- **複製の記録が1箇所だけ現在形で残っていた**（`src/modules/sequence/measure.ts` のヘッダ）: 「複製の記録: 共通化は2本目完成後に別マイルストーンで判断」という文が、**M20 自身が下した判断（コアへ引き上げた）と矛盾する**まま残っていた。他の複製ヘッダ（`viewport.ts` 等）は移設時に消えていたのに、ここだけ取りこぼしだった。このファイルの現在の責務（寸法定数・`gutterLabelText`・折り返しの再エクスポート）を述べる文に書き直した。
+- **`readCanvasFont` の null 時の罠が無警告・無テストだった**（`src/core/canvas/canvas-font.ts`）: `el === null` のとき常に `FALLBACK_CANVAS_FONT`（14px）に落ちる据え置きの挙動（Global Constraint で明示的に指示されていた）が、コードにはコメントもテストも無かった。JSDoc に追記し、`src/core/canvas/canvas-font.test.ts` を新設して `readCanvasFont(null)` と「fontSize が読めない要素」の2本で固定した。
+- **`docs/open-issues.md` の `focusSibling` の項が古いパスを指していた**: `siblingsOf` は M20 で `@/core/canvas/flat-tree.ts` へ移設済み・export 済みだったが、項は旧パス（`commands.ts`）のままだった。パスを直し、「あとは `LogicTreeEditor.tsx` が呼び替えるだけ」に更新した（コードは直していない。範囲外）。
+- **`docs/overview-rev.md` 6章の数え違いと文の矛盾**: 引き上げた範囲を「5点」と数えていたが `edgePath` が漏れていた（10章は正しく含んでいた）ので「6点」に直した。「各モジュールに残るのは箱の寸法定数とツール固有の畳み方だけ」という文は、直前の「シーケンスの積み上げ型レイアウトは各モジュールに残した」と矛盾していたため、`sequence/layout.ts` 本体・`gutterLabelText`・`NODE_BOX_CLASS` 等のクラス定数・エッジの SVG レイヤも含む形に直した。
+- **`src/modules/logic-tree/measure.test.ts` にコアと逐語重複する `it` が3本残っていた**: `連続した改行は空行として残す` / `サロゲートペアを割らない` / `同じ入力からは同じ結果が出る（純関数）` の3本は `NODE_*` を一切参照しておらず、`src/core/canvas/wrap.test.ts` に既に同じアサーションで存在していた。3本を削除し、`NODE_*` を参照する残り8本（薄い包みの疎通確認）はそのまま残した。
+
+**直さず記録した1件**: 幾何の primitive（`Rect`/`Point`/`Size`）が `viewport.ts` と `tree-layout.ts` に分かれ、`Rect = Point & Size` になっていないこと。M20 は挙動を変えない移設のマイルストーンなので型の再編はスコープ外とし、`docs/open-issues.md`「小さな負債」に `[M20]` タグで追加した——3本目のキャンバスツール（課題ツリー）を書き始める前に決める値打ちがある。
+
+修正後の検証: `npm test` 117 files / 1423 tests 全緑、`npx tsc -b` エラー無し、`npm run lint` エラー無し。コミットは1本（後述）。
+
+**Task 4（実機確認）は引き続き未実施のまま。** 上のチェックリスト8項目は空のまま申し送る。

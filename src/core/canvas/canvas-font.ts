@@ -40,6 +40,12 @@ export function sameFont(a: CanvasFont, b: CanvasFont): boolean {
  * **測定と描画は同一の情報源を見る必要がある**（rev 9章）。定数で二重に
  * 持つと、トークンを変えたときに全ノードのサイズが静かに狂う。描画される
  * ノードと同じクラスを当てた見本要素から読むことで、その口を1つに保つ
+ *
+ * **`el === null` のとき（および fontSize が読めないとき）返るのは常に
+ * `FALLBACK_CANVAS_FONT`（14px）である。小さい方の見本要素（text-xs）に
+ * 対して呼んでも `FALLBACK_SMALL_FONT` にはならない。** これは logic-tree
+ * M1 以来の既存の挙動で、据え置いている——変えると sequence の行高が静かに
+ * ずれる
  */
 export function readCanvasFont(el: HTMLElement | null): CanvasFont {
   if (el === null || typeof getComputedStyle !== 'function') return FALLBACK_CANVAS_FONT

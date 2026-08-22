@@ -20,11 +20,25 @@ export interface WrapOptions {
 }
 
 export interface WrappedBlock {
+  /** 折り返し後の行。**描画側と同じフォント指定を前提に確定させてある** */
   lines: string[]
+  /** 箱の幅（余白込み） */
   width: number
+  /** 箱の高さ（余白込み） */
   height: number
 }
 
+/**
+ * 文言を折り返して箱の寸法を出す。
+ *
+ * 折り返しは**コードポイント単位のグリーディ**で、CSS の `word-break: break-all`
+ * と同じ規則。日本語は任意位置で折り返せるので単語単位にする意味がなく、
+ * 単語単位にすると測定層とブラウザの判断がずれる。
+ *
+ * 幅は各行の実測の最大値を切り上げて使う。**切り上げているので、描画側に
+ * 渡る内容幅は測定時の前提以上になり、ブラウザが測定より早く折り返すことはない**
+ *（遅く折り返して行数が減る方向は、余白が1行分増えるだけで文字は切れない）。
+ */
 export function wrapWithin(
   text: string,
   measure: MeasureWidth,
@@ -35,6 +49,7 @@ export function wrapWithin(
   const lines: string[] = []
   for (const segment of text.split('\n')) {
     let line = ''
+    // for...of は文字列をコードポイント単位で回す（サロゲートペアを割らない）
     for (const ch of segment) {
       if (line === '') {
         line = ch
