@@ -5,7 +5,7 @@ import { edgePath } from '@/core/canvas/edges'
 import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { INITIAL_TRANSFORM } from '@/core/canvas/viewport'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
-import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { poseQuestions, suppressedIssueIds } from './derive'
 import { IssueTreeEdges } from './IssueTreeEdges'
 import { layoutIssueTree } from './layout'
@@ -32,8 +32,8 @@ const fonts = {
  * 課題0（根）にだけ仮説カードを2枚ぶら下げてある。カードはブロックの高さと
  * 幅を押し広げるので、**線がブロックの矩形から引かれていれば座標が変わる。**
  */
-const data: IssueTreeSchemaVersion1 = {
-  schemaVersion: 1,
+const data: IssueTreeSchemaVersion2 = {
+  schemaVersion: 2,
   type: 'issueTree',
   title: 'テスト',
   issues: [

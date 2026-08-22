@@ -28,7 +28,7 @@ const SCRIPT = path.join(REPO_ROOT, '.claude/skills/issue-tree-register/scripts/
  * 課題・仮説とも全キー常在）
  */
 const FIXTURE = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   type: 'issueTree',
   title: '検証用',
   issues: [
@@ -95,7 +95,7 @@ describe('issue-tree-write.mjs（実行 smoke ＋ 警告文言のアプリ一致
 
   it('欠陥の無いファイルは警告なしの exit 0', () => {
     const { status, stdout } = check({
-      schemaVersion: 1,
+      schemaVersion: 2,
       type: 'issueTree',
       title: '検証用',
       issues: [{ id: 'issue_AAAAAAAAAA', parentId: null, text: '決済PoCで確かめること', events: [] }],

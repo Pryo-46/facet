@@ -1,9 +1,14 @@
-import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 
 /**
- * 規約6: マイグレータ。schemaVersion 1 が初版のため旧版が存在せず、
- * 恒等変換の枠だけを置く。schemaVersion 2 が生まれた時点で最初の変換を実装する
+ * 規約6: マイグレータ。**1 → 2 は `schemaVersion` の書き換えだけ**——
+ * 2 は `judgementEvent.kind` に `onHold`（保留）を足した改訂で、
+ * 1 の正しいファイルはそのまま 2 の正しいファイルである。
+ *
+ * 移行後の検証は呼び出し側（`src/core/load.ts`）がやる。ここでは形を
+ * 見ない（見ると、検証の規則が2箇所に生える）
  */
-export function migrateIssueTree(data: unknown, _fromVersion: number): IssueTreeSchemaVersion1 {
-  return data as IssueTreeSchemaVersion1
+export function migrateIssueTree(data: unknown, fromVersion: number): IssueTreeSchemaVersion2 {
+  if (fromVersion >= 2) return data as IssueTreeSchemaVersion2
+  return { ...(data as Record<string, unknown>), schemaVersion: 2 } as IssueTreeSchemaVersion2
 }

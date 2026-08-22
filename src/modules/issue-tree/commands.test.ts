@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import {
   addChildIssue,
   addHypothesis,
@@ -21,9 +21,9 @@ const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
 
 /** 根(0) — 子(1) — 孫(2), 孫(4) ／ 根 — 子(3)。兄弟3つ・深さ2を含む */
-function data(): IssueTreeSchemaVersion1 {
+function data(): IssueTreeSchemaVersion2 {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     type: 'issueTree',
     title: 'T',
     issues: [
@@ -51,10 +51,10 @@ const Z = I(14)
  * 根 R — X, Y, Z（兄弟3つ）／ Y — Ychild。
  * 仮説の id は H(11)=X / H(12)=Y / H(13)=Ychild / H(14)=Z にぶら下がる
  */
-function branched(hypothesisIds: string[]): IssueTreeSchemaVersion1 {
+function branched(hypothesisIds: string[]): IssueTreeSchemaVersion2 {
   const issueOf: Record<string, string> = { [H(11)]: X, [H(12)]: Y, [H(13)]: YCHILD, [H(14)]: Z }
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     type: 'issueTree',
     title: 'T',
     issues: [
@@ -111,8 +111,8 @@ describe('課題の構造編集', () => {
   it('循環を含むファイルに根を足しても、フォーカスは足した課題を指す', () => {
     // 出力を正規化する以上、**位置は参照の同一性で引き直さないと**
     // 別の実在ノード（循環側）を指す——空欄だと思って打つと他人の文言を潰す
-    const d: IssueTreeSchemaVersion1 = {
-      schemaVersion: 1,
+    const d: IssueTreeSchemaVersion2 = {
+      schemaVersion: 2,
       type: 'issueTree',
       title: 'T',
       issues: [
@@ -190,7 +190,7 @@ describe('仮説とメモ', () => {
    * 「全部を差し替える」実装と区別できない。メモも3件持たせる——2件だと
    * 上下の入れ替えが同じ結果になり、向きの取り違えを検出できない
    */
-  function withNotes(): IssueTreeSchemaVersion1 {
+  function withNotes(): IssueTreeSchemaVersion2 {
     const d = normalizeOrder(data())
     return {
       ...d,

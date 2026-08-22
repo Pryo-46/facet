@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
-import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { poseQuestions } from './derive'
 import { CARD_INDENT, CARD_WIDTH } from './measure'
 import { layoutIssueTree } from './layout'
@@ -10,12 +10,12 @@ const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
 
 const fonts = { body: { measure: createEstimateMeasurer(14), lineHeight: 23 }, small: { measure: createEstimateMeasurer(12), lineHeight: 18 } }
 
-function run(data: IssueTreeSchemaVersion1) {
+function run(data: IssueTreeSchemaVersion2) {
   return layoutIssueTree(data, poseQuestions(data), fonts)
 }
 
-function make(over: Partial<IssueTreeSchemaVersion1>): IssueTreeSchemaVersion1 {
-  return { schemaVersion: 1, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
+function make(over: Partial<IssueTreeSchemaVersion2>): IssueTreeSchemaVersion2 {
+  return { schemaVersion: 2, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
 }
 
 describe('layoutIssueTree', () => {

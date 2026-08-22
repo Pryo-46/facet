@@ -1,13 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "issue-tree.schema.json",
-  "title": "課題ツリー (issueTree) schemaVersion 1",
-  "description": "仕様整理ツール詰め合わせの課題ツリーファイル。PoCで「試さないと分からないこと」を課題として分解し、仮説と検証の履歴を持つ。1ファイル＝1本の木（単一ルート。根はPoCテーマ等、種類は制約しない）。仮説・課題のステータスはミュータブルな値として持たず、追記専用のイベント列の最新から導出する。問いの立ち方は導出で決まる：子を持たない課題に仮説が無ければ「仮説は？」、仮説のイベントが0件なら「検証結果は？」、pendingNotes が残っていれば「判断は？」。祖先課題の最新イベントが deferred のとき配下の問いは立たない（抑制は導出であり、子に値をコピーしない）。キーの正規順序は本スキーマの properties 記載順とする。",
+  "title": "課題ツリー (issueTree) schemaVersion 2",
+  "description": "仕様整理ツール詰め合わせの課題ツリーファイル。PoCで「試さないと分からないこと」を課題として分解し、仮説と検証の履歴を持つ。1ファイル＝1本の木（単一ルート。根はPoCテーマ等、種類は制約しない）。仮説・課題のステータスはミュータブルな値として持たず、追記専用のイベント列の最新から導出する。問いの立ち方は導出で決まる：子を持たない課題に仮説が無い／仮説のイベントが0件／最新が onHold／pendingNotes が残っている、の4つが問いとして立つ。祖先課題の最新イベントが deferred のとき配下の問いは立たない（抑制は導出であり、子に値をコピーしない）。キーの正規順序は本スキーマの properties 記載順とする。",
   "type": "object",
   "properties": {
     "schemaVersion": {
-      "description": "スキーマの版。issueTree の初版は 1。アプリは検証前にこの値を読み、未知の新版は「一覧表示のみ・編集不可」として扱う。",
-      "const": 1
+      "description": "スキーマの版。issueTree は 2 が現行（1 → 2 は `judgementEvent.kind` に `onHold` を足した改訂。旧版はアプリが読み込み時に移行する）。アプリは検証前にこの値を読み、未知の新版は「一覧表示のみ・編集不可」として扱う。",
+      "const": 2
     },
     "type": {
       "description": "ツール種別。課題ツリーは issueTree 固定。",
@@ -79,7 +79,7 @@
       "additionalProperties": false
     },
     "hypothesis": {
-      "description": "仮説1件。全キー常在。仮説＝支持・棄却を判定できる主張。現在ステータスは events の最新要素の kind から導出する（ミュータブルな状態フィールドを持たない）。events が空＝未決（「検証結果は？」warning）。deferred が最新でも、後から新イベントを追記すれば履歴を消さずに復活できる（永久確定をスキーマで強制しない）。",
+      "description": "仮説1件。全キー常在。仮説＝支持・棄却を判定できる主張。現在ステータスは events の最新要素の kind から導出する（ミュータブルな状態フィールドを持たない）。events が空＝未決。deferred が最新でも、後から新イベントを追記すれば履歴を消さずに復活できる（永久確定をスキーマで強制しない）。",
       "type": "object",
       "properties": {
         "id": {
@@ -130,12 +130,13 @@
       "type": "object",
       "properties": {
         "kind": {
-          "description": "判断の種類。supported＝検証して支持／rejected＝検証して棄却／supportedWithoutTest＝自明に成立（実験なしで成立と決めた）／rejectedWithoutTest＝検証せず棄却（実験なしで棄却と決めた）／deferred＝今回見送り（次のPoC選定で拾い直す）／deferredToMainDev＝本開発送り（PoCフェーズ中は戻らず、PoC終了時の引き渡しリストの材料になる）。日時はデータに持たない——配列順が時系列の正であり、厳密な日時は Git 履歴が正。",
+          "description": "判断の種類。supported＝検証して支持／rejected＝検証して棄却／supportedWithoutTest＝自明に成立（実験なしで成立と決めた）／rejectedWithoutTest＝検証せず棄却（実験なしで棄却と決めた）／onHold＝保留（見たが判断できなかった。理由を note に書く。次のレビューで拾い直す）／deferred＝今回見送り（次のPoC選定で拾い直す）／deferredToMainDev＝本開発送り（PoCフェーズ中は戻らず、PoC終了時の引き渡しリストの材料になる）。日時はデータに持たない——配列順が時系列の正であり、厳密な日時は Git 履歴が正。",
           "enum": [
             "supported",
             "rejected",
             "supportedWithoutTest",
             "rejectedWithoutTest",
+            "onHold",
             "deferred",
             "deferredToMainDev"
           ]

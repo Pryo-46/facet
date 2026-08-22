@@ -10,7 +10,7 @@ const ISSUE_B = 'issue_Qw7zR1nP4t'
 const HYP_A = 'hypothesis_Kd4hR6yU1c'
 
 const base = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   type: 'issueTree',
   title: '適性検査サービス連携PoC',
   issues: [
@@ -83,6 +83,20 @@ describe('issueTree のスキーマ検証（レベル1）', () => {
       const hypotheses = [{ ...base.hypotheses[0], events: [{ kind, note: '' }] }]
       expect(validate({ ...base, hypotheses }).ok, kind).toBe(true)
     }
+  })
+
+  it('仮説の判断に onHold（保留）を受け入れる', () => {
+    const h = { ...base.hypotheses[0], events: [{ kind: 'onHold', note: '「楽」の定義が決まらず判断できない' }] }
+    expect(validate({ ...base, hypotheses: [h] }).ok).toBe(true)
+  })
+
+  it('課題の見送りに onHold は付けられない（保留は仮説だけ）', () => {
+    const node = { ...base.issues[1], events: [{ kind: 'onHold', note: '' }] }
+    expect(validate({ ...base, issues: [base.issues[0], node] }).ok).toBe(false)
+  })
+
+  it('schemaVersion 1 はレベル1で弾く（移行は load.ts の仕事。スキーマは現行版しか受けない）', () => {
+    expect(validate({ ...base, schemaVersion: 1 }).ok).toBe(false)
   })
 
   it('未知のイベント種別を拒否する（enum の拡張は schemaVersion の改訂）', () => {

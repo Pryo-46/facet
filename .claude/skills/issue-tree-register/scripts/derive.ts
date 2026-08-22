@@ -2,7 +2,7 @@ import type {
   DeferralEvent,
   Hypothesis,
   IssueNode,
-  IssueTreeSchemaVersion1,
+  IssueTreeSchemaVersion2,
   JudgementEvent,
 } from '@/types/issue-tree'
 
@@ -124,7 +124,7 @@ export interface PosedQuestions {
  * `duplicate-id`）がそれを促す
  */
 export function poseQuestions(
-  data: Pick<IssueTreeSchemaVersion1, 'issues' | 'hypotheses'>,
+  data: Pick<IssueTreeSchemaVersion2, 'issues' | 'hypotheses'>,
 ): PosedQuestions {
   const suppressed = suppressedIssueIds(data.issues)
   const leaves = leafIssueIds(data.issues)
@@ -179,6 +179,7 @@ export const EVENT_KIND_LABELS: Record<JudgementKind, string> = {
   rejected: '棄却',
   supportedWithoutTest: '自明に成立',
   rejectedWithoutTest: '検証せず棄却',
+  onHold: '保留',
   deferred: '今回見送り',
   deferredToMainDev: '本開発送り',
 }

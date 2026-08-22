@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
-import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { EVENT_KIND_LABELS, poseQuestions, QUESTION_LABELS } from './derive'
 import { HypothesisCard } from './HypothesisCard'
 import { layoutIssueTree } from './layout'
@@ -22,8 +22,8 @@ const fonts = {
  * 課題2件・仮説3件のファイル。**退化した形（仮説1件・イベント1件）を避ける**
  * ——「最新だけ編集できる」は要素が1つだと「全部編集できる」と区別が付かない
  */
-const data: IssueTreeSchemaVersion1 = {
-  schemaVersion: 1,
+const data: IssueTreeSchemaVersion2 = {
+  schemaVersion: 2,
   type: 'issueTree',
   title: 'テスト',
   issues: [

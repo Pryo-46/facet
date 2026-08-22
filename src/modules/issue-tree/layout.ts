@@ -2,7 +2,7 @@ import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { layoutTree, type Size } from '@/core/canvas/tree-layout'
 import type { Rect } from '@/core/canvas/viewport'
 import { wrapWithin, type MeasureWidth } from '@/core/canvas/wrap'
-import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { SUPPRESSED_NOTE, suppressedIssueIds, type PosedQuestions } from './derive'
 import {
   BADGE_HEIGHT,
@@ -77,7 +77,7 @@ function rowHeight(text: string, font: { measure: MeasureWidth; lineHeight: numb
  * 違う図が出るようになった時点で「図は導出」（rev 3章）が崩れる
  */
 export function layoutIssueTree(
-  data: IssueTreeSchemaVersion1,
+  data: IssueTreeSchemaVersion2,
   posed: PosedQuestions,
   fonts: IssueTreeFonts,
 ): IssueTreeLayout {

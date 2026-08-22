@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import {
   EVENT_KIND_LABELS,
   poseQuestions,
@@ -23,8 +23,8 @@ const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
  *——葉の直後で足すと `Tab`（子課題）と `Enter`（兄弟課題）が同じ配列位置・
  * 同じラベルになり、写像を差し替えても緑のままになる（logic-tree M1 が踏んだ形）
  */
-const file = (): IssueTreeSchemaVersion1 => ({
-  schemaVersion: 1,
+const file = (): IssueTreeSchemaVersion2 => ({
+  schemaVersion: 2,
   type: 'issueTree',
   title: 'テスト',
   issues: [
@@ -49,8 +49,8 @@ function Harness({
   initial,
   onChange,
 }: {
-  initial: IssueTreeSchemaVersion1
-  onChange?: (next: IssueTreeSchemaVersion1, mergeKey?: string | null) => void
+  initial: IssueTreeSchemaVersion2
+  onChange?: (next: IssueTreeSchemaVersion2, mergeKey?: string | null) => void
 }) {
   const [data, setData] = useState(initial)
   return (
@@ -120,7 +120,7 @@ describe('IssueTreeEditor（主修飾キー＋Enter の写像）', () => {
     const onChange = vi.fn()
     render(<Harness initial={file()} onChange={onChange} />)
     expect(fireEvent.keyDown(issueCell(3), { key: 'Enter', ctrlKey: true })).toBe(false)
-    const next: IssueTreeSchemaVersion1 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion2 = onChange.mock.calls[0][0]
     expect(next.hypotheses).toHaveLength(2)
     // 足したのは「押した課題」にぶら下がる仮説であること
     expect(next.hypotheses.filter((h) => h.issueId === I(3))).toHaveLength(2)
@@ -140,7 +140,7 @@ describe('IssueTreeEditor（主修飾キー＋Enter の写像）', () => {
 
   it('メモを最新イベントの根拠へ移す（イベント0件なら何も起きない）', () => {
     const base = file()
-    const withNote: IssueTreeSchemaVersion1 = {
+    const withNote: IssueTreeSchemaVersion2 = {
       ...base,
       hypotheses: [{ ...base.hypotheses[0], pendingNotes: ['再送の窓は何分か'] }],
     }
@@ -154,7 +154,7 @@ describe('IssueTreeEditor（主修飾キー＋Enter の写像）', () => {
     expect(onChange).not.toHaveBeenCalled()
     unmount()
 
-    const withEvent: IssueTreeSchemaVersion1 = {
+    const withEvent: IssueTreeSchemaVersion2 = {
       ...base,
       hypotheses: [
         { ...base.hypotheses[0], events: [{ kind: 'supported', note: '' }], pendingNotes: ['再送の窓は何分か'] },
@@ -166,7 +166,7 @@ describe('IssueTreeEditor（主修飾キー＋Enter の写像）', () => {
       key: 'Enter',
       ctrlKey: true,
     })
-    const next: IssueTreeSchemaVersion1 = onMoved.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion2 = onMoved.mock.calls[0][0]
     expect(next.hypotheses[0].events[0].note).toBe('再送の窓は何分か')
     expect(next.hypotheses[0].pendingNotes).toEqual([])
   })
@@ -267,7 +267,7 @@ describe('IssueTreeEditor（帯）', () => {
   it('課題0件でも「課題を追加」で根を作れる（マウスだけの動線）', () => {
     render(
       <Harness
-        initial={{ schemaVersion: 1, type: 'issueTree', title: 'テスト', issues: [], hypotheses: [] }}
+        initial={{ schemaVersion: 2, type: 'issueTree', title: 'テスト', issues: [], hypotheses: [] }}
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: '課題を追加' }))
@@ -284,7 +284,7 @@ describe('IssueTreeEditor（帯）', () => {
       issueCell(1).focus()
     })
     fireEvent.click(screen.getByRole('button', { name: '仮説を追加' }))
-    const next: IssueTreeSchemaVersion1 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion2 = onChange.mock.calls[0][0]
     expect(next.hypotheses).toHaveLength(2)
     expect(next.hypotheses.some((h) => h.issueId === I(1))).toBe(true)
   })
@@ -296,7 +296,7 @@ describe('IssueTreeEditor（仮説カードの操作）', () => {
     render(<Harness initial={file()} onChange={onChange} />)
     fireEvent.pointerDown(screen.getByRole('button', { name: '仮説1に判断を追加' }), { button: 0 })
     fireEvent.click(await screen.findByRole('menuitem', { name: EVENT_KIND_LABELS.rejected }))
-    const next: IssueTreeSchemaVersion1 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion2 = onChange.mock.calls[0][0]
     expect(next.hypotheses[0].events).toEqual([{ kind: 'rejected', note: '' }])
     // 構造の変更は履歴をまとめない（1操作1コミット）
     expect(onChange.mock.calls[0][1]).toBe(null)

@@ -1,18 +1,18 @@
 import { FlaskConical } from 'lucide-react'
 import type { JsonSchema } from '@/core/canonical'
 import type { ToolModule } from '@/core/registry'
-import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import issueTreeSchema from '../../../schemas/issue-tree.schema.json'
 import { addRootIssue } from './commands'
 import { checkIssueTreeConsistency } from './consistency'
 import { IssueTreeEditor } from './IssueTreeEditor'
 import { migrateIssueTree } from './migrate'
 
-export const issueTreeModule: ToolModule<IssueTreeSchemaVersion1> = {
+export const issueTreeModule: ToolModule<IssueTreeSchemaVersion2> = {
   type: 'issueTree',
   displayName: '課題ツリー',
   icon: FlaskConical,
-  schemaVersion: 1,
+  schemaVersion: 2,
   schema: issueTreeSchema as JsonSchema,
   // プレフィクスはエンティティ単位（rev 5章）。ツール単位で1つに統一しない
   idPrefixes: ['issue', 'hypothesis'],
@@ -28,5 +28,5 @@ export const issueTreeModule: ToolModule<IssueTreeSchemaVersion1> = {
   // **ルートの課題1件で作る。** ID の採番を commands.ts の1箇所に保つため
   // addRootIssue を通す（ここで newId を直接呼ばない）
   createEmpty: (title) =>
-    addRootIssue({ schemaVersion: 1, type: 'issueTree', title, issues: [], hypotheses: [] }).data,
+    addRootIssue({ schemaVersion: 2, type: 'issueTree', title, issues: [], hypotheses: [] }).data,
 }

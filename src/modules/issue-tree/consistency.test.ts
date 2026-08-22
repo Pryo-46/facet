@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { checkIssueTreeConsistency } from './consistency'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
 
-function make(over: Partial<IssueTreeSchemaVersion1>): IssueTreeSchemaVersion1 {
-  return { schemaVersion: 1, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
+function make(over: Partial<IssueTreeSchemaVersion2>): IssueTreeSchemaVersion2 {
+  return { schemaVersion: 2, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
 }
 
 describe('checkIssueTreeConsistency', () => {

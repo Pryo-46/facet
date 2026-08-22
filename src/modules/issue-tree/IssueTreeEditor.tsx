@@ -31,7 +31,7 @@ import {
 import { currentPlatform } from '@/core/keyboard/platform'
 import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
-import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { cellKey, hypothesisCellKey, issueCellKey, type HypothesisCell } from './cell-keys'
 import {
   addChildIssue,
@@ -209,7 +209,7 @@ export function IssueTreeEditor({
   onChange,
   issues,
   modalOpen,
-}: EditorProps<IssueTreeSchemaVersion1>) {
+}: EditorProps<IssueTreeSchemaVersion2>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const smallProbeRef = useRef<HTMLSpanElement>(null)
