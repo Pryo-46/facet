@@ -60,6 +60,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [M17](history/m17-core-terminal-fixes.md) | 端末ペインの残件6件（配色・入力・プロセスの寿命） | コア |
 | [M18](history/m18-restore-last-folder.md) | 起動時に直近フォルダを自動で復元する | コア |
 | [M19](history/m19-core-auto-update.md) | Windows の自動アップデート | コア |
+| [M20](history/m20-core-canvas.md) | キャンバス基盤のコア化 | コア |
 | [logic-tree-m1](history/logic-tree-m1-keyboard-editor.md) | キーボードで打ち切れるキャンバスエディタ | ロジックツリー |
 | [sequence-m1](history/sequence-m1-keyboard-editor.md) | ステップ入力＋全ステップに立つ「失敗したら？」の問い | シーケンス |
 | [sequence-m2](history/sequence-m2-usability.md) | 会議で使ってみて出た使い勝手9点 | シーケンス |
