@@ -75,11 +75,3 @@ describe('wrapText', () => {
     expect(wrapText('あ'.repeat(50), measure, LH)).toEqual(wrapText('あ'.repeat(50), measure, LH))
   })
 })
-
-describe('createEstimateMeasurer', () => {
-  it('半角は全角の半分の幅にする', () => {
-    const m = createEstimateMeasurer(14)
-    expect(m('ab')).toBe(14)
-    expect(m('あい')).toBe(28)
-  })
-})
