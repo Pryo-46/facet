@@ -77,6 +77,15 @@ issue-tree-m2 は「**PoC の会話の最後に『じゃあこれで整理して
 
 **計画は3つ目を挙げ落としていた**（Files にも Step にも無い）。実測でも、追従前は `src/core/skill-sync.test.ts > BUNDLED_SKILLS > ユーザーのデータを作る Skill が3本とも載っている` の1件だけが落ちた（1 failed / 1539 passed）。
 
+**そして、上の3箇所と違って「忘れても赤くならない」場所が2つある**（最終ブランチレビューで見つけた。**止まるのではなく、静かに通ってしまう**ぶん質が悪い）。
+
+| ファイル | 何を直すか | なぜ気づけないか |
+| --- | --- | --- |
+| `.claude/skills/<新Skill>/scripts/canonical.ts` の一致検査 | 5本目が `canonical.ts` のコピーを持つなら、そのバイト一致を見るテストを書く | **canonical のコピーには「網羅」のアサーションが無い。** スキーマ側には `src/core/skill-schema-copy.test.ts` に `expect(SCHEMA_COPIES.map(c => c.skill).sort()).toEqual([...BUNDLED_SKILLS].sort())` があり**5本目を足した瞬間に赤くなる**が、canonical 側は検査が3ファイルに散っている（旧2本＝`src/core/skill-canonical-copy.test.ts` ／ sequence＝`src/modules/sequence/skill-copy.test.ts` ／ 課題ツリー＝`src/modules/issue-tree/skill-copy.test.ts`）ため、同種のアサーションがどこにも無い。**検査を書き忘れても緑で通る。** いま4本すべてが実際に覆われていることは確認済みなので、出荷上の穴ではない |
+| `src/core/reading-guide.md` | Skill 名の一覧に5本目を足す | **何のテストも縛っていない。** 計画は「`src/core/reading-guide.test.ts` が緑」を確認手段としていたが、そのテストは Skill 名にも `BUNDLED_SKILLS` にも触れていない（`grep "BUNDLED_SKILLS\|register" src/core/reading-guide.test.ts` は0件）。**更新を忘れても緑のまま通る** |
+
+どちらも `open-issues.md` の「テストが無い箇所」へ `[issue-tree-m2]` タグで載せた。
+
 ### `extractImportStatements` / `isValueImportStatement` を `src/core/import-analysis.ts` へ切り出した
 
 バイト一致コピーの検査（「値 import を持たないこと」「消去できない構文が無いこと」）に要る2つのヘルパは、`src/modules/sequence/skill-copy.test.ts` の**ローカル関数**として書かれており export されていなかった。課題ツリー側の同じ検査から使うため、**JSDoc 込みで一字一句そのまま** `src/core/import-analysis.ts` へ移し（`export` を付けただけ）、sequence 側はそこから import する形に替えた。`describe('isValueImportStatement')` の8ケースは**1つも減らさず sequence 側に残した**（混在ケースの回帰はそのテストで見つかったものなので、置き場所を動かさない）。
@@ -112,6 +121,8 @@ issue-tree-m2 は「**PoC の会話の最後に『じゃあこれで整理して
 | `README.md:125` | 「**4ツール**を同じ題材で埋めたお手本」→ **5ツール**（計画が挙げ落としていた） |
 | `README.md:132` の直後 | お手本の表に `課題ツリー.json` の行を追加 |
 | `README.md:144` | 登録用 Skill が「**3本**置かれる（3名）」→ **4本**・`issue-tree-register` を一覧に追加 |
+
+**最終ブランチレビューの fix wave で、2行目の文言をさらに1箇所直した。** 「検証結果が空の仮説が1つ／レビューのメモが判断に紐づかないまま残っている仮説が1つ」は**別々の2仮説だと読める**が、実物ではどちらも同じ仮説（`hypothesis_m9ZvA5LtyQ`）である（上の「お手本に仕込んだ未決の内訳」の表のとおり、「判断は？」は「検証結果は？」と同じ仮説の `pendingNotes` に立つ）。**未決の件数3は正しい**ので、件数を変えずに「検証結果が空の仮説が1つ（同じ仮説にレビューのメモも判断に紐づかないまま残っている）」へ改めた。
 
 ### 実行ビットの慣習は元から揃っていない（記録のみ）
 
@@ -166,6 +177,12 @@ npm run tauri dev
 
 **書き換えたもの（消していない）**は2件——「登録**3** Skill は整合性検証の警告文言・計上規則を、アプリと独立に複製している」を**4本**に、「`palette-fit.mjs` が Node の型ストリップに依存している」の列挙に `issue-tree-register`（`derive.ts` / `canonical.ts`）を足した。**消したもの**は1件——issue-tree-m1 が足した「**登録 Skill がまだ無い**」（本マイルストーンで解消）。
 
+**最終ブランチレビューの fix wave で、さらに3件足した**（いずれも「テストが無い箇所」・`[issue-tree-m2]` タグ。**どれも「忘れても緑で通る」種類**である）:
+
+- **`canonical.ts` のバイト一致コピーに「網羅」のアサーションが無い**（検査が3ファイルに散っているため。スキーマ側にはある）
+- **`src/core/reading-guide.md` の Skill 名一覧を縛るテストが無い**（計画が確認手段としていた `reading-guide.test.ts` は Skill 名にも `BUNDLED_SKILLS` にも触れていない）
+- **`sequence-register` が「集計結果の逐語一致も固定する」規約に従っていない**——issue-tree-m2 が rev 4章に書いた規約に、**先行例が未適用のまま**である（`src/modules/sequence/skill-write.smoke.test.ts` の `it` は2本だけ）。**このマイルストーンではテストを足さず、rev の側に「未適用」と明記して実物と一致させた**
+
 **直さずに残したもの**（Task 1 のレビューで人間が繰り越しに回した2件。台帳には載せていない微細な負債）: `src/core/import-analysis.ts` の JSDoc が `sequence-write.mjs` 固有の書き方のままであること、`src/modules/issue-tree/skill-copy.test.ts` が `canonical.ts` にも値 import / enum 検査を回していること（実害なし）。
 
 ---
@@ -177,6 +194,11 @@ npm run tauri dev
 - **4章**: バイト一致コピーの段落を、**同梱 Skill 4本**（`issue-tree-register` を追加）へ更新し、**`derive.ts` が `questions.ts` に続く2例目であることをもって、この形が「導出ロジックを Skill と共有する」標準になった**と書いた。あわせて実行 smoke テストの段落（M15 で確定）も「3スクリプト」→「4スクリプト」に直した
 - **2章**: 課題ツリーの行の「**エディタは issue-tree-m1 で実装済み**（出力・登録 Skill は後続）」を、**登録 Skill も実装済み・後続は出力のみ**へ直した（計画の指示には無いが、rev は「正」なので古い事実を残さない）
 - **5章**: 計画は「同梱 Skill がスキーマのバイト一致コピーを持つという既存の記述に4本目を反映する」としていたが、**5章にその記述は無かった**（記述は4章にしかない）。スキーマの節に、実体が同梱 Skill へバイト一致でコピーされることの1行（4章への参照）を足すにとどめた
+
+**最終ブランチレビューの fix wave で、4章をさらに2箇所直した**（どちらも rev と実物の食い違い。**コードとテストは1バイトも触っていない**）:
+
+- **`canonical.ts` の一致検査の所在が誤りだった。** 上記の更新のとき、旧版にあった補いの一文（「`sequence-register` はさらに `questions.ts` のコピーも持つ（一致検査は `src/modules/sequence/skill-copy.test.ts`）」）を削った拍子に、**4本すべての一致検査が `src/core/skill-canonical-copy.test.ts` にあるという読み方が生まれていた**。実際は3ファイルに分かれている（旧2本＝`src/core/skill-canonical-copy.test.ts`、`sequence-register`＝`src/modules/sequence/skill-copy.test.ts`、`issue-tree-register`＝`src/modules/issue-tree/skill-copy.test.ts`）。**同じブランチの `open-issues.md` の `[Skill]` の項は正しく書き分けていた**ので、そこから写して直した。あわせて「網羅のアサーションがどこにも無い」ことも書いた
+- **新設した規約に、先行例が従っていないことを明記した。** 「導出ロジックのコピーを持つ Skill では集計結果の逐語一致も併せて固定する」は issue-tree-m2 で書いた規約だが、**従っているのは `issue-tree-register` だけで、`sequence-register` は未適用**である。規約の文にその旨を添え、遡って適用する話は台帳へ回した（**テストは足していない**——このマイルストーンの範囲外）
 
 [`../lessons-for-planning.md`](../lessons-for-planning.md) には**2件足した**（上の「計画自身の誤り」の1・2 を一般化したもの）:
 
