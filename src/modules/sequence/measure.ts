@@ -54,61 +54,10 @@ export function gutterLabelText(question: string, indent: boolean): string {
   return indent ? `└ ${question}` : question
 }
 
-export type MeasureWidth = (text: string) => number
-
-export interface WrapOptions {
-  maxWidth: number
-  minWidth: number
-  insetX: number
-  insetY: number
-}
-
-export interface WrappedBlock {
-  lines: string[]
-  width: number
-  height: number
-}
-
-export function wrapWithin(
-  text: string,
-  measure: MeasureWidth,
-  lineHeight: number,
-  opts: WrapOptions,
-): WrappedBlock {
-  const maxContent = opts.maxWidth - opts.insetX * 2
-  const lines: string[] = []
-  for (const segment of text.split('\n')) {
-    let line = ''
-    for (const ch of segment) {
-      if (line === '') {
-        line = ch
-        continue
-      }
-      if (measure(line + ch) > maxContent) {
-        lines.push(line)
-        line = ch
-      } else {
-        line += ch
-      }
-    }
-    lines.push(line)
-  }
-  const contentWidth = lines.reduce((w, line) => Math.max(w, measure(line)), 0)
-  const width = Math.min(
-    opts.maxWidth,
-    Math.max(opts.minWidth, Math.ceil(contentWidth) + opts.insetX * 2),
-  )
-  const height = Math.ceil(lines.length * lineHeight) + opts.insetY * 2
-  return { lines, width, height }
-}
-
-/** jsdom 用の概算器（logic-tree/measure.ts と同じ。本番では使わない） */
-export function createEstimateMeasurer(fontSize: number): MeasureWidth {
-  return (text) => {
-    let width = 0
-    for (const ch of text) {
-      width += ((ch.codePointAt(0) ?? 0) < 0x80 ? 0.5 : 1) * fontSize
-    }
-    return width
-  }
-}
+export {
+  wrapWithin,
+  createEstimateMeasurer,
+  type MeasureWidth,
+  type WrapOptions,
+  type WrappedBlock,
+} from '@/core/canvas/wrap'

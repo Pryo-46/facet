@@ -1,5 +1,5 @@
+import { svgTransform, type Transform } from '@/core/canvas/viewport'
 import type { SeqLayoutResult } from './layout'
-import { svgTransform, type Transform } from './viewport'
 
 export interface EdgeStep {
   key: string

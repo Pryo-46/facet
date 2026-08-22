@@ -18,14 +18,14 @@ import { LogicTreeEditor } from './LogicTreeEditor'
  */
 const state = vi.hoisted(() => ({ calls: 0 }))
 
-// createNodeMeasurer だけを「呼ばれるたびに太く測る」偽物に差し替える。
-// readNodeFont / FALLBACK_NODE_FONT / sameFont は実物のまま——
+// createCanvasMeasurer だけを「呼ばれるたびに太く測る」偽物に差し替える。
+// readCanvasFont / FALLBACK_CANVAS_FONT / sameFont は実物のまま——
 // このテストが見たいのは「測定器が作り直されるか」だけである
-vi.mock('./node-font', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./node-font')>()
+vi.mock('@/core/canvas/canvas-font', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/core/canvas/canvas-font')>()
   return {
     ...actual,
-    createNodeMeasurer: () => {
+    createCanvasMeasurer: () => {
       state.calls += 1
       const perChar = state.calls === 1 ? 10 : 20
       return (text: string) => text.length * perChar

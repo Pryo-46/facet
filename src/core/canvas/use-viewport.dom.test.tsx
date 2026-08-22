@@ -2,7 +2,7 @@
 import { useRef } from 'react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
-import { useViewport } from './useViewport'
+import { useViewport } from './use-viewport'
 import { INITIAL_TRANSFORM, type Rect, type Transform } from './viewport'
 
 afterEach(cleanup)
@@ -79,7 +79,7 @@ describe('useViewport（Space の押下監視）', () => {
   })
 
   it('キャンバスの外にフォーカスがあるときの Space は奪わない', () => {
-    // **ボタンにとって Space は活性化のキー。** ここを取ると、ロジックツリーを
+    // **ボタンにとって Space は活性化のキー。** ここを取ると、キャンバスを
     // 開いている間ずっと額縁のツールバーが「押しても何も起きない」ようになる
     render(<Harness />)
     screen.getByRole('button', { name: '保存' }).focus()
@@ -88,8 +88,8 @@ describe('useViewport（Space の押下監視）', () => {
   })
 
   it('キャンバスの中のボタンにフォーカスがあるときも Space は奪わない', () => {
-    // **位置ではなく役割で判定する。** 帯の「ノードを追加」は
-    // キャンバスの内側にあるので、「外か」で判定すると最初の画面で潰れる
+    // **位置ではなく役割で判定する。** 帯の「追従」ボタンは
+    // キャンバスの内側にあるので、「外か」で判定すると押せなくなる
     render(<Harness />)
     screen.getByRole('button', { name: '追従' }).focus()
     expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(true)
