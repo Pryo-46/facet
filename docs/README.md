@@ -68,6 +68,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [sequence-m3](history/sequence-m3-mouse-and-output.md) | マウス操作と出力（Markdown・Mermaid） | シーケンス |
 | [sequence-m4](history/sequence-m4-register-skill.md) | シーケンス登録 Skill（会話→ JSON） | シーケンス・コア |
 | [issue-tree-m1](history/issue-tree-m1-editor.md) | 課題ツリーエディタ（ステータスを持たない追記型イベント列） | 課題ツリー |
+| [issue-tree-m2](history/issue-tree-m2-register-skill.md) | 課題ツリー登録 Skill（会話→ JSON）とお手本 | 課題ツリー・コア |
 
 ## ツールが増えたとき
 
