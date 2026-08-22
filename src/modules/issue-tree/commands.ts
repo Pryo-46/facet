@@ -81,10 +81,17 @@ function prepare(
   return { issues, built: buildTree(issues), i: issues.indexOf(ref) }
 }
 
-/** 最初の課題を作る。空状態からの開始（マウスでもキーボードでもここを通る） */
+/**
+ * 最初の課題を作る。空状態からの開始（マウスでもキーボードでもここを通る）。
+ *
+ * **位置は参照の同一性で引き直す**——循環を含むファイルでは `orderFlatNodes` が
+ * 到達不能ノードを末尾へ寄せるため、末尾に足した新ルートは `withIssues` の
+ * 正規化で前へ戻る。足した位置をそのまま使うと別の実在ノードを指す
+ */
 export function addRootIssue(data: IssueTreeSchemaVersion1): EditResult {
-  const issues = [...orderFlatNodes(data.issues), newIssue(null)]
-  return { data: withIssues(data, issues), focus: { cell: 'issue', index: issues.length - 1 } }
+  const created = newIssue(null)
+  const next = withIssues(data, [...orderFlatNodes(data.issues), created])
+  return { data: next, focus: { cell: 'issue', index: next.issues.indexOf(created) } }
 }
 
 /** 末尾の子を足す（Tab／ノードの「+」ハンドルが呼ぶのはこの関数） */
@@ -131,11 +138,15 @@ export function deleteIssueSubtree(data: IssueTreeSchemaVersion1, index: number)
   const kept = [...p.issues.slice(0, p.i), ...p.issues.slice(end)]
   const at = target === null ? -1 : kept.indexOf(p.issues[target])
   return {
-    data: {
+    // **正規化を通す**——`kept` は `prepare` が並べ替えた配列から作るのに対し、
+    // `hypotheses` は手つかずの入力から filter するため、入力が行きがけ順で
+    // なかったとき「ぶら下がり先の課題の順」という配列順の規約が破れる。
+    // `kept` は既に行きがけ順なので課題の並びは動かず、focus は有効なまま
+    data: normalizeOrder({
       ...data,
       issues: kept,
       hypotheses: data.hypotheses.filter((h) => !removedIds.has(h.issueId)),
-    },
+    }),
     focus: at < 0 ? null : { cell: 'issue', index: at },
   }
 }

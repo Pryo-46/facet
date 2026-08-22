@@ -4,10 +4,12 @@ import {
   addChildIssue,
   addHypothesis,
   addPendingNote,
+  addRootIssue,
   appendDeferral,
   appendJudgement,
   deleteIssueSubtree,
   moveHypothesis,
+  moveIssueSibling,
   normalizeOrder,
   promoteNote,
   setEventNote,
@@ -34,6 +36,40 @@ function data(): IssueTreeSchemaVersion1 {
       { id: H(2), issueId: I(2), text: '仮説2', rationale: '', events: [], pendingNotes: [] },
       { id: H(3), issueId: I(2), text: '仮説3', rationale: '', events: [], pendingNotes: [] },
     ],
+  }
+}
+
+const R = I(10)
+const X = I(11)
+const Y = I(12)
+const YCHILD = I(13)
+const Z = I(14)
+
+/**
+ * 根 R — X, Y, Z（兄弟3つ）／ Y — Ychild。
+ * 仮説の id は H(11)=X / H(12)=Y / H(13)=Ychild / H(14)=Z にぶら下がる
+ */
+function branched(hypothesisIds: string[]): IssueTreeSchemaVersion1 {
+  const issueOf: Record<string, string> = { [H(11)]: X, [H(12)]: Y, [H(13)]: YCHILD, [H(14)]: Z }
+  return {
+    schemaVersion: 1,
+    type: 'issueTree',
+    title: 'T',
+    issues: [
+      { id: R, parentId: null, text: '根', events: [] },
+      { id: X, parentId: R, text: 'X', events: [] },
+      { id: Y, parentId: R, text: 'Y', events: [] },
+      { id: YCHILD, parentId: Y, text: 'Yの子', events: [] },
+      { id: Z, parentId: R, text: 'Z', events: [] },
+    ],
+    hypotheses: hypothesisIds.map((id) => ({
+      id,
+      issueId: issueOf[id],
+      text: '仮説',
+      rationale: '',
+      events: [],
+      pendingNotes: [],
+    })),
   }
 }
 
@@ -68,6 +104,49 @@ describe('課題の構造編集', () => {
     expect(next.data.issues.map((n) => n.id).slice(0, 5)).toEqual([I(0), I(1), I(2), I(4), expect.any(String)])
     expect(next.data.issues[4].parentId).toBe(I(1))
     expect(next.focus).toEqual({ cell: 'issue', index: 4 })
+  })
+
+  it('循環を含むファイルに根を足しても、フォーカスは足した課題を指す', () => {
+    // 出力を正規化する以上、**位置は参照の同一性で引き直さないと**
+    // 別の実在ノード（循環側）を指す——空欄だと思って打つと他人の文言を潰す
+    const d: IssueTreeSchemaVersion1 = {
+      schemaVersion: 1,
+      type: 'issueTree',
+      title: 'T',
+      issues: [
+        { id: 'issue_cycA00000', parentId: 'issue_cycB00000', text: 'cycA', events: [] },
+        { id: 'issue_cycB00000', parentId: 'issue_cycA00000', text: 'cycB', events: [] },
+      ],
+      hypotheses: [],
+    }
+    const r = addRootIssue(d)
+    // 循環ノードは orderFlatNodes が末尾へ寄せるので、新しい根は先頭に来る
+    expect(r.data.issues.map((n) => n.text)).toEqual(['', 'cycA', 'cycB'])
+    expect(r.focus).toEqual({ cell: 'issue', index: 0 })
+  })
+
+  it('課題を動かすと、仮説の配列順も新しい課題順に付いてくる', () => {
+    // **課題の並びが変わる編集は、仮説の並びも道連れにする**——スキーマは
+    // hypotheses の配列順を「ぶら下がり先の課題の順」と定めているので、
+    // 課題だけ動かして仮説を置き去りにするとその規約が破れる
+    const d = normalizeOrder(branched([H(11), H(12), H(14)]))
+    expect(d.issues.map((n) => n.id)).toEqual([R, X, Y, YCHILD, Z])
+    expect(d.hypotheses.map((h) => h.id)).toEqual([H(11), H(12), H(14)])
+
+    const next = moveIssueSibling(d, 4, -1) // Z を Y の前へ（部分木ごと動く）
+    expect(next.data.issues.map((n) => n.id)).toEqual([R, X, Z, Y, YCHILD])
+    expect(next.data.hypotheses.map((h) => h.id)).toEqual([H(11), H(14), H(12)])
+    expect(next.focus).toEqual({ cell: 'issue', index: 2 })
+  })
+
+  it('正規化前の入力を消しても、残る仮説は課題順に並べ直して返す', () => {
+    // 入力の課題順が行きがけ順でないとき、課題だけ並べ替えて仮説を
+    // 入力のまま filter すると、規約を破った文書を吐く
+    const d = branched([H(13), H(11), H(14)])
+    d.issues = [d.issues[0], d.issues[3], d.issues[1], d.issues[2], d.issues[4]] // R, Ychild, X, Y, Z
+    const next = deleteIssueSubtree(d, 4) // Z（入力配列での位置）
+    expect(next.data.issues.map((n) => n.id)).toEqual([R, X, Y, YCHILD])
+    expect(next.data.hypotheses.map((h) => h.id)).toEqual([H(11), H(13)])
   })
 
   it('部分木を消すと、その配下にぶら下がる仮説も一緒に消える', () => {
