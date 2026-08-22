@@ -26,7 +26,10 @@ describe('layoutIssueTree', () => {
 
   it('仮説カードは課題ノードの下に字下げして積まれる', () => {
     const data = make({
-      issues: [{ id: I(0), parentId: null, text: '結果取得を画面遷移の中で待てるか', events: [] }],
+      issues: [
+        { id: I(0), parentId: null, text: '結果取得を画面遷移の中で待てるか', events: [] },
+        { id: I(1), parentId: I(0), text: '待てないなら何を先に返すか', events: [] },
+      ],
       hypotheses: [
         { id: H(1), issueId: I(0), text: '同期取得で間に合う', rationale: '', events: [], pendingNotes: [] },
         { id: H(2), issueId: I(0), text: 'webhook受信に切り替える', rationale: '', events: [], pendingNotes: [] },
@@ -39,6 +42,9 @@ describe('layoutIssueTree', () => {
     expect(a.width).toBe(CARD_WIDTH)
     expect(a.y).toBeGreaterThan(node.y + node.height - 1)
     expect(b.y).toBeGreaterThan(a.y + a.height - 1)
+    // カードの幅はブロックの幅に効く（列の x は深さごとのブロック幅の最大で
+    // 決まるので、ここを数え落とすと**子の列がカードの上に乗る**）
+    expect(out.issues[1]!.rect.x).toBeGreaterThanOrEqual(b.x + b.width)
   })
 
   it('問いが立っている仮説にだけバッジの場所が確保される', () => {
@@ -142,5 +148,9 @@ describe('layoutIssueTree', () => {
     expect(out.issues[0]!.suppressedNote).toBe(null) // 自分が見送りを持つ側には出さない
     expect(out.issues[1]!.deferrals).toEqual([])
     expect(out.issues[1]!.suppressedNote).not.toBe(null)
+    // 見送りの行もブロックの幅に効く（課題ノードより横に長いので、
+    // 数え落とすと子の列が見送りの行の上に乗る）
+    const defRect = out.issues[0]!.deferrals[0]
+    expect(out.issues[1]!.rect.x).toBeGreaterThanOrEqual(defRect.x + defRect.width)
   })
 })
