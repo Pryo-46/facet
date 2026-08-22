@@ -70,8 +70,9 @@ import {
   EVENT_KIND_LABELS,
   ISSUE_DEFERRED_LABEL,
   poseQuestions,
+  QUESTION_LABELS,
   suppressedIssueIds,
-  tallyLine,
+  TALLY_TOTAL_LABEL,
   tallyQuestions,
   type DeferralKind,
   type JudgementKind,
@@ -86,6 +87,7 @@ import {
   type IssueTreeFonts,
 } from './layout'
 import { ACTION_HEIGHT_CLASS, TITLE_FONT_CLASS } from './measure'
+import { listOpenTargets, nextOpenTarget, type OpenKind } from './open-targets'
 
 /** 測定結果のキャッシュ。会議1回分の打鍵で無限に増えないよう頭を押さえる */
 const MEASURE_CACHE_LIMIT = 2000
@@ -144,6 +146,22 @@ const DEFERRAL_KINDS: readonly DeferralKind[] = (
 const PLATFORM = currentPlatform()
 
 /**
+ * 帯のチップの並び。**`tallyLine` の内訳と同じ順**——画面と Skill の報告で
+ * 読む順が変わると、同じ数を見ているのに別の話に見える
+ */
+const CHIP_KINDS: readonly OpenKind[] = ['hypothesis', 'result', 'hold', 'judgement']
+
+/**
+ * 最後にフォーカスがあったセル。**行の鍵で持つ**（配列位置ではない）
+ *——構造操作や取り消しで位置は動くが鍵は動かない。
+ *
+ * 粒度は「課題の箱」か「仮説の行」までで、行の中のどの欄かは持たない
+ *（帯が要るのは行き先の起点だけで、`listOpenTargets` が出す行き先も
+ * この2種しかない）
+ */
+type LastCell = { cell: 'issue' | 'hypothesis'; key: string }
+
+/**
  * 幅の測定器（キャッシュ付き）。**キャッシュはフォントに紐づく**ので、
  * 測定器と同じ入れ物で作って一緒に捨てる（別々に持つと片方だけ古くなる）
  */
@@ -182,6 +200,21 @@ const TRIGGER_BASE =
  */
 const TRIGGER_FACE =
   'rounded-sm border border-rule bg-surface px-1 text-xs text-ink-muted hover:bg-canvas'
+
+/**
+ * 帯のチップの土台。**`buttonBase` を敷かないのは角丸のため**——`TRIGGER_BASE`
+ * と同じ理由（M8）である。`buttonBase` の `rounded-sm` とバッジの `rounded` を
+ * 並べても、勝つのは生成 CSS の順序であってクラス名の順序ではない（実測すると
+ * `.rounded-sm`（0.375rem）が後に出て勝ち、キャンバスのバッジ（0.25rem）と
+ * 角が食い違う）。**チップの要点はバッジと同じ語彙で見えること**なので、
+ * 角丸は面（`badgeClass`）に決めさせて口を1つにする。
+ *
+ * `button-styles.ts` が「自前のレイアウトを持つボタンは土台の対象外」と
+ * 断っているのもこの形——バッジは `inline-flex h-[18px] px-1.5` の積み方を
+ * 自分で持っている。失うのは `justify-center` と `disabled:*` だけで、
+ * チップは無効化しない（0 件なら描かない）
+ */
+const CHIP_BASE = 'pointer-events-auto transition-colors'
 
 interface KindMenuProps<K extends JudgementKind> {
   /** アクセシブル名（トリガーのボタン） */
@@ -293,14 +326,22 @@ export function IssueTreeEditor({
   // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
   const [pendingFocus, setPendingFocus] = useState<string | null>(null)
 
-  // 帯の「仮説を追加」がどの課題に足すか。最後にフォーカスがあった課題の鍵
-  //（配列位置ではなく鍵で持つ——構造操作で位置は動くが鍵は動かない）
-  const [lastIssueKey, setLastIssueKey] = useState<string | null>(null)
+  /**
+   * 最後にフォーカスがあったセル。**帯の2つの動線がここ1つから出る**
+   *——「仮説を追加」がどの課題に足すか（＝下の `lastIssueFocus`）と、
+   * チップが「次の要対応」をどこから数えるか（＝下の `lastFocus`）。
+   *
+   * **課題の鍵と行き先を別々に持たないこと。** 2つ持つと片方だけが古くなり、
+   * 帯の「仮説を追加」が、直前に触った課題とは別の課題へ足す——画面には
+   * 何も出ないので、気づくのは足した仮説が思わぬ場所に現れたときになる。
+   * 鍵で持つ理由は上の `LastCell` の解説
+   */
+  const [lastCell, setLastCell] = useState<LastCell | null>(null)
 
   // 詳細（由来・根拠・FB・以前の判断）を出している仮説の行鍵。**同時に1本だけ。**
   // **これはビュー状態であり、データには書かない**——座標と同じく、
   // 「いまどれを開いていたか」をファイルへ持ち込まない（rev 3章）。
-  // 配列位置ではなく鍵で持つのも `lastIssueKey` と同じ理由
+  // 配列位置ではなく鍵で持つのも `lastCell` と同じ理由
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
 
   // Web フォントの読み込みで canvas の measureText の結果は変わるが、
@@ -368,6 +409,20 @@ export function IssueTreeEditor({
   const issueKeys = computeRowKeys(data.issues)
   const hypothesisKeys = computeRowKeys(data.hypotheses)
   const posed = poseQuestions(data)
+  const tally = tallyQuestions(posed)
+  /**
+   * `lastCell` を**いまのデータでの行き先**に直す。鍵が消えていれば null
+   *（＝チップは列の先頭から、「仮説を追加」は末尾の課題へ）
+   */
+  const lastFocus = ((): FocusTarget | null => {
+    if (lastCell === null) return null
+    if (lastCell.cell === 'issue') {
+      const at = issueKeys.indexOf(lastCell.key)
+      return at < 0 ? null : { cell: 'issue', index: at }
+    }
+    const at = hypothesisKeys.indexOf(lastCell.key)
+    return at < 0 ? null : { cell: 'hypothesis', index: at }
+  })()
   const expandedIndex = expandedKey === null ? -1 : hypothesisKeys.indexOf(expandedKey)
   const layout = layoutIssueTree(data, posed, fonts, expandedIndex)
   /** 課題 ID → ぶら下がる仮説の添字（配列順）。行は箱の中に描く */
@@ -457,6 +512,28 @@ export function IssueTreeEditor({
   }
 
   /**
+   * 行き先の欄へ視点を移す。**データは変えない**——`apply` の後半そのもので、
+   * 帯のチップ（「次の要対応へ」）はこちらだけを使う。
+   *
+   * `source` は行き先の添字を読むデータ。**`apply` は差し替えた後のものを渡す**
+   *——構造が変わった後の配列で鍵を作らないと、予約が別の行に当たる
+   */
+  const goTo = (focus: FocusTarget, source: IssueTreeSchemaVersion2 = data): void => {
+    const nextIssueKeys = computeRowKeys(source.issues)
+    const nextHypothesisKeys = computeRowKeys(source.hypotheses)
+    // **行き先が仮説の欄なら、先にその仮説を展開する。** 畳まれた行に
+    // 由来・根拠・FB の欄は無いので、展開しないまま予約しても当たらない
+    //（同じ更新の中でよい——予約を当てる effect は描画後に querySelector する）。
+    // 仮説の文言そのものは、畳まれた行の `<button>` と展開後の `<textarea>` が
+    // 同じ `data-cell` を名乗るのでどちらでも当たる
+    if (focus.cell !== 'issue' && focus.cell !== 'deferral') {
+      setExpandedKey(nextHypothesisKeys[focus.index] ?? null)
+    }
+    // 画面の外なら寄せるのは、予約を当てる effect の仕事（`ensureVisible`）
+    setPendingFocus(cellKey(focus, nextIssueKeys, nextHypothesisKeys))
+  }
+
+  /**
    * 編集結果を額縁へ渡し、次に編集させたい欄へフォーカスを予約する。
    * `fallback` は結果が行き先を持たなかったときの代わり（`deleteHypothesis` が使う）
    */
@@ -471,16 +548,9 @@ export function IssueTreeEditor({
       setPendingFocus(null)
       return
     }
-    const nextIssueKeys = computeRowKeys(result.data.issues)
-    const nextHypothesisKeys = computeRowKeys(result.data.hypotheses)
-    // **行き先が仮説の欄なら、先にその仮説を展開する。** 畳まれた行に
-    // 由来・根拠・FB の欄は無いので、展開しないまま予約しても当たらない
-    //（同じ更新の中でよい——予約を当てる effect は描画後に querySelector する）
-    if (focus.cell !== 'issue' && focus.cell !== 'deferral') {
-      setExpandedKey(nextHypothesisKeys[focus.index] ?? null)
-    }
-    setPendingFocus(cellKey(focus, nextIssueKeys, nextHypothesisKeys))
+    goTo(focus, result.data)
   }
+
 
   /**
    * 仮説の行を開き、文言の欄へフォーカスを予約する。
@@ -736,10 +806,34 @@ export function IssueTreeEditor({
     )
   }
 
+  /**
+   * 最後に触っていた課題。**`lastCell` から導く**（別に持たない）——仮説の行に
+   * 居たなら、その仮説がぶら下がっている課題を指す
+   */
+  const lastIssueFocus = (): FocusTarget | null => {
+    if (lastFocus === null) return null
+    return lastFocus.cell === 'issue' ? lastFocus : ownerIssueFocus(lastFocus.index)
+  }
+
   /** 帯の「仮説を追加」。最後に触っていた課題（無ければ末尾の課題）に足す */
   const addHypothesisFromBanner = (): void => {
-    const at = lastIssueKey === null ? -1 : issueKeys.indexOf(lastIssueKey)
+    const at = lastIssueFocus()?.index ?? -1
     apply(addHypothesis(data, at < 0 ? data.issues.length - 1 : at))
+  }
+
+  /**
+   * 帯のチップ。押すと**その種類の次の要対応へ視点が飛ぶ**（末尾なら先頭へ）。
+   *
+   * キャンバスはアウトラインと違って上から順に舐められない——開いている問いは
+   * 平面に散らばっている。集計が数えるだけで終わると、数は読み上げにしかならない。
+   * **数える根と飛ぶ先の根は同じ**（`posed`）にしてあるので、帯が「未決 2」と
+   * 言いながら1件にしか飛べない、が起きない
+   */
+  const goToNextOpen = (kind: OpenKind): void => {
+    const next = nextOpenTarget(listOpenTargets(data, posed), kind, lastFocus)
+    // 0 件のチップは描かれていないので null は届かないはず。**それでも黙って返す**
+    //（参照切れの仮説だけが数に入っているファイルでは、列が空になりうる）
+    if (next !== null) goTo(next.focus)
   }
 
   return (
@@ -805,10 +899,37 @@ export function IssueTreeEditor({
             <Plus aria-hidden className="size-4" />
             仮説を追加
           </button>
-          {/* 未決の集計。**`whitespace-nowrap` を外さないこと**——折り返すと
-              帯の高さが変わり、下の図に重なる（SequenceEditor が同じ理由で付けている） */}
-          <div className="pointer-events-none whitespace-nowrap text-sm text-ink-muted">
-            {tallyLine(tallyQuestions(posed))}
+          {/* 要対応の集計。**数えるだけでなく、そこへ飛べる。**
+              キャンバスでは開いている問いが平面に散らばるので、合計と内訳を
+              読み上げるだけでは「次に何をするか」に繋がらない——内訳を押せる
+              チップにして、押すたびにその種類の次の1件へ視点を移す。
+              **文言は `tallyLine` と同じ言葉**（`QUESTION_LABELS`）を出す。
+              `tallyLine` 自体は消していない（Skill の報告が使う）。
+              **`whitespace-nowrap` を外さないこと**——折り返すと帯の高さが
+              変わり、下の図に重なる（SequenceEditor が同じ理由で付けている） */}
+          <div className="pointer-events-none flex items-center gap-2 whitespace-nowrap text-sm text-ink-muted">
+            <span>
+              {tally.total === 0
+                ? `${TALLY_TOTAL_LABEL} 0`
+                : `⚠ ${TALLY_TOTAL_LABEL} ${tally.total}`}
+            </span>
+            {/* **0 のチップは描かない**（`tallyLine` が0の内訳を出さないのと同じ規則）
+                ——押しても行き先が無いボタンを置かない。見た目はキャンバスの
+                バッジの語彙そのまま——未決の破線（`open`）と保留の実線（`hold`）で、
+                **帯とキャンバスが同じ言葉を使う** */}
+            {CHIP_KINDS.map((kind) =>
+              tally[kind] === 0 ? null : (
+                <button
+                  key={kind}
+                  type="button"
+                  className={`${CHIP_BASE} ${badgeClass(kind === 'hold' ? 'hold' : 'open', false)}`}
+                  aria-label={`次の${QUESTION_LABELS[kind]}へ`}
+                  onClick={() => goToNextOpen(kind)}
+                >
+                  {`${QUESTION_LABELS[kind]} ${tally[kind]}`}
+                </button>
+              ),
+            )}
           </div>
           <KeyHints hints={ISSUE_TREE_HINTS} className="ml-auto shrink-0 bg-surface/80 px-2 py-1" />
         </div>
@@ -853,7 +974,11 @@ export function IssueTreeEditor({
           // 課題ノードのイベントは見送り系だけで、**理由を書けるのは最新1件**
           const deferral = node.events.length === 0 ? null : node.events[node.events.length - 1]
           return (
-            <div key={key} onFocusCapture={() => setLastIssueKey(key)}>
+            // **フォーカスの捕捉は外から内へ走る。** 仮説の行の中の欄に入ると、
+            // まずここが課題を、続いて行の側（下の包み）が仮説を記録する
+            // ——同じ更新の中で後に呼ばれた方が残るので、行に居るときは仮説になる
+            //（課題の箱そのものに居るときはここだけが走る）
+            <div key={key} onFocusCapture={() => setLastCell({ cell: 'issue', key })}>
               <IssueBox
                 nodeKey={issueCellKey(key)}
                 // **アクセシブル名の接頭辞であって、ノードの文言ではない。**
@@ -898,57 +1023,63 @@ export function IssueTreeEditor({
                   const h = data.hypotheses[hi]
                   const rowKey = hypothesisKeys[hi]
                   return (
-                    <HypothesisRow
+                    // **包みは位置を持たない**（`position: static`）ので、行の中の
+                    // 絶対配置は箱を基準にしたまま。中身が全て絶対配置なので高さも 0
+                    <div
                       key={rowKey}
-                      hypothesisKey={rowKey}
-                      label={`仮説${hi + 1}`}
-                      placement={row}
-                      origin={placement.rect}
-                      text={h.text}
-                      rationale={h.rationale}
-                      notes={h.pendingNotes}
-                      events={h.events}
-                      invalid={invalidHypotheses.has(hi)}
-                      suppressed={issueSuppressed[index]}
-                      expanded={expandedKey === rowKey}
-                      onExpand={() => expandRow(rowKey)}
-                      onTextChange={(next) =>
-                        onChange(setHypothesisText(data, hi, next), `${rowKey}:text`)
-                      }
-                      onRationaleChange={(next) =>
-                        onChange(setRationale(data, hi, next), `${rowKey}:rationale`)
-                      }
-                      onNoteChange={(noteIndex, next) =>
-                        onChange(
-                          setPendingNote(data, hi, noteIndex, next),
-                          `${rowKey}:note:${noteIndex}`,
-                        )
-                      }
-                      onEventNoteChange={(eventIndex, next) =>
-                        onChange(
-                          setEventNote(data, hi, eventIndex, next),
-                          `${rowKey}:event:${eventIndex}`,
-                        )
-                      }
-                      onPromoteNote={(noteIndex) => apply(promoteNote(data, hi, noteIndex))}
-                      onAddNote={() => apply(addPendingNote(data, hi))}
-                      onFieldKeyDown={(e, state, cell) => onCardKeyDown(e, hi, state, cell)}
-                      judgementMenu={
-                        <KindMenu
-                          label={`仮説${hi + 1}に判断を追加`}
-                          // **文言はレイアウトが持つ**——空けた幅と描く幅を
-                          // 同じ文字列から出す（`layout.ts` が測っている）
-                          triggerText={
-                            JUDGEMENT_TRIGGER_LABELS[h.events.length === 0 ? 'empty' : 'latest']
-                          }
-                          // 高さは `ACTION_HEIGHT` で場所を空けてある（対のクラス）
-                          triggerClassName={`${TRIGGER_FACE} ${ACTION_HEIGHT_CLASS}`}
-                          kinds={JUDGEMENT_KINDS}
-                          onPick={(kind) => apply(appendJudgement(data, hi, kind))}
-                          {...menuPropsFor(judgementMenuKey(rowKey))}
-                        />
-                      }
-                    />
+                      onFocusCapture={() => setLastCell({ cell: 'hypothesis', key: rowKey })}
+                    >
+                      <HypothesisRow
+                        hypothesisKey={rowKey}
+                        label={`仮説${hi + 1}`}
+                        placement={row}
+                        origin={placement.rect}
+                        text={h.text}
+                        rationale={h.rationale}
+                        notes={h.pendingNotes}
+                        events={h.events}
+                        invalid={invalidHypotheses.has(hi)}
+                        suppressed={issueSuppressed[index]}
+                        expanded={expandedKey === rowKey}
+                        onExpand={() => expandRow(rowKey)}
+                        onTextChange={(next) =>
+                          onChange(setHypothesisText(data, hi, next), `${rowKey}:text`)
+                        }
+                        onRationaleChange={(next) =>
+                          onChange(setRationale(data, hi, next), `${rowKey}:rationale`)
+                        }
+                        onNoteChange={(noteIndex, next) =>
+                          onChange(
+                            setPendingNote(data, hi, noteIndex, next),
+                            `${rowKey}:note:${noteIndex}`,
+                          )
+                        }
+                        onEventNoteChange={(eventIndex, next) =>
+                          onChange(
+                            setEventNote(data, hi, eventIndex, next),
+                            `${rowKey}:event:${eventIndex}`,
+                          )
+                        }
+                        onPromoteNote={(noteIndex) => apply(promoteNote(data, hi, noteIndex))}
+                        onAddNote={() => apply(addPendingNote(data, hi))}
+                        onFieldKeyDown={(e, state, cell) => onCardKeyDown(e, hi, state, cell)}
+                        judgementMenu={
+                          <KindMenu
+                            label={`仮説${hi + 1}に判断を追加`}
+                            // **文言はレイアウトが持つ**——空けた幅と描く幅を
+                            // 同じ文字列から出す（`layout.ts` が測っている）
+                            triggerText={
+                              JUDGEMENT_TRIGGER_LABELS[h.events.length === 0 ? 'empty' : 'latest']
+                            }
+                            // 高さは `ACTION_HEIGHT` で場所を空けてある（対のクラス）
+                            triggerClassName={`${TRIGGER_FACE} ${ACTION_HEIGHT_CLASS}`}
+                            kinds={JUDGEMENT_KINDS}
+                            onPick={(kind) => apply(appendJudgement(data, hi, kind))}
+                            {...menuPropsFor(judgementMenuKey(rowKey))}
+                          />
+                        }
+                      />
+                    </div>
                   )
                 })}
               </IssueBox>

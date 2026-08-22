@@ -11,6 +11,7 @@ import {
   ISSUE_DEFERRED_LABEL,
   poseQuestions,
   QUESTION_LABELS,
+  TALLY_TOTAL_LABEL,
   tallyLine,
   tallyQuestions,
 } from './derive'
@@ -417,12 +418,71 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
   })
 })
 
+/**
+ * 未決2件（同じ課題）と「仮説なし」1件が同時に立つ形。**同じ種類が2件ある**ので、
+ * チップを押し続けたときの巡回（末尾なら先頭へ）が見える
+ */
+const openFile = (): IssueTreeSchemaVersion2 => ({
+  schemaVersion: 2,
+  type: 'issueTree',
+  title: 'テスト',
+  issues: [
+    { id: I(1), parentId: null, text: '根', events: [] },
+    { id: I(2), parentId: I(1), text: '仮説を持つ葉', events: [] },
+    { id: I(3), parentId: I(1), text: '仮説の無い葉', events: [] },
+  ],
+  hypotheses: [
+    { id: H(1), issueId: I(2), text: '仮説A', rationale: '', events: [], pendingNotes: [] },
+    { id: H(2), issueId: I(2), text: '仮説B', rationale: '', events: [], pendingNotes: [] },
+  ],
+})
+
+/** 帯のチップ（「次の◯◯へ」）。0件の種類は描かれないので queryBy で引く */
+const chip = (kind: keyof typeof QUESTION_LABELS): HTMLButtonElement | null =>
+  screen.queryByRole('button', { name: `次の${QUESTION_LABELS[kind]}へ` }) as HTMLButtonElement | null
+
 describe('IssueTreeEditor（帯）', () => {
-  it('未決の集計を tallyLine のまま出す', () => {
-    // **文字列を打ち直さない**——アプリの画面と Skill の報告が同じ言葉を出す
-    const data = file()
+  it('要対応の合計と、内訳のチップを出す（数は tallyQuestions から）', () => {
+    // **文字列を打ち直さない**——アプリの画面と Skill の報告が同じ言葉を出す。
+    // `tallyLine` の1行はもう帯に出ないが（内訳がチップになった）、
+    // **合計の文言と内訳の文言は `tallyLine` と同じ語**である
+    const data = openFile()
+    const t = tallyQuestions(poseQuestions(data))
+    expect(t).toMatchObject({ hypothesis: 1, result: 2, hold: 0, judgement: 0, total: 3 })
     render(<Harness initial={data} />)
-    expect(screen.getByText(tallyLine(tallyQuestions(poseQuestions(data))))).toBeTruthy()
+    expect(screen.getByText(`⚠ ${TALLY_TOTAL_LABEL} ${t.total}`)).toBeTruthy()
+    expect(chip('hypothesis')?.textContent).toBe(`${QUESTION_LABELS.hypothesis} ${t.hypothesis}`)
+    expect(chip('result')?.textContent).toBe(`${QUESTION_LABELS.result} ${t.result}`)
+  })
+
+  it('0 件の種類のチップは出ない', () => {
+    render(<Harness initial={openFile()} />)
+    // 立っている2種は出る
+    expect(chip('hypothesis')).not.toBeNull()
+    expect(chip('result')).not.toBeNull()
+    // 0 件の2種は**描かない**（`tallyLine` が0の内訳を出さないのと同じ規則）。
+    // 文言そのものが帯に現れないことも見る（数だけ 0 で出ていないこと）
+    expect(chip('hold')).toBeNull()
+    expect(chip('judgement')).toBeNull()
+    expect(screen.queryByText(`${QUESTION_LABELS.hold} 0`)).toBeNull()
+    expect(screen.queryByText(`${QUESTION_LABELS.judgement} 0`)).toBeNull()
+  })
+
+  it('帯のチップを押すと、その種類の次の要対応へフォーカスが移る（末尾なら先頭へ）', () => {
+    render(<Harness initial={openFile()} />)
+    // **1回目は列の先頭**（まだどこにも触っていない）。仮説の行は押されると開くので、
+    // 行き先は展開後の文言の欄になる
+    fireEvent.click(chip('result') as HTMLButtonElement)
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説1' }))
+    // 2回目は**次の1件**（起点は最後にフォーカスがあったセル）
+    fireEvent.click(chip('result') as HTMLButtonElement)
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説2' }))
+    // 3回目は末尾の次＝先頭へ戻る（一巡して「見落としが無い」と分かる）
+    fireEvent.click(chip('result') as HTMLButtonElement)
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説1' }))
+    // 種類が違えば別の列。「仮説なし」は**課題の欄**へ飛ぶ
+    fireEvent.click(chip('hypothesis') as HTMLButtonElement)
+    expect(document.activeElement).toBe(issueCell(3))
   })
 
   it('指摘の一覧はエディタが出さない（額縁の IssueBanner が出す）', () => {
@@ -472,6 +532,23 @@ describe('IssueTreeEditor（帯）', () => {
     const next: IssueTreeSchemaVersion2 = onChange.mock.calls[0][0]
     expect(next.hypotheses).toHaveLength(2)
     expect(next.hypotheses.some((h) => h.issueId === I(1))).toBe(true)
+  })
+
+  it('仮説の行に触っていたときは、その仮説がぶら下がる課題に足す', () => {
+    // **「最後に触ったセル」は1つしか持たない**（仮説の行に居るときは仮説を指す）。
+    // 「仮説を追加」の行き先はそこから導く——別に「最後の課題」を持つと、
+    // 片方だけが古くなって別の課題へ足しに行く
+    const onChange = vi.fn()
+    render(<Harness initial={openFile()} onChange={onChange} />)
+    // 仮説A・B がぶら下がるのは I(2)。**末尾の課題は I(3)** なので、既定の
+    // 行き先（末尾）に落ちていたら気づける
+    // 行を開くと、展開後の文言の欄までフォーカスが来る（`expandRow` の予約）
+    openHypothesis(1)
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説1' }))
+    fireEvent.click(screen.getByRole('button', { name: '仮説を追加' }))
+    const next: IssueTreeSchemaVersion2 = onChange.mock.calls.at(-1)?.[0]
+    expect(next.hypotheses).toHaveLength(3)
+    expect(next.hypotheses.filter((h) => h.issueId === I(2))).toHaveLength(3)
   })
 })
 
