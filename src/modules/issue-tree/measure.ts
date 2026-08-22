@@ -57,7 +57,13 @@ export const BADGE_GAP = 8
 /** バッジが座る行の高さ（バッジ自体は 18px で、その中に縦中央で置く） */
 export const BADGE_HEIGHT = 20
 
-/** 展開パネル。モックの `.panel`（margin-left 12 / padding 10px 12px / border 1 / gap 12） */
+/**
+ * 展開パネル。モックの `.panel`（margin-left 12 / padding 10px 12px / border 1 / gap 12）。
+ *
+ * **`ROW_INDENT` と同じ 12 を、同じ原点から測る。** モックの `.row` の
+ * padding-left と `.panel` の margin-left はどちらも `.issue` の内容の左端から
+ * 12px で、**パネルの左端と行の文言の左端が揃う**（字下げを積んで 24 にしない）
+ */
 export const PANEL_INDENT = 12
 export const PANEL_PADDING_X = 12
 export const PANEL_PADDING_Y = 10
@@ -69,11 +75,15 @@ export const PANEL_GAP = 12
 export const PANEL_BOX_CLASS = 'border px-3 py-2.5'
 /** 節の見出しと本文の空き（モックの `.sec` の gap） */
 export const SECTION_GAP = 4
-/** トリガー・「＋ FB」ボタンの行の高さ（h-6 = 24px） */
+/**
+ * トリガー・「＋ FB」ボタンの行の高さ。**下のクラスと対で直すこと**
+ *——クラスを当て忘れるとボタンの実高が測定より低くなり、定数が嘘になる
+ */
 export const ACTION_HEIGHT = 24
+/** `ACTION_HEIGHT` と対のクラス（h-6 = 24px） */
+export const ACTION_HEIGHT_CLASS = 'h-6'
 /** ボタンの左右の余白（px-1 = 4px）＋枠線 1px。幅は文言の実測＋これ */
 export const ACTION_INSET_X = 5
 
-/** パネルの中の文章が使える幅 */
-export const PANEL_CONTENT_WIDTH =
-  BOX_CONTENT_WIDTH - ROW_INDENT - PANEL_INDENT - PANEL_INSET_X * 2
+/** パネルの中の文章が使える幅（パネルは行の文言と同じ位置から始まる） */
+export const PANEL_CONTENT_WIDTH = BOX_CONTENT_WIDTH - PANEL_INDENT - PANEL_INSET_X * 2

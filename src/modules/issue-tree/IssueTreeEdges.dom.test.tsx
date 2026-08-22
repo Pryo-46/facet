@@ -53,7 +53,15 @@ const data: IssueTreeSchemaVersion2 = {
 const built = buildTree(data.issues)
 const layout = layoutIssueTree(data, poseQuestions(data), fonts, -1)
 const suppressedIds = suppressedIssueIds(data.issues)
-const suppressed = data.issues.map((node) => suppressedIds.has(node.id))
+/**
+ * **エディタが渡すのと同じ「祖先由来の抑制」。** `suppressedIssueIds` は
+ * 見送りを掲げている当の課題も含むが、俯瞰モックの規則では**その課題は
+ * 通常どおり描き、入る線も実線**である（薄くなる・破線になるのは配下だけ）。
+ * ここで自己包含のまま渡すと、部品は正しいのに画面だけがモックと食い違う
+ */
+const suppressed = data.issues.map(
+  (node) => suppressedIds.has(node.id) && node.events.length === 0,
+)
 
 /** 添字 → 木の同一性の鍵（`key` は id ではないので、木から引き当てる） */
 const keys = new Map<number, string>()
@@ -113,12 +121,15 @@ describe('IssueTreeEdges: 線の引き元', () => {
 
 describe('IssueTreeEdges: 抑制された枝', () => {
   /**
-   * 抑制は**子で判定する**（`suppressed[child.index]`）。見送りを付けた当の
-   * 課題も `suppressedIssueIds` に入るので、そこへ入る線から破線になる
+   * 抑制は**子で判定する**（`suppressed[child.index]`）。境目は
+   * 「見送りを掲げている課題**の下**」——その課題へ入る線は実線のまま、
+   * 配下へ入る線から破線になる（箱の面が薄くなるのと同じ位置で切り替わる）
    */
-  it('見送った課題へ入る線と、その配下へ入る線が破線になる', () => {
+  it('見送った課題の配下へ入る線だけが破線になる（見送った課題へ入る線は実線）', () => {
     const container = renderEdges()
-    expect(pathFor(container, 0, 1).getAttribute('stroke-dasharray')).toBe('4 3')
+    // 課題1（子A）が見送りを掲げている当人。そこへ入る線は実線
+    expect(pathFor(container, 0, 1).getAttribute('stroke-dasharray')).toBeNull()
+    // その配下（孫）へ入る線から破線になる
     expect(pathFor(container, 1, 2).getAttribute('stroke-dasharray')).toBe('4 3')
   })
 

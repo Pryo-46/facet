@@ -7,7 +7,14 @@ import { hypothesisCellKey, type HypothesisCell } from './cell-keys'
 import { badgeGroupOf, BADGE_LABELS, EVENT_KIND_LABELS, latestKind } from './derive'
 import type { HypothesisPlacement } from './layout'
 import { ADD_NOTE_LABEL, NO_JUDGEMENT_TEXT, SECTION_LABELS } from './layout'
-import { BADGE_HEIGHT, ISSUE_BORDER, PANEL_BOX_CLASS, ROW_DOT_INSET, ROW_DOT_SIZE } from './measure'
+import {
+  ACTION_HEIGHT_CLASS,
+  BADGE_HEIGHT,
+  ISSUE_BORDER,
+  PANEL_BOX_CLASS,
+  ROW_DOT_INSET,
+  ROW_DOT_SIZE,
+} from './measure'
 
 /**
  * `data-cell` の値は `./cell-keys` が作る。**ここに書き写さないこと**
@@ -62,11 +69,14 @@ export interface HypothesisRowProps {
 const inputClass =
   'h-full w-full resize-none overflow-hidden bg-transparent whitespace-pre-wrap break-all outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-inset focus:ring-ring'
 
-/** 節の見出し（text-xs）。レイアウトは `fonts.small` の1行で場所を空けている */
-const sectionLabelClass = 'absolute overflow-hidden text-xs leading-none font-medium text-ink-muted select-none'
+/**
+ * 節の見出し（text-xs）。レイアウトは `fonts.small` の1行で場所を空けている。
+ * **文字色は持たない**——下の `mutedInk` が抑制に応じて足す
+ */
+const sectionLabelClass = 'absolute overflow-hidden text-xs leading-none font-medium select-none'
 
-/** 読み取り専用の文章（以前の判断の根拠・「判断はまだ無い」） */
-const staticTextClass = 'absolute overflow-hidden text-sm break-all whitespace-pre-wrap text-ink-muted'
+/** 読み取り専用の文章（以前の判断の根拠・「判断はまだ無い」）。文字色は同上 */
+const staticTextClass = 'absolute overflow-hidden text-sm break-all whitespace-pre-wrap'
 
 /**
  * 仮説1件＝**課題の箱の中の1行**（M3 の文法）。
@@ -107,6 +117,19 @@ export function HypothesisRow(props: HypothesisRowProps) {
   // `hypothesisStatus` ではなく `latestKind` を呼ぶのは、props の
   // `readonly` な配列をそのまま渡せるため（写しを作らない）
   const group = badgeGroupOf(latestKind(events) ?? 'undecided')
+
+  /**
+   * 抑制された配下の文字色。**箱からの継承に頼らない。**
+   *
+   * 見送りを掲げている当の課題の箱は**通常の面**で描く（俯瞰モックの規則。
+   * 薄くなるのは配下だけ）ので、その箱の中の仮説行は `text-ink` を継承して
+   * しまう。だが「その課題はもう追わない」は**ぶら下がる仮説にも及ぶ**
+   *（`poseQuestions` が見送った課題の配下に問いを立てないのと同じ理屈）ので、
+   * 行の側で明示的に薄くする。**`opacity-*` は使わない**——検算した比を割る
+   */
+  const ink = props.suppressed ? 'text-ink-faint' : 'text-ink'
+  /** 見出し・読み取り専用の文章・プレースホルダ相当の抑えた文字 */
+  const mutedInk = props.suppressed ? 'text-ink-faint' : 'text-ink-muted'
   /**
    * 行頭の点（モックの `.row::before`）。**バッジと同じ高さに揃える**
    *——展開すると文言が折り返して行が縦に伸びるので、行の中央に置くと
@@ -140,7 +163,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
         {/* 畳まれた行は**必ず1行**。レイアウトも1行で測っているので、
             改行は空白に潰してから省略記号に任せる */}
         <span
-          className={`absolute truncate text-sm ${props.text === '' ? 'text-ink-muted' : ''}`}
+          className={`absolute truncate text-sm ${props.text === '' ? mutedInk : ink}`}
           style={inRow(placement.text)}
         >
           {props.text === '' ? '仮説' : props.text.replace(/\n/g, ' ')}
@@ -166,8 +189,13 @@ export function HypothesisRow(props: HypothesisRowProps) {
         <CellInput
           multiline
           autoSize={false}
-          // 整合性検証の赤。**濃さは検算した `bg-warning/20`**（palette-requirements.ts の OVERLAYS）
-          className={`${inputClass} text-sm font-medium ${props.invalid ? 'bg-warning/20' : ''}`}
+          // **`font-medium` を付けないこと。** 測っているのは `fonts.body`
+          //（`BODY_FONT_CLASS = 'text-sm'`＝weight 400）の見本であり、中字で
+          // 描くと同じ字数がより広くなって測定より1行多く折り返す。高さ固定＋
+          // overflow-hidden の textarea なので、**打っている最後の行が黙って
+          // 見えなくなる**（`fonts.title` を別に持っている理由と同じ）。
+          // 整合性検証の赤は検算した `bg-warning/20`（palette-requirements.ts の OVERLAYS）
+          className={`${inputClass} text-sm ${ink} ${props.invalid ? 'bg-warning/20' : ''}`}
           aria-label={label}
           placeholder="仮説"
           data-cell={cellOf({ cell: 'hypothesis' })}
@@ -188,7 +216,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
         style={inBox(panel.panel)}
       />
 
-      <div className={sectionLabelClass} style={inBox(panel.judgement.label)}>
+      <div className={`${sectionLabelClass} ${mutedInk}`} style={inBox(panel.judgement.label)}>
         {SECTION_LABELS.judgement}
       </div>
       <span className="absolute flex items-start" style={inBox(panel.judgement.badge)}>
@@ -197,7 +225,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
         </span>
       </span>
       {latest === undefined ? (
-        <div className={staticTextClass} style={inBox(panel.judgement.note)}>
+        <div className={`${staticTextClass} ${mutedInk}`} style={inBox(panel.judgement.note)}>
           {NO_JUDGEMENT_TEXT}
         </div>
       ) : (
@@ -205,7 +233,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
           <CellInput
             multiline
             autoSize={false}
-            className={`${inputClass} text-sm`}
+            className={`${inputClass} text-sm ${ink}`}
             aria-label={`${label} の${EVENT_KIND_LABELS[latest.kind]}の根拠`}
             data-cell={cellOf({ cell: 'event', eventIndex: latestIndex })}
             value={latest.note}
@@ -225,7 +253,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
           バッジは俯瞰の5語ではなく**正確な種別**で、面は薄い枠にする
           （いま決まっているのは最新1件だけだと見せる） */}
       {panel.previousLabel !== null && (
-        <div className={sectionLabelClass} style={inBox(panel.previousLabel)}>
+        <div className={`${sectionLabelClass} ${mutedInk}`} style={inBox(panel.previousLabel)}>
           {SECTION_LABELS.previous}
         </div>
       )}
@@ -239,21 +267,21 @@ export function HypothesisRow(props: HypothesisRowProps) {
                 {EVENT_KIND_LABELS[event.kind]}
               </span>
             </span>
-            <span className={staticTextClass} style={inBox(rects.note)}>
+            <span className={`${staticTextClass} ${mutedInk}`} style={inBox(rects.note)}>
               {event.note}
             </span>
           </span>
         )
       })}
 
-      <div className={sectionLabelClass} style={inBox(panel.rationale.label)}>
+      <div className={`${sectionLabelClass} ${mutedInk}`} style={inBox(panel.rationale.label)}>
         {SECTION_LABELS.rationale}
       </div>
       <div className="absolute" style={inBox(panel.rationale.cell)}>
         <CellInput
           multiline
           autoSize={false}
-          className={`${inputClass} text-sm`}
+          className={`${inputClass} text-sm ${ink}`}
           aria-label={`${label} の由来`}
           placeholder="由来（任意）"
           data-cell={cellOf({ cell: 'rationale' })}
@@ -263,7 +291,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
         />
       </div>
 
-      <div className={sectionLabelClass} style={inBox(panel.notes.label)}>
+      <div className={`${sectionLabelClass} ${mutedInk}`} style={inBox(panel.notes.label)}>
         {SECTION_LABELS.notes}
       </div>
       {panel.notes.cells.map((r, i) => (
@@ -271,7 +299,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
           <CellInput
             multiline
             autoSize={false}
-            className={`${inputClass} text-sm`}
+            className={`${inputClass} text-sm ${ink}`}
             aria-label={`${label} のFB${i + 1}`}
             data-cell={cellOf({ cell: 'note', noteIndex: i })}
             value={notes[i] ?? ''}
@@ -288,7 +316,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
           {events.length > 0 && (
             <button
               type="button"
-              className={`${buttonBase} invisible absolute top-0 right-0 border border-rule bg-surface px-1 text-xs group-hover/note:visible group-focus-within/note:visible hover:bg-canvas`}
+              className={`${buttonBase} invisible absolute top-0 right-0 border border-rule bg-surface px-1 text-xs ${ink} group-hover/note:visible group-focus-within/note:visible hover:bg-canvas`}
               aria-label={`${label} のFB${i + 1} を根拠へ移す`}
               onClick={() => props.onPromoteNote(i)}
             >
@@ -300,7 +328,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
       <div className="absolute flex items-center" style={inBox(panel.notes.add)}>
         <button
           type="button"
-          className={`${buttonBase} gap-1 border border-rule bg-surface px-1 text-xs text-ink-muted hover:bg-canvas`}
+          className={`${buttonBase} ${ACTION_HEIGHT_CLASS} gap-1 border border-rule bg-surface px-1 text-xs ${mutedInk} hover:bg-canvas`}
           aria-label={`${label} にFBを足す`}
           onClick={props.onAddNote}
         >

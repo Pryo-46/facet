@@ -111,8 +111,9 @@ export function IssueBox(props: IssueBoxProps) {
 
       {/* 見送りのドロップダウン。**箱の外（left-full）へ逃がさない**——列の
           間隔の中に置くと、隣の枝と重なる位置に出ることがある。
-          見送り済みなら測定した矩形へ、まだなら同じ場所（タイトルの右上。
-          レイアウトはバッジのぶんだけタイトルを狭めている）へ置く */}
+          **レイアウトはタイトル行の右上を常に1枠空けている**ので、
+          見送り済みなら測定した矩形へ、まだなら同じ枠（右寄せ）へ置けば、
+          ホバー中に出るボタンがタイトルの文字に被らない（layout.ts の解説） */}
       <div
         className="absolute flex items-center justify-end"
         style={
@@ -126,10 +127,15 @@ export function IssueBox(props: IssueBoxProps) {
 
       {/* 「仮説なし」。**見送りバッジとは排他**（見送った課題は抑制されるので
           問いが立たない）。読み取り専用の表示だが aria-hidden にしない——
-          名前の後半に同じ言葉が入っており、音声でも二重には読まれない */}
+          名前の後半に同じ言葉が入っており、音声でも二重には読まれない。
+
+          **ホバー・フォーカス中は隠して、見送りのトリガーと入れ替える。**
+          右上の枠は1つで、レイアウトが空けているのは「バッジかトリガーの
+          広い方」1枠ぶんである（2枠ぶん空けるとタイトルが痩せる）。
+          問いは名前の後半にも入っているので、隠しているあいだも音声からは消えない */}
       {props.warn && placement.deferral === null && (
         <div
-          className="pointer-events-none absolute flex items-center justify-end"
+          className="pointer-events-none absolute flex items-center justify-end group-hover/issue:invisible group-focus-within/issue:invisible"
           style={{ top: ISSUE_PADDING_Y, right: ISSUE_PADDING_X }}
         >
           <span className={badgeClass('open', props.suppressed)}>{QUESTION_LABELS.hypothesis}</span>
@@ -145,7 +151,9 @@ export function IssueBox(props: IssueBoxProps) {
           <CellInput
             multiline
             autoSize={false}
-            className="h-full w-full resize-none overflow-hidden bg-transparent text-xs whitespace-pre-wrap break-all outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-inset focus:ring-ring"
+            // 理由は `text-ink-muted`（モックの `.reason`）。見送りを掲げている
+            // 箱は通常の面で描くので、継承では本文と同じ濃さになってしまう
+            className="h-full w-full resize-none overflow-hidden bg-transparent text-xs whitespace-pre-wrap break-all text-ink-muted outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-inset focus:ring-ring"
             aria-label={`${label} の見送りの理由`}
             placeholder="理由"
             data-cell={props.deferralCellKey}

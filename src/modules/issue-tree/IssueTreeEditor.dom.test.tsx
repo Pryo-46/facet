@@ -72,10 +72,16 @@ function Harness({
 /**
  * 課題ノードの入力欄。**アクセシブル名の前半（`課題{N}`）で引く**——後半には
  * 「（未記入）」や立っている問いが付く。role を textbox に絞るのは、
- * 同じ接頭辞を持つ見送りのボタン（`課題{N}を見送る`）と区別するため
+ * 同じ接頭辞を持つ見送りのボタン（`課題{N}を見送る`）と区別するため。
+ *
+ * **後半を素通しにしない**——見送った課題は同じ箱の中に理由の欄
+ *（`課題{N} の見送りの理由`）を持っており、前方一致だけだと2件引いてしまう。
+ * 許すのは「（未記入）」と立っている問いだけにして、前半の約束は動かさない
  */
 const issueCell = (n: number): HTMLTextAreaElement =>
-  screen.getByRole('textbox', { name: new RegExp(`^課題${n}(?![0-9])`) }) as HTMLTextAreaElement
+  screen.getByRole('textbox', {
+    name: new RegExp(`^課題${n}(（未記入）)?( ${QUESTION_LABELS.hypothesis})?$`),
+  }) as HTMLTextAreaElement
 
 /**
  * 仮説の文言の欄。**畳まれた行に textbox は無い**（M3 の文法）——行はボタンで、
@@ -248,6 +254,52 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     ).toBeTruthy()
   })
 
+  /**
+   * **見送りを掲げている当の課題は通常どおり描き、薄くなるのは配下だけ**
+   *（`docs/issue-tree/俯瞰モック/俯瞰.html` の規則。見送り箱は `class="issue"` で
+   * `faint` を持たない）。見送りは**そこで下した判断の表明**であって
+   * 「もう見なくてよい枝」ではないので、薄くすると誰が何を落としたのかが
+   * 図から読めなくなる。
+   *
+   * **`suppressedIssueIds` の自己包含は正しく、触ってはいけない**——
+   * 見送った課題自身に「仮説なし」を立てないためにそうなっている。
+   * 分けるのは**渡し方**（箱とエッジは祖先由来だけ、箱の中の行は自己包含）
+   * であり、ここが戻されると画面だけが黙ってモックと食い違う
+   */
+  it('見送った課題自身の箱とバッジは薄くならず、配下の箱だけが薄くなる', () => {
+    const base = file()
+    render(
+      <Harness
+        initial={{
+          ...base,
+          // **中間の課題（課題2）に付ける**——根に付けると「自分自身」と
+          // 「配下」の区別が付く相手が居なくなる
+          issues: base.issues.map((n, i) =>
+            i === 1 ? { ...n, events: [{ kind: 'deferred', note: '初回フローの成立が先' }] } : n,
+          ),
+        }}
+      />,
+    )
+    const boxOf = (n: number): HTMLElement => {
+      const box = issueCell(n).closest('[class*="pointer-events-auto"]')
+      if (box === null) throw new Error(`課題${n}の箱が無い`)
+      return box as HTMLElement
+    }
+    // 見送りを掲げている当人（課題2）は通常の面
+    expect(boxOf(2).className).toContain('border-rule')
+    expect(boxOf(2).className).not.toContain('ink-faint')
+    expect(screen.getByRole('button', { name: '課題2を見送る' }).className).toContain(
+      badgeClass('deferred', false),
+    )
+    // 配下（課題3）は薄い枠と薄い文字に落ちる
+    expect(boxOf(3).className).toContain('border-ink-faint')
+    expect(boxOf(3).className).toContain('text-ink-faint')
+    // **箱の中の仮説行は薄いまま**（「その課題はもう追わない」は配下の仮説にも及ぶ）
+    const row = screen.getByRole('button', { name: '仮説1を開く' })
+    const badge = row.querySelector('[class*="inline-flex"]')
+    expect((badge as HTMLElement).className).toBe(badgeClass('open', true))
+  })
+
   it('見送った課題はバッジと理由の欄を持ち、打つと最新の見送りの note が変わる', () => {
     // レイアウトはこの行のぶん縦を空けている。描かないと、見送った課題は
     // 「箱の下に理由の分だけ空白が空いたノード」になる
@@ -270,10 +322,9 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     // 同時にこれが見送りのトリガーを兼ねる
     const badge = screen.getByRole('button', { name: '課題1を見送る' })
     expect(badge.textContent).toBe(ISSUE_DEFERRED_LABEL)
-    // **見送りを付けた当の課題も抑制の集合に入る**（`suppressedIssueIds` は
-    // 自分自身を含む。エッジが「そこへ入る線から破線」にするのと同じ境目）
-    // ので、バッジは薄い枠で出る
-    expect(badge.className).toContain(badgeClass('deferred', true))
+    // **薄くならない。** 見送りは「そこで下した判断の表明」であって
+    // 「もう見なくてよい枝」ではない（俯瞰モックの規則。薄いのは配下だけ）
+    expect(badge.className).toContain(badgeClass('deferred', false))
 
     const reason = screen.getByRole('textbox', { name: '課題1 の見送りの理由' })
     expect((reason as HTMLTextAreaElement).value).toBe('本開発の設計と一緒に決める')

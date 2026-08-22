@@ -115,6 +115,13 @@ export const JUDGEMENT_TRIGGER_LABELS = {
   latest: '判断を変える',
 } as const
 
+/**
+ * 課題を見送るトリガーの文言（まだ見送っていない箱でホバー中に出る小さなボタン）。
+ * **`JUDGEMENT_TRIGGER_LABELS` と同じ理由でここに置く**——右上の枠を空けるのは
+ * レイアウトなので、幅を測る文字列と描く文字列を1つにする
+ */
+export const DEFER_TRIGGER_LABEL = '見送り'
+
 /** 「判断」節でイベントが1件も無いときに根拠の場所へ出す文言 */
 export const NO_JUDGEMENT_TEXT = '判断はまだ無い'
 
@@ -264,10 +271,12 @@ export function layoutIssueTree(
     return {
       height,
       build: (x, y) => {
+        // **パネルの左端は行の文言の左端と揃う**（`PANEL_INDENT` と
+        // `ROW_INDENT` は同じ原点から測った同じ値。measure.ts の解説）
         const panel: Rect = {
-          x: x + ROW_INDENT + PANEL_INDENT,
+          x: x + PANEL_INDENT,
           y: y + headH + ROW_GAP,
-          width: BOX_CONTENT_WIDTH - ROW_INDENT - PANEL_INDENT,
+          width: BOX_CONTENT_WIDTH - PANEL_INDENT,
           height: panelH,
         }
         const cx = panel.x + PANEL_INSET_X
@@ -379,7 +388,26 @@ export function layoutIssueTree(
       : warn
         ? badgeWidth(QUESTION_LABELS.hypothesis, fonts.small)
         : 0
-    const reserve = badgeW === 0 ? 0 : BADGE_GAP + badgeW
+    /**
+     * タイトル行の右上は**常に1枠空ける**。ここに出るのは3つで、
+     * いずれも同じ場所に右寄せで置かれる:
+     *
+     * - 見送りバッジ（見送り済み。これ自身が見送りのトリガーを兼ねる）
+     * - 「仮説なし」バッジ（問いが立っている）
+     * - 見送りのトリガー（ホバー・フォーカス中だけ出る小さなボタン）
+     *
+     * **バッジがあるときだけ空ける形にしない。** そうすると普通の箱では
+     * ホバー中に不透明なボタンがタイトルの1行目の末尾に被り、読めなくなる
+     *（M1 が `left-full` で箱の外へ逃がしていたのはこれを避けるためだった）。
+     * 箱の外へ出す道は採らない——列の間隔に置くと隣の枝と重なる。
+     * 「仮説なし」の箱ではバッジとトリガーが同じ枠を奪い合うので、
+     * **ホバー中はバッジを隠してトリガーと入れ替える**（IssueBox）。
+     * 見送り済みの箱では2つが同じ要素なので、広い方＝バッジの幅でよい
+     */
+    const slotW = deferred
+      ? badgeW
+      : Math.max(badgeW, actionWidth(DEFER_TRIGGER_LABEL, fonts.small))
+    const reserve = BADGE_GAP + slotW
 
     // 仮説の行も見送りの理由も無い箱は、ロジックツリーのノードと同じ
     // 「タイトルの自然幅」。**バッジのぶんは先に取り置く**——取り置かないと、

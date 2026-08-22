@@ -79,8 +79,13 @@ import {
 import { HypothesisRow } from './HypothesisRow'
 import { IssueBox } from './IssueBox'
 import { IssueTreeEdges } from './IssueTreeEdges'
-import { JUDGEMENT_TRIGGER_LABELS, layoutIssueTree, type IssueTreeFonts } from './layout'
-import { TITLE_FONT_CLASS } from './measure'
+import {
+  DEFER_TRIGGER_LABEL,
+  JUDGEMENT_TRIGGER_LABELS,
+  layoutIssueTree,
+  type IssueTreeFonts,
+} from './layout'
+import { ACTION_HEIGHT_CLASS, TITLE_FONT_CLASS } from './measure'
 
 /** 測定結果のキャッシュ。会議1回分の打鍵で無限に増えないよう頭を押さえる */
 const MEASURE_CACHE_LIMIT = 2000
@@ -122,8 +127,19 @@ const JUDGEMENT_MENU_ORDER: Record<JudgementKind, number> = {
 const JUDGEMENT_KINDS: readonly JudgementKind[] = (
   Object.keys(JUDGEMENT_MENU_ORDER) as JudgementKind[]
 ).sort((a, b) => JUDGEMENT_MENU_ORDER[a] - JUDGEMENT_MENU_ORDER[b])
-/** 課題ノードに付けられるのは見送り系2種だけ（スキーマの制約） */
-const DEFERRAL_KINDS: readonly DeferralKind[] = ['deferred', 'deferredToMainDev']
+/**
+ * 課題ノードに付けられるのは見送り系2種だけ（スキーマの制約）。
+ * **`JUDGEMENT_KINDS` と同じ形にしてある**——手書きの配列だと、スキーマへ
+ * 種別が増えても tsc が黙っており、選べない種別が静かに残る（`onHold` で
+ * 実際に起きた穴。形を知りながら同じ穴を残さない）
+ */
+const DEFERRAL_MENU_ORDER: Record<DeferralKind, number> = {
+  deferred: 1,
+  deferredToMainDev: 2,
+}
+const DEFERRAL_KINDS: readonly DeferralKind[] = (
+  Object.keys(DEFERRAL_MENU_ORDER) as DeferralKind[]
+).sort((a, b) => DEFERRAL_MENU_ORDER[a] - DEFERRAL_MENU_ORDER[b])
 
 const PLATFORM = currentPlatform()
 
@@ -150,11 +166,22 @@ function cachedMeasurer(font: CanvasFont): { measure: MeasureWidth; lineHeight: 
 }
 
 /**
- * ドロップダウンのトリガーの既定の面。**`triggerClassName` を渡すと差し替わる**
- *（面のクラスを2つ並べても、勝つのは生成 CSS の順序であってクラス名の順序ではない。M8）。
+ * ドロップダウンのトリガーの土台。**`buttonBase` を敷かないのは角丸のため。**
+ * `buttonBase` は `rounded-sm` を持つが、見送り済みの課題ではこのトリガーが
+ * 見送りバッジ（`rounded`）を兼ねる——**角丸を2つ並べると勝つのは生成 CSS の
+ * 順序であってクラス名の順序**であり、`TRIGGER_FACE` を切り出した理由（M8）が
+ * 角丸について残ってしまう。**角丸は面が決める**ことにして口を1つにする。
+ * 失うのは `justify-center` と `disabled:*` だけで、このトリガーは無効化しない
+ */
+const TRIGGER_BASE =
+  'pointer-events-auto inline-flex items-center justify-center transition-colors outline-none focus:ring-2 focus:ring-inset focus:ring-ring'
+
+/**
+ * トリガーの既定の面。**`triggerClassName` を渡すと差し替わる**（足さない）。
  * 見送り済みの課題では、この面の代わりに見送りバッジの面が渡る
  */
-const TRIGGER_FACE = 'border border-rule bg-surface px-1 text-xs text-ink-muted hover:bg-canvas'
+const TRIGGER_FACE =
+  'rounded-sm border border-rule bg-surface px-1 text-xs text-ink-muted hover:bg-canvas'
 
 interface KindMenuProps<K extends JudgementKind> {
   /** アクセシブル名（トリガーのボタン） */
@@ -186,7 +213,7 @@ function KindMenu<K extends JudgementKind>(props: KindMenuProps<K>) {
       <DropdownMenuTrigger
         type="button"
         aria-label={props.label}
-        className={`${buttonBase} pointer-events-auto outline-none focus:ring-2 focus:ring-inset focus:ring-ring ${props.triggerClassName ?? TRIGGER_FACE}`}
+        className={`${TRIGGER_BASE} ${props.triggerClassName ?? TRIGGER_FACE}`}
       >
         {props.triggerText}
       </DropdownMenuTrigger>
@@ -350,7 +377,23 @@ export function IssueTreeEditor({
   })
   const built = buildTree(data.issues)
   const suppressedIds = suppressedIssueIds(data.issues)
+  /** 自分自身の見送りを含む抑制（`derive.ts` の導出そのまま）。**箱の中の仮説行はこちら** */
   const issueSuppressed = data.issues.map((node) => suppressedIds.has(node.id))
+  /**
+   * **祖先由来の抑制だけ**（見送りを掲げている当の課題を除く）。箱の面とエッジはこちら。
+   *
+   * 俯瞰モックの規則は「**見送りを掲げている当の課題は通常どおり描く。薄くなるのは
+   * 配下だけ**」である（`俯瞰.html` の見送り箱は `class="issue"` で `faint` を持たず、
+   * 入る線も実線。`faint` と破線はその配下から始まる）。見送りは**そこで下した判断の
+   * 表明**であって「もう見なくてよい枝」ではない——薄くすると、誰が何を落としたのかが
+   * 図から読めなくなる。
+   *
+   * **`suppressedIssueIds` と `poseQuestions` は触らない。** あちらの自己包含は
+   * 「見送った課題自身に『仮説なし』を立てない」ために必要で、集計もそれに乗っている
+   */
+  const inheritedSuppressed = data.issues.map(
+    (node, i) => issueSuppressed[i] && node.events.length === 0,
+  )
 
   /** フォーカス移動のときに「見えるところまで寄せる」ための矩形。data-cell 鍵で引く */
   const rects = new Map<string, Rect>()
@@ -770,7 +813,8 @@ export function IssueTreeEditor({
       <IssueTreeEdges
         roots={built.roots}
         placements={layout.issues}
-        suppressed={issueSuppressed}
+        // 破線になるのは**配下へ入る線だけ**（見送り箱へ入る線は実線のまま）
+        suppressed={inheritedSuppressed}
         transform={transform}
       />
 
@@ -790,7 +834,10 @@ export function IssueTreeEditor({
           //（存在は整合性検証の指摘として額縁に出ている）
           if (placement === null) return null
           const key = issueKeys[index]
-          const suppressed = issueSuppressed[index]
+          // 箱の面と見送りバッジは**祖先由来の抑制だけ**で薄くする。
+          // 箱の中の仮説行は `issueSuppressed`（自分の見送りを含む）で薄くする
+          // ——「その課題はもう追わない」は配下の仮説にも及ぶ
+          const suppressed = inheritedSuppressed[index]
           // 課題ノードのイベントは見送り系だけで、**理由を書けるのは最新1件**
           const deferral = node.events.length === 0 ? null : node.events[node.events.length - 1]
           return (
@@ -818,7 +865,7 @@ export function IssueTreeEditor({
                     // 見送り済みなら、**このトリガーが見送りバッジを兼ねる**
                     //（同じ場所に2つ置かない）。まだなら、ホバーと
                     // focus-within のときだけ出す小さなボタンにする
-                    triggerText={deferral === null ? '見送り' : ISSUE_DEFERRED_LABEL}
+                    triggerText={deferral === null ? DEFER_TRIGGER_LABEL : ISSUE_DEFERRED_LABEL}
                     triggerClassName={
                       deferral === null
                         ? `${TRIGGER_FACE} invisible group-hover/issue:visible group-focus-within/issue:visible`
@@ -850,7 +897,7 @@ export function IssueTreeEditor({
                       notes={h.pendingNotes}
                       events={h.events}
                       invalid={invalidHypotheses.has(hi)}
-                      suppressed={suppressed}
+                      suppressed={issueSuppressed[index]}
                       expanded={expandedKey === rowKey}
                       onExpand={() => expandRow(rowKey)}
                       onTextChange={(next) =>
@@ -882,6 +929,8 @@ export function IssueTreeEditor({
                           triggerText={
                             JUDGEMENT_TRIGGER_LABELS[h.events.length === 0 ? 'empty' : 'latest']
                           }
+                          // 高さは `ACTION_HEIGHT` で場所を空けてある（対のクラス）
+                          triggerClassName={`${TRIGGER_FACE} ${ACTION_HEIGHT_CLASS}`}
                           kinds={JUDGEMENT_KINDS}
                           onPick={(kind) => apply(appendJudgement(data, hi, kind))}
                           {...menuPropsFor(judgementMenuKey(rowKey))}
