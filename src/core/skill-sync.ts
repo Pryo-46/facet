@@ -22,6 +22,7 @@ export const BUNDLED_SKILLS: readonly string[] = [
   'glossary-term-register',
   'error-catalog-register',
   'sequence-register',
+  'issue-tree-register',
 ]
 
 /**

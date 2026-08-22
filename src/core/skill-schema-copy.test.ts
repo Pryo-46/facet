@@ -39,6 +39,11 @@ const SCHEMA_COPIES = [
     schema: 'sequence.schema.json',
     script: 'scripts/sequence-write.mjs',
   },
+  {
+    skill: 'issue-tree-register',
+    schema: 'issue-tree.schema.json',
+    script: 'scripts/issue-tree-write.mjs',
+  },
 ]
 
 describe('同梱 Skill が配布するスキーマ', () => {
