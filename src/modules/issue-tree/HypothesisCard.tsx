@@ -3,38 +3,16 @@ import { buttonBase } from '@/components/button-styles'
 import { CellInput, type FieldState } from '@/components/CellInput'
 import type { Rect } from '@/core/canvas/viewport'
 import type { JudgementEvent } from '@/types/issue-tree'
+import { hypothesisCellKey, type HypothesisCell } from './cell-keys'
 import { EVENT_KIND_LABELS, QUESTION_LABELS, type HypothesisQuestions } from './derive'
 import type { HypothesisPlacement } from './layout'
 import { CARD_BORDER, CARD_BOX_CLASS } from './measure'
 
-/** カードの中の欄。`commands.ts` の `FocusTarget` と同じ名前で並べる */
-export type HypothesisCell =
-  | { cell: 'hypothesis' }
-  | { cell: 'rationale' }
-  | { cell: 'note'; noteIndex: number }
-  | { cell: 'event'; eventIndex: number }
-
 /**
- * DOM 上のセルの識別子。**エディタの `cellKey`（`FocusTarget` → `data-cell`）と
- * 逐語で同じ文字列を作ること**——フォーカスの予約はこの属性で引くので、
- * 片方だけ変えると「予約したのに当たらない」が静かに起きる。
- *
- * ここから export しないのは Fast Refresh の制約（部品のファイルは
- * コンポーネントだけを export する）。**共有したくなったら、
- * 文字列を書き写すのではなくこの関数を別ファイルへ出すこと**
+ * `data-cell` の値は `./cell-keys` が作る。**ここに書き写さないこと**
+ *——エディタは同じ文字列でフォーカスの予約を引くので、2つ目のコピーが
+ * できると「予約したのに当たらない」が静かに起きる（cell-keys.ts の解説）
  */
-function hypothesisCellKey(hypothesisKey: string, cell: HypothesisCell): string {
-  switch (cell.cell) {
-    case 'hypothesis':
-      return `hyp:${hypothesisKey}`
-    case 'rationale':
-      return `rationale:${hypothesisKey}`
-    case 'note':
-      return `note:${hypothesisKey}:${cell.noteIndex}`
-    case 'event':
-      return `event:${hypothesisKey}:${cell.eventIndex}`
-  }
-}
 
 export interface HypothesisCardProps {
   /** 行の鍵（`computeRowKeys`）。`data-cell` はこれから作る */
@@ -61,8 +39,14 @@ export interface HypothesisCardProps {
   /** FBメモ1件を最新イベントの根拠へ移す */
   onPromoteNote: (noteIndex: number) => void
   onFieldKeyDown?: (e: React.KeyboardEvent, state: FieldState, cell: HypothesisCell) => void
-  /** 判断イベントのドロップダウン。エディタが menuPropsFor で組んで渡す */
-  judgementMenu?: React.ReactNode
+  /**
+   * 判断イベントのドロップダウン。エディタが menuPropsFor で組んで渡す。
+   *
+   * **必須にしてある**（`IssueBox` の `deferralMenu` と同じ）——省略できると、
+   * 仮説に判断を付ける動線がマウスから消えていても型は通り、
+   * 画面は一見正常なまま「押す場所が無い」になる
+   */
+  judgementMenu: React.ReactNode
 }
 
 // **面と枠のクラスは片方だけ出す。** bg-surface と bg-warning/10 を両方

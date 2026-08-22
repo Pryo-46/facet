@@ -86,6 +86,9 @@ function renderCard(index: number) {
       onNoteChange={vi.fn()}
       onEventNoteChange={vi.fn()}
       onPromoteNote={onPromoteNote}
+      // 判断のドロップダウンはエディタが組む（ここは置き場所だけを持つ）。
+      // 必須プロパティなので、部品単体のテストでは空を渡す
+      judgementMenu={null}
     />,
   )
   return { onPromoteNote }
