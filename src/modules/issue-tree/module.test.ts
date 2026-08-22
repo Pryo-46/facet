@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { serialize } from '@/core/canonical'
+import { classifyFile } from '@/core/load'
 import { createSchemaValidator } from '@/core/schema-validation'
 import { appRegistry } from '@/modules'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
+import { poseQuestions, tallyQuestions } from './derive'
 import { issueTreeModule } from './module'
 
 const validate = createSchemaValidator(issueTreeModule.schema)
@@ -61,6 +65,21 @@ describe('出力プロファイル（規約5）', () => {
     // 0本は「出力を作っていないツール」の状態として正しい。額縁の ExportMenu は
     // outputs[0] が undefined のとき両ボタンを disabled にする
     expect(issueTreeModule.outputs).toEqual([])
+  })
+})
+
+describe('お手本ファイル（sample-project）', () => {
+  it('schemaVersion 2 のお手本は editable で開け、保留が1件観測できる', () => {
+    const raw = readFileSync(
+      new URL('../../../sample-project/課題ツリー.json', import.meta.url),
+      'utf8',
+    )
+    const result = classifyFile(raw, appRegistry)
+    expect(result.status).toBe('editable')
+    if (result.status === 'editable') {
+      const data = result.data as IssueTreeSchemaVersion2
+      expect(tallyQuestions(poseQuestions(data)).hold).toBe(1)
+    }
   })
 })
 

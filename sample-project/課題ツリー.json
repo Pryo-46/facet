@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "type": "issueTree",
   "title": "適性検査サービス連携PoC",
   "issues": [
@@ -146,7 +146,12 @@
       "issueId": "issue_O2uN5LnCT8",
       "text": "再送は応募者から再送依頼が来る前提でよい",
       "rationale": "現行の紙の案内でも、再送は問い合わせ起点で回っている",
-      "events": [],
+      "events": [
+        {
+          "kind": "onHold",
+          "note": "応募者からの再送依頼の頻度が分からず、PoC では判断を持ち越す"
+        }
+      ],
       "pendingNotes": [
         "採用担当レビュー: 案内メールが迷惑メールに入る例が月に数件ある。依頼を待つ運用で辞退につながらないか"
       ]
