@@ -29,7 +29,6 @@ import {
   type KeyContext,
 } from '@/core/keyboard/keymap'
 import { currentPlatform } from '@/core/keyboard/platform'
-import { moveItem } from '@/core/list-ops'
 import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
 import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
@@ -47,6 +46,7 @@ import {
   deleteIssueSubtree,
   moveHypothesis,
   moveIssueSibling,
+  movePendingNote,
   promoteNote,
   removePendingNote,
   setEventNote,
@@ -107,35 +107,6 @@ const JUDGEMENT_KINDS: readonly JudgementKind[] = [
 const DEFERRAL_KINDS: readonly DeferralKind[] = ['deferred', 'deferredToMainDev']
 
 const PLATFORM = currentPlatform()
-
-/**
- * FBメモの並び替え（Alt+↑↓）。**本来は `commands.ts` の持ち物**だが、
- * あちらは先行タスクで確定しており移動の関数を持っていない。ここに置いてあるのは
- * 「操作言語の写像に穴を開けない」ためで、`commands.ts` に同じ意味の関数が
- * 生えたらそちらへ寄せること（純関数・追記なしの入れ替えなので移送は容易）。
- *
- * 同じ仮説の中でしか動かない（メモは仮説に属する配列そのもの）
- */
-function movePendingNote(
-  data: IssueTreeSchemaVersion1,
-  index: number,
-  noteIndex: number,
-  delta: -1 | 1,
-): EditResult {
-  const h = data.hypotheses[index]
-  if (h === undefined) return { data, focus: null }
-  const to = noteIndex + delta
-  if (noteIndex < 0 || to < 0 || to >= h.pendingNotes.length) return { data, focus: null }
-  return {
-    data: {
-      ...data,
-      hypotheses: data.hypotheses.map((x, i) =>
-        i === index ? { ...x, pendingNotes: moveItem(x.pendingNotes, noteIndex, to) } : x,
-      ),
-    },
-    focus: { cell: 'note', index, noteIndex: to },
-  }
-}
 
 /**
  * 幅の測定器（キャッシュ付き）。**キャッシュはフォントに紐づく**ので、

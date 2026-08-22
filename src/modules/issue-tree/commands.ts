@@ -315,6 +315,33 @@ export function removePendingNote(
 }
 
 /**
+ * FBメモを1件動かす（Alt+↑↓）。**同じ仮説の中でしか動かない**
+ *——メモは仮説に属する配列そのもので、またぐという意味が無い。
+ *
+ * 端を越える移動は「動かなかった編集」として同じ参照を返す
+ *（`moveHypothesis` と同じ約束。呼び出し側はこれで履歴の空振りを落とす）
+ */
+export function movePendingNote(
+  data: IssueTreeSchemaVersion1,
+  index: number,
+  noteIndex: number,
+  delta: -1 | 1,
+): EditResult {
+  const h = data.hypotheses[index]
+  if (h === undefined || h.pendingNotes[noteIndex] === undefined) return { data, focus: null }
+  const to = noteIndex + delta
+  if (h.pendingNotes[to] === undefined) return { data, focus: null }
+  return {
+    data: replaceHypothesis(data, index, {
+      ...h,
+      pendingNotes: moveItem(h.pendingNotes, noteIndex, to),
+    }),
+    // 動いた先を追いかける（並び替えの後もフォーカスは同じメモに残る）
+    focus: { cell: 'note', index, noteIndex: to },
+  }
+}
+
+/**
  * 判断イベントを追記する（D2）。**追記専用**——過去の要素は書き換えない。
  *
  * `note` は空で作り、直後に最新イベントの note セルへフォーカスを移す。

@@ -10,6 +10,7 @@ import {
   deleteIssueSubtree,
   moveHypothesis,
   moveIssueSibling,
+  movePendingNote,
   normalizeOrder,
   promoteNote,
   setEventNote,
@@ -181,6 +182,62 @@ describe('仮説とメモ', () => {
     const next = addPendingNote(normalizeOrder(data()), 0)
     expect(next.data.hypotheses[0].pendingNotes).toEqual([''])
     expect(next.focus).toEqual({ cell: 'note', index: 0, noteIndex: 0 })
+  })
+
+  /**
+   * メモを持つ仮説を**2件**用意する。1件だけだと「対象の仮説だけを差し替える」が
+   * 「全部を差し替える」実装と区別できない。メモも3件持たせる——2件だと
+   * 上下の入れ替えが同じ結果になり、向きの取り違えを検出できない
+   */
+  function withNotes(): IssueTreeSchemaVersion1 {
+    const d = normalizeOrder(data())
+    return {
+      ...d,
+      hypotheses: d.hypotheses.map((h, i) =>
+        i === 0
+          ? { ...h, pendingNotes: ['A', 'B', 'C'] }
+          : i === 1
+            ? { ...h, pendingNotes: ['X', 'Y'] }
+            : h,
+      ),
+    }
+  }
+
+  it('メモを上下に動かすと、フォーカスは動いた先を指す', () => {
+    const d = withNotes()
+    const up = movePendingNote(d, 0, 1, -1)
+    expect(up.data.hypotheses[0].pendingNotes).toEqual(['B', 'A', 'C'])
+    expect(up.focus).toEqual({ cell: 'note', index: 0, noteIndex: 0 })
+
+    const down = movePendingNote(d, 0, 1, 1)
+    expect(down.data.hypotheses[0].pendingNotes).toEqual(['A', 'C', 'B'])
+    expect(down.focus).toEqual({ cell: 'note', index: 0, noteIndex: 2 })
+  })
+
+  it('端のメモは動かない（動かなかった編集は同じ参照を返す）', () => {
+    const d = withNotes()
+    const top = movePendingNote(d, 0, 0, -1)
+    expect(top.data).toBe(d)
+    expect(top.focus).toBe(null)
+
+    const bottom = movePendingNote(d, 0, 2, 1)
+    expect(bottom.data).toBe(d)
+    expect(bottom.focus).toBe(null)
+  })
+
+  it('メモの並び替えは他の仮説を巻き込まない', () => {
+    const d = withNotes()
+    const next = movePendingNote(d, 0, 0, 1)
+    expect(next.data.hypotheses[1].pendingNotes).toEqual(['X', 'Y'])
+    // 差し替えたのは対象の仮説だけ（他は同一参照のまま）
+    expect(next.data.hypotheses[1]).toBe(d.hypotheses[1])
+    expect(next.data.hypotheses[2]).toBe(d.hypotheses[2])
+  })
+
+  it('存在しない仮説・存在しないメモは動かせない', () => {
+    const d = withNotes()
+    expect(movePendingNote(d, 99, 0, 1).data).toBe(d)
+    expect(movePendingNote(d, 0, 9, -1).data).toBe(d)
   })
 })
 
