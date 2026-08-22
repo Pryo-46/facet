@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap">
+  <style>
+    :root {
+      --canvas: oklch(0.921 0.012 96.4);
+      --surface: oklch(0.961 0.007 88.6);
+      --ink: oklch(0.205 0 89.9);
+      --ink-muted: oklch(0.381 0.007 170.1);
+      --ink-faint: oklch(0.62 0.007 170);
+      --rule: oklch(0.6 0.014 120);
+      --grid: oklch(0.87 0.014 120.3);
+      --warning: oklch(0.518 0.132 34.6);
+      --ok: oklch(0.5 0.068 126);
+      --ring: oklch(0.6 0.014 120);
+    }
+    body { margin: 0; font-family: 'Geist', 'Yu Gothic UI', 'Hiragino Sans', sans-serif; color: var(--ink); }
+    a { color: var(--ink); } a:hover { color: var(--ink-muted); }
+    .badge { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; box-sizing: border-box; }
+    .b-ok { background: var(--ok); color: var(--surface); }
+    .b-no { background: var(--ink); color: var(--surface); }
+    .b-open { border: 1px dashed var(--warning); color: var(--warning); }
+    .b-past { border: 1px solid var(--ink-muted); color: var(--ink-muted); }
+    .issue { box-sizing: border-box; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); padding: 6px 10px; display: flex; flex-direction: column; gap: 5px; }
+    .title { display: flex; align-items: flex-start; gap: 8px; font-size: 15px; line-height: 24px; font-weight: 600; }
+    .title .t { flex: 1 1 0; min-width: 0; }
+    .row { display: flex; align-items: center; gap: 8px; height: 24px; padding-left: 12px; font-size: 14px; line-height: 24px; position: relative; }
+    .row::before { content: ""; position: absolute; left: 2px; top: 10px; width: 4px; height: 4px; border-radius: 2px; background: var(--ink-muted); }
+    .row .t { flex: 1 1 0; min-width: 0; }
+    .row.open { font-weight: 500; }
+    .panel { margin-left: 12px; box-sizing: border-box; border: 1px solid var(--rule); border-radius: 4px; background: var(--canvas); padding: 10px 12px; display: flex; flex-direction: column; gap: 12px; }
+    .sec { display: flex; flex-direction: column; gap: 4px; }
+    .label { font-size: 12px; line-height: 16px; font-weight: 500; color: var(--ink-muted); }
+    .field { font-size: 14px; line-height: 22px; color: var(--ink); }
+    .ph { color: var(--ink-muted); }
+    .ev { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 22px; }
+    .ev .badge { margin-top: 2px; }
+    .ev.past { color: var(--ink-muted); }
+    .act { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); font-size: 13px; color: var(--ink); }
+    .ghost { display: flex; align-items: center; gap: 6px; height: 24px; padding-left: 12px; font-size: 14px; color: var(--ink-faint); }
+  </style>
+</helmet>
+<div style="position: relative; width: 440px; height: 500px; background: var(--canvas); padding: 24px; box-sizing: border-box; background-image: linear-gradient(to right, var(--grid) 0 1px, transparent 1px), linear-gradient(to bottom, var(--grid) 0 1px, transparent 1px); background-size: 24px 24px;">
+  <div class="issue" style="width: 392px; box-shadow: 0 0 0 2px var(--ring);">
+    <div class="title"><span class="t">各項目に設定する値がわかりにくい</span></div>
+
+    <div class="row open"><span class="t">AIに入力を支援してもらう</span><span class="badge b-no">棄却</span></div>
+
+    <div class="panel">
+      <div class="sec">
+        <div class="label">判断</div>
+        <div class="ev"><span class="badge b-no">棄却</span><span class="ph">最新の FB が決める（値は持たない）</span></div>
+      </div>
+      <div class="sec">
+        <div class="label">由来</div>
+        <div class="field ph">由来（任意）</div>
+      </div>
+      <div class="sec">
+        <div class="label">FB</div>
+        <div class="ev past"><span class="badge b-past">支持</span><span>インタビュー形式で入力がかなり楽になる</span></div>
+        <div class="ev"><span class="badge b-no">棄却</span><span>AI機能をすぐに提供できるインフラが整っていない</span></div>
+        <div class="ev"><span class="badge" style="border: 1px dashed var(--rule); color: var(--ink-muted);">—</span><span>PdM は AI 以外の入力補助も視野に入れている</span></div>
+        <div class="ghost" style="padding-left: 0;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>FB<span style="margin-left: auto; display: inline-flex; align-items: center; gap: 4px;">判断を変える<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span></div>
+      </div>
+    </div>
+
+    <div class="ghost"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>仮説</div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
