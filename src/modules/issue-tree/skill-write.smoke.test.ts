@@ -112,6 +112,6 @@ describe('issue-tree-write.mjs（実行 smoke ＋ 警告文言のアプリ一致
     })
     expect(status).toBe(0)
     expect(stdout).not.toContain('整合性の警告')
-    expect(stdout).toContain(tallyLine({ hypothesis: 0, result: 0, judgement: 0, total: 0 }))
+    expect(stdout).toContain(tallyLine({ hypothesis: 0, result: 0, hold: 0, judgement: 0, total: 0 }))
   }, 20000)
 })

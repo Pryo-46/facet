@@ -206,7 +206,9 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     expect(document.activeElement).toBe(issueCell(1))
     expect(screen.queryByText(QUESTION_LABELS.result)).toBeNull()
     // 未決の集計も0になる（抑制された配下は勘定に入らない）
-    expect(screen.getByText(tallyLine({ hypothesis: 0, result: 0, judgement: 0, total: 0 }))).toBeTruthy()
+    expect(
+      screen.getByText(tallyLine({ hypothesis: 0, result: 0, hold: 0, judgement: 0, total: 0 })),
+    ).toBeTruthy()
     // 「なぜここには問いが無いのか」は配下の課題2件に出る（課題1は自分の見送り行を持つ）
     expect(screen.getAllByText(SUPPRESSED_NOTE)).toHaveLength(2)
   })

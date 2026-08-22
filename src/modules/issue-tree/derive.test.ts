@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Hypothesis, IssueNode } from '@/types/issue-tree'
 import {
+  BADGE_LABELS,
+  badgeGroupOf,
   EVENT_KIND_LABELS,
   hypothesisStatus,
   latestKind,
@@ -118,7 +120,7 @@ describe('poseQuestions（問いの立ち方）', () => {
       pendingNotes: ['SHが「分単位窓では？」と発言'],
     })
     const posed = poseQuestions({ issues: issues(), hypotheses: [h] })
-    expect(posed.hypothesisQuestions[0]).toEqual({ result: false, judgement: true })
+    expect(posed.hypothesisQuestions[0]).toEqual({ result: false, hold: false, judgement: true })
   })
 
   it('祖先が見送りなら配下の3つの問いはすべて立たない', () => {
@@ -128,7 +130,7 @@ describe('poseQuestions（問いの立ち方）', () => {
     const posed = poseQuestions({ issues: list, hypotheses: [h] })
     expect(posed.issueNeedsHypothesis[2]).toBe(false)
     expect(posed.issueNeedsHypothesis[4]).toBe(false)
-    expect(posed.hypothesisQuestions[0]).toEqual({ result: false, judgement: false })
+    expect(posed.hypothesisQuestions[0]).toEqual({ result: false, hold: false, judgement: false })
     // 抑制の外にある兄弟の枝は立ったまま
     expect(posed.issueNeedsHypothesis[3]).toBe(true)
   })
@@ -138,26 +140,76 @@ describe('集計と表示文言（アプリと Skill が同じ文字列を出す
   it('立っている問いだけを数える', () => {
     const list = issues()
     const hypotheses = [
-      hypothesis(1, id(2)), // 検証結果は？
-      hypothesis(2, id(3), { events: [{ kind: 'supported', note: '' }], pendingNotes: ['x'] }), // 判断は？
+      hypothesis(1, id(2)), // 未決
+      hypothesis(2, id(3), { events: [{ kind: 'supported', note: '' }], pendingNotes: ['x'] }), // 未判断
     ]
     const t = tallyQuestions(poseQuestions({ issues: list, hypotheses }))
-    // 葉は 2/3/4 の3つ。2 と 3 には仮説が付いたので「仮説は？」は 4 の1件だけ
-    expect(t).toEqual({ hypothesis: 1, result: 1, judgement: 1, total: 3 })
+    // 葉は 2/3/4 の3つ。2 と 3 には仮説が付いたので「仮説なし」は 4 の1件だけ
+    expect(t).toEqual({ hypothesis: 1, result: 1, hold: 0, judgement: 1, total: 3 })
   })
 
   it('帯に出す1行が組み立てられる', () => {
-    expect(tallyLine({ hypothesis: 1, result: 2, judgement: 0, total: 3 })).toBe(
-      '⚠ 未決 3（仮説は？ 1 ／ 検証結果は？ 2 ／ 判断は？ 0）',
+    expect(tallyLine({ hypothesis: 1, result: 2, hold: 0, judgement: 0, total: 3 })).toBe(
+      '⚠ 要対応 3（仮説なし 1 ／ 未決 2）',
     )
   })
 
-  it('6種すべてに表示ラベルがある', () => {
+  it('7種すべてに表示ラベルがある', () => {
     expect(EVENT_KIND_LABELS.supported).toBe('支持')
     expect(EVENT_KIND_LABELS.rejected).toBe('棄却')
     expect(EVENT_KIND_LABELS.supportedWithoutTest).toBe('自明に成立')
     expect(EVENT_KIND_LABELS.rejectedWithoutTest).toBe('検証せず棄却')
+    expect(EVENT_KIND_LABELS.onHold).toBe('保留')
     expect(EVENT_KIND_LABELS.deferred).toBe('今回見送り')
     expect(EVENT_KIND_LABELS.deferredToMainDev).toBe('本開発送り')
+  })
+})
+
+describe('保留（onHold）の問い', () => {
+  it('最新が onHold の仮説に「保留」の問いが立ち、未決とは別に数える', () => {
+    const hs = [
+      hypothesis(1, id(2), { events: [{ kind: 'onHold', note: '判断材料が足りない' }] }),
+      hypothesis(2, id(3)), // 未決
+      // 保留 → 支持 に覆った仮説。最新が決める
+      hypothesis(3, id(4), { events: [{ kind: 'onHold', note: '' }, { kind: 'supported', note: '' }] }),
+    ]
+    const posed = poseQuestions({ issues: issues(), hypotheses: hs })
+    expect(posed.hypothesisQuestions.map((q) => q.hold)).toEqual([true, false, false])
+    expect(posed.hypothesisQuestions.map((q) => q.result)).toEqual([false, true, false])
+    expect(tallyQuestions(posed)).toMatchObject({ hold: 1, result: 1 })
+  })
+
+  it('祖先の見送りで抑制された配下では保留も立たない', () => {
+    const deferred = issues().map((n) => (n.id === id(1) ? { ...n, events: [{ kind: 'deferred' as const, note: '' }] } : n))
+    const hs = [hypothesis(1, id(2), { events: [{ kind: 'onHold', note: '' }] })]
+    expect(poseQuestions({ issues: deferred, hypotheses: hs }).hypothesisQuestions[0].hold).toBe(false)
+  })
+})
+
+describe('バッジ群（5語）', () => {
+  it('7種の kind と未決を5語に畳む', () => {
+    expect(badgeGroupOf('supported')).toBe('yes')
+    expect(badgeGroupOf('supportedWithoutTest')).toBe('yes')
+    expect(badgeGroupOf('rejected')).toBe('no')
+    expect(badgeGroupOf('rejectedWithoutTest')).toBe('no')
+    expect(badgeGroupOf('onHold')).toBe('hold')
+    expect(badgeGroupOf('deferred')).toBe('deferred')
+    expect(badgeGroupOf('deferredToMainDev')).toBe('deferred')
+    expect(badgeGroupOf('undecided')).toBe('open')
+  })
+
+  it('5語の文言はここ1箇所から引ける', () => {
+    expect(Object.values(BADGE_LABELS)).toEqual(['支持', '棄却', '保留', '未決', '見送り'])
+  })
+})
+
+describe('tallyLine', () => {
+  it('0 の内訳は出さない', () => {
+    expect(tallyLine({ hypothesis: 2, result: 1, hold: 1, judgement: 0, total: 4 })).toBe(
+      '⚠ 要対応 4（仮説なし 2 ／ 未決 1 ／ 保留 1）',
+    )
+  })
+  it('合計 0 は内訳も ⚠ も付けない', () => {
+    expect(tallyLine({ hypothesis: 0, result: 0, hold: 0, judgement: 0, total: 0 })).toBe('要対応 0')
   })
 })

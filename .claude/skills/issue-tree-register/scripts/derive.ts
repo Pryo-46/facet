@@ -98,14 +98,16 @@ export function leafIssueIds(issues: readonly IssueNode[]): Set<string> {
 
 /** 仮説1件に立つ問い */
 export interface HypothesisQuestions {
-  /** 「検証結果は？」＝ events が0件 */
+  /** 「未決」＝ events が0件 */
   result: boolean
-  /** 「判断は？」＝ pendingNotes が空でない（レビューの締め忘れ） */
+  /** 「保留」＝最新が onHold（見たが判断できなかった。次のレビューで拾い直す） */
+  hold: boolean
+  /** 「未判断」＝ pendingNotes が空でない（レビューの締め忘れ） */
   judgement: boolean
 }
 
 export interface PosedQuestions {
-  /** issues と同じ添字。true＝「仮説は？」が立つ */
+  /** issues と同じ添字。true＝「仮説なし」が立つ */
   issueNeedsHypothesis: boolean[]
   /** hypotheses と同じ添字 */
   hypothesisQuestions: HypothesisQuestions[]
@@ -140,6 +142,7 @@ export function poseQuestions(
     const off = suppressed.has(h.issueId)
     return {
       result: !off && h.events.length === 0,
+      hold: !off && latestKind(h.events) === 'onHold',
       judgement: !off && h.pendingNotes.length > 0,
     }
   })
@@ -149,6 +152,7 @@ export function poseQuestions(
 export interface IssueTreeTally {
   hypothesis: number
   result: number
+  hold: number
   judgement: number
   total: number
 }
@@ -157,23 +161,26 @@ export interface IssueTreeTally {
 export function tallyQuestions(posed: PosedQuestions): IssueTreeTally {
   let hypothesis = 0
   let result = 0
+  let hold = 0
   let judgement = 0
   for (const needs of posed.issueNeedsHypothesis) if (needs) hypothesis += 1
   for (const q of posed.hypothesisQuestions) {
     if (q.result) result += 1
+    if (q.hold) hold += 1
     if (q.judgement) judgement += 1
   }
-  return { hypothesis, result, judgement, total: hypothesis + result + judgement }
+  return { hypothesis, result, hold, judgement, total: hypothesis + result + hold + judgement }
 }
 
 /** 問いの文言。**アプリの画面と Skill の報告が同じ言葉を出すため、ここ1箇所に置く** */
 export const QUESTION_LABELS = {
-  hypothesis: '仮説は？',
-  result: '検証結果は？',
-  judgement: '判断は？',
+  hypothesis: '仮説なし',
+  result: '未決',
+  hold: '保留',
+  judgement: '未判断',
 } as const
 
-/** イベント種別の表示ラベル。**色では区別しない**（D8。役割トークンの意味論を汚さない） */
+/** イベント種別の表示ラベル。俯瞰のバッジは `badgeGroupOf` の5群で、面は塗らず枠と塗りの形で分ける（D8 改。Task 9 の設計ノート参照） */
 export const EVENT_KIND_LABELS: Record<JudgementKind, string> = {
   supported: '支持',
   rejected: '棄却',
@@ -184,10 +191,55 @@ export const EVENT_KIND_LABELS: Record<JudgementKind, string> = {
   deferredToMainDev: '本開発送り',
 }
 
-/** 集計の1行。エディタの帯と Skill の報告が逐語で同じ文字列を出す */
+export const TALLY_TOTAL_LABEL = '要対応'
+
+/** 集計の1行。エディタの帯と Skill の報告が逐語で同じ文字列を出す。0 の内訳は出さない */
 export function tallyLine(t: IssueTreeTally): string {
-  return `⚠ 未決 ${t.total}（${QUESTION_LABELS.hypothesis} ${t.hypothesis} ／ ${QUESTION_LABELS.result} ${t.result} ／ ${QUESTION_LABELS.judgement} ${t.judgement}）`
+  const parts = (
+    [
+      [QUESTION_LABELS.hypothesis, t.hypothesis],
+      [QUESTION_LABELS.result, t.result],
+      [QUESTION_LABELS.hold, t.hold],
+      [QUESTION_LABELS.judgement, t.judgement],
+    ] as const
+  )
+    .filter(([, n]) => n > 0)
+    .map(([label, n]) => `${label} ${n}`)
+  if (t.total === 0) return `${TALLY_TOTAL_LABEL} 0`
+  return `⚠ ${TALLY_TOTAL_LABEL} ${t.total}（${parts.join(' ／ ')}）`
 }
+
+/** 俯瞰のバッジは5語。正確な種別（EVENT_KIND_LABELS）は展開で出す */
+export type BadgeGroup = 'yes' | 'no' | 'hold' | 'open' | 'deferred'
+
+export function badgeGroupOf(status: HypothesisStatus): BadgeGroup {
+  switch (status) {
+    case 'supported':
+    case 'supportedWithoutTest':
+      return 'yes'
+    case 'rejected':
+    case 'rejectedWithoutTest':
+      return 'no'
+    case 'onHold':
+      return 'hold'
+    case 'deferred':
+    case 'deferredToMainDev':
+      return 'deferred'
+    case 'undecided':
+      return 'open'
+  }
+}
+
+export const BADGE_LABELS: Record<BadgeGroup, string> = {
+  yes: '支持',
+  no: '棄却',
+  hold: '保留',
+  open: '未決',
+  deferred: '見送り',
+}
+
+/** 課題側（見送りの2種）のバッジ。仮説の5語と独立に変えられるよう別名 */
+export const ISSUE_DEFERRED_LABEL = '見送り'
 
 /** 抑制された配下に添える1文（「なぜここには問いが無いのか」の説明） */
 export const SUPPRESSED_NOTE = '祖先の見送りにより問いは立たない（導出。子に値は持たない）'
