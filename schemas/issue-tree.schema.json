@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "issue-tree.schema.json",
+  "title": "課題ツリー (issueTree) schemaVersion 1",
+  "description": "仕様整理ツール詰め合わせの課題ツリーファイル。PoCで「試さないと分からないこと」を課題として分解し、仮説と検証の履歴を持つ。1ファイル＝1本の木（単一ルート。根はPoCテーマ等、種類は制約しない）。仮説・課題のステータスはミュータブルな値として持たず、追記専用のイベント列の最新から導出する。問いの立ち方は導出で決まる：子を持たない課題に仮説が無ければ「仮説は？」、仮説のイベントが0件なら「検証結果は？」、pendingNotes が残っていれば「判断は？」。祖先課題の最新イベントが deferred のとき配下の問いは立たない（抑制は導出であり、子に値をコピーしない）。キーの正規順序は本スキーマの properties 記載順とする。",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "description": "スキーマの版。issueTree の初版は 1。アプリは検証前にこの値を読み、未知の新版は「一覧表示のみ・編集不可」として扱う。",
+      "const": 1
+    },
+    "type": {
+      "description": "ツール種別。課題ツリーは issueTree 固定。",
+      "const": "issueTree"
+    },
+    "title": {
+      "description": "表示名。プロジェクトのファイル一覧に使う。",
+      "type": "string"
+    },
+    "issues": {
+      "description": "課題ノードの配列。親子関係は parentId が持ち、配列順は兄弟順の正。アプリは編集のたびに配列を DFS 行きがけ順へ整える（ロジックツリーと同じ規約）。",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/issueNode"
+      }
+    },
+    "hypotheses": {
+      "description": "仮説の配列。issueId でぶら下がり先の課題を指す。どの課題（中間・葉を問わず）にも付けられるが、「仮説は？」の問いが立つのは葉の課題だけ（折衷案）。配列順は同じ課題にぶら下がる仮説どうしの表示順の正。",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/hypothesis"
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "type",
+    "title",
+    "issues",
+    "hypotheses"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "issueNode": {
+      "description": "課題ノード1件。全キー常在（欠損でなく空の値で「未記入」を表現する）。課題＝観測された事実や望む状態とのギャップであり、支持・棄却を判定される主張（＝仮説）ではない。そのため events に付けられる判断は見送り系の2種に限る（成立・棄却は仮説にしか付かない）。",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "不変ID。プレフィクス issue_ ＋ nanoid（英数字62文字カスタムアルファベット）10文字固定。連番禁止。",
+          "type": "string",
+          "pattern": "^issue_[A-Za-z0-9]{10}$"
+        },
+        "parentId": {
+          "description": "親課題のID。ルートは null。単一ルート・循環なし・参照実在はスキーマでは表せないため、整合性検証（レベル2）で受け止める。",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^issue_[A-Za-z0-9]{10}$"
+        },
+        "text": {
+          "description": "課題の文言。空文字＝「未記入」（追加直後の自動保存がレベル1違反ファイルを作らないため空を許す）。ユーザーが明示的に入れた改行（\\n）だけが文言の一部。表示上の折り返しはデータに持たない。",
+          "type": "string"
+        },
+        "events": {
+          "description": "課題ノードへの追記専用イベント列。配列順＝時系列の正（追記のみ。過去要素の書き換え・削除はしない）。付けられるのは deferred（今回見送り）と deferredToMainDev（本開発送り）のみ。最新が deferred 系のとき、この課題の配下（子孫課題・ぶら下がる仮説）の問いは立たない——抑制は祖先を遡る導出で行い、子に値をコピーしない（親の見送り解除で子が取り残される嘘データを作らないため）。見送りを解除して拾い直すときは、配下の仮説へ新しい判断イベントを追記することで最新が更新される。",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/deferralEvent"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "parentId",
+        "text",
+        "events"
+      ],
+      "additionalProperties": false
+    },
+    "hypothesis": {
+      "description": "仮説1件。全キー常在。仮説＝支持・棄却を判定できる主張。現在ステータスは events の最新要素の kind から導出する（ミュータブルな状態フィールドを持たない）。events が空＝未決（「検証結果は？」warning）。deferred が最新でも、後から新イベントを追記すれば履歴を消さずに復活できる（永久確定をスキーマで強制しない）。",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "不変ID。プレフィクス hypothesis_ ＋ nanoid（英数字62文字カスタムアルファベット）10文字固定。連番禁止。",
+          "type": "string",
+          "pattern": "^hypothesis_[A-Za-z0-9]{10}$"
+        },
+        "issueId": {
+          "description": "ぶら下がり先の課題ID。参照実在は整合性検証（レベル2）が受け止める。",
+          "type": "string",
+          "pattern": "^issue_[A-Za-z0-9]{10}$"
+        },
+        "text": {
+          "description": "仮説の文言。空文字＝「未記入」。検証イベントを付ける段階で「支持・棄却を判定できる文か」が自然に問われるため、入力時に課題との書き分けを強制しない。",
+          "type": "string"
+        },
+        "rationale": {
+          "description": "発想の由来（なぜこの仮説が生まれたか）。本開発の仕様から「なぜ」を遡るための材料。空でも warning にしない——由来の欠落は仕様の穴ではない。",
+          "type": "string"
+        },
+        "events": {
+          "description": "追記専用イベント列。配列順＝時系列の正（追記のみ。過去要素の書き換え・削除はしない）。「今回も見送り・理由も同じ」なら何も追記しない（最新が引き続き有効）。見送り回数などの集計はこの列から導出でき、別フィールドを持たない。",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/judgementEvent"
+          }
+        },
+        "pendingNotes": {
+          "description": "まだ判断に紐づいていないFBメモ（レビュー中のSH発言など）。判断イベントを追記するとき、採用するメモをそのイベントの note へ選別移動し、この配列から取り除く（雑談メモを公式根拠に昇格させない選別の余地を残すため全自動移動はしない）。空でない仮説には「判断は？」warning が立つ＝レビューの締め忘れ検出。進行（全デモ→一括判断か、一件ずつ即断か）には依存しない構造。",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "issueId",
+        "text",
+        "rationale",
+        "events",
+        "pendingNotes"
+      ],
+      "additionalProperties": false
+    },
+    "judgementEvent": {
+      "description": "仮説への判断イベント1件。kind が判断そのものであり、note は補助（空を許し warning にしない。根拠は pendingNotes からの選別移動で入るのが主経路）。enum の拡張は schemaVersion の改訂として扱う。",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "description": "判断の種類。supported＝検証して支持／rejected＝検証して棄却／supportedWithoutTest＝自明に成立（実験なしで成立と決めた）／rejectedWithoutTest＝検証せず棄却（実験なしで棄却と決めた）／deferred＝今回見送り（次のPoC選定で拾い直す）／deferredToMainDev＝本開発送り（PoCフェーズ中は戻らず、PoC終了時の引き渡しリストの材料になる）。日時はデータに持たない——配列順が時系列の正であり、厳密な日時は Git 履歴が正。",
+          "enum": [
+            "supported",
+            "rejected",
+            "supportedWithoutTest",
+            "rejectedWithoutTest",
+            "deferred",
+            "deferredToMainDev"
+          ]
+        },
+        "note": {
+          "description": "根拠・理由。検証結果の実測値、経験知による理由、見送りの背景など。空文字を許す。",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "note"
+      ],
+      "additionalProperties": false
+    },
+    "deferralEvent": {
+      "description": "課題ノードへの見送りイベント1件。判断イベントのうち見送り系2種だけを許した制限版。",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "description": "deferred＝今回見送り（枝ごと落とす）／deferredToMainDev＝本開発送り（枝ごと引き渡す）。",
+          "enum": [
+            "deferred",
+            "deferredToMainDev"
+          ]
+        },
+        "note": {
+          "description": "理由。空文字を許す。",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "note"
+      ],
+      "additionalProperties": false
+    }
+  }
+}
