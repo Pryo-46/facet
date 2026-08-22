@@ -1,10 +1,10 @@
 import { edgePath } from '@/core/canvas/edges'
+import type { FlatTreeNode } from '@/core/canvas/flat-tree'
+import type { Point, Size } from '@/core/canvas/tree-layout'
 import { svgTransform, type Transform } from '@/core/canvas/viewport'
-import type { Point, Size } from './layout'
-import type { NodeTree } from './tree'
 
 export interface TreeEdgesProps {
-  roots: readonly NodeTree[]
+  roots: readonly FlatTreeNode[]
   positions: ReadonlyMap<string, Point>
   sizes: ReadonlyMap<string, Size>
   transform: Transform
@@ -25,7 +25,7 @@ interface Edge {
  */
 export function TreeEdges({ roots, positions, sizes, transform }: TreeEdgesProps) {
   const edges: Edge[] = []
-  const walk = (node: NodeTree): void => {
+  const walk = (node: FlatTreeNode): void => {
     const from = positions.get(node.key)
     const fromSize = sizes.get(node.key)
     for (const child of node.children) {

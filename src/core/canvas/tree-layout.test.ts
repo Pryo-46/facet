@@ -1,23 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import type { TreeNode } from '@/types/logic-tree'
-import { buildTree, type NodeTree } from './tree'
-import { COLUMN_GAP, layoutTree, SIBLING_GAP, type LayoutResult, type Size } from './layout'
+import { buildTree, type FlatNode, type FlatTreeNode } from './flat-tree'
+import { COLUMN_GAP, layoutTree, SIBLING_GAP, type LayoutResult, type Size } from './tree-layout'
 
 const ID = (n: number): string => `node_${String(n).padStart(10, 'a')}`
 const KEY = (n: number): string => `${ID(n)}#0`
 
 /** id/parentId を数字で書けるようにする小道具 */
-const flat = (spec: [number, number | null][]): TreeNode[] =>
+const flat = (spec: [number, number | null][]): FlatNode[] =>
   spec.map(([id, parent]) => ({
     id: ID(id),
     parentId: parent === null ? null : ID(parent),
-    text: '',
   }))
 
 /** すべてのノードを 100x30 とみなすサイズ表 */
-function uniformSizes(nodes: TreeNode[]): Map<string, Size> {
+function uniformSizes(nodes: FlatNode[]): Map<string, Size> {
   const out = new Map<string, Size>()
-  const walk = (n: NodeTree): void => {
+  const walk = (n: FlatTreeNode): void => {
     out.set(n.key, { width: 100, height: 30 })
     for (const c of n.children) walk(c)
   }
@@ -25,7 +23,7 @@ function uniformSizes(nodes: TreeNode[]): Map<string, Size> {
   return out
 }
 
-function run(nodes: TreeNode[], sizes: ReadonlyMap<string, Size>): LayoutResult {
+function run(nodes: FlatNode[], sizes: ReadonlyMap<string, Size>): LayoutResult {
   return layoutTree(buildTree(nodes).roots, sizes)
 }
 

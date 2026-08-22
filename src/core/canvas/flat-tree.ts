@@ -1,21 +1,25 @@
 import { computeRowKeys } from '@/core/row-keys'
-import type { TreeNode } from '@/types/logic-tree'
+
+/** 平坦配列の1件が満たすべき最小の形。各ツールのノード型がこれを満たす */
+export interface FlatNode {
+  id: string
+  parentId: string | null
+}
 
 /**
- * 平坦な nodes 配列から組み立てた木。**同一性の鍵は id ではなく key**
+ * 組み立てた木の節点。**同一性の鍵は id ではなく key**
  *（ID 重複ファイルを「受け入れて赤表示」する以上、id では一意にならず、
  *  レイアウトの戻り値 Map<キー, 座標> が2ノードで衝突する）
  */
-export interface NodeTree {
+export interface FlatTreeNode {
   index: number
   key: string
   id: string
-  text: string
-  children: NodeTree[]
+  children: FlatTreeNode[]
 }
 
 export interface BuiltTree {
-  roots: NodeTree[]
+  roots: FlatTreeNode[]
   depths: number[]
   parents: (number | null)[]
   children: number[][]
@@ -33,7 +37,7 @@ export interface BuiltTree {
  * そのまま循環している集合**である（循環内のノードは必ず循環内のノードを
  * 親に持つので、根からは辿り着けない）。
  */
-export function buildTree(nodes: readonly TreeNode[]): BuiltTree {
+export function buildTree(nodes: readonly FlatNode[]): BuiltTree {
   const keys = computeRowKeys(nodes)
   // 同じ id が2件あるときは先に現れた方を親とする（曖昧さは残るが挙動は決める）
   const firstIndexById = new Map<string, number>()
@@ -65,13 +69,12 @@ export function buildTree(nodes: readonly TreeNode[]): BuiltTree {
   })
 
   const depths: number[] = nodes.map(() => -1)
-  const build = (index: number, depth: number): NodeTree => {
+  const build = (index: number, depth: number): FlatTreeNode => {
     depths[index] = depth
     return {
       index,
       key: keys[index],
       id: nodes[index].id,
-      text: nodes[index].text,
       // 循環は根から到達できないのでここには来ないが、
       // 万一に備えて訪問済みは辿らない（depths で判定できる）
       children: children[index]
@@ -92,4 +95,44 @@ export function buildTree(nodes: readonly TreeNode[]): BuiltTree {
   })
 
   return { roots, depths, parents, children, unreachable, missingParent }
+}
+
+/**
+ * 配列を DFS 行きがけ順に整える（兄弟の相対順は変えない）。
+ *
+ * 兄弟順の正本は配列順（rev 5章）なので、並べ替えても意味は変わらない。
+ * この順を保つことで「挿入位置＝参照ノードの部分木の直後」という1つの規則が
+ * 成立し、上から読めば木の形が追える JSON になる。
+ *
+ * 循環して根から到達できないノードは、末尾に元の順で残す。**消さないこと**
+ *——ファイルにあるものが黙って減るのが一番たちが悪い
+ */
+export function orderFlatNodes<T extends FlatNode>(nodes: readonly T[]): T[] {
+  const built = buildTree(nodes)
+  const out: T[] = []
+  const walk = (node: FlatTreeNode): void => {
+    out.push(nodes[node.index])
+    for (const child of node.children) walk(child)
+  }
+  for (const root of built.roots) walk(root)
+  for (const index of built.unreachable) out.push(nodes[index])
+  return out
+}
+
+/**
+ * 行きがけ順の配列で、index の部分木が終わる位置（＝次の兄弟がいる位置）。
+ * 深さが自分以下になる最初の位置を探せばよい
+ */
+export function subtreeEnd(built: BuiltTree, index: number): number {
+  const depth = built.depths[index]
+  for (let j = index + 1; j < built.depths.length; j++) {
+    if (built.depths[j] <= depth) return j
+  }
+  return built.depths.length
+}
+
+/** 兄弟（同じ親を持つノード）の配列位置を、並び順で返す */
+export function siblingsOf(built: BuiltTree, index: number): number[] {
+  const parent = built.parents[index]
+  return parent === null ? built.roots.map((r) => r.index) : built.children[parent]
 }

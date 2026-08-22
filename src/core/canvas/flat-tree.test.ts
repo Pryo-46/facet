@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { TreeNode } from '@/types/logic-tree'
-import { buildTree } from './tree'
+import { buildTree, orderFlatNodes, siblingsOf, subtreeEnd, type FlatNode } from './flat-tree'
 
-const n = (id: string, parentId: string | null, text = ''): TreeNode => ({ id, parentId, text })
+const n = (id: string, parentId: string | null): FlatNode => ({ id, parentId })
 
 const ID = {
   a: 'node_aaaaaaaaaa',
@@ -70,5 +69,56 @@ describe('buildTree', () => {
     const t = buildTree([n(ID.a, null), n(ID.a, null), n(ID.b, ID.a)])
     expect(t.roots[0].children.map((c) => c.id)).toEqual([ID.b])
     expect(t.roots[1].children).toEqual([])
+  })
+})
+
+describe('subtreeEnd / siblingsOf / orderFlatNodes', () => {
+  const num = (n: number): string => `node_${String(n).padStart(10, 'a')}`
+  const f = (id: number, parent: number | null): FlatNode => ({
+    id: num(id),
+    parentId: parent === null ? null : num(parent),
+  })
+
+  // 1 -(2 -(5, 6, 7), 3, 4)   兄弟3つ以上・深さ2以上の入力
+  const nodes: FlatNode[] = [
+    f(1, null),
+    f(2, 1),
+    f(5, 2),
+    f(6, 2),
+    f(7, 2),
+    f(3, 1),
+    f(4, 1),
+  ]
+
+  it('subtreeEnd は部分木の直後の位置を返す', () => {
+    const built = buildTree(nodes)
+    // 2 の部分木 (2,5,6,7) は index1..4。直後は index5 (3)
+    expect(subtreeEnd(built, 1)).toBe(5)
+    // 5 は葉。直後は index3 (6)
+    expect(subtreeEnd(built, 2)).toBe(3)
+    // 4 は配列の末尾。直後は配列長
+    expect(subtreeEnd(built, 6)).toBe(7)
+  })
+
+  it('siblingsOf はルート直下・孫の代いずれでも並び順で兄弟を返す', () => {
+    const built = buildTree(nodes)
+    // ルート直下: 2, 3, 4 (index 1, 5, 6)
+    expect(siblingsOf(built, 1)).toEqual([1, 5, 6])
+    // 2 の子: 5, 6, 7 (index 2, 3, 4)
+    expect(siblingsOf(built, 2)).toEqual([2, 3, 4])
+  })
+
+  it('orderFlatNodes は乱れた配列を DFS 行きがけ順に戻す', () => {
+    // 兄弟3つ以上・深さ2以上の木を、兄弟の相対順は保ったまま乱して与える
+    const shuffled: FlatNode[] = [
+      f(5, 2),
+      f(2, 1),
+      f(6, 2),
+      f(3, 1),
+      f(7, 2),
+      f(4, 1),
+      f(1, null),
+    ]
+    expect(orderFlatNodes(shuffled).map((x) => x.id)).toEqual(nodes.map((x) => x.id))
   })
 })

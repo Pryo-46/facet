@@ -1,7 +1,7 @@
+import { buildTree } from '@/core/canvas/flat-tree'
 import type { ConsistencyIssue, ConsistencyLocation } from '@/core/consistency'
 import { findDuplicates } from '@/core/duplicate'
 import type { LogicTreeSchemaVersion1, TreeNode } from '@/types/logic-tree'
-import { buildTree } from './tree'
 
 /** 文言でノードを指す。空のノードは配列位置で呼ぶ（「（未記入）」だけだと区別できない） */
 function label(node: TreeNode, index: number): string {

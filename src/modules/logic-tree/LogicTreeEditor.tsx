@@ -30,12 +30,12 @@ import {
   sameFont,
   type CanvasFont,
 } from '@/core/canvas/canvas-font'
+import { buildTree } from '@/core/canvas/flat-tree'
 import { cssTransform } from '@/core/canvas/viewport'
 import { useViewport } from '@/core/canvas/use-viewport'
-import { layoutTree, type Size } from './layout'
+import { layoutTree, type Size } from '@/core/canvas/tree-layout'
 import { wrapText, type MeasureWidth, type WrappedText } from './measure'
 import { NodeBox } from './NodeBox'
-import { buildTree } from './tree'
 import { TreeEdges } from './TreeEdges'
 
 /** 測定結果のキャッシュ。会議1回分の打鍵で無限に増えないよう頭を押さえる */
