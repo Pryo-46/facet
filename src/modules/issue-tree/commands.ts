@@ -289,7 +289,7 @@ export function addPendingNote(data: IssueTreeSchemaVersion2, index: number): Ed
 /**
  * 直後にFBメモを1件足す（メモセルの Enter）。**押した位置の次に入る**
  *——末尾に足すと、3件の1件目で Enter を押したときに生まれるのは4件目で、
- * フォーカスがカードの一番下へ飛ぶ（`addHypothesisAfter` と同じ規律）。
+ * フォーカスが展開パネルの一番下へ飛ぶ（`addHypothesisAfter` と同じ規律）。
  *
  * 由来セルの Enter が使うのは `addPendingNote`（末尾）の方である
  *——あちらは「移動先が無ければ生やす」であって、間に差し込む操作ではない

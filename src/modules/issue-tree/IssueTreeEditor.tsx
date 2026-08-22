@@ -551,7 +551,6 @@ export function IssueTreeEditor({
     goTo(focus, result.data)
   }
 
-
   /**
    * 仮説の行を開き、文言の欄へフォーカスを予約する。
    *
@@ -668,8 +667,8 @@ export function IssueTreeEditor({
     }
   }
 
-  /** コマンドを仮説カードの構造へ写像する。戻り値 true＝消費した */
-  const runCardCommand = (cmd: Command, index: number, cell: HypothesisCell): boolean => {
+  /** コマンドを仮説の行の構造へ写像する。戻り値 true＝消費した */
+  const runRowCommand = (cmd: Command, index: number, cell: HypothesisCell): boolean => {
     switch (cmd) {
       case 'insert-item-after':
         if (cell.cell === 'hypothesis') {
@@ -684,7 +683,7 @@ export function IssueTreeEditor({
         }
         // メモの Enter は**押した位置の次**（コアのコマンド名どおり insert-item-after）。
         // 末尾に足すと、3件の1件目で押したときに生まれるのは4件目になり、
-        // フォーカスがカードの一番下へ飛ぶ
+        // フォーカスが展開パネルの一番下へ飛ぶ
         if (cell.cell === 'note') {
           apply(addPendingNoteAfter(data, index, cell.noteIndex))
           return true
@@ -768,8 +767,8 @@ export function IssueTreeEditor({
     if (runIssueCommand(cmd, index)) e.preventDefault()
   }
 
-  /** 仮説カードの中のセルのキー入力 */
-  const onCardKeyDown = (
+  /** 仮説の行（と展開パネル）の中のセルのキー入力 */
+  const onRowKeyDown = (
     e: React.KeyboardEvent,
     index: number,
     state: FieldState,
@@ -794,7 +793,7 @@ export function IssueTreeEditor({
     }
     const cmd = resolveCommand(toKeyEventLike(e), context)
     if (cmd === null) return
-    if (runCardCommand(cmd, index, cell)) e.preventDefault()
+    if (runRowCommand(cmd, index, cell)) e.preventDefault()
   }
 
   /** 帯の「課題を追加」。0件なら根を作り、あれば末尾の課題の隣（根の上では子）に足す */
@@ -954,8 +953,8 @@ export function IssueTreeEditor({
       {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面。
           pointer-events を切らないと、この面がキャンバス全体を覆う単一の
           ヒット領域になり、useViewport がコンテナに付けた背景パン／ズームの
-          ハンドラまで mousedown が届かなくなる。操作を受けるのは箱・カードの
-          矩形だけでよいので、部品の側で auto に戻す */}
+          ハンドラまで mousedown が届かなくなる。操作を受けるのは箱と
+          その中の行の矩形だけでよいので、部品の側で auto に戻す */}
       <div
         className="pointer-events-none absolute inset-0 origin-top-left"
         style={{ transform: cssTransform(transform) }}
@@ -1062,7 +1061,7 @@ export function IssueTreeEditor({
                         }
                         onPromoteNote={(noteIndex) => apply(promoteNote(data, hi, noteIndex))}
                         onAddNote={() => apply(addPendingNote(data, hi))}
-                        onFieldKeyDown={(e, state, cell) => onCardKeyDown(e, hi, state, cell)}
+                        onFieldKeyDown={(e, state, cell) => onRowKeyDown(e, hi, state, cell)}
                         judgementMenu={
                           <KindMenu
                             label={`仮説${hi + 1}に判断を追加`}

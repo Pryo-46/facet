@@ -437,6 +437,44 @@ const openFile = (): IssueTreeSchemaVersion2 => ({
   ],
 })
 
+/**
+ * 4種の問いが**同時に**立つ形。チップの面（実線／破線）は種類ごとに分かれるので、
+ * 保留だけを別のファイルで見ると「どちらも警告色の枠」までしか言えず、
+ * `kind === 'hold'` の分岐を壊しても緑になる。同じ帯に4つ並べて突き合わせる
+ */
+const allKindsFile = (): IssueTreeSchemaVersion2 => ({
+  schemaVersion: 2,
+  type: 'issueTree',
+  title: 'テスト',
+  issues: [
+    { id: I(1), parentId: null, text: '根', events: [] },
+    { id: I(2), parentId: I(1), text: '仮説を持つ葉', events: [] },
+    { id: I(3), parentId: I(1), text: '仮説の無い葉', events: [] },
+  ],
+  hypotheses: [
+    // 未決＝イベントが0件
+    { id: H(1), issueId: I(2), text: '仮説A', rationale: '', events: [], pendingNotes: [] },
+    // 保留＝最新が onHold
+    {
+      id: H(2),
+      issueId: I(2),
+      text: '仮説B',
+      rationale: '',
+      events: [{ kind: 'onHold', note: '「楽」の定義が決まらず判断できない' }],
+      pendingNotes: [],
+    },
+    // 未判断＝締め忘れたFBメモが残っている（判断は付いているので未決ではない）
+    {
+      id: H(3),
+      issueId: I(2),
+      text: '仮説C',
+      rationale: '',
+      events: [{ kind: 'supported', note: '実測で確認' }],
+      pendingNotes: ['レビューで出た指摘'],
+    },
+  ],
+})
+
 /** 帯のチップ（「次の◯◯へ」）。0件の種類は描かれないので queryBy で引く */
 const chip = (kind: keyof typeof QUESTION_LABELS): HTMLButtonElement | null =>
   screen.queryByRole('button', { name: `次の${QUESTION_LABELS[kind]}へ` }) as HTMLButtonElement | null
@@ -450,7 +488,13 @@ describe('IssueTreeEditor（帯）', () => {
     const t = tallyQuestions(poseQuestions(data))
     expect(t).toMatchObject({ hypothesis: 1, result: 2, hold: 0, judgement: 0, total: 3 })
     render(<Harness initial={data} />)
-    expect(screen.getByText(`⚠ ${TALLY_TOTAL_LABEL} ${t.total}`)).toBeTruthy()
+    // **`⚠` を打ち直さない。** 帯（`IssueTreeEditor`）と `tallyLine`（Skill の
+    // 報告）はそれぞれの側で同じ接頭辞を組み立てており、片方だけ変えても
+    // 合計0のケース以外は誰も気付かない。帯は内訳をチップへ移したので
+    // **1行まるごとは一致しない**——一致するのは括弧の前、合計までの頭である
+    const [head] = tallyLine(t).split('（')
+    expect(head.endsWith(`${TALLY_TOTAL_LABEL} ${t.total}`)).toBe(true)
+    expect(screen.getByText(head)).toBeTruthy()
     expect(chip('hypothesis')?.textContent).toBe(`${QUESTION_LABELS.hypothesis} ${t.hypothesis}`)
     expect(chip('result')?.textContent).toBe(`${QUESTION_LABELS.result} ${t.result}`)
   })
@@ -466,6 +510,29 @@ describe('IssueTreeEditor（帯）', () => {
     expect(chip('judgement')).toBeNull()
     expect(screen.queryByText(`${QUESTION_LABELS.hold} 0`)).toBeNull()
     expect(screen.queryByText(`${QUESTION_LABELS.judgement} 0`)).toBeNull()
+  })
+
+  /**
+   * チップの面は**キャンバスのバッジの語彙そのまま**——保留は実線の枠
+   *（`badgeClass('hold')`）、それ以外の3種は「まだ開いている」の破線
+   *（`badgeClass('open')`）。帯とキャンバスが同じ言葉を使うという約束が
+   * `kind === 'hold' ? 'hold' : 'open'` の1行に載っている
+   */
+  it('保留のチップだけ実線のバッジ、他の3種は破線のバッジ', () => {
+    const data = allKindsFile()
+    const t = tallyQuestions(poseQuestions(data))
+    expect(t).toMatchObject({ hypothesis: 1, result: 1, hold: 1, judgement: 1, total: 4 })
+    render(<Harness initial={data} />)
+    // **クラス名を打ち直さない**——`badgeClass` の戻り値と照合する。チップは
+    // 共通の面（`CHIP_BASE`）を前に足すので、一致ではなく包含で見る
+    const solid = badgeClass('hold', false)
+    const dashed = badgeClass('open', false)
+    expect(chip('hold')?.className).toContain(solid)
+    expect(chip('hold')?.className).not.toContain(dashed)
+    for (const kind of ['hypothesis', 'result', 'judgement'] as const) {
+      expect(chip(kind)?.className, kind).toContain(dashed)
+      expect(chip(kind)?.className, kind).not.toContain(solid)
+    }
   })
 
   it('帯のチップを押すと、その種類の次の要対応へフォーカスが移る（末尾なら先頭へ）', () => {

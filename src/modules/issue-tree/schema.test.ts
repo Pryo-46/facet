@@ -71,7 +71,7 @@ describe('issueTree のスキーマ検証（レベル1）', () => {
     }
   })
 
-  it('仮説のイベント種別6種をすべて受け入れる', () => {
+  it('仮説のイベント種別をすべて受け入れる（7種目の onHold は次のケース）', () => {
     for (const kind of [
       'supported',
       'rejected',

@@ -87,7 +87,7 @@ describe('issue-tree-write.mjs（実行 smoke ＋ 警告文言のアプリ一致
     for (const issue of issues) expect(stdout).toContain(issue.message)
   }, 20000)
 
-  it('未決の集計行がアプリの tallyLine と逐語で一致する', () => {
+  it('要対応の集計行がアプリの tallyLine と逐語で一致する', () => {
     // derive.ts を「読める」だけでなく「同じ答えを出す」ところまで見る
     const { stdout } = check(FIXTURE)
     expect(stdout).toContain(tallyLine(tallyQuestions(poseQuestions(FIXTURE as never))))

@@ -20,7 +20,15 @@ export const ISSUE_PADDING_Y = 6
 export const ISSUE_BORDER = 1
 export const ISSUE_INSET_X = ISSUE_PADDING_X + ISSUE_BORDER
 export const ISSUE_INSET_Y = ISSUE_PADDING_Y + ISSUE_BORDER
-/** px-2.5 = 10px ／ py-1.5 = 6px ／ border = 1px */
+/**
+ * px-2.5 = 10px ／ py-1.5 = 6px ／ border = 1px
+ *
+ * **効いているのは `border` だけ。** 箱の子はすべて絶対配置で、絶対配置の子の
+ * 包含ブロックは**パディングボックス**なので、`px-*` / `py-*` は中身を1pxも
+ * 動かさない。位置を決めているのは `ISSUE_INSET_X` / `ISSUE_INSET_Y` を読む
+ * レイアウト側で、そちらは正しい。**このクラスを消しても消し忘れても、
+ * テストも画素も反応しない**——直すときは定数の側を直すこと
+ */
 export const ISSUE_BOX_CLASS = 'border px-2.5 py-1.5'
 /**
  * 課題のタイトルのフォント。**測る側（エディタの見本）と描く側（`IssueBox`）が
@@ -71,7 +79,13 @@ export const PANEL_BORDER = 1
 export const PANEL_INSET_X = PANEL_PADDING_X + PANEL_BORDER
 export const PANEL_INSET_Y = PANEL_PADDING_Y + PANEL_BORDER
 export const PANEL_GAP = 12
-/** px-3 = 12px ／ py-2.5 = 10px ／ border = 1px */
+/**
+ * px-3 = 12px ／ py-2.5 = 10px ／ border = 1px
+ *
+ * `ISSUE_BOX_CLASS` と同じく、**効いているのは `border` だけ**——パネルの子も
+ * すべて絶対配置なので `px-*` / `py-*` は中身を動かさない。位置は
+ * `PANEL_INSET_X` / `PANEL_INSET_Y` を読むレイアウト側が決めている
+ */
 export const PANEL_BOX_CLASS = 'border px-3 py-2.5'
 /** 節の見出しと本文の空き（モックの `.sec` の gap） */
 export const SECTION_GAP = 4
