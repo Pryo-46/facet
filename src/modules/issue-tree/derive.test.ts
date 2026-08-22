@@ -5,6 +5,7 @@ import {
   badgeGroupOf,
   EVENT_KIND_LABELS,
   hypothesisStatus,
+  ISSUE_DEFERRED_LABEL,
   latestKind,
   leafIssueIds,
   poseQuestions,
@@ -96,25 +97,25 @@ describe('suppressedIssueIds（D3: 抑制は祖先を遡る導出）', () => {
 })
 
 describe('poseQuestions（問いの立ち方）', () => {
-  it('葉で仮説が0件なら「仮説は？」が立ち、中間ノードには立たない（D1 折衷案）', () => {
+  it('葉で仮説が0件なら「仮説なし」が立ち、中間ノードには立たない（D1 折衷案）', () => {
     const posed = poseQuestions({ issues: issues(), hypotheses: [] })
     expect(posed.issueNeedsHypothesis).toEqual([false, false, true, true, true])
   })
 
-  it('中間ノードに仮説を付けても、その仮説の「検証結果は？」は立つ', () => {
-    // 仮説はどのノードにも付けられる。抑えているのは「仮説は？」の問いだけ
+  it('中間ノードに仮説を付けても、その仮説の「未決」は立つ', () => {
+    // 仮説はどのノードにも付けられる。抑えているのは「仮説なし」の問いだけ
     const posed = poseQuestions({ issues: issues(), hypotheses: [hypothesis(1, id(1))] })
     expect(posed.issueNeedsHypothesis[1]).toBe(false)
     expect(posed.hypothesisQuestions[0].result).toBe(true)
   })
 
-  it('仮説が付いた葉には「仮説は？」が立たない', () => {
+  it('仮説が付いた葉には「仮説なし」が立たない', () => {
     const posed = poseQuestions({ issues: issues(), hypotheses: [hypothesis(1, id(2))] })
     expect(posed.issueNeedsHypothesis[2]).toBe(false)
     expect(posed.issueNeedsHypothesis[3]).toBe(true)
   })
 
-  it('pendingNotes が残っていれば「判断は？」が立つ（D9 の締め忘れ検出）', () => {
+  it('pendingNotes が残っていれば「未判断」が立つ（D9 の締め忘れ検出）', () => {
     const h = hypothesis(1, id(2), {
       events: [{ kind: 'supported', note: '' }],
       pendingNotes: ['SHが「分単位窓では？」と発言'],
@@ -123,7 +124,7 @@ describe('poseQuestions（問いの立ち方）', () => {
     expect(posed.hypothesisQuestions[0]).toEqual({ result: false, hold: false, judgement: true })
   })
 
-  it('祖先が見送りなら配下の3つの問いはすべて立たない', () => {
+  it('祖先が見送りなら配下の4つの問いはすべて立たない', () => {
     const list = issues()
     list[1] = { ...list[1], events: [{ kind: 'deferred', note: '' }] }
     const h = hypothesis(1, id(2), { pendingNotes: ['メモ'] })
@@ -200,6 +201,12 @@ describe('バッジ群（5語）', () => {
 
   it('5語の文言はここ1箇所から引ける', () => {
     expect(Object.values(BADGE_LABELS)).toEqual(['支持', '棄却', '保留', '未決', '見送り'])
+  })
+
+  it('課題側の見送りバッジ（ISSUE_DEFERRED_LABEL）は BADGE_LABELS.deferred と値がたまたま同じ独立した定数である', () => {
+    // 値の一致を固定する意図ではない。課題と仮説を独立に変えられるよう、
+    // 別エクスポートとして存在すること自体をここに記録する
+    expect(ISSUE_DEFERRED_LABEL).toBe('見送り')
   })
 })
 

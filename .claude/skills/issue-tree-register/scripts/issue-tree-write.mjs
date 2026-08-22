@@ -7,7 +7,7 @@
 //   2. 正規化（キー順をスキーマの properties 記載順から実行時に導出し、LF・2スペース・
 //      非ASCIIそのまま・末尾改行あり・BOMなしで書き出す）
 //   3. 整合性検証（ID重複 / 循環 / 親の参照切れ / 多重ルート / 仮説の参照切れ）と
-//      未決の集計を報告する。アプリ側のレベル2と同じ性質なので書き込みは止めない。
+//      要対応の集計を報告する。アプリ側のレベル2と同じ性質なので書き込みは止めない。
 //
 // **配列順の正規化は行わない。** アプリの normalizeOrder（DFS 行きがけ順へ整える）は
 // 値 import を持つのでバイト一致コピーにできず、手で複製すれば追従漏れがテストに
@@ -270,7 +270,7 @@ if (targetPath) {
   }
 }
 
-// ---------- 未決の集計（アプリの帯と同一規則） ----------
+// ---------- 要対応の集計（アプリの帯と同一規則） ----------
 //
 // 数え直さない。poseQuestions / tallyQuestions / tallyLine は derive.ts が正で、
 // 抑制（祖先の見送り）の扱いもそこに入っている
@@ -283,6 +283,7 @@ posed.issueNeedsHypothesis.forEach((needs, i) => {
 });
 posed.hypothesisQuestions.forEach((q, i) => {
   if (q.result) openAt.push(`仮説${label(hypotheses[i].text, i)}「${D.QUESTION_LABELS.result}」`);
+  if (q.hold) openAt.push(`仮説${label(hypotheses[i].text, i)}「${D.QUESTION_LABELS.hold}」`);
   if (q.judgement) openAt.push(`仮説${label(hypotheses[i].text, i)}「${D.QUESTION_LABELS.judgement}」`);
 });
 
@@ -300,7 +301,7 @@ if (targetPath) {
 console.log(`  スキーマ: ${schemaPath}`);
 console.log(`  課題: ${issues.length}件 ／ 仮説: ${hypotheses.length}件`);
 console.log(`  ${D.tallyLine(tally)}`);
-if (openAt.length) console.log(`  未決の内訳: ${openAt.join("、")}`);
+if (openAt.length) console.log(`  ${D.TALLY_TOTAL_LABEL}の内訳: ${openAt.join("、")}`);
 
 if (warnings.length) {
   console.log(`\n⚠ 整合性の警告（アプリでは赤表示。ファイルは開けます）`);
