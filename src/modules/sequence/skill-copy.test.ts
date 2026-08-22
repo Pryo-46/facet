@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { extractImportStatements, isValueImportStatement } from '@/core/import-analysis'
 
 /**
  * 同梱 Skill（sequence-register）は、アプリのソース2本のバイト一致コピーを持つ。
@@ -14,42 +15,6 @@ const COPIES = [
   { app: 'src/modules/sequence/questions.ts', skill: '.claude/skills/sequence-register/scripts/questions.ts' },
   { app: 'src/core/canonical.ts', skill: '.claude/skills/sequence-register/scripts/canonical.ts' },
 ]
-
-/**
- * ソース中の import 文を1つずつ切り出す（複数行にまたがるものも含む）。
- * `import` で始まる行から、最初に現れる `from '...'` 節、または
- * `from` を伴わない副作用 import（`import './x'`）の引用符節までを1文とみなす。
- */
-function extractImportStatements(src: string): string[] {
-  return [...src.matchAll(/^import\b[\s\S]*?(?:from\s+['"][^'"]*['"]|['"][^'"]*['"])\s*;?/gm)].map((m) => m[0])
-}
-
-/**
- * import 文が実行時に値の解決を要する「値 import」かどうかを判定する。
- *
- * `import type ...` と、名前付き specifier が全て `type` 修飾された
- * `import { type X, type Y } from ...` は型ストリップで消えるので値 import ではない。
- * 一方 `import { type X, y } from ...` のように type 修飾と値 specifier が
- * 混在する場合は、`y` の解決が必要なので値 import として扱う（見落とすと
- * コピー側で相対解決できず sequence-write.mjs が実行時に落ちる）。
- */
-function isValueImportStatement(statement: string): boolean {
-  const trimmed = statement.trim()
-  if (/^import\s+type\s/.test(trimmed)) return false
-
-  const bracesMatch = trimmed.match(/\{([\s\S]*)\}/)
-  if (!bracesMatch) return true // default / namespace / side-effect import はすべて値 import
-
-  const before = trimmed.slice(0, bracesMatch.index)
-  if (/import\s+\w/.test(before)) return true // `import Foo, { ... }` の Foo は値 specifier
-
-  const specifiers = bracesMatch[1]
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
-
-  return specifiers.some((spec) => !/^type\s/.test(spec))
-}
 
 describe.each(COPIES)('sequence-register 同梱の $app', ({ app, skill }) => {
   it('アプリ側とバイト一致する', () => {
@@ -71,6 +36,11 @@ describe.each(COPIES)('sequence-register 同梱の $app', ({ app, skill }) => {
   })
 })
 
+/**
+ * 判定そのものは `src/core/import-analysis.ts` へ移した（issue-tree-register も
+ * 同じ検査を要るため）。**ケースはここに置いたままにする**——混在ケースの
+ * 回帰はこのテストで見つかったもので、置き場所を動かすと履歴が切れる
+ */
 describe('isValueImportStatement', () => {
   const cases: [name: string, statement: string, expected: boolean][] = [
     ['単純な named import', "import { foo } from './bar'", true],
