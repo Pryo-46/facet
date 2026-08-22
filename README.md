@@ -85,8 +85,15 @@ facet は、人間が構造化された UI で入力し、ツールが網羅性�
 <!-- SCREENSHOT: issue-tree-editor.png
      撮り方: 課題ツリーを開いた状態。仮説の events に複数のイベントが積まれているノードと、
              pendingNotes が残ったまま「判断は？」の問いが立っているノードが両方写るように。
-     置き場所: docs/images/issue-tree-editor.png -->
+     置き場所: docs/images/issue-tree-editor.png
+
+     ★ 画像はまだ撮っていない。下の1行はコメントの中に入れてある——
+       このまま外に出すと、GitHub 上で壊れた画像アイコンとして表示される。
+       スクリーンショットを上の置き場所に置いたら、**下の1行をこのコメントの
+       外へ戻すこと**（他のツールの節と同じく、コメント直後の行に置く）。
+
 ![課題ツリーエディタ](docs/images/issue-tree-editor.png)
+-->
 
 ---
 

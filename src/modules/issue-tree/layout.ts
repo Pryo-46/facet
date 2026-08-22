@@ -85,7 +85,11 @@ export function layoutIssueTree(
 
   // --- 1. 仮説カードの中身を測る（課題ごとにまとめる） ---
   interface CardPlan { height: number; build: (x: number, y: number) => HypothesisPlacement }
-  const plans: (CardPlan | null)[] = data.hypotheses.map((h, hi) => {
+  // **`null` を混ぜない。** 「図に出ない仮説」は `hypotheses[ci]` が `null` の
+  // ままであることで表される——`walkPlace` は根から到達できる課題しか歩かない
+  // ので、到達しない課題にぶら下がるカードは組み立て自体が呼ばれない。
+  // `plans` に `null` を許すと、その到達不能を2箇所で表すことになる
+  const plans: CardPlan[] = data.hypotheses.map((h, hi) => {
     const q = posed.hypothesisQuestions[hi]
     const hasBadge = q.result || q.judgement
     const textH = rowHeight(h.text, fonts.body, CARD_CONTENT_WIDTH)
@@ -167,7 +171,6 @@ export function layoutIssueTree(
     const cards = cardsOf.get(data.issues[index].id) ?? []
     for (const ci of cards) {
       const plan = plans[ci]
-      if (plan === null) continue
       height += CARD_GAP + plan.height
       width = Math.max(width, CARD_INDENT + CARD_WIDTH)
     }
@@ -211,7 +214,6 @@ export function layoutIssueTree(
       }
       for (const ci of cardsOf.get(data.issues[i].id) ?? []) {
         const plan = plans[ci]
-        if (plan === null) continue
         cursor += CARD_GAP
         hypotheses[ci] = plan.build(point.x + CARD_INDENT, cursor)
         cursor += plan.height
