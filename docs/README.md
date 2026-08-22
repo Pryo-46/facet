@@ -1,6 +1,6 @@
 # ドキュメントの地図
 
-facet は「人間は構造化された UI で入力し、ツールが網羅性の担保・描画・構造化テキスト出力を担う」会議用ツール群。用語集エディタが1本目、エラーカタログが2本目、ロジックツリーが3本目（キャンバス系の1本目）、シーケンスが4本目（キャンバス系の2本目）。状態遷移が続く予定。
+facet は「人間は構造化された UI で入力し、ツールが網羅性の担保・描画・構造化テキスト出力を担う」会議用ツール群。用語集エディタが1本目、エラーカタログが2本目、ロジックツリーが3本目（キャンバス系の1本目）、シーケンスが4本目（キャンバス系の2本目）、課題ツリーが5本目（キャンバス系の3本目）。状態遷移が続く予定。
 
 ## どれを読むか
 
@@ -14,6 +14,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | 何をどの順で作るか（シーケンス） | [`sequence/sequence-m1-scope.md`](sequence/sequence-m1-scope.md) |
 | シーケンスの仕様がなぜそう決まったか（異常系を「描く」ではなく「問う」） | [`sequence/sequence-design-notes.md`](sequence/sequence-design-notes.md) |
 | エラーカタログの仕様がなぜそう決まったか | [`error-catalog/error-catalog-session-notes.md`](error-catalog/error-catalog-session-notes.md) |
+| 課題ツリーの仕様がなぜそう決まったか（ステータスを持たず追記だけで現在が決まる） | [`issue-tree/仮説検証モジュール-設計ノート.md`](issue-tree/仮説検証モジュール-設計ノート.md) — **課題ツリーの設計の「正」**（判断 D1〜D9・スコープの IN/OUT） |
 | 環境・ビルド・Tauri の前提 | [`project-setup.md`](project-setup.md) |
 | リリースの出し方・署名鍵の扱い | [`release.md`](release.md) |
 | **いま何が壊れている／未着手か** | [`open-issues.md`](open-issues.md) — **生きた文書**。解消したら消す |
@@ -38,7 +39,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 
 ファイル名は `mN-<機能>-<主題>.md`。機能はフォルダで分けず名前に入れている——マイルストーンはツールを跨ぐことがあり（M6 は用語集とコアの半々）、フォルダで強制すると嘘になるため。`docs/history/*glossary*` で機能横断に引ける。
 
-**採番は複数系統ある。** コア・用語集・エラーカタログの流れは通し番号（`M1`〜`M10`）だが、**ロジックツリーは `logic-tree-mN`、シーケンスは `sequence-mN` で独立して採番する**——これらのツールは自分の段階（M1〜）を持ち、上の流れと**並行して進む**ため、通し番号にすると同じ `M11` が複数生まれる。ツールが独自の段階を切ったときは同じ形（`<tool>-mN`）で採番すること。
+**採番は複数系統ある（現在4系統）。** コア・用語集・エラーカタログの流れは通し番号（`M1`〜`M20`）だが、**ロジックツリーは `logic-tree-mN`、シーケンスは `sequence-mN`、課題ツリーは `issue-tree-mN` で独立して採番する**——これらのツールは自分の段階（M1〜）を持ち、上の流れと**並行して進む**ため、通し番号にすると同じ `M11` が複数生まれる。ツールが独自の段階を切ったときは同じ形（`<tool>-mN`）で採番すること。
 
 | | 主題 | |
 | --- | --- | --- |
@@ -66,6 +67,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [sequence-m2](history/sequence-m2-usability.md) | 会議で使ってみて出た使い勝手9点 | シーケンス |
 | [sequence-m3](history/sequence-m3-mouse-and-output.md) | マウス操作と出力（Markdown・Mermaid） | シーケンス |
 | [sequence-m4](history/sequence-m4-register-skill.md) | シーケンス登録 Skill（会話→ JSON） | シーケンス・コア |
+| [issue-tree-m1](history/issue-tree-m1-editor.md) | 課題ツリーエディタ（ステータスを持たない追記型イベント列） | 課題ツリー |
 
 ## ツールが増えたとき
 
@@ -74,6 +76,7 @@ docs/glossary/        scope.md  session-notes.md
 docs/logic-tree/      logic-tree-m1-scope.md  logic-tree-canvas-tech-notes.md
 docs/error-catalog/   error-catalog-session-notes.md   ← エラーカタログのツールセッションで増えた3本目
 docs/sequence/        sequence-m1-scope.md  sequence-design-notes.md
+docs/issue-tree/      仮説検証モジュール-設計ノート.md  仮説検証モック.jsx  ← 設計ノートが「正」。モックは見え方の参考
 docs/history/         m10-....md  logic-tree-m1-....md  sequence-m1-....md  ← フォルダは1本。採番だけ複数系統
 docs/open-issues.md                                    ← ツール横断で1本
 ```
