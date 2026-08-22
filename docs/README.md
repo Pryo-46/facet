@@ -14,7 +14,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | 何をどの順で作るか（シーケンス） | [`sequence/sequence-m1-scope.md`](sequence/sequence-m1-scope.md) |
 | シーケンスの仕様がなぜそう決まったか（異常系を「描く」ではなく「問う」） | [`sequence/sequence-design-notes.md`](sequence/sequence-design-notes.md) |
 | エラーカタログの仕様がなぜそう決まったか | [`error-catalog/error-catalog-session-notes.md`](error-catalog/error-catalog-session-notes.md) |
-| 課題ツリーの仕様がなぜそう決まったか（ステータスを持たず追記だけで現在が決まる） | [`issue-tree/仮説検証モジュール-設計ノート.md`](issue-tree/仮説検証モジュール-設計ノート.md) — **課題ツリーの設計の「正」**（判断 D1〜D9・スコープの IN/OUT） |
+| 課題ツリーの仕様がなぜそう決まったか（ステータスを持たず追記だけで現在が決まる） | [`issue-tree/仮説検証モジュール-設計ノート.md`](issue-tree/仮説検証モジュール-設計ノート.md) — **課題ツリーの設計の「正」**（判断 D1〜D11・スコープの IN/OUT。俯瞰の表現は D10、保留は D11） |
 | 環境・ビルド・Tauri の前提 | [`project-setup.md`](project-setup.md) |
 | リリースの出し方・署名鍵の扱い | [`release.md`](release.md) |
 | **いま何が壊れている／未着手か** | [`open-issues.md`](open-issues.md) — **生きた文書**。解消したら消す |
@@ -69,6 +69,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [sequence-m4](history/sequence-m4-register-skill.md) | シーケンス登録 Skill（会話→ JSON） | シーケンス・コア |
 | [issue-tree-m1](history/issue-tree-m1-editor.md) | 課題ツリーエディタ（ステータスを持たない追記型イベント列） | 課題ツリー |
 | [issue-tree-m2](history/issue-tree-m2-register-skill.md) | 課題ツリー登録 Skill（会話→ JSON）とお手本 | 課題ツリー・コア |
+| [issue-tree-m3](history/issue-tree-m3-overview-ui.md) | 課題ツリーの俯瞰 UI と語彙（箱は課題だけ・仮説は行・判断は1つ） | 課題ツリー・コア（初の schemaVersion 移行）・デザイン |
 
 ## ツールが増えたとき
 
@@ -77,7 +78,8 @@ docs/glossary/        scope.md  session-notes.md
 docs/logic-tree/      logic-tree-m1-scope.md  logic-tree-canvas-tech-notes.md
 docs/error-catalog/   error-catalog-session-notes.md   ← エラーカタログのツールセッションで増えた3本目
 docs/sequence/        sequence-m1-scope.md  sequence-design-notes.md
-docs/issue-tree/      仮説検証モジュール-設計ノート.md  仮説検証モック.jsx  ← 設計ノートが「正」。モックは見え方の参考
+docs/issue-tree/      仮説検証モジュール-設計ノート.md  仮説検証モック.jsx  俯瞰モック/  ← 設計ノートが「正」。モックは見え方の参考
+                        （俯瞰モック/ は issue-tree-m3 の3枚。facet の実トークン・実寸法で描いた静止 HTML で、寸法はここから逐語で取る）
 docs/history/         m10-....md  logic-tree-m1-....md  sequence-m1-....md  ← フォルダは1本。採番だけ複数系統
 docs/open-issues.md                                    ← ツール横断で1本
 ```
@@ -87,5 +89,5 @@ docs/open-issues.md                                    ← ツール横断で1�
 ## リポジトリ内の他の「正」
 
 - `schemas/*.schema.json` — 各ツールのデータ形式の**正**。型（`src/types/*.ts`）はここから生成する。**コピーを作らない**（Skill 側も同じ実体を読む）
-- `.claude/skills/` — AI 側の実装。**2種類ある**——ユーザーのデータを作るもの（用語集・エラーカタログ・シーケンス。アプリと**正規形が完全一致**していなければならない。`src/core/skill-sync.ts` の `BUNDLED_SKILLS` に載り、プロジェクトフォルダへコピーされる）と、アプリ自身のソースを触るもの（`palette-retheme`。配色の差し替え。同梱しない）
+- `.claude/skills/` — AI 側の実装。**2種類ある**——ユーザーのデータを作るもの（用語集・エラーカタログ・シーケンス・課題ツリー。アプリと**正規形が完全一致**していなければならない。`src/core/skill-sync.ts` の `BUNDLED_SKILLS` に載り、プロジェクトフォルダへコピーされる）と、アプリ自身のソースを触るもの（`palette-retheme`。配色の差し替え。同梱しない）
 - `../CLAUDE.md` — 作業のしかた（worktree の使い方、マイルストーン完了時に触る場所）
