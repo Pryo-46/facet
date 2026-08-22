@@ -24,6 +24,7 @@
  * 役割（rev 9章）:
  *   ink        文字・線・ヘッダ（既定の前景）
  *   ink-muted  抑えた文字
+ *   ink-faint  非アクティブの文字・枠（3:1）
  *   warning    警告・削除・未定義
  *   ok         応答・結果・確定
  *   canvas     地（方眼紙を敷く面）
@@ -48,6 +49,7 @@
     --surface: oklch(0.961 0.007 88.6);     /* Ash Surface */
     --ink: oklch(0.205 0 89.9);             /* Basalt Black */
     --ink-muted: oklch(0.381 0.007 170.1);  /* Column Grey */
+    --ink-faint: oklch(0.58 0.007 170);     /* ink-muted と同じ色相。両面で 3:1 に MARGIN の余裕 */
     --rule: oklch(0.6 0.014 120);           /* Mineral Line の色相から導出 */
     --grid: oklch(0.87 0.014 120.3);        /* Mineral Line を canvas 上 1.17:1 まで薄めた */
     --warning: oklch(0.518 0.132 34.6);     /* Ember Fault を 4.5:1 超へ */
@@ -71,6 +73,7 @@
     --surface: oklch(0.205 0 89.9);         /* Basalt Black */
     --ink: oklch(0.85 0.007 88.6);          /* Ash Surface をそのまま置くと 16.79:1 で眩しい */
     --ink-muted: oklch(0.698 0.042 120);    /* Grey Lichen */
+    --ink-faint: oklch(0.55 0.007 170);     /* ダークは明るいほど強い。ink-muted（0.698）より暗く保つ */
     --rule: oklch(0.508 0.007 170.1);       /* Column Grey では 1.89:1 なので持ち上げた */
     --grid: oklch(0.26 0.006 165);
     --warning: oklch(0.68 0.13 35);

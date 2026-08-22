@@ -40,6 +40,7 @@ export const TOKENS = [
   'surface-accent',
   'ink',
   'ink-muted',
+  'ink-faint',
   'rule',
   'grid',
   'warning',
@@ -63,6 +64,11 @@ export const MODES = [
 export const REQUIREMENTS = [
   { token: 'ink', min: 4.5, use: '本文・見出し' },
   { token: 'ink-muted', min: 4.5, use: '抑えた文字' },
+  // **非アクティブな内容の文字と枠。** WCAG 1.4.3 は非アクティブ UI 部品を
+  // 本文の 4.5:1 から免除しているが、読めなくてよいわけではない——
+  // 「いま作業する面ではない」と読めて、かつ消えて見えない段として 3:1 を課す。
+  // **アクティブな本文に使わない**（使うと本文の保証を割る）
+  { token: 'ink-faint', min: 3.0, use: '非アクティブの文字・枠（抑制された配下）' },
   { token: 'rule', min: 3.0, use: 'セル境界・入力枠' },
   { token: 'warning', min: 4.5, use: '未定義・削除' },
   { token: 'ok', min: 4.5, use: '確定・応答' },

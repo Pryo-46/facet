@@ -40,6 +40,7 @@
 
     --color-ink: var(--ink);
     --color-ink-muted: var(--ink-muted);
+    --color-ink-faint: var(--ink-faint);
     --color-warning: var(--warning);
     --color-warning-fg: var(--warning-fg);
     --color-ok: var(--ok);
