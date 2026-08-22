@@ -23,7 +23,7 @@ M20（キャンバス基盤のコア化）の直後に着手し、`src/core/canv
 | Task 9 読み方ガイドと README | `82d960b` | 指摘0件 |
 | Task 10 ドキュメントへの反映 | `683a212` ＋ `4001abf` | 本申し送り・`open-issues.md`・`overview-rev.md`・`docs/README.md`。2本目は実装ログ（追跡外）の繰り越し所見を残件へ運び、数と裁定の記録を直したもの |
 
-最終状態（`82d960b` 時点・本タスクで再実行して確認）: `npm test` 125 files / 1524 tests 全緑、`npx tsc -b` エラー無し、`npm run lint`（oxlint）指摘無し。
+最終状態（`45831da` 時点・本タスクで再実行して確認）: `npm test` 126 files / 1528 tests 全緑、`npx tsc -b` エラー無し、`npm run lint`（oxlint）指摘無し。
 
 ---
 
