@@ -1,29 +1,33 @@
-# 課題ツリー（issueTree）モジュール issue-tree-m1 実装計画
+# 課題ツリー（issueTree）エディタ issue-tree-m1 実装計画
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** PoC の「試さないと分からないこと」を課題として分解し、仮説と追記専用のイベント列で検証の履歴を持つ5本目のツール（`type: issueTree`）を、キャンバスエディタ・整合性検証・登録 Skill・お手本データまで揃えて追加する。
+**Goal:** PoC の「試さないと分からないこと」を課題として分解し、仮説と追記専用のイベント列で検証の履歴を持つ5本目のツール（`type: issueTree`）を、アプリで作って編集できる状態にする。
 
-**Architecture:** ロジックツリーとシーケンスが独立に複製していたキャンバス基盤（ビューポート・測定・フォント読み取り・平坦木の組み立て・木のレイアウト）を先に `src/core/canvas/` へ引き上げ、3本目のキャンバスツールはそこに載せる（3度目の複製を作らない）。課題ツリー固有の心臓部は `src/modules/issue-tree/derive.ts` 1枚——「どの問いが立つか」「祖先の見送りで抑制されるか」「仮説の現在ステータス」はすべてここが導出し、アプリと登録 Skill が**バイト一致コピー**で同じ関数を読む。
+**Architecture:** M20 でコアへ引き上げたキャンバス基盤（`src/core/canvas/`）に載せる。課題ツリー固有の心臓部は `src/modules/issue-tree/derive.ts` 1枚——「どの問いが立つか」「祖先の見送りで抑制されるか」「仮説の現在ステータス」はすべてここが導出する。**ミュータブルなステータスをデータに持たない**のがこのツールの芯であり、そこを崩す変更は設計ごと崩す。
 
-**Tech Stack:** TypeScript / React 19 / Tailwind 4（役割トークン経由）/ d3-zoom / Ajv 2020 / Vitest（jsdom）/ Node 22.18+（Skill スクリプトの型ストリップ）
+**Tech Stack:** TypeScript / React 19 / Tailwind 4（役割トークン経由）/ d3-zoom / Ajv 2020 / Vitest（jsdom）
 
 **Spec:**
 - 設計の正: [`docs/issue-tree/仮説検証モジュール-設計ノート.md`](../../issue-tree/仮説検証モジュール-設計ノート.md)（判断 D1〜D9・スコープの IN/OUT）
 - データ形式の正: [`schemas/issue-tree.schema.json`](../../../schemas/issue-tree.schema.json)（導出ルールは description に明記済み）
 - 見え方の参考: [`docs/issue-tree/仮説検証モック.jsx`](../../issue-tree/仮説検証モック.jsx)（**モックはネスト構造だが、実装はフラット配列＋`parentId` が正**。色分けも不採用——下の Global Constraints を見よ）
 
----
+## 前後のマイルストーン
 
-## この計画が置いた前提（着手前に読むこと）
+| | | 状態 |
+| --- | --- | --- |
+| **M20** キャンバス基盤のコア化 | [`2026-08-22-m20-canvas-core.md`](2026-08-22-m20-canvas-core.md) | **先に完了していること**（本計画は `@/core/canvas/*` を前提に書かれている） |
+| **issue-tree-m1** エディタ | 本計画 | |
+| **issue-tree-m2** 登録 Skill とお手本 | [`2026-08-22-issue-tree-m2-register-skill.md`](2026-08-22-issue-tree-m2-register-skill.md) | 本計画の完了後 |
 
-**1. キャンバス基盤をコアへ引き上げる（Task 1・2）。** ブリーフは「ロジックツリーエディタの基盤を**再利用**」と指示している。rev 6章の「モジュール規約の境界（コア / 各ツールモジュール）は跨がないこと」により、`@/modules/logic-tree/...` を課題ツリーから import することはできない。したがって選択肢は「コアへ引き上げる」か「3度目の複製を作る」の二択で、後者は [`docs/open-issues.md`](../../open-issues.md) が sequence M1 以来の負債として記録している形そのものである。rev 6章は「規約化するか各モジュール任せにするかは、この2実例を材料に**別マイルストーンで判断する**」と保留しており、3本目が来た本マイルストーンがその判断の場になる。
+**M20 が未マージのまま着手しないこと。** Task 3 以降のすべてが `@/core/canvas/flat-tree` などから import しており、無い状態では最初のタスクから赤くなる。
 
-**この前提が否決される場合、Task 1・2 を落として課題ツリー側に4度目の複製を置く形へ縮退できる**（その場合は複製の記録を open-issues に足すこと）。ただし**着手後に切り替えないこと**——Task 3 以降のすべてが `@/core/canvas/*` から import する。
+## この計画が置いた前提
 
-**2. 実物が正。** 計画のコードは検証済みの正ではない（[`docs/lessons-for-planning.md`](../../lessons-for-planning.md) 大原則）。**ただしその例外として、既存実装と一致すべきもの——移設するファイルの中身・整合性検証の文言・正規形の出力・Skill のディレクトリ規約——は実物が正である。** 本計画が引用元のパスを示している箇所は、パラフレーズではなく実物から写すこと。
+**実物が正。** 計画のコードは検証済みの正ではない（[`docs/lessons-for-planning.md`](../../lessons-for-planning.md) 大原則）。**ただしその例外として、既存実装と一致すべきもの——構造編集の規則・整合性検証の文言・正規形の出力——は実物が正である。** 本計画が引用元のパスを示している箇所は、パラフレーズではなく実物から写すこと。
 
-**3. 計画の指示が矛盾していたら、辻褄を合わせずに「計画の矛盾」として報告する。** 報告には**実行した検証コマンドとその出力を貼る**こと（実行していない作業を完了として報告する経路を塞ぐため）。
+**計画の指示が矛盾していたら、辻褄を合わせずに「計画の矛盾」として報告する。** 報告には**実行した検証コマンドとその出力を貼る**こと（実行していない作業を完了として報告する経路を塞ぐため）。
 
 ---
 
@@ -34,7 +38,7 @@
 ### データ
 
 - `schemaVersion: 1` / `type: "issueTree"` 固定。**スキーマは既に確定しており、本マイルストーンで `schemas/issue-tree.schema.json` を変更しない。**
-- ID は `issue_` + 英数字62文字アルファベット10文字 ／ `hypothesis_` + 同10文字。**連番禁止**（rev 5章）。採番はアプリ側 `src/core/new-id.ts` の `newId('issue')` / `newId('hypothesis')`、Skill 側 `scripts/new-id.mjs` のみを通す。
+- ID は `issue_` + 英数字62文字アルファベット10文字 ／ `hypothesis_` + 同10文字。**連番禁止**（rev 5章）。採番は `src/core/new-id.ts` の `newId('issue')` / `newId('hypothesis')` のみを通す。
 - **全キー常在。** `text` / `rationale` の空文字＝未記入、`events: []`＝未決、`pendingNotes: []`＝判断待ち無し。**欠落キーで未決を表さない。**
 - `issues` の配列順は DFS 行きがけ順（兄弟順の正）。`hypotheses` の配列順は、ぶら下がり先の課題の順→同一課題内の表示順。
 - **イベントは追記専用。** 過去の要素を書き換えない・削除しない。編集を許すのは**最新イベントの `note` だけ**（追記した直後に根拠を書く経路が要るため）。誤った追記の取り消しは Undo（1操作1コミット）に委ねる。
@@ -51,7 +55,7 @@
 
 ### 色・フォント（機械検査が走査する）
 
-- **色値の直書き禁止。** 役割トークン（`text-ink` / `text-ink-muted` / `bg-surface` / `bg-canvas` / `border-rule` / `border-warning` / `bg-warning/10` / `bg-warning/20` / `ring-ring`）だけを使う。`src/styles/conventions.test.ts` が `src/` 全体を走査し、`#rrggbb` / `rgb(` / `oklch(` と **Tailwind 標準パレット**（`bg-rose-600` 等）を弾く。
+- **色値の直書き禁止。** 役割トークン（`text-ink` / `text-ink-muted` / `bg-surface` / `bg-canvas` / `border-rule` / `border-warning` / `bg-warning/10` / `bg-warning/20` / `ring-ring` / `stroke-rule` / `stroke-grid`）だけを使う。`src/styles/conventions.test.ts` が `src/` 全体を走査し、`#rrggbb` / `rgb(` / `oklch(` と **Tailwind 標準パレット**（`bg-rose-600` 等）を弾く。
 - **半透明の warning は `/10`（未決）と `/20`（整合性エラー）の2つだけ。** `src/styles/palette.test.ts` は `src/modules/` 配下の `.tsx` を**ディレクトリで**走査し、`(bg|border|text)-warning/NN` の `NN` が検算済み（10 と 20）以外なら落ちる。**新モジュールの部品も最初からこの走査に入る。**
 - `const errorCell = 'bg-warning/20'` / `const warnCell = 'bg-warning/10'` という名前で宣言する場合、値はこの2つでなければならない（同テストが名前と値の対応を固定している）。
 - **`bg-warning/*` の面の上に置く文字は `text-ink` か `text-ink-muted` だけ**（`text-warning` を置かない。M8 決定12）。
@@ -88,23 +92,11 @@ npm test && npx tsc -b && npm run lint
 
 ## File Structure
 
-### 新規（コア：キャンバス基盤）
-
-| ファイル | 責務 |
-| --- | --- |
-| `src/core/canvas/viewport.ts` | `Transform` / `INITIAL_TRANSFORM` / `cssTransform` / `svgTransform` / `Rect` / `panIntoView`（純関数） |
-| `src/core/canvas/use-viewport.ts` | d3-zoom の配線と Space 監視、`ensureVisible`（フック1本） |
-| `src/core/canvas/canvas-font.ts` | 実効フォントの読み取りと canvas 測定器の生成 |
-| `src/core/canvas/wrap.ts` | `wrapWithin` / `createEstimateMeasurer`（DOM 非依存の折り返し） |
-| `src/core/canvas/flat-tree.ts` | 平坦配列→木（循環に耐える全域関数）、DFS 正規化、部分木の終端・兄弟の列挙 |
-| `src/core/canvas/tree-layout.ts` | `(木, サイズMap) → 座標Map` の純関数（Reingold–Tilford 型） |
-| `src/core/canvas/edges.ts` | 親→子のベジェパスの生成（純関数） |
-
 ### 新規（課題ツリーモジュール）
 
 | ファイル | 責務 |
 | --- | --- |
-| `src/modules/issue-tree/derive.ts` | **導出の心臓部。**問いの立ち方・抑制・ステータス・集計・表示文言。**値 import を持たない**（Skill へバイト一致コピーするため） |
+| `src/modules/issue-tree/derive.ts` | **導出の心臓部。**問いの立ち方・抑制・ステータス・集計・表示文言。**値 import を持たない**（issue-tree-m2 で Skill へバイト一致コピーするため） |
 | `src/modules/issue-tree/commands.ts` | 構造編集（課題・仮説・メモ）とイベント追記。DFS 正規化を含む |
 | `src/modules/issue-tree/consistency.ts` | 規約4：モジュール内検証（5ルール） |
 | `src/modules/issue-tree/measure.ts` | 箱の寸法定数と、それに対応する Tailwind クラス |
@@ -116,358 +108,23 @@ npm test && npx tsc -b && npm run lint
 | `src/modules/issue-tree/module.ts` | 規約1〜7＋`createEmpty` |
 | `src/modules/issue-tree/migrate.ts` | 規約6：初版なので恒等 |
 
-### 新規（登録 Skill）
-
-`.claude/skills/issue-tree-register/` … `SKILL.md` / `package.json` / `.gitignore` / `schemas/issue-tree.schema.json`（バイト一致コピー）/ `scripts/new-id.mjs` / `scripts/canonical.ts`（バイト一致コピー）/ `scripts/derive.ts`（バイト一致コピー）/ `scripts/issue-tree-write.mjs`
-
 ### 変更
 
 | ファイル | 変更内容 |
 | --- | --- |
-| `src/modules/logic-tree/` | `viewport.ts` / `useViewport.ts` / `node-font.ts` / `tree.ts` / `layout.ts` と対応するテストを削除し、コアを参照する |
-| `src/modules/sequence/` | `viewport.ts` / `useViewport.ts` / `seq-font.ts` と対応するテストを削除し、コアを参照する |
 | `src/modules/index.ts` | `issueTreeModule` を1行 register |
-| `src/core/skill-sync.ts` | `BUNDLED_SKILLS` に `issue-tree-register` を追加 |
-| `src/core/skill-schema-copy.test.ts` | `SCHEMA_COPIES` に1件追加 |
 | `src/core/reading-guide.md` | 課題ツリーの読み方（未解決論点5の回答）を追記 |
-| `sample-project/課題ツリー.json` | お手本1本（新規。追跡対象） |
-| `README.md` | ツール表・お手本表・同梱 Skill の本数 |
-| `docs/README.md` / `docs/open-issues.md` / `docs/overview-rev.md` / `docs/history/issue-tree-m1-*.md` | 完了時の反映 |
+| `README.md` | ツール表と、課題ツリーの節 |
+| `docs/README.md` / `docs/open-issues.md` / `docs/overview-rev.md` / `docs/history/issue-tree-m1-editor.md` | 完了時の反映 |
+
+### このマイルストーンでは触らないもの
+
+- **`schemas/issue-tree.schema.json`**（確定済み）
+- **登録 Skill・`sample-project/`・README のお手本表** → issue-tree-m2
+- **Markdown 出力**（`outputs: []`）・**意思決定ログからの参照**・**フォーカスモード**（設計ノートの OUT。Task 10 で open-issues に記録する）
 
 ---
-
-## Task 1: キャンバス基盤（ビューポート・測定・フォント）をコアへ引き上げる
-
-**Files:**
-- Create: `src/core/canvas/viewport.ts`, `src/core/canvas/use-viewport.ts`, `src/core/canvas/canvas-font.ts`, `src/core/canvas/wrap.ts`, `src/core/canvas/edges.ts`
-- Create (test): `src/core/canvas/viewport.test.ts`, `src/core/canvas/use-viewport.dom.test.tsx`, `src/core/canvas/wrap.test.ts`, `src/core/canvas/edges.test.ts`
-- Delete: `src/modules/logic-tree/viewport.ts`, `src/modules/logic-tree/viewport.test.ts`, `src/modules/logic-tree/useViewport.ts`, `src/modules/logic-tree/useViewport.dom.test.tsx`, `src/modules/logic-tree/node-font.ts`, `src/modules/sequence/viewport.ts`, `src/modules/sequence/viewport.test.ts`, `src/modules/sequence/useViewport.ts`, `src/modules/sequence/useViewport.dom.test.tsx`, `src/modules/sequence/seq-font.ts`
-- Modify: `src/modules/logic-tree/measure.ts`, `src/modules/logic-tree/measure.test.ts`, `src/modules/logic-tree/LogicTreeEditor.tsx`, `src/modules/logic-tree/LogicTreeEditor.font.dom.test.tsx`, `src/modules/logic-tree/TreeEdges.tsx`, `src/modules/sequence/measure.ts`, `src/modules/sequence/measure.test.ts`, `src/modules/sequence/SequenceEditor.tsx`, `src/modules/sequence/SequenceEdges.tsx`
-
-**Interfaces:**
-- Consumes: なし（既存2モジュールの実物が入力）
-- Produces: `Transform` / `Rect` / `INITIAL_TRANSFORM` / `CANVAS_MARGIN` / `cssTransform(t)` / `svgTransform(t)` / `panIntoView(t, rect, view, margin)` / `useViewport(ref, enabled): { transform, spaceHeld, ensureVisible }` / `CanvasFont` / `FALLBACK_CANVAS_FONT` / `FALLBACK_SMALL_FONT` / `sameFont(a, b)` / `readCanvasFont(el)` / `createCanvasMeasurer(font)` / `MeasureWidth` / `WrapOptions` / `WrappedBlock` / `wrapWithin(text, measure, lineHeight, opts)` / `createEstimateMeasurer(fontSize)` / `edgePath(from, to)`
-
-**これは移設であって書き直しではない。** 引用元の実物をそのまま移し、変えてよいのは (a) import 元のパス、(b) 識別子の改名、(c) 特定ツールを名指ししているコメントの語だけである。**アルゴリズム・定数・JSDoc の本文を書き直さないこと。**
-
-- [ ] **Step 1: `src/core/canvas/viewport.ts` を作る**
-
-`src/modules/logic-tree/viewport.ts` の中身をそのまま置く（`Transform` / `CANVAS_MARGIN` / `INITIAL_TRANSFORM` / `cssTransform` / `svgTransform` / `Rect` / `fitAxis` / `panIntoView`）。冒頭に移設の由来を1つ足す:
-
-```ts
-/**
- * キャンバスのビューポート（rev 10章 キャンバスの標準操作。純関数）。
- *
- * ロジックツリー（logic-tree M1）とシーケンス（sequence M1）が同一の内容を
- * 複製していたものを、3本目のキャンバスツール（課題ツリー）を足す
- * issue-tree-m1 でコアへ引き上げた。rev 6章が「2実例を材料に別マイルストーンで
- * 判断する」と保留していた宿題にあたる
- */
-```
-
-- [ ] **Step 2: 移設したビューポートのテストを置き、緑を確かめる**
-
-`src/modules/logic-tree/viewport.test.ts` を `src/core/canvas/viewport.test.ts` へ移す（import を `./viewport` に直すだけ）。
-
-Run: `npx vitest run src/core/canvas/viewport.test.ts`
-Expected: PASS
-
-- [ ] **Step 3: `src/core/canvas/use-viewport.ts` を作る**
-
-`src/modules/logic-tree/useViewport.ts` をそのまま置き、`import { INITIAL_TRANSFORM, panIntoView, type Rect, type Transform } from './viewport'` に直す。**ツール名を含むコメント1行だけを一般化する:**
-
-```ts
-      // ボタン・リンクの Space は活性化のキー。**位置ではなく役割で判定する**
-      //（帯の「追加」などのボタンはキャンバスの内側にある）
-```
-
-- [ ] **Step 4: 移設したフックのテストを置く**
-
-`src/modules/logic-tree/useViewport.dom.test.tsx` を `src/core/canvas/use-viewport.dom.test.tsx` へ移す。**sequence 側のコピーは中身が同一（差分はヘッダのコメント4行と、上と同じ1行のコメント語だけ。`diff` で確認済み）なので、2本を1本に畳む。**
-
-Run: `npx vitest run src/core/canvas/use-viewport.dom.test.tsx`
-Expected: PASS
-
-- [ ] **Step 5: `src/core/canvas/wrap.ts` を作る**
-
-`src/modules/sequence/measure.ts` の `MeasureWidth` / `WrapOptions` / `WrappedBlock` / `wrapWithin` / `createEstimateMeasurer` を**そのまま**移す（sequence 側が一般形で、logic-tree の `wrapText` はその特殊化にあたる）。冒頭 JSDoc は `src/modules/logic-tree/measure.ts` の測定層の解説（「2パスにすると Enter のたびに一瞬ずれた位置に出てから飛ぶ」以下）を写す——一般形の側にはその説明が無く、なぜ同期的に測るのかが失われるため。
-
-- [ ] **Step 6: `src/core/canvas/canvas-font.ts` を作る**
-
-`src/modules/logic-tree/node-font.ts` をそのまま置き、識別子だけ改名する（`NodeFont`→`CanvasFont`、`FALLBACK_NODE_FONT`→`FALLBACK_CANVAS_FONT`、`readNodeFont`→`readCanvasFont`、`createNodeMeasurer`→`createCanvasMeasurer`。`sameFont` は同名）。あわせて sequence が持っていた小さい方の既定値を、その JSDoc ごと移す:
-
-```ts
-/**
- * 問いラベル列（text-xs）用の既定値。**FALLBACK_CANVAS_FONT を使い回さないこと**
- * ——text-xs は 12px・行間 1.5 で、text-sm（14px・1.65）とはサイズも行間も違う
- * （src/index.css の --text-xs--line-height / --text-sm--line-height）。
- * 揃えてしまうと、ラベル用の測定器が text-sm 相当の高さを返し続け、
- * jsdom のテストでは両者の違いを検出できなくなる
- */
-export const FALLBACK_SMALL_FONT: CanvasFont = {
-  font: 'normal 400 12px sans-serif',
-  fontSize: 12,
-  lineHeight: 12 * 1.5,
-}
-```
-
-**`readCanvasFont(el)` の `el === null` 時の戻り値は `FALLBACK_CANVAS_FONT`（14px）のままにすること。** sequence は `text-xs` の見本要素に対しても `readSeqFont` を呼び、null のとき 14px の既定に落ちる——これは既存の挙動であり、この移設で変えない（変えると sequence の行高が静かにずれる）。
-
-- [ ] **Step 7: 折り返しのテストを置く**
-
-`src/modules/sequence/measure.test.ts` のうち `wrapWithin` / `createEstimateMeasurer` を対象にした `it` を `src/core/canvas/wrap.test.ts` へ移し、`src/modules/logic-tree/measure.test.ts` が見ている同じ性質（コードポイント単位のグリーディ・最大幅の切り上げ・明示改行）でコア側に無い観点があれば足す。**`NODE_*` / `LABEL_*` のような各ツールの定数を検証している `it` は移さない**（それらはモジュール側に残る）。
-
-Run: `npx vitest run src/core/canvas/wrap.test.ts`
-Expected: PASS
-
-- [ ] **Step 8: `src/core/canvas/edges.ts` を作る**
-
-`src/modules/logic-tree/TreeEdges.tsx` の `edgePath` を、コメントごと純関数として移す。**矩形を引数に取る形へ広げる**——課題ツリーはブロック（課題ノード＋仮説カード）でレイアウトし、線は**課題ノードの矩形**から引くため、位置とサイズを別々に渡せる必要がある。
-
-```ts
-import type { Rect } from './viewport'
-
-/** 親の右辺の中央から子の左辺の中央へ。左右方向にだけ張り出す3次ベジェ */
-export function edgePath(from: Rect, to: Rect): string {
-  const x1 = from.x + from.width
-  const y1 = from.y + from.height / 2
-  const x2 = to.x
-  const y2 = to.y + to.height / 2
-  // 制御点の張り出しは列の間隔の半分。近すぎるときも最低限は曲げる
-  const dx = Math.max(16, (x2 - x1) / 2)
-  return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`
-}
-```
-
-- [ ] **Step 9: エッジのテストを書く**
-
-```ts
-import { describe, expect, it } from 'vitest'
-import { edgePath } from './edges'
-
-describe('edgePath', () => {
-  it('親の右辺の中央から子の左辺の中央へ引く', () => {
-    const d = edgePath({ x: 0, y: 0, width: 100, height: 40 }, { x: 200, y: 100, width: 80, height: 20 })
-    expect(d.startsWith('M 100 20 ')).toBe(true)
-    expect(d.endsWith(' 200 110')).toBe(true)
-  })
-
-  it('列が近すぎても最低 16px は曲げる（直線に潰さない）', () => {
-    // 張り出しが (x2 - x1) / 2 = 2 になる配置。16 に引き上がること
-    const d = edgePath({ x: 0, y: 0, width: 100, height: 40 }, { x: 104, y: 0, width: 80, height: 40 })
-    expect(d).toContain('C 116 20, 88 20,')
-  })
-})
-```
-
-**2件目は退化ケース回避のために置いてある**——`Math.max(16, ...)` を `(x2 - x1) / 2` に差し替えても1件目は通る。
-
-Run: `npx vitest run src/core/canvas/edges.test.ts`
-Expected: PASS
-
-- [ ] **Step 10: ロジックツリーをコアへ載せ替える**
-
-1. `src/modules/logic-tree/measure.ts`: `MeasureWidth` / `WrappedText` / `wrapText` / `createEstimateMeasurer` の実装を消し、`NODE_*` 定数と `NODE_BOX_CLASS` を残したうえで薄い包みを置く:
-
-```ts
-import { wrapWithin, type MeasureWidth, type WrappedBlock } from '@/core/canvas/wrap'
-
-export type { MeasureWidth }
-export type WrappedText = WrappedBlock
-
-/** ノード矩形の寸法。折り返しの規則そのものは core/canvas/wrap.ts が持つ */
-export function wrapText(text: string, measure: MeasureWidth, lineHeight: number): WrappedText {
-  return wrapWithin(text, measure, lineHeight, {
-    maxWidth: NODE_MAX_WIDTH,
-    minWidth: NODE_MIN_WIDTH,
-    insetX: NODE_INSET_X,
-    insetY: NODE_INSET_Y,
-  })
-}
-```
-
-2. `LogicTreeEditor.tsx`: `./useViewport` → `@/core/canvas/use-viewport`、`./viewport` → `@/core/canvas/viewport`、`./node-font` → `@/core/canvas/canvas-font`。識別子の改名に追従する。
-3. `TreeEdges.tsx`: `edgePath` をコアから import し、`positions`＋`sizes` から `Rect` を組んで渡す。
-4. `LogicTreeEditor.font.dom.test.tsx` / `measure.test.ts` の import を直す。
-
-- [ ] **Step 11: シーケンスをコアへ載せ替える**
-
-`src/modules/sequence/measure.ts` から `wrapWithin` / `createEstimateMeasurer` / `MeasureWidth` / `WrapOptions` / `WrappedBlock` の実装を消し、`@/core/canvas/wrap` の再エクスポートに置き換える（`SequenceEditor.tsx` が `./measure` から引き続き読める形にして、変更を1ファイルに閉じる）。`SequenceEditor.tsx` は `./useViewport` / `./viewport` / `./seq-font` の import 元をコアへ向け、`SeqFont`→`CanvasFont`・`FALLBACK_SEQ_FONT`→`FALLBACK_CANVAS_FONT`・`FALLBACK_LABEL_FONT`→`FALLBACK_SMALL_FONT`・`readSeqFont`→`readCanvasFont`・`createSeqMeasurer`→`createCanvasMeasurer` に追従する。`SequenceEdges.tsx` は `svgTransform` の import 元を直す。
-
-- [ ] **Step 12: 移設漏れが無いことを機械的に確かめる**
-
-```bash
-grep -rn "from './useViewport'|from './viewport'|from './seq-font'|from './node-font'" -E src/modules/
-```
-Expected: 一致0件
-
-```bash
-ls src/modules/logic-tree/viewport.ts src/modules/sequence/useViewport.ts
-```
-Expected: 2件とも「そのようなファイルはありません」
-
-- [ ] **Step 13: 全体の検証**
-
-Run: `npm test && npx tsc -b && npm run lint`
-Expected: すべて緑。**とくに `src/modules/logic-tree/` と `src/modules/sequence/` の既存テストが全部緑であること**——ここが赤いなら移設で中身を書き換えている。
-
-- [ ] **Step 14: Commit**
-
-```bash
-git add -A
-git commit -m "refactor(canvas): ビューポート・測定・フォント読み取りを core/canvas へ引き上げる"
-```
-
----
-
-## Task 2: 平坦木の組み立てと木のレイアウトをコアへ引き上げる
-
-**Files:**
-- Create: `src/core/canvas/flat-tree.ts`, `src/core/canvas/tree-layout.ts`
-- Create (test): `src/core/canvas/flat-tree.test.ts`, `src/core/canvas/tree-layout.test.ts`
-- Delete: `src/modules/logic-tree/tree.ts`, `src/modules/logic-tree/tree.test.ts`, `src/modules/logic-tree/layout.ts`, `src/modules/logic-tree/layout.test.ts`
-- Modify: `src/modules/logic-tree/commands.ts`, `src/modules/logic-tree/consistency.ts`, `src/modules/logic-tree/LogicTreeEditor.tsx`, `src/modules/logic-tree/TreeEdges.tsx`, および上記を import しているテスト
-
-**Interfaces:**
-- Consumes: `Rect` / `edgePath`（Task 1）
-- Produces: `FlatNode` / `FlatTreeNode` / `BuiltTree` / `buildTree(nodes)` / `orderFlatNodes(nodes)` / `subtreeEnd(built, index)` / `siblingsOf(built, index)` / `Point` / `Size` / `LayoutTreeNode` / `LayoutResult` / `COLUMN_GAP` / `SIBLING_GAP` / `layoutTree(roots, sizes)`
-
-- [ ] **Step 1: `src/core/canvas/flat-tree.ts` を作る**
-
-`src/modules/logic-tree/tree.ts` の `buildTree` を**そのまま**移し、入力と戻り値の型だけ構造的に広げる。**`text` を持たせない**——`NodeTree.text` は構築時にコピーされるだけで、`layout.ts` も `TreeEdges.tsx` も読んでいない（grep で確認済み）。
-
-```ts
-import { computeRowKeys } from '@/core/row-keys'
-
-/** 平坦配列の1件が満たすべき最小の形。各ツールのノード型がこれを満たす */
-export interface FlatNode {
-  id: string
-  parentId: string | null
-}
-
-/**
- * 組み立てた木の節点。**同一性の鍵は id ではなく key**
- *（ID 重複ファイルを「受け入れて赤表示」する以上、id では一意にならず、
- *  レイアウトの戻り値 Map<キー, 座標> が2ノードで衝突する）
- */
-export interface FlatTreeNode {
-  index: number
-  key: string
-  id: string
-  children: FlatTreeNode[]
-}
-
-export interface BuiltTree {
-  roots: FlatTreeNode[]
-  depths: number[]
-  parents: (number | null)[]
-  children: number[][]
-  unreachable: number[]
-  missingParent: number[]
-}
-
-export function buildTree(nodes: readonly FlatNode[]): BuiltTree { /* tree.ts の実装をそのまま */ }
-```
-
-あわせて `src/modules/logic-tree/commands.ts` の `orderNodes` / `subtreeEnd` / `siblingsOf` をここへ移す（`orderNodes` は `orderFlatNodes` に改名し、要素の型を保つジェネリックにする）:
-
-```ts
-/**
- * 配列を DFS 行きがけ順に整える（兄弟の相対順は変えない）。
- *
- * 兄弟順の正本は配列順（rev 5章）なので、並べ替えても意味は変わらない。
- * この順を保つことで「挿入位置＝参照ノードの部分木の直後」という1つの規則が
- * 成立し、上から読めば木の形が追える JSON になる。
- *
- * 循環して根から到達できないノードは、末尾に元の順で残す。**消さないこと**
- *——ファイルにあるものが黙って減るのが一番たちが悪い
- */
-export function orderFlatNodes<T extends FlatNode>(nodes: readonly T[]): T[] {
-  const built = buildTree(nodes)
-  const out: T[] = []
-  const walk = (node: FlatTreeNode): void => {
-    out.push(nodes[node.index])
-    for (const child of node.children) walk(child)
-  }
-  for (const root of built.roots) walk(root)
-  for (const index of built.unreachable) out.push(nodes[index])
-  return out
-}
-
-/**
- * 行きがけ順の配列で、index の部分木が終わる位置（＝次の兄弟がいる位置）。
- * 深さが自分以下になる最初の位置を探せばよい
- */
-export function subtreeEnd(built: BuiltTree, index: number): number { /* commands.ts の実装をそのまま */ }
-
-/** 兄弟（同じ親を持つノード）の配列位置を、並び順で返す */
-export function siblingsOf(built: BuiltTree, index: number): number[] { /* 同上 */ }
-```
-
-- [ ] **Step 2: 平坦木のテストを置き、緑を確かめる**
-
-`src/modules/logic-tree/tree.test.ts` を `src/core/canvas/flat-tree.test.ts` へ移す（`text` を読んでいる `it` があれば `id` / `key` で見る形に直す）。`subtreeEnd` / `siblingsOf` / `orderFlatNodes` を直接見る `it` を足す。**兄弟3つ以上・深さ2以上の入力にすること**——兄弟2つ・深さ1では「常に先頭」「常に末尾」に差し替えても偶然一致する（logic-tree M1 が実際に踏んだ形）。
-
-Run: `npx vitest run src/core/canvas/flat-tree.test.ts`
-Expected: PASS
-
-- [ ] **Step 3: `src/core/canvas/tree-layout.ts` を作る**
-
-`src/modules/logic-tree/layout.ts` を**そのまま**移し、入力の型だけ構造的に広げる:
-
-```ts
-/** レイアウトが要求する木の形。FlatTreeNode がこれを満たす */
-export interface LayoutTreeNode {
-  key: string
-  children: readonly LayoutTreeNode[]
-}
-```
-
-`NodeTree` を参照している箇所を `LayoutTreeNode` に置き換える以外、**アルゴリズムと JSDoc を1行も変えない**（「親は最初の子と最後の子の中心に置く」「次の部分木を下げる量は重なる全深さの中で一番きつい制約で決まる」等の説明は移設先でも正しい）。
-
-- [ ] **Step 4: レイアウトのテストを移す**
-
-`src/modules/logic-tree/layout.test.ts` を `src/core/canvas/tree-layout.test.ts` へ移す。テストが `NodeTree` を組み立てているなら `{ key, children }` のリテラルに直す。
-
-Run: `npx vitest run src/core/canvas/tree-layout.test.ts`
-Expected: PASS
-
-- [ ] **Step 5: ロジックツリーを載せ替える**
-
-`commands.ts` は `orderNodes` / `subtreeEnd` / `siblingsOf` の定義を消してコアから import する。**`orderNodes` は既存の公開 API なので、名前を残す薄い包みを置く**（`commands.test.ts` と他の呼び出し元を巻き込まないため）:
-
-```ts
-import { buildTree, orderFlatNodes, siblingsOf, subtreeEnd, type BuiltTree } from '@/core/canvas/flat-tree'
-import type { TreeNode } from '@/types/logic-tree'
-
-/** 配列を DFS 行きがけ順に整える（規則はコアの orderFlatNodes が持つ） */
-export const orderNodes = (nodes: readonly TreeNode[]): TreeNode[] => orderFlatNodes(nodes)
-```
-
-`consistency.ts` / `LogicTreeEditor.tsx` / `TreeEdges.tsx` は `./tree` / `./layout` の import 元をコアへ向ける。
-
-- [ ] **Step 6: 移設漏れが無いことを機械的に確かめる**
-
-```bash
-grep -rn "from './tree'|from './layout'" -E src/modules/logic-tree/
-```
-Expected: 一致0件
-
-- [ ] **Step 7: 全体の検証**
-
-Run: `npm test && npx tsc -b && npm run lint`
-Expected: すべて緑
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add -A
-git commit -m "refactor(canvas): 平坦木の組み立てと木のレイアウトを core/canvas へ引き上げる"
-```
-
----
-
-## Task 3: 型生成の確認とスキーマ検証（レベル1）のテスト
+## Task 1: 型生成の確認とスキーマ検証（レベル1）のテスト
 
 **Files:**
 - Create (test): `src/modules/issue-tree/schema.test.ts`
@@ -633,23 +290,23 @@ git commit -m "test(issue-tree): スキーマ検証（レベル1）の境界を�
 
 ---
 
-## Task 4: `derive.ts` ——導出の心臓部
+## Task 2: `derive.ts` ——導出の心臓部
 
 **Files:**
 - Create: `src/modules/issue-tree/derive.ts`
 - Create (test): `src/modules/issue-tree/derive.test.ts`
 
 **Interfaces:**
-- Consumes: `@/types/issue-tree` の型（Task 3）
+- Consumes: `@/types/issue-tree` の型（Task 1）
 - Produces: `DeferralKind` / `JudgementKind` / `HypothesisStatus` / `IssueStatus` / `latestKind(events)` / `hypothesisStatus(h)` / `issueStatus(node)` / `suppressedIssueIds(issues)` / `leafIssueIds(issues)` / `PosedQuestions` / `poseQuestions(data)` / `IssueTreeTally` / `tallyQuestions(posed)` / `QUESTION_LABELS` / `EVENT_KIND_LABELS` / `tallyLine(t)` / `SUPPRESSED_NOTE`
 
-**このファイルは登録 Skill へバイト一致コピーされる（Task 11）。したがって守るべき制約が3つある:**
+**このファイルは登録 Skill へバイト一致コピーされる（次のマイルストーン issue-tree-m2）。したがって守るべき制約が3つある:**
 
 1. **値 import を持たない**（`import type` だけ。Node の型ストリップでコピー側が相対解決できなくなるため）
 2. **`enum` とパラメータプロパティを使わない**（型ストリップで消せない構文）
 3. 相対 import を持たない（`@/types/issue-tree` の型 import のみ）
 
-Task 11 のテストがこの3つを機械的に固定するが、**ここで守っておかないと Task 11 で書き直しになる。**
+issue-tree-m2 のテストがこの3つを機械的に固定するが、**ここで守っておかないと次のマイルストーンで書き直しになる。**
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -848,8 +505,9 @@ import type {
  *（シーケンスの questions.ts と同じ位置づけ）。
  *
  * **このファイルは登録 Skill（.claude/skills/issue-tree-register/scripts/derive.ts）
- * へバイト一致でコピーされる。** だから値 import・相対 import・enum を
- * 持たない。ズレは src/modules/issue-tree/skill-copy.test.ts が検知する
+ * へバイト一致でコピーされる（issue-tree-m2 で作る）。** だから値 import・
+ * 相対 import・enum を持たない——Node の型ストリップでコピー側が相対解決
+ * できなくなるため。ズレを検知するテストは Skill と同時に置く
  */
 
 export type DeferralKind = DeferralEvent['kind']
@@ -1039,14 +697,14 @@ git commit -m "feat(issue-tree): 問いの立ち方・抑制・ステータス�
 
 ---
 
-## Task 5: `commands.ts` ——構造編集とイベント追記
+## Task 3: `commands.ts` ——構造編集とイベント追記
 
 **Files:**
 - Create: `src/modules/issue-tree/commands.ts`
 - Create (test): `src/modules/issue-tree/commands.test.ts`
 
 **Interfaces:**
-- Consumes: `buildTree` / `orderFlatNodes` / `subtreeEnd` / `siblingsOf`（`@/core/canvas/flat-tree`、Task 2）、`insertAt` / `removeAt` / `moveItem`（`@/core/list-ops`）、`newId`（`@/core/new-id`）
+- Consumes: `buildTree` / `orderFlatNodes` / `subtreeEnd` / `siblingsOf`（`@/core/canvas/flat-tree`、M20 で引き上げた）、`insertAt` / `removeAt` / `moveItem`（`@/core/list-ops`）、`newId`（`@/core/new-id`）
 - Produces: `FocusTarget` / `EditResult` / `normalizeOrder(data)` / `addRootIssue(data)` / `addChildIssue(data, i)` / `addSiblingIssueAfter(data, i)` / `deleteIssueSubtree(data, i)` / `moveIssueSibling(data, i, delta)` / `setIssueText(data, i, text)` / `appendDeferral(data, i, kind)` / `addHypothesis(data, issueIndex)` / `addHypothesisAfter(data, i)` / `deleteHypothesis(data, i)` / `moveHypothesis(data, i, delta)` / `setHypothesisText(data, i, text)` / `setRationale(data, i, text)` / `addPendingNote(data, i)` / `setPendingNote(data, i, noteIndex, text)` / `removePendingNote(data, i, noteIndex)` / `promoteNote(data, i, noteIndex)` / `appendJudgement(data, i, kind)` / `setEventNote(data, i, eventIndex, note)`
 
 **課題側の構造編集は `src/modules/logic-tree/commands.ts` と同じ形にする。** `prepare`（参照の同一性で位置を引き直す）・`subtreeEnd`（挿入位置＝部分木の直後）・`addSiblingAfter` がルート上では子を足す、といった規則は**実物が正**であり、写して `IssueNode` 用に読み替えるだけにする。以下は課題ツリー固有の差分だけを書く。
@@ -1538,7 +1196,7 @@ git commit -m "feat(issue-tree): 課題・仮説・メモの構造編集とイ�
 
 ---
 
-## Task 6: `consistency.ts` ——モジュール内検証（規約4）
+## Task 4: `consistency.ts` ——モジュール内検証（規約4）
 
 **Files:**
 - Create: `src/modules/issue-tree/consistency.ts`
@@ -1548,7 +1206,7 @@ git commit -m "feat(issue-tree): 課題・仮説・メモの構造編集とイ�
 - Consumes: `ConsistencyIssue` / `ConsistencyLocation`（`@/core/consistency`）、`findDuplicates`（`@/core/duplicate`）、`buildTree`（`@/core/canvas/flat-tree`）
 - Produces: `checkIssueTreeConsistency(data): ConsistencyIssue[]`
 
-**ここで決めるメッセージ文言は、Task 11 の登録 Skill が逐語で複製する。** 一致は Task 11 の smoke テストが実行結果の突き合わせで固定するので、**ここが正**である。
+**ここで決めるメッセージ文言は、次のマイルストーン（issue-tree-m2）の登録 Skill が逐語で複製する。** 一致はあちらの smoke テストが実行結果の突き合わせで固定するので、**ここが正**である。
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -1767,7 +1425,7 @@ git commit -m "feat(issue-tree): モジュール内検証（規約4）の5ルー
 
 ---
 
-## Task 7: `measure.ts` と `layout.ts` ——ブロックの寸法と配置
+## Task 5: `measure.ts` と `layout.ts` ——ブロックの寸法と配置
 
 **Files:**
 - Create: `src/modules/issue-tree/measure.ts`, `src/modules/issue-tree/layout.ts`
@@ -2221,7 +1879,7 @@ git commit -m "feat(issue-tree): 課題ノードと仮説カードをブロッ�
 
 ---
 
-## Task 8: 部品（課題ノード・仮説カード・エッジ）
+## Task 6: 部品（課題ノード・仮説カード・エッジ）
 
 **Files:**
 - Create: `src/modules/issue-tree/IssueBox.tsx`, `src/modules/issue-tree/HypothesisCard.tsx`, `src/modules/issue-tree/IssueTreeEdges.tsx`
@@ -2345,14 +2003,14 @@ git commit -m "feat(issue-tree): 課題ノード・仮説カード・エッジ�
 
 ---
 
-## Task 9: `IssueTreeEditor.tsx` ——エディタ本体
+## Task 7: `IssueTreeEditor.tsx` ——エディタ本体
 
 **Files:**
 - Create: `src/modules/issue-tree/IssueTreeEditor.tsx`
 - Create (test): `src/modules/issue-tree/IssueTreeEditor.dom.test.tsx`
 
 **Interfaces:**
-- Consumes: Task 4〜8 のすべて、`EditorProps`（`@/core/registry`）、`useViewport`（`@/core/canvas/use-viewport`）、`readCanvasFont` / `createCanvasMeasurer` / `FALLBACK_CANVAS_FONT` / `FALLBACK_SMALL_FONT` / `sameFont`（`@/core/canvas/canvas-font`）、`resolveCommand` / `toKeyEventLike`（`@/core/keyboard/keymap`）、`computeRowKeys`（`@/core/row-keys`）、`KeyHints`（`@/components/KeyHints`）
+- Consumes: Task 2〜6 のすべて、`EditorProps`（`@/core/registry`）、`useViewport`（`@/core/canvas/use-viewport`）、`readCanvasFont` / `createCanvasMeasurer` / `FALLBACK_CANVAS_FONT` / `FALLBACK_SMALL_FONT` / `sameFont`（`@/core/canvas/canvas-font`）、`resolveCommand` / `toKeyEventLike`（`@/core/keyboard/keymap`）、`computeRowKeys`（`@/core/row-keys`）、`KeyHints`（`@/components/KeyHints`）
 - Produces: `IssueTreeEditor`（規約3のエディタ）
 
 **土台は `src/modules/logic-tree/LogicTreeEditor.tsx` である。** フォントの世代管理（`document.fonts.ready` で測り直す）・測定器のキャッシュ（鍵に `lineHeight` と世代を混ぜる）・`pendingFocus` の予約と `focus({ preventScroll: true })`・3レイヤの transform・測定用の見本要素は、**そのまま写して2種類のフォント（`text-sm` / `text-xs`）に増やすだけ**にする。書き直すとロジックツリーが踏んだ欠陥を踏み直す。
@@ -2489,7 +2147,7 @@ git commit -m "feat(issue-tree): キーボードで打ち切れる課題ツリ�
 
 ---
 
-## Task 10: `module.ts` とレジストリ登録（ツールモジュール規約）
+## Task 8: `module.ts` とレジストリ登録（ツールモジュール規約）
 
 **Files:**
 - Create: `src/modules/issue-tree/module.ts`, `src/modules/issue-tree/migrate.ts`
@@ -2497,7 +2155,7 @@ git commit -m "feat(issue-tree): キーボードで打ち切れる課題ツリ�
 - Modify: `src/modules/index.ts`
 
 **Interfaces:**
-- Consumes: Task 3〜9 のすべて、`ToolModule`（`@/core/registry`）
+- Consumes: Task 1〜7 のすべて、`ToolModule`（`@/core/registry`）
 - Produces: `issueTreeModule` / `migrateIssueTree`
 
 - [ ] **Step 1: `migrate.ts` を書く**
@@ -2672,173 +2330,16 @@ git commit -m "feat(issue-tree): ツールモジュール規約を満たしレ�
 
 ---
 
-## Task 11: 登録 Skill（`issue-tree-register`）
+## Task 9: 読み方ガイドと `README.md`（ツールが5本になったことの反映）
 
 **Files:**
-- Create: `.claude/skills/issue-tree-register/SKILL.md`, `package.json`, `.gitignore`, `schemas/issue-tree.schema.json`, `scripts/new-id.mjs`, `scripts/canonical.ts`, `scripts/derive.ts`, `scripts/issue-tree-write.mjs`
-- Create (test): `src/modules/issue-tree/skill-copy.test.ts`, `src/modules/issue-tree/skill-write.smoke.test.ts`
-- Modify: `src/core/skill-sync.ts`（`BUNDLED_SKILLS`）, `src/core/skill-schema-copy.test.ts`（`SCHEMA_COPIES`）
+- Modify: `src/core/reading-guide.md`, `README.md`
 
 **Interfaces:**
-- Consumes: `derive.ts`（Task 4）、`consistency.ts` の文言（Task 6）、`src/core/canonical.ts`
-- Produces: プロジェクトフォルダへ配られる4本目の登録 Skill
+- Consumes: Task 8（モジュールが登録され、`issueTree` のファイルが実在しうる状態になっていること）
+- Produces: プロジェクトフォルダへ配られるガイドの新しい原本と、5ツールになった README
 
-**コピーは `cp` で作る。手で書き写さない。** 手複製は追従漏れがテストで検知されず、[`docs/open-issues.md`](../../open-issues.md) にエラーカタログ Skill の実例が記録されている。
-
-**evals（`evals/evals.json` / `evals/grade.mjs` / fixtures）は本マイルストーンの範囲外とする**——設計ノートの IN 節は「ID採番・スキーマ検証・正規形書き出し」を挙げており、評価ハーネスは挙げていない。**Task 14 で `docs/open-issues.md` に1項目として足すこと**（足し忘れると静かに消える）。
-
-- [ ] **Step 1: ディレクトリを作り、バイト一致コピーを置く**
-
-```bash
-mkdir -p .claude/skills/issue-tree-register/scripts .claude/skills/issue-tree-register/schemas
-cp schemas/issue-tree.schema.json .claude/skills/issue-tree-register/schemas/issue-tree.schema.json
-cp src/core/canonical.ts .claude/skills/issue-tree-register/scripts/canonical.ts
-cp src/modules/issue-tree/derive.ts .claude/skills/issue-tree-register/scripts/derive.ts
-```
-
-**置き場所は `<Skill>/schemas/<名前>.schema.json` でなければならない**——書き出しスクリプトの `findSchema` は SKILL_DIR を起点に上へ辿りながら各階層で `<dir>/<名前>.schema.json` と `<dir>/schemas/<名前>.schema.json` を見るので、この位置なら第1階層で当たる（`src/core/skill-schema-copy.test.ts` の JSDoc）。
-
-- [ ] **Step 2: `package.json` と `.gitignore` を置く**
-
-`.claude/skills/sequence-register/package.json` を写して `name` と `description` だけ変える:
-
-```json
-{
-  "name": "issue-tree-register-skill",
-  "private": true,
-  "type": "module",
-  "description": "課題ツリー登録Skillの同梱スクリプト（ID採番・検証・正規形書き出し）",
-  "dependencies": {
-    "ajv": "^8.17.1"
-  }
-}
-```
-
-`.gitignore` は `.claude/skills/sequence-register/.gitignore` と同一（`node_modules/` と `package-lock.json`）。**`package.json` を置くこと**——置いた先にマニフェストが無いと、SKILL.md が指示する `npm install` が何もインストールせず `ajv が見つかりません` から抜けられない（sequence M4 の実機確認が掘り当てた欠陥）。
-
-- [ ] **Step 3: `scripts/new-id.mjs` を書く**
-
-`.claude/skills/sequence-register/scripts/new-id.mjs` を写し、prefix だけ差し替える（**既定は `issue`**——課題のほうが件数が多い）:
-
-```js
-//   node scripts/new-id.mjs 12                    → issue_XXXXXXXXXX を12件
-//   node scripts/new-id.mjs 3 --prefix hypothesis → hypothesis_XXXXXXXXXX を3件
-let prefix = "issue";
-...
-if (prefix !== "issue" && prefix !== "hypothesis") {
-  console.error(
-    `--prefix は issue か hypothesis のどちらかです: 受け取った値 = ${JSON.stringify(prefix)}`
-  );
-  process.exit(2);
-}
-```
-
-- [ ] **Step 4: `scripts/issue-tree-write.mjs` を書く**
-
-`.claude/skills/sequence-register/scripts/sequence-write.mjs` を土台に、次を差し替える。**構造（引数の解析・スキーマ探索・ajv 検証・正規化・警告・書き出し・終了コード）は写して変えない。**
-
-1. `import("./questions.ts")` → `import("./derive.ts")`
-2. スキーマ名 `sequence.schema.json` → `issue-tree.schema.json`、環境変数 `FACET_SEQUENCE_SCHEMA` → `FACET_ISSUE_TREE_SCHEMA`
-3. **`normalizeSlots` は要らない**（課題ツリーに `oneOf` のスロットが無く、キー順はすべてスキーマの `properties` から導出できる）。**代わりに配列順の正規化も行わない**——アプリ側の `normalizeOrder` は値 import を持つのでコピーできず、順序の正規化はアプリに任せる。**この判断を SKILL.md に書き、「順序はアプリが開いたときに整う」と伝えること**
-4. 整合性検証は Task 6 の**5ルールを逐語で**再実装する（文言は `src/modules/issue-tree/consistency.ts` が正。下の smoke テストが一致を強制する）
-5. 未決の集計は `derive.js` の `poseQuestions` / `tallyQuestions` / `tallyLine` を呼ぶ（**数え直さない**）
-
-出力の最後は次の形にする:
-
-```js
-console.log(`  スキーマ: ${schemaPath}`);
-console.log(`  課題: ${issues.length}件 ／ 仮説: ${hypotheses.length}件`);
-console.log(`  ${D.tallyLine(tally)}`);
-if (openAt.length) console.log(`  未決の内訳: ${openAt.join("、")}`);
-```
-
-- [ ] **Step 5: `SKILL.md` を書く**
-
-`.claude/skills/sequence-register/SKILL.md` の構成（対象を決める → データを組む → ID採番 → 書き込み → 報告 → フェーズB → 既存ファイルへの書き足し → やらないこと）を土台にする。**課題ツリー固有として必ず書くこと:**
-
-- frontmatter の `description` は、**「仮説検証」「PoCで確かめること」「課題を分解」「検証結果を記録」「見送り」といった言い方でも起動する**ように書く（明示的に「課題ツリー」と言われなくても使う）
-- **課題と仮説の書き分け**（未解決論点5の回答）: 課題＝観測された事実・望む状態とのギャップ／仮説＝支持・棄却を判定できる主張。**ただし入力時に厳密な区別を強制しない**——検証イベントを付ける段階で「支持・棄却を判定できる文か」が自然に問われる
-- **`pendingNotes` は判断待ちの下書きであり、AI が勝手に判断イベントへ昇格させない**（D9）。会話に出た SH 発言はメモへ、判断は人間が下したものだけをイベントへ
-- **`events` は追記専用。** 既存の要素を書き換えない・並べ替えない・削除しない
-- **ステータスのフィールドを作らない。** 現在ステータスは最新イベントから導出される（`kind` を `status` のように書き足そうとすると `additionalProperties: false` で弾かれる）
-- **見送りは最上位の課題に一度だけ付ける。** 配下へコピーしない（抑制は導出）
-- **`rationale` が空でも warning にならない**ので、会話に由来が無ければ空のままにする
-- **問いの類型を増やさない**（3つはスキーマ固定。増やすと網羅の担保が消える）
-- 初回のみ `npm install`、Node は 22.18+ / 23.6+ / 24+
-
-**「アプリでそのプロジェクトを開いたまま作業しない」の一文を落とさないこと**（自動保存と衝突して片方の変更が消える）。
-
-- [ ] **Step 6: バイト一致と同期のテストを書く**
-
-`src/modules/issue-tree/skill-copy.test.ts`（`src/modules/sequence/skill-copy.test.ts` を写し、`COPIES` を差し替える。**`extractImportStatements` / `isValueImportStatement` はあちらに既にあるので、そこから import して重複させない**——できない構造なら、あちらを `src/core/` へ切り出すのではなく、このテストは「バイト一致」だけを見て「値 import を持たない」は sequence 側のテストに任せる形にする。`src/core/skill-canonical-copy.test.ts` が既に同じ切り分けをしている）:
-
-```ts
-const COPIES = [
-  { app: 'src/modules/issue-tree/derive.ts', skill: '.claude/skills/issue-tree-register/scripts/derive.ts' },
-  { app: 'src/core/canonical.ts', skill: '.claude/skills/issue-tree-register/scripts/canonical.ts' },
-]
-```
-
-**`derive.ts` については「値 import を持たない」「enum / パラメータプロパティを持たない」も必ず見る**（`canonical.ts` は既存テストが見ている）。
-
-`src/core/skill-schema-copy.test.ts` の `SCHEMA_COPIES` に1件足す:
-
-```ts
-  {
-    skill: 'issue-tree-register',
-    schema: 'issue-tree.schema.json',
-    script: 'scripts/issue-tree-write.mjs',
-  },
-```
-
-`src/core/skill-sync.ts` の `BUNDLED_SKILLS` に `'issue-tree-register'` を足す。**`tauri.conf.json` の `bundle.resources` は `.claude/skills` をディレクトリごと同梱しているので、そちらの追従は要らない**（`skill-sync.ts` の JSDoc）。
-
-- [ ] **Step 7: 実行 smoke テストを書く**
-
-`src/modules/sequence/skill-write.smoke.test.ts` を写す。契約は「**アプリの `message` がスクリプトの stdout に逐語で現れる**」。fixture は Task 6 の5ルールを一度に炙り出す形（スキーマ検証は通ること）にする:
-
-```ts
-import { checkIssueTreeConsistency } from './consistency'
-// ...
-it('アプリの整合性 message がすべて stdout に逐語で現れる', () => {
-  const issues = checkIssueTreeConsistency(FIXTURE as never)
-  expect(issues.length).toBeGreaterThan(0)   // fixture が何も出さないなら検査が成立していない
-  for (const issue of issues) expect(out.stdout).toContain(issue.message)
-})
-```
-
-**このテストは同時に、`derive.ts` / `canonical.ts` の型ストリップ import 経路を実際に読む唯一の実行テストでもある。**
-
-- [ ] **Step 8: Skill を実際に動かす**
-
-```bash
-cd .claude/skills/issue-tree-register && npm install
-cd - && node .claude/skills/issue-tree-register/scripts/new-id.mjs 2 --prefix hypothesis
-```
-Expected: `hypothesis_` で始まる10文字の ID が2行
-
-- [ ] **Step 9: 全体の検証と Commit**
-
-```bash
-npm test && npx tsc -b && npm run lint
-git add -A
-git commit -m "feat(issue-tree): 課題ツリー登録 Skill を同梱する"
-```
-
-**`.claude/skills/issue-tree-register/node_modules/` と `package-lock.json` はコミットに含めないこと**（`.gitignore` が効いていることを `git status --short` で確認する）。
-
----
-
-## Task 12: 読み方ガイド（`README-for-AI.md`）への追記
-
-**Files:**
-- Modify: `src/core/reading-guide.md`
-
-**Interfaces:**
-- Consumes: なし（静的テキスト。Vite の `?raw` import でバンドルへ入る）
-- Produces: プロジェクトフォルダへ配られるガイドの新しい原本
-
-**これが無いと、素の JSON を読む AI がドメイン規約を知る手段が無い。** スキーマの自己記述性は構造を説明するが、「未決を埋めてはいけない」「`pendingNotes` を勝手に昇格させない」といった**読み方の規約**は facet の docs にしかなく、ユーザーのプロジェクトフォルダには入っていない。
+**ガイドが無いと、素の JSON を読む AI がドメイン規約を知る手段が無い。** スキーマの自己記述性は構造を説明するが、「未決を埋めてはいけない」「`pendingNotes` を勝手に昇格させない」といった**読み方の規約**は facet の docs にしかなく、ユーザーのプロジェクトフォルダには入っていない。**モジュールが登録された時点で `issueTree` のファイルは実在しうる**ので、Skill（issue-tree-m2）を待たずにここで配る。
 
 - [ ] **Step 1: 「ファイルの見つけ方」を直す**
 
@@ -2850,7 +2351,7 @@ git commit -m "feat(issue-tree): 課題ツリー登録 Skill を同梱する"
 
 - [ ] **Step 3: 「ツール別の読み方」に節を足す**
 
-`### ロジックツリー（type: logicTree）` の後ろに置く（登録順に合わせる）。
+`### ロジックツリー（type: logicTree）` の後ろに置く（レジストリの登録順に合わせる）。
 
 ```markdown
 ### 課題ツリー（type: issueTree）
@@ -2858,78 +2359,15 @@ git commit -m "feat(issue-tree): 課題ツリー登録 Skill を同梱する"
 - **ステータスというフィールドは存在しない。** 仮説の現在の判断は `events`（追記専用の配列）の**最後の要素**の `kind` から読む。`events` が空＝まだ決めていない（未決）。`supported`＝検証して支持／`rejected`＝検証して棄却／`supportedWithoutTest`＝自明に成立／`rejectedWithoutTest`＝検証せず棄却／`deferred`＝今回見送り／`deferredToMainDev`＝本開発送り
 - **`events` は書き換えない。** 判断が覆ったときは新しいイベントを**足す**（過去の要素を直すと「そのとき何を根拠に決めたか」が消える）。同じ理由で、要素を削除したり並べ替えたりしない
 - 立つ問いは3つで、いずれも導出される: **子を持たない課題**に仮説が0件なら「仮説は？」／仮説の `events` が0件なら「検証結果は？」／`pendingNotes` が空でなければ「判断は？」
-- **課題ノードの `events`（見送り系2種）は、その課題と**配下すべて**の問いを止める。** 抑制は祖先を遡って計算されるので、**子に見送りをコピーしない**（親の見送りを解除したとき子が取り残される）
+- **課題ノードの `events`（見送り系2種）は、その課題と配下すべての問いを止める。** 抑制は祖先を遡って計算されるので、**子に見送りをコピーしない**（親の見送りを解除したとき子が取り残される）
 - **`pendingNotes` は「まだ判断に紐づいていない下書き」である。** レビュー中の発言などが入る。**ここにあるメモを、勝手に判断イベントの根拠へ昇格させない**——どれを公式の根拠に採るかは人間の選別であり、雑談メモを混ぜると「なぜそう決めたか」が汚れる
 - `rationale`（仮説の発想の由来）が空なのは未決ではない。**由来の欠落は仕様の穴ではない**ので、埋めるよう促さない
 - 課題＝観測された事実や、望む状態とのギャップ。仮説＝支持・棄却を判定できる主張。**ただし入力時に厳密な区別は求められていない**ので、どちらとも読める文があっても直さない
 ```
 
-- [ ] **Step 4: 「書き込みたくなったら」の Skill 名一覧に足す**
+**「書き込みたくなったら」の Skill 名一覧はまだ触らない**——`issue-tree-register` は次のマイルストーン（issue-tree-m2）で作る。**存在しない Skill を先に名指しすると、AI が探して見つからずに混乱する。**
 
-`glossary-term-register / error-catalog-register / sequence-register` の並びに `issue-tree-register` を足す。
-
-- [ ] **Step 5: 検証と Commit**
-
-Run: `npm test`
-Expected: `src/core/reading-guide.test.ts` が緑（ガイド全文は固定していないので、追記で落ちることはない。落ちたら先頭500文字の注意書きを壊している）
-
-```bash
-git add -A
-git commit -m "docs(reading-guide): 課題ツリーの読み方を README-for-AI に足す"
-```
-
----
-
-## Task 13: お手本（`sample-project/`）と `README.md`
-
-**Files:**
-- Create: `sample-project/課題ツリー.json`（**追跡対象**）
-- Modify: `README.md`
-
-**Interfaces:**
-- Consumes: Task 11 の Skill（お手本の生成に使う）
-- Produces: 4ツール → 5ツールに増えたお手本一式
-
-**題材は既存のお手本と同じ「中途採用の応募管理」の枠内にする。** 設計ノートのモックが使った「適性検査サービス連携PoC」はその中の1テーマなので、モックの内容をそのまま素材にできる（`docs/issue-tree/仮説検証モック.jsx` の `TREE` を読むこと）。
-
-- [ ] **Step 1: 下書きを作る**
-
-**下書きは対象プロジェクトフォルダの外に置く**（中に置くとアプリのファイル一覧に下書きが本物として並ぶ）。ID は必ず `node .claude/skills/issue-tree-register/scripts/new-id.mjs` で採番する。
-
-構成（モックの場面5まで進めた状態＋**わざと残す未決**）:
-
-| 課題 | 仮説 | 仕込み |
-| --- | --- | --- |
-| 適性検査サービス連携（PoCテーマ・根） | — | 中間ノード |
-| └ 適性検査APIの応答特性が要件を満たすか不明 | — | 中間ノード |
-| 　└ 結果取得を画面遷移の中で待てるか | 同期取得で間に合う／webhook受信に切り替える | `rejectedWithoutTest` ／ `supported`。**決着した葉** |
-| 　└ レート制限下で一括受検案内を捌けるか | 送信を夜間バッチに寄せる | `rejected`（棄却の学びが根拠に入る） |
-| 　└ 送信キューの平準化方式 | **なし** | **「仮説は？」が立つ** |
-| └ 受検結果の取り込みタイミングを決められない | 結果確定イベント起点だけでよい | `supportedWithoutTest` |
-| └ 再受検の扱い | — | **課題ノードに `deferred`。配下2件の問いが抑制される** |
-| 　└ 受検IDの再発行が要るか ／ スコアはどちらを正とするか | なし | 抑制されているので問いは立たない |
-| └ 結果表示画面に何を出すか | スコアはサマリのみで足りる | `deferredToMainDev` |
-| └ 受検案内の再送導線 | 応募者から再送依頼が来る前提でよい | **`events: []`（「検証結果は？」）＋ `pendingNotes` 1件（「判断は？」）** |
-
-**未決が3種類とも1件以上出る形にすること**——お手本の役目は「未決が warning として残る」を見せることであり、1種類だけでは3つの問いの違いが伝わらない。`rationale` は一部だけ埋める（**空でも warning が立たない**ことを見せるため）。
-
-- [ ] **Step 2: Skill で書き出す**
-
-```bash
-node .claude/skills/issue-tree-register/scripts/issue-tree-write.mjs --in <下書き.json> --out sample-project/課題ツリー.json
-```
-Expected: `✓ 正規形で書き出しました` と、未決の集計（`⚠ 未決 …`）が出る。**整合性の警告が出ていないこと**（お手本が壊れていては意味がない）。
-
-- [ ] **Step 3: 配列順を正規形に整える**
-
-Skill は配列順を並べ替えない（Task 11 Step 4）。**アプリで一度開いて自動保存させるか、下書きの時点で DFS 行きがけ順・仮説を課題順に並べておくこと。** どちらを採ったかを報告に書く。
-
-Run: `node .claude/skills/issue-tree-register/scripts/issue-tree-write.mjs --check sample-project/課題ツリー.json`
-Expected: `✓ 正規形と一致しています`
-
-- [ ] **Step 4: `README.md` を直す**
-
-1. 「入っているツール」の表に1行足す:
+- [ ] **Step 4: `README.md` の「入っているツール」の表に1行足す**
 
 ```markdown
 | **課題ツリー** | PoC で「試さないと分からないこと」の分解と、仮説・検証の履歴。**ステータスを持たず、追記だけで現在が決まる** | いくつでも | なし |
@@ -2937,7 +2375,9 @@ Expected: `✓ 正規形と一致しています`
 
 「状態遷移エディタが次の候補」の1文はそのままでよい。
 
-2. ツールごとの節を、ロジックツリーの後ろに足す（他の節と同じく `<!-- SCREENSHOT: ... -->` のコメントと `![...](docs/images/issue-tree-editor.png)` を置く。**画像そのものは人間が撮る**ので、Task 15 の確認項目に載せる）:
+- [ ] **Step 5: `README.md` にツールの節を足す**
+
+ロジックツリーの節の後ろ。他の節と同じく `<!-- SCREENSHOT: ... -->` のコメントと `![...](docs/images/issue-tree-editor.png)` を置く（**画像そのものは人間が撮る**ので Task 11 の確認項目に載せてある）。
 
 ```markdown
 ### 課題ツリー
@@ -2947,74 +2387,54 @@ Expected: `✓ 正規形と一致しています`
 問いは3つ立つ——葉の課題に仮説が無ければ「仮説は？」、仮説に検証の記録が無ければ「検証結果は？」、レビューのメモが判断に紐づかないまま残っていれば「判断は？」。**枝ごと見送った課題の配下では、この問いが立たなくなる**（見送りは最上位に一度だけ付け、配下への波及は毎回計算する）。
 ```
 
-3. 「お手本」の表に1行足す:
+**お手本（`sample-project/`）の表と、同梱 Skill の本数は触らない**——どちらも issue-tree-m2 の担当。
 
-```markdown
-| `課題ツリー.json` | 仮説が無い葉が1つ／検証結果が空の仮説が1つ／レビューのメモが判断に紐づかないまま残っている仮説が1つ。対比として、枝ごと「今回見送り」にした課題の配下は問いが立たない |
-```
+- [ ] **Step 6: 検証と Commit**
 
-4. 「同梱の Skill」の本数（3本→4本）と Skill 名の一覧に `issue-tree-register` を足す。
-
-- [ ] **Step 5: お手本が実際に開けることを確かめる**
+Run: `npm test`
+Expected: `src/core/reading-guide.test.ts` が緑（ガイド全文は固定していないので追記で落ちることはない。落ちたら先頭500文字の注意書きを壊している）
 
 ```bash
-node .claude/skills/issue-tree-register/scripts/issue-tree-write.mjs --check sample-project/課題ツリー.json
-```
-Expected: スキーマ検証 OK・正規形一致・整合性の警告なし・未決の内訳が3種類とも出る
-
-- [ ] **Step 6: Commit**
-
-```bash
-npm test && npx tsc -b && npm run lint
 git add -A
-git commit -m "docs(sample): 課題ツリーのお手本を足し README を5ツールに更新する"
+git commit -m "docs(issue-tree): 課題ツリーの読み方と README のツール表を足す"
 ```
 
 ---
 
-## Task 14: ドキュメントへの反映（マイルストーン完了時の3箇所）
+## Task 10: ドキュメントへの反映（マイルストーン完了時の3箇所）
 
 **Files:**
-- Create: `docs/history/issue-tree-m1-editor-and-skill.md`
+- Create: `docs/history/issue-tree-m1-editor.md`
 - Modify: `docs/open-issues.md`, `docs/overview-rev.md`, `docs/README.md`
 
 **Interfaces:**
-- Consumes: Task 1〜13 の結果
+- Consumes: Task 1〜9 の結果
 - Produces: 次の計画者が「正」として読む文書の更新
 
-**`overview-rev.md` への反映はこのコミットで済ませ、申し送りに TODO として残さない**（M4 の教訓。次の計画者は rev を正として読むため、反映漏れは設計と実装の食い違いとして伝播する）。
+**`overview-rev.md` への反映はこのコミットで済ませ、申し送りに TODO として残さない**（M4 の教訓）。
 
-- [ ] **Step 1: `docs/history/issue-tree-m1-editor-and-skill.md` を書く（追記専用・以後変えない）**
+- [ ] **Step 1: `docs/history/issue-tree-m1-editor.md` を書く（追記専用・以後変えない）**
 
 書くのは「そのとき何が起きたか」——実装で確定した事項・見つかった欠陥・実機確認の結果。**残件の一覧をここに書かない**（それは `open-issues.md` の仕事）。少なくとも次を含める:
 
-- キャンバス基盤をコアへ引き上げた判断と、その範囲（何を移し、何を各モジュールに残したか）
 - 主修飾キー＋`Enter` を「そのセルの主たる副操作」に写像した判断と、退けた代替案（`Shift+Tab` はキャンバスからの Tab 抜けに予約されている／コアにコマンドを増やす案）
 - **モックの色分けを採らなかった判断**（Tailwind 標準パレットが配色差し替えに追従しない／D8 が色を使わないと決めている、の2つの独立した根拠）
 - 抑制の見せ方を「薄くする」ではなく「地の色に落とす」にした理由（`opacity` は検算したコントラストを割る）
 - 「編集できるのは最新イベントの `note` だけ」にした判断
-- Task 15（実機確認）の結果。**未実施ならその旨を明記し、確認項目のチェックリストを空のまま残す**
+- 仮説カードの幅を導出せず固定にした判断（シーケンスのガター幅と同じ理由）
+- Task 11（実機確認）の結果。**未実施ならその旨を明記し、確認項目のチェックリストを空のまま残す**
 
 - [ ] **Step 2: `docs/open-issues.md` を編集する**
-
-**消すもの:**
-
-- **「キャンバスの土台が logic-tree と sequence で丸ごと複製されている」の項**（`[sequence-m1]` タグ。「小さな負債」の節）——Task 1・2 で解消した。**この項が末尾で触れている logic-tree 側の既知の穴3件**（モーダル中もホイール／ドラッグが生きている・ドラッグ中のアンマウントでリスナーが残る・`FOLLOW_MARGIN` の 8px ずれ）**は消えていない。** うち前者2件は他の項に独立して載っているので、**`FOLLOW_MARGIN` の 8px ずれの項のファイルパスを `src/core/canvas/` へ直すこと**（「挙動の穴」の節。移設でパスが変わったのに古いパスが残ると、探しても見つからない記録になる）
-
-**書き換えるもの（新規に足さない）:**
-
-- **「登録3 Skill は整合性検証の警告文言・計上規則を、アプリと独立に複製している」の項**（`[Skill]` タグ）——**4本になった。** `issue-tree-register` を列挙に足し、同じく smoke テストで縛られていることを書く
-- **「`palette-fit.mjs` が Node の型ストリップに依存している」の項**（`[Skill]` タグ）——同じ依存が `issue-tree-register`（`derive.ts` / `canonical.ts` を同ディレクトリから import）にもあることを列挙に足す
 
 **足すもの（`[issue-tree-m1]` タグを付ける）:**
 
 - **課題ノードの見送りにキーボード経路が無い**（`src/modules/issue-tree/IssueTreeEditor.tsx`）: 主修飾キー＋`Enter` は課題セルでは仮説の追加に割り当てたため、見送り（`deferred` / `deferredToMainDev`）はノードのボタンからしか付けられない。選定会議で数回だけ使う操作なのでキーを増やす側を優先しなかったが、**「キーでしか到達できない意味を残さない」の裏返しの穴**である
-- **登録 Skill に evals が無い**（`.claude/skills/issue-tree-register/`）: 既存3本は評価ハーネス（`evals/evals.json` / `grade.mjs` / fixtures）を持つが、issue-tree-register は持たない。**description の起動精度を測る手段が無い**ので、他 Skill と誤起動し合っていても気づけない
 - **フォーカスモードと選択ハイライト（D8）が未実装**（`src/modules/issue-tree/`）: 設計ノート D8 は「いまどの課題を説明中か」の共有を純粋なビュー状態で実現すると決めたが、本マイルストーンのスコープ IN には入っていない。**レビューで実際に困ってから作る**
 - **課題ツリーに Markdown 出力が無い**（`outputs: []`）: 設計ノートの OUT。**必要になるのは PoC 終盤**（結果を意思決定の場に持ち込むとき）で、それまでが観察期間
 - **仮説カードの幅が固定で、長い仮説は縦に伸びる**（`src/modules/issue-tree/measure.ts` の `CARD_WIDTH`）: 幅を導出しないことで木が階段状になるのを避けているが、**1枚のカードが極端に縦長になる形は実使用でしか分からない**
-- **課題ツリーの並び替えに「別の課題へ付け替える」手段が無い**（`moveHypothesis` は課題をまたがない）: 仮説を別の課題へ移したくなったら、消して作り直すしかない
-- Task 15 が未実施なら、**実機確認が未実施であること**を「次に手を付ける候補」へ1項目として足す（`history/` にだけ書くと幽霊になる）
+- **仮説を別の課題へ付け替える手段が無い**（`moveHypothesis` は課題をまたがない）: 移したくなったら消して作り直すしかない
+- **登録 Skill がまだ無い**（`issue-tree-register`）: issue-tree-m2 で作る。**それまでは AI がこの種類のファイルを手書きすることになる**ので、`README-for-AI.md` の「書き込みたくなったら」の一般規則（ランダム ID・キー順・インデント）だけが頼りになる
+- Task 11 が未実施なら、**実機確認が未実施であること**を「次に手を付ける候補」へ1項目として足す（`history/` にだけ書くと幽霊になる）
 
 **冒頭の「最終更新」の段落を更新すること**（何を消し何を足したかを書く形が既存の流儀）。
 
@@ -3023,8 +2443,7 @@ git commit -m "docs(sample): 課題ツリーのお手本を足し README を5ツ
 | 章 | 反映内容 |
 | --- | --- |
 | 2章 ツール一覧 | 課題ツリーを足す |
-| 6章 拡張要件 | **「キャンバス系ツールのレイアウト関数は当面モジュールが持つ（sequence M1 時点）」の項を書き換える。** ビューポート・測定層・フォント読み取り・平坦木の組み立て・木のレイアウトは `src/core/canvas/` へ引き上げた（3本目のキャンバスツールが来たのが判断の契機）。各モジュールに残るのは**箱の寸法定数と、そのツール固有の畳み方**（課題ツリーは「課題ノード＋仮説カード」を1ブロックにしてから木のレイアウトへ渡す）であること |
-| 9章 確定要素 | **測定層と描画層が同一のフォントトークンを参照する規約**の項に、実装が `src/core/canvas/canvas-font.ts` へ移ったことを反映する |
+| 6章 拡張要件 | M20 が書き換えた「キャンバス系ツールのレイアウト関数」の項に、**課題ツリーが3本目の実例として `core/canvas` に載った**ことと、モジュール側に残るもの（箱の寸法定数と、そのツール固有の畳み方——課題ツリーは「課題ノード＋仮説カード」を1ブロックにしてから木のレイアウトへ渡す）を足す |
 | 10章 キーボード操作 | **主修飾キー＋`Enter`（`toggle-item-state`）の写像がツールごとに違う**ことを明記する（シーケンス＝答えスロットの「考慮不要」／課題ツリー＝そのセルの主たる副操作）。「意味の解決はコアのまま、写像だけツール側」の適用例として、sequence M2 の項の近くに置く |
 
 **`rev N章` は 249 箇所から参照されている通称。ファイル名と章番号を動かさないこと。**
@@ -3042,7 +2461,7 @@ git commit -m "docs(sample): 課題ツリーのお手本を足し README を5ツ
 ```bash
 grep -rn "4つ|4ツール|4本" README.md docs/README.md src/core/reading-guide.md -E
 ```
-Expected: 出た行を1つずつ見て、ツールの本数を指しているものが残っていないこと（**別の意味の「4」もあるので、機械的に置換しない**）
+Expected: 出た行を1つずつ見て、ツールの本数を指しているものが残っていないこと（**別の意味の「4」もあるので機械的に置換しない**）
 
 ```bash
 grep -rn "issueTree" docs/overview-rev.md docs/README.md README.md src/core/reading-guide.md
@@ -3059,11 +2478,11 @@ git commit -m "docs(issue-tree): 申し送り・残件・rev・地図を issue-t
 
 ---
 
-## Task 15: 実機確認（**人間の作業**）
+## Task 11: 実機確認（**人間の作業**）
 
 **Files:** なし（確認のみ。見つかった欠陥は別タスクとして起こす）
 
-**サブエージェントは GUI を操作できない。このタスクは人間が行う。** Task 14 の申し送りは、この結果が出るまで「未実施」と明記したままにする。
+**サブエージェントは GUI を操作できない。このタスクは人間が行う。** Task 10 の申し送りは、この結果が出るまで「未実施」と明記したままにする。
 
 ```bash
 npm install        # 省略しない。マージが依存を増やしていることがある
@@ -3078,12 +2497,10 @@ npm run tauri dev
 - [ ] **6. 見送りの抑制**——課題ノードのボタンから「今回見送り」。**配下の問いが一斉に消え、面が地の色に落ちること。** 帯の集計がその分だけ減ること
 - [ ] **7. ズーム・パン**——`Ctrl+ホイール`／`Space+ドラッグ`／中ボタンドラッグ。**ドロップダウンを開いたままキャンバスを動かしても破綻しないこと**（sequence M3 の実機確認で見つかった形）
 - [ ] **8. 追従**——画面外に課題を足したとき、視点がそこへ寄ること
-- [ ] **9. 自動保存と外部変更**——アプリを開いたまま、別の窓で Skill を走らせて同じファイルを書き換え、トーストで読み直しが起きること
-- [ ] **10. Skill の実地**——**プロジェクトフォルダを開き直して `.claude/skills/issue-tree-register/` が置かれること**を確認したうえで、**そのフォルダで `npm install` を実行し、その後の状態でもう一度アプリを開いてフォルダを走査させる**（sequence M4 はこの一手で2つの欠陥を掘り当てた）。続けて Skill に会話から課題ツリーを組ませ、アプリで開けること
+- [ ] **9. 自動保存と外部変更**——アプリを開いたまま、別の窓でテキストエディタから同じファイルを書き換え、トーストで読み直しが起きること
+- [ ] **10. 壊れたファイルを開く**——循環・多重ルート・参照切れを含む JSON を手で置き、**開けること**と赤表示が出ること（レベル2は受け入れて開く）
 - [ ] **11. ライト／ダークの両方**で 3・6 の面の見分けがつくこと（未決＝`warning/10`、抑制＝地の色、エラー＝`warning/20`）
-- [ ] **12. 開発機と違う OS**（Windows で開発したなら mac、逆も同じ）で 1・10 を通す——`fs` scope の glob 判定は OS で既定が反転する（M11 / sequence M4 の実例）
+- [ ] **12. 開発機と違う OS**（Windows で開発したなら mac、逆も同じ）で 1〜3 を通す
 - [ ] **13. スクリーンショット**を撮って `docs/images/issue-tree-editor.png` に置く（README のコメントに撮り方を書いてある）
 
 **見つかったことは、症状（何が起きるか）と人間の言葉（何が嫌か）を分けて記録する。** 対策が症状ではなく言葉の方を消しているかを確かめること（sequence M3 の教訓）。
-
----
