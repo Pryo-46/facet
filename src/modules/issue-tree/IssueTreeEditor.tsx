@@ -38,6 +38,7 @@ import {
   addHypothesis,
   addHypothesisAfter,
   addPendingNote,
+  addPendingNoteAfter,
   addRootIssue,
   addSiblingIssueAfter,
   appendDeferral,
@@ -175,6 +176,14 @@ function KindMenu<K extends JudgementKind>(props: KindMenuProps<K>) {
             key={kind}
             onSelect={() => {
               picked.current = true
+              // **閉じるのを Radix に任せず、ここで先に閉じる。** あちらの
+              // 「選んだら閉じる」は選択イベントの後に走るので、それまでは
+              // `FocusScope` が focusin を捕まえてメニューの中へ引き戻す
+              // ——予約したフォーカスが当たった直後に奪われ、メニューが
+              // 消えると行き場を失う（`activeElement` が body に落ちる）。
+              // 同じ更新の中で閉じれば、レイヤの撤去と `FocusScope` の後始末が
+              // 先に済み、パッシブ効果のフォーカス予約が最後に当たる
+              props.onOpenChange(false)
               props.onPick(kind)
             }}
           >
@@ -468,9 +477,16 @@ export function IssueTreeEditor({
           return true
         }
         // 由来の Enter は「メモを1件足す」（移動先が無ければ生やす。sequence M2 の前例）。
-        // メモの Enter は次のメモ。**どちらも addPendingNote 1本で足りる**
-        if (cell.cell === 'rationale' || cell.cell === 'note') {
+        // **末尾に足すのはこちらだけ**——由来は間に差し込む欄ではない
+        if (cell.cell === 'rationale') {
           apply(addPendingNote(data, index))
+          return true
+        }
+        // メモの Enter は**押した位置の次**（コアのコマンド名どおり insert-item-after）。
+        // 末尾に足すと、3件の1件目で押したときに生まれるのは4件目になり、
+        // フォーカスがカードの一番下へ飛ぶ
+        if (cell.cell === 'note') {
+          apply(addPendingNoteAfter(data, index, cell.noteIndex))
           return true
         }
         // イベントの根拠から次を生やさない（イベントは追記操作でしか増えない）
@@ -726,7 +742,12 @@ export function IssueTreeEditor({
                 return (
                   <div
                     key={`defer:${key}:${eventIndex}`}
-                    className="absolute text-xs text-ink-muted"
+                    // **`overflow-hidden` を外さないこと。** 中身の高さは測定層が
+                    // 決めた値であり、ブラウザが測定より1行多く折り返したときに
+                    // ここが伸びると、レイアウトが予約したブロックを越えて
+                    // 下の仮説カードに重なる（HypothesisCard が各行の測定高さを
+                    // きっちり当てているのと同じ規律）
+                    className="absolute overflow-hidden text-xs text-ink-muted"
                     style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
                   >
                     {/* **`BADGE_HEIGHT` ちょうどで描く。** レイアウトはこの高さで
@@ -737,9 +758,13 @@ export function IssueTreeEditor({
                     >
                       {EVENT_KIND_LABELS[event.kind]}
                     </div>
+                    {/* 理由の行も測定した高さで固定する（`layout.ts` は
+                        `BADGE_HEIGHT + ROW_GAP + 理由の高さ` で矩形を作っている）。
+                        自動の高さのままだと、外側の `overflow-hidden` が無ければ
+                        ブロックを越えて伸びる欄になる */}
                     <div
                       className="overflow-hidden break-all whitespace-pre-wrap"
-                      style={{ marginTop: ROW_GAP }}
+                      style={{ marginTop: ROW_GAP, height: rect.height - BADGE_HEIGHT - ROW_GAP }}
                     >
                       {event.note}
                     </div>

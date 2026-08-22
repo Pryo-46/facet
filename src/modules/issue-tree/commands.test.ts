@@ -4,6 +4,7 @@ import {
   addChildIssue,
   addHypothesis,
   addPendingNote,
+  addPendingNoteAfter,
   addRootIssue,
   appendDeferral,
   appendJudgement,
@@ -202,6 +203,20 @@ describe('仮説とメモ', () => {
       ),
     }
   }
+
+  it('メモの直後に足すと、押した位置の次に入る（末尾ではない）', () => {
+    // **3件の真ん中で足す。** 末尾で足すと「末尾に足す実装」と結果が
+    // 区別できず、`addPendingNote` に写した実装でも緑になる
+    const next = addPendingNoteAfter(withNotes(), 0, 1)
+    expect(next.data.hypotheses[0].pendingNotes).toEqual(['A', 'B', '', 'C'])
+    expect(next.focus).toEqual({ cell: 'note', index: 0, noteIndex: 2 })
+  })
+
+  it('存在しないメモの直後には足せない', () => {
+    const d = withNotes()
+    expect(addPendingNoteAfter(d, 0, 9).data).toBe(d)
+    expect(addPendingNoteAfter(d, 99, 0).data).toBe(d)
+  })
 
   it('メモを上下に動かすと、フォーカスは動いた先を指す', () => {
     const d = withNotes()

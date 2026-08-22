@@ -201,6 +201,9 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     fireEvent.pointerDown(screen.getByRole('button', { name: '課題1を見送る' }), { button: 0 })
     fireEvent.click(await screen.findByRole('menuitem', { name: EVENT_KIND_LABELS.deferred }))
 
+    // 選んだ後は見送った課題のセルへフォーカスが戻る（`appendDeferral` の行き先）。
+    // Radix の既定に予約を奪われるとトリガーのボタンに残る
+    expect(document.activeElement).toBe(issueCell(1))
     expect(screen.queryByText(QUESTION_LABELS.result)).toBeNull()
     // 未決の集計も0になる（抑制された配下は勘定に入らない）
     expect(screen.getByText(tallyLine({ hypothesis: 0, result: 0, judgement: 0, total: 0 }))).toBeTruthy()
@@ -297,6 +300,54 @@ describe('IssueTreeEditor（仮説カードの操作）', () => {
     expect(next.hypotheses[0].events).toEqual([{ kind: 'rejected', note: '' }])
     // 構造の変更は履歴をまとめない（1操作1コミット）
     expect(onChange.mock.calls[0][1]).toBe(null)
+    // **追記した根拠の欄までフォーカスが来ること。** Radix の既定（閉じたら
+    // トリガーへ戻す）に予約を奪われると、選んだ直後に根拠が打てない
+    //（`KindMenu` の `picked` ref ＋ `onCloseAutoFocus` が塞いでいる機械）。
+    // **この経路の予約先は条件付きでしか描かれない**——`data-cell` を持つのは
+    // 最新イベントの根拠だけなので、外れると静かに壊れる
+    expect(document.activeElement).toBe(
+      screen.getByRole('textbox', { name: `仮説1 の${EVENT_KIND_LABELS.rejected}の根拠` }),
+    )
+  })
+
+  it('メモの Enter は押した位置の次に足す（末尾ではない）', () => {
+    const base = file()
+    const onChange = vi.fn()
+    render(
+      <Harness
+        initial={{
+          ...base,
+          hypotheses: [{ ...base.hypotheses[0], pendingNotes: ['A', 'B', 'C'] }],
+        }}
+        onChange={onChange}
+      />,
+    )
+    // **真ん中で押す**——末尾で押すと「末尾に足す実装」と結果が区別できない
+    expect(
+      fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のメモ2' }), { key: 'Enter' }),
+    ).toBe(false)
+    expect(onChange.mock.calls[0][0].hypotheses[0].pendingNotes).toEqual(['A', 'B', '', 'C'])
+  })
+
+  it('メモの Alt+↑ で並びが入れ替わる（写像が noteIndex と向きを正しく渡す）', () => {
+    const base = file()
+    const onChange = vi.fn()
+    render(
+      <Harness
+        initial={{
+          ...base,
+          hypotheses: [{ ...base.hypotheses[0], pendingNotes: ['A', 'B', 'C'] }],
+        }}
+        onChange={onChange}
+      />,
+    )
+    expect(
+      fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のメモ2' }), {
+        key: 'ArrowUp',
+        altKey: true,
+      }),
+    ).toBe(false)
+    expect(onChange.mock.calls[0][0].hypotheses[0].pendingNotes).toEqual(['B', 'A', 'C'])
   })
 
   it('空欄の仮説を Backspace で消すと、持ち主の課題へフォーカスが返る', () => {
