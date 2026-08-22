@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { badgeClass } from './badge-styles'
 import {
@@ -277,6 +278,13 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
           issues: base.issues.map((n, i) =>
             i === 1 ? { ...n, events: [{ kind: 'deferred', note: '初回フローの成立が先' }] } : n,
           ),
+          // **見送った課題2に直接ぶら下がる仮説を足す。** 既存の仮説1は課題3
+          //（＝配下）にぶら下がっており、自己包含でも祖先由来でも薄くなるので、
+          // 「行だけは自己包含で薄くする」という今回の設計の要を突けない
+          hypotheses: [
+            ...base.hypotheses,
+            { id: H(2), issueId: I(2), text: '通知は後追いで足せる', rationale: '', events: [], pendingNotes: [] },
+          ],
         }}
       />,
     )
@@ -294,10 +302,83 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     // 配下（課題3）は薄い枠と薄い文字に落ちる
     expect(boxOf(3).className).toContain('border-ink-faint')
     expect(boxOf(3).className).toContain('text-ink-faint')
-    // **箱の中の仮説行は薄いまま**（「その課題はもう追わない」は配下の仮説にも及ぶ）
-    const row = screen.getByRole('button', { name: '仮説1を開く' })
-    const badge = row.querySelector('[class*="inline-flex"]')
-    expect((badge as HTMLElement).className).toBe(badgeClass('open', true))
+    // **箱の中の仮説行は薄いまま**（「その課題はもう追わない」は配下の仮説にも及ぶ）。
+    // 箱の面は通常に戻したので、行が箱から色を継承していると薄くならない
+    const rowBadgeClass = (n: number): string => {
+      const row = screen.getByRole('button', { name: `仮説${n}を開く` })
+      const badge = row.querySelector('[class*="inline-flex"]')
+      if (badge === null) throw new Error(`仮説${n}のバッジが無い`)
+      return (badge as HTMLElement).className
+    }
+    // 仮説2 は**見送った課題2に直接**ぶら下がる（ここが分割の要。箱と同じ配列を
+    // 行にも渡すと、この行だけが濃くなる）
+    expect(rowBadgeClass(2)).toBe(badgeClass('open', true))
+    // 仮説1 は配下の課題3 にぶら下がる
+    expect(rowBadgeClass(1)).toBe(badgeClass('open', true))
+  })
+
+  /**
+   * **見送りが入れ子になっている木**。修正ラウンド1 で「祖先由来の抑制」を
+   * 「自分が見送っていない」（`node.events.length === 0`）で代用してしまい、
+   * **C が B の配下なのに通常の面へ戻る**退行を出した——薄い D の上に濃い C が
+   * 挟まり、B→C の線まで実線になっていた。既存のテストは見送りが1段しか無く、
+   * 素通りした。
+   *
+   * 正しい規則は2つの重ね合わせである:
+   *
+   * - 見送りを**掲げている当人**（B）は通常どおり描く。入る線も実線
+   * - **祖先のいずれかが見送っている**課題（C・D）は、自分が見送っていようと
+   *   いまいと薄い。入る線も破線
+   */
+  it('見送りが入れ子でも、配下は薄いまま（自分も見送っている C が濃く戻らない）', () => {
+    const nested: IssueTreeSchemaVersion2 = {
+      schemaVersion: 2,
+      type: 'issueTree',
+      title: 'テスト',
+      issues: [
+        { id: I(1), parentId: null, text: 'A 通常', events: [] },
+        { id: I(2), parentId: I(1), text: 'B 見送り', events: [{ kind: 'deferred', note: '今回は追わない' }] },
+        {
+          id: I(3),
+          parentId: I(2),
+          text: 'C 見送り',
+          events: [{ kind: 'deferredToMainDev', note: '本開発で扱う' }],
+        },
+        { id: I(4), parentId: I(3), text: 'D 通常', events: [] },
+      ],
+      hypotheses: [],
+    }
+    const { container } = render(<Harness initial={nested} />)
+    const boxOf = (n: number): HTMLElement => {
+      const box = issueCell(n).closest('[class*="pointer-events-auto"]')
+      if (box === null) throw new Error(`課題${n}の箱が無い`)
+      return box as HTMLElement
+    }
+    // A（根）と B（見送りを掲げている当人）は通常の面
+    expect(boxOf(1).className).not.toContain('ink-faint')
+    expect(boxOf(2).className).not.toContain('ink-faint')
+    // **C は自分も見送っているが、B の配下なので薄い**（ここが退行した箇所）
+    expect(boxOf(3).className).toContain('border-ink-faint')
+    expect(boxOf(4).className).toContain('border-ink-faint')
+
+    // 線も同じ境目で切り替わる。**B→C が実線に戻っていないこと**
+    const built = buildTree(nested.issues)
+    const keys = new Map<number, string>()
+    const collect = (node: FlatTreeNode): void => {
+      keys.set(node.index, node.key)
+      for (const child of node.children) collect(child)
+    }
+    for (const root of built.roots) collect(root)
+    const dashOf = (parent: number, child: number): string | null => {
+      const edge = container.querySelector(
+        `[data-edge="${keys.get(parent)}->${keys.get(child)}"]`,
+      )
+      if (edge === null) throw new Error(`課題${parent + 1}→課題${child + 1} の線が無い`)
+      return edge.getAttribute('stroke-dasharray')
+    }
+    expect(dashOf(0, 1)).toBeNull() // A→B は実線
+    expect(dashOf(1, 2)).toBe('4 3') // B→C は破線
+    expect(dashOf(2, 3)).toBe('4 3') // C→D は破線
   })
 
   it('見送った課題はバッジと理由の欄を持ち、打つと最新の見送りの note が変わる', () => {

@@ -27,8 +27,9 @@ const fonts = {
  * 1つずれていても緑になる。
  *
  * 見送り（`deferred`）は**子Aに付ける**——根でも葉でもない位置に置くことで、
- * 抑制が「祖先を遡る導出」であること（子Aへ入る線・孫へ入る線の両方が
- * 破線になり、子B・子Cの枝はそのまま）が見える。
+ * 抑制が「祖先を遡る導出」であることが見える。**破線になるのは配下へ入る線だけ**
+ *（孫へ入る線は破線、見送りを掲げている子A自身へ入る線は実線のまま、
+ * 子B・子Cの枝はそのまま）。
  *
  * 課題0（根）にだけ仮説カードを2枚ぶら下げてある。カードはブロックの高さと
  * 幅を押し広げるので、**線がブロックの矩形から引かれていれば座標が変わる。**
@@ -60,7 +61,10 @@ const suppressedIds = suppressedIssueIds(data.issues)
  * ここで自己包含のまま渡すと、部品は正しいのに画面だけがモックと食い違う
  */
 const suppressed = data.issues.map(
-  (node) => suppressedIds.has(node.id) && node.events.length === 0,
+  // **「自分が見送っていない」で代用しない**（入れ子の見送りで壊れる。
+  // `IssueTreeEditor.tsx` の `inheritedSuppressed` の解説）。親が
+  // 「自分または祖先が見送り」の集合に居れば、その子は祖先由来で抑制される
+  (node) => node.parentId !== null && suppressedIds.has(node.parentId),
 )
 
 /** 添字 → 木の同一性の鍵（`key` は id ではないので、木から引き当てる） */

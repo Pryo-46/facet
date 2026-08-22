@@ -380,7 +380,8 @@ export function IssueTreeEditor({
   /** 自分自身の見送りを含む抑制（`derive.ts` の導出そのまま）。**箱の中の仮説行はこちら** */
   const issueSuppressed = data.issues.map((node) => suppressedIds.has(node.id))
   /**
-   * **祖先由来の抑制だけ**（見送りを掲げている当の課題を除く）。箱の面とエッジはこちら。
+   * **祖先のいずれかが見送っている課題**（自分が見送っているかは問わない）。
+   * 箱の面とエッジはこちら。
    *
    * 俯瞰モックの規則は「**見送りを掲げている当の課題は通常どおり描く。薄くなるのは
    * 配下だけ**」である（`俯瞰.html` の見送り箱は `class="issue"` で `faint` を持たず、
@@ -388,11 +389,22 @@ export function IssueTreeEditor({
    * 表明**であって「もう見なくてよい枝」ではない——薄くすると、誰が何を落としたのかが
    * 図から読めなくなる。
    *
+   * **「自分が見送っていない」（`node.events.length === 0`）で代用してはならない。**
+   * それは「祖先由来」ではない。見送りが入れ子になったとき——A（通常）→ B（見送り）
+   * → C（見送り）→ D——C は B の配下なのに「自分も見送っている」というだけで通常の面に
+   * 戻り、**薄い D の上に濃い C が挟まる**（B→C の線も実線になる）。実際に一度そう書いて
+   * 退行させた。
+   *
+   * `suppressedIssueIds` は既に「自分または祖先が見送り」を畳んでいるので、
+   * **親がその集合に居るか**を見れば「祖先のいずれかが見送り」になる。親が図に
+   * 実在しない課題（参照切れ）は抑制されない——`suppressedIssueIds` が親を辿れずに
+   * 打ち切るのと同じ扱いで、赤表示は整合性検証が別に出す。
+   *
    * **`suppressedIssueIds` と `poseQuestions` は触らない。** あちらの自己包含は
    * 「見送った課題自身に『仮説なし』を立てない」ために必要で、集計もそれに乗っている
    */
   const inheritedSuppressed = data.issues.map(
-    (node, i) => issueSuppressed[i] && node.events.length === 0,
+    (node) => node.parentId !== null && suppressedIds.has(node.parentId),
   )
 
   /** フォーカス移動のときに「見えるところまで寄せる」ための矩形。data-cell 鍵で引く */
