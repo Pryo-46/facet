@@ -240,6 +240,3 @@ export const BADGE_LABELS: Record<BadgeGroup, string> = {
 
 /** 課題側（見送りの2種）のバッジ。仮説の5語と独立に変えられるよう別名 */
 export const ISSUE_DEFERRED_LABEL = '見送り'
-
-/** 抑制された配下に添える1文（「なぜここには問いが無いのか」の説明） */
-export const SUPPRESSED_NOTE = '祖先の見送りにより問いは立たない（導出。子に値は持たない）'

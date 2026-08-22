@@ -1,21 +1,45 @@
 import { describe, expect, it } from 'vitest'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
-import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
+import type { Hypothesis, IssueNode, IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { poseQuestions } from './derive'
-import { CARD_INDENT, CARD_WIDTH } from './measure'
-import { layoutIssueTree } from './layout'
+import { layoutIssueTree, type IssueTreeFonts } from './layout'
+import { BOX_WIDTH, ISSUE_MIN_WIDTH } from './measure'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
 
-const fonts = { body: { measure: createEstimateMeasurer(14), lineHeight: 23 }, small: { measure: createEstimateMeasurer(12), lineHeight: 18 } }
+/**
+ * 測定は決定的な概算器で行う。**太字（title）の概算は細字と同じでよい**
+ *——ここで見るのは寸法どうしの関係であって実寸ではない
+ */
+const fonts: IssueTreeFonts = {
+  title: { measure: createEstimateMeasurer(14), lineHeight: 23 },
+  body: { measure: createEstimateMeasurer(14), lineHeight: 23 },
+  small: { measure: createEstimateMeasurer(12), lineHeight: 18 },
+}
 
-function run(data: IssueTreeSchemaVersion2) {
-  return layoutIssueTree(data, poseQuestions(data), fonts)
+function run(data: IssueTreeSchemaVersion2, expandedIndex = -1) {
+  return layoutIssueTree(data, poseQuestions(data), fonts, expandedIndex)
 }
 
 function make(over: Partial<IssueTreeSchemaVersion2>): IssueTreeSchemaVersion2 {
   return { schemaVersion: 2, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
+}
+
+const root: IssueNode = { id: I(0), parentId: null, text: '結果取得を画面遷移の中で待てるか', events: [] }
+const child: IssueNode = { id: I(1), parentId: I(0), text: '待てないなら何を先に返すか', events: [] }
+
+/** `root` にぶら下がる仮説1件 */
+function h(n: number, over: Partial<Hypothesis> = {}): Hypothesis {
+  return {
+    id: H(n),
+    issueId: I(0),
+    text: `仮説${n}の文言`,
+    rationale: '',
+    events: [],
+    pendingNotes: [],
+    ...over,
+  }
 }
 
 describe('layoutIssueTree', () => {
@@ -24,61 +48,120 @@ describe('layoutIssueTree', () => {
     expect(run(data)).toEqual(run(data))
   })
 
-  it('仮説カードは課題ノードの下に字下げして積まれる', () => {
-    const data = make({
-      issues: [
-        { id: I(0), parentId: null, text: '結果取得を画面遷移の中で待てるか', events: [] },
-        { id: I(1), parentId: I(0), text: '待てないなら何を先に返すか', events: [] },
-      ],
-      hypotheses: [
-        { id: H(1), issueId: I(0), text: '同期取得で間に合う', rationale: '', events: [], pendingNotes: [] },
-        { id: H(2), issueId: I(0), text: 'webhook受信に切り替える', rationale: '', events: [], pendingNotes: [] },
-      ],
-    })
+  it('仮説を持つ課題の箱は BOX_WIDTH で、仮説は箱の中の行として1行ずつ積まれる', () => {
+    // 仮説3件。2件だと「末尾」と「先頭」の取り違えが検知できない
+    const data = make({ issues: [root], hypotheses: [h(1), h(2), h(3)] })
     const out = run(data)
-    const node = out.issues[0]!.rect
-    const [a, b] = [out.hypotheses[0]!.rect, out.hypotheses[1]!.rect]
-    expect(a.x).toBe(node.x + CARD_INDENT)
-    expect(a.width).toBe(CARD_WIDTH)
-    expect(a.y).toBeGreaterThan(node.y + node.height - 1)
-    expect(b.y).toBeGreaterThan(a.y + a.height - 1)
-    // カードの幅はブロックの幅に効く（列の x は深さごとのブロック幅の最大で
-    // 決まるので、ここを数え落とすと**子の列がカードの上に乗る**）
-    expect(out.issues[1]!.rect.x).toBeGreaterThanOrEqual(b.x + b.width)
+    const box = out.issues[0]!.rect
+    expect(box.width).toBe(BOX_WIDTH)
+    const rows = out.hypotheses.map((p) => p!.rect)
+    // 箱の中に収まる
+    for (const r of rows) {
+      expect(r.x).toBeGreaterThanOrEqual(box.x)
+      expect(r.x + r.width).toBeLessThanOrEqual(box.x + box.width)
+      expect(r.y + r.height).toBeLessThanOrEqual(box.y + box.height)
+    }
+    // 1行ずつ（畳まれた行の高さは本文の行送り）。並びは配列順
+    expect(rows.map((r) => r.height)).toEqual([
+      fonts.body.lineHeight,
+      fonts.body.lineHeight,
+      fonts.body.lineHeight,
+    ])
+    expect(rows[1].y).toBeGreaterThan(rows[0].y)
+    expect(rows[2].y).toBeGreaterThan(rows[1].y)
+    // タイトルの下に来る
+    expect(rows[0].y).toBeGreaterThanOrEqual(out.issues[0]!.title.y + out.issues[0]!.title.height)
+    // 文言の右にバッジの場所が空く（重ねない）
+    const first = out.hypotheses[0]!
+    expect(first.badge.x).toBeGreaterThanOrEqual(first.text.x + first.text.width)
+    expect(first.badge.x + first.badge.width).toBeLessThanOrEqual(box.x + box.width)
   })
 
-  it('問いが立っている仮説にだけバッジの場所が確保される', () => {
-    const data = make({
-      issues: [{ id: I(0), parentId: null, text: '根', events: [] }],
-      hypotheses: [
-        { id: H(1), issueId: I(0), text: '未決の仮説', rationale: '', events: [], pendingNotes: [] },
-        { id: H(2), issueId: I(0), text: '決着した仮説', rationale: '', events: [{ kind: 'supported', note: '' }], pendingNotes: [] },
-      ],
-    })
-    const out = run(data)
-    expect(out.hypotheses[0]!.badge).not.toBe(null)
-    expect(out.hypotheses[1]!.badge).toBe(null)
+  it('仮説を持たない課題の箱はタイトルの自然幅（ロジックツリーと同じ）', () => {
+    const out = run(make({ issues: [{ ...root, text: '短い' }] }))
+    expect(out.issues[0]!.rect.width).toBeLessThan(BOX_WIDTH)
+    expect(out.issues[0]!.rect.width).toBeGreaterThanOrEqual(ISSUE_MIN_WIDTH)
   })
 
-  it('イベントは種類ラベルの行と根拠の行を持つ', () => {
+  it('展開した仮説だけパネルを持ち、箱はその分だけ高くなる', () => {
     const data = make({
-      issues: [{ id: I(0), parentId: null, text: '根', events: [] }],
+      issues: [root],
       hypotheses: [
-        {
-          id: H(1),
-          issueId: I(0),
-          text: '仮説',
-          rationale: '',
-          events: [{ kind: 'rejected', note: '制限は日次でなく分単位窓と判明。夜間に寄せても超過する' }],
-          pendingNotes: [],
-        },
+        h(1),
+        h(2, {
+          rationale: '由来',
+          pendingNotes: ['FB1', 'FB2'],
+          events: [
+            { kind: 'supported', note: '根拠' },
+            { kind: 'rejected', note: '覆った' },
+          ],
+        }),
+        h(3),
       ],
     })
-    const card = run(data).hypotheses[0]!
-    expect(card.events).toHaveLength(1)
-    expect(card.events[0].note.y).toBeGreaterThan(card.events[0].label.y)
-    // 根拠は字下げされる
-    expect(card.events[0].note.x).toBeGreaterThan(card.rect.x)
+    const folded = run(data)
+    const open = run(data, 1)
+    expect(folded.hypotheses[1]!.expanded).toBeNull()
+    const p = open.hypotheses[1]!.expanded!
+    expect(p.previous).toHaveLength(1) // events 2件 → 以前の判断は1件
+    expect(p.previousLabel).not.toBeNull()
+    expect(p.notes.cells).toHaveLength(2)
+    expect(open.issues[0]!.rect.height).toBeGreaterThan(folded.issues[0]!.rect.height)
+    // 展開していない隣の行は動かない（上の行）／下の行は押し下げられる
+    expect(open.hypotheses[0]!.rect.y).toBe(folded.hypotheses[0]!.rect.y)
+    expect(open.hypotheses[2]!.rect.y).toBeGreaterThan(folded.hypotheses[2]!.rect.y)
+    // パネルの矩形は行の矩形の中
+    expect(p.panel.y + p.panel.height).toBeLessThanOrEqual(
+      open.hypotheses[1]!.rect.y + open.hypotheses[1]!.rect.height,
+    )
+    // 節は上から 判断 → 以前の判断 → 由来 → FB の順
+    expect(p.previousLabel!.y).toBeGreaterThan(p.judgement.label.y)
+    expect(p.rationale.label.y).toBeGreaterThan(p.previous[0].note.y)
+    expect(p.notes.label.y).toBeGreaterThan(p.rationale.cell.y)
+    expect(p.notes.add.y).toBeGreaterThan(p.notes.cells[1].y)
+    // 判断の行はバッジ・根拠・トリガーが横に並ぶ（重ならない）
+    expect(p.judgement.note.x).toBeGreaterThanOrEqual(p.judgement.badge.x + p.judgement.badge.width)
+    expect(p.judgement.trigger.x).toBeGreaterThanOrEqual(
+      p.judgement.note.x + p.judgement.note.width,
+    )
+  })
+
+  it('イベントが1件だけの仮説には「以前の判断」の節が出ない', () => {
+    const data = make({
+      issues: [root],
+      hypotheses: [h(1, { events: [{ kind: 'supported', note: '実測' }] })],
+    })
+    const p = run(data, 0).hypotheses[0]!.expanded!
+    expect(p.previous).toEqual([])
+    expect(p.previousLabel).toBeNull()
+  })
+
+  it('展開した仮説の文言は折り返した高さになる（畳むと1行）', () => {
+    const long = 'あ'.repeat(60)
+    const data = make({ issues: [root], hypotheses: [h(1, { text: long })] })
+    expect(run(data).hypotheses[0]!.text.height).toBe(fonts.body.lineHeight)
+    expect(run(data, 0).hypotheses[0]!.text.height).toBeGreaterThan(fonts.body.lineHeight)
+  })
+
+  it('見送った課題はタイトル行の右端にバッジ、その下に理由の行を持つ', () => {
+    const data = make({
+      issues: [{ ...root, events: [{ kind: 'deferredToMainDev', note: '通知は本開発で扱う' }] }],
+    })
+    const p = run(data).issues[0]!
+    expect(p.deferral).not.toBeNull()
+    expect(p.deferral!.badge.x).toBeGreaterThanOrEqual(p.title.x + p.title.width)
+    expect(p.deferral!.reason.y).toBeGreaterThanOrEqual(p.title.y + p.title.height)
+    expect(p.rect.width).toBe(BOX_WIDTH)
+    // バッジは箱の中（右端からはみ出さない）
+    expect(p.deferral!.badge.x + p.deferral!.badge.width).toBeLessThanOrEqual(p.rect.x + p.rect.width)
+  })
+
+  it('子の列は親の箱の右端より右に置かれる（箱の幅がブロックの幅に効く）', () => {
+    const data = make({ issues: [root, child], hypotheses: [h(1), h(2)] }) // h は root に
+    const out = run(data)
+    expect(out.issues[1]!.rect.x).toBeGreaterThanOrEqual(
+      out.issues[0]!.rect.x + out.issues[0]!.rect.width,
+    )
   })
 
   it('子の課題は親より右の列に置かれ、親のブロックとは重ならない', () => {
@@ -94,32 +177,31 @@ describe('layoutIssueTree', () => {
       ],
     })
     const out = run(data)
-    const [root, a, g, b, c] = out.issues.map((p) => p!.rect)
-    expect(a.x).toBeGreaterThan(root.x)
+    const [rootRect, a, g, b, c] = out.issues.map((p) => p!.rect)
+    expect(a.x).toBeGreaterThan(rootRect.x)
     expect(g.x).toBeGreaterThan(a.x)
     expect(b.y).toBeGreaterThan(a.y)
     expect(c.y).toBeGreaterThan(b.y)
   })
 
-  it('仮説カードの高さは兄弟の間隔に効く（次の兄弟はカードの下に来る）', () => {
-    // ブロック（課題ノード＋ぶら下がるカード）の高さを木のレイアウトへ渡して
-    // いることを見る。カードの高さを数え落とすと、次の兄弟がカードに重なる
+  it('展開した仮説の高さは兄弟の間隔に効く（次の兄弟はその下に来る）', () => {
+    // ブロック（＝箱）の高さを木のレイアウトへ渡していることを見る。
+    // 展開したぶんを数え落とすと、次の兄弟がパネルに重なる
     const data = make({
       issues: [
         { id: I(0), parentId: null, text: '根', events: [] },
         { id: I(1), parentId: I(0), text: '結果取得を画面遷移の中で待てるか', events: [] },
         { id: I(2), parentId: I(0), text: '再受検の扱い', events: [] },
-        { id: I(3), parentId: I(0), text: '通知の宛先をどこから引くか', events: [] },
       ],
       hypotheses: [
-        { id: H(1), issueId: I(1), text: '同期取得で間に合う', rationale: '既存の応答は概ね一秒以内', events: [], pendingNotes: [] },
-        { id: H(2), issueId: I(1), text: '受信を待つ作りに切り替える', rationale: '', events: [], pendingNotes: ['採否は次回の設計会で決める'] },
+        { ...h(1), issueId: I(1), pendingNotes: ['採否は次回の設計会で決める'] },
+        { ...h(2), issueId: I(1) },
       ],
     })
-    const out = run(data)
-    const lastCard = out.hypotheses[1]!.rect
+    const out = run(data, 0)
+    const box = out.issues[1]!.rect
     const next = out.issues[2]!.rect
-    expect(next.y).toBeGreaterThan(lastCard.y + lastCard.height - 1)
+    expect(next.y).toBeGreaterThan(box.y + box.height - 1)
   })
 
   it('循環して根から到達できない課題は位置を持たない（図に描かれない）', () => {
@@ -136,21 +218,13 @@ describe('layoutIssueTree', () => {
     expect(out.issues[2]).toBe(null)
   })
 
-  it('見送りイベントは課題ノードの直下に行を持ち、抑制された子には説明の行が出る', () => {
+  it('ぶら下がり先が図に無い仮説は位置を持たない', () => {
     const data = make({
-      issues: [
-        { id: I(0), parentId: null, text: '再受検の扱い', events: [{ kind: 'deferred', note: '初回受検フローの成立が先' }] },
-        { id: I(1), parentId: I(0), text: '受検IDの再発行が要るか', events: [] },
-      ],
+      issues: [{ id: I(0), parentId: null, text: '根', events: [] }],
+      hypotheses: [h(1), { ...h(2), issueId: I(9) }],
     })
     const out = run(data)
-    expect(out.issues[0]!.deferrals).toHaveLength(1)
-    expect(out.issues[0]!.suppressedNote).toBe(null) // 自分が見送りを持つ側には出さない
-    expect(out.issues[1]!.deferrals).toEqual([])
-    expect(out.issues[1]!.suppressedNote).not.toBe(null)
-    // 見送りの行もブロックの幅に効く（課題ノードより横に長いので、
-    // 数え落とすと子の列が見送りの行の上に乗る）
-    const defRect = out.issues[0]!.deferrals[0]
-    expect(out.issues[1]!.rect.x).toBeGreaterThanOrEqual(defRect.x + defRect.width)
+    expect(out.hypotheses[0]).not.toBe(null)
+    expect(out.hypotheses[1]).toBe(null)
   })
 })

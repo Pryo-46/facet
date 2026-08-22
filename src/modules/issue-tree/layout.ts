@@ -3,47 +3,96 @@ import { layoutTree, type Size } from '@/core/canvas/tree-layout'
 import type { Rect } from '@/core/canvas/viewport'
 import { wrapWithin, type MeasureWidth } from '@/core/canvas/wrap'
 import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
-import { SUPPRESSED_NOTE, suppressedIssueIds, type PosedQuestions } from './derive'
 import {
+  badgeGroupOf,
+  BADGE_LABELS,
+  EVENT_KIND_LABELS,
+  hypothesisStatus,
+  ISSUE_DEFERRED_LABEL,
+  QUESTION_LABELS,
+  type PosedQuestions,
+} from './derive'
+import {
+  ACTION_HEIGHT,
+  ACTION_INSET_X,
+  BADGE_BORDER,
+  BADGE_GAP,
   BADGE_HEIGHT,
-  CARD_CONTENT_WIDTH,
-  CARD_GAP,
-  CARD_INDENT,
-  CARD_INSET_X,
-  CARD_INSET_Y,
-  CARD_WIDTH,
+  BADGE_PADDING_X,
+  BOX_CONTENT_WIDTH,
+  BOX_WIDTH,
   ISSUE_INSET_X,
   ISSUE_INSET_Y,
   ISSUE_MAX_WIDTH,
   ISSUE_MIN_WIDTH,
+  PANEL_CONTENT_WIDTH,
+  PANEL_GAP,
+  PANEL_INDENT,
+  PANEL_INSET_X,
+  PANEL_INSET_Y,
   ROW_GAP,
   ROW_INDENT,
+  SECTION_GAP,
+  TITLE_GAP,
 } from './measure'
 
-/** 本文（text-sm）と小さい文字（text-xs）の測定器。エディタが DOM から作る */
+/** 1つのフォント階級の測定器。エディタが DOM の見本から作る */
+export interface IssueTreeFont {
+  measure: MeasureWidth
+  lineHeight: number
+}
+
 export interface IssueTreeFonts {
-  body: { measure: MeasureWidth; lineHeight: number }
-  small: { measure: MeasureWidth; lineHeight: number }
+  /** 課題のタイトル（text-sm font-semibold）。太字は幅が変わるので独立に測る */
+  title: IssueTreeFont
+  /** 仮説の文言・根拠・由来・FB（text-sm） */
+  body: IssueTreeFont
+  /** 節の見出し・見送りの理由・バッジ（text-xs） */
+  small: IssueTreeFont
 }
 
 export interface IssuePlacement {
-  /** 課題ノードの矩形（世界座標） */
+  /** 箱の外枠（世界座標）。エッジはここから引く */
   rect: Rect
-  /** 見送りイベントの行（世界座標。読み取り専用の表示） */
-  deferrals: Rect[]
-  /** 「祖先の見送りにより問いは立たない」の1行。抑制されていなければ null */
-  suppressedNote: Rect | null
+  /** タイトルの入力欄（箱の中。バッジがあればその幅だけ右が空く） */
+  title: Rect
+  /** 最新の見送り。バッジはタイトル行の右端、理由はその下の1行（最新だけ編集できる） */
+  deferral: { badge: Rect; reason: Rect } | null
+}
+
+/** 展開パネルの中身。畳まれている行は持たない */
+export interface HypothesisPanel {
+  panel: Rect
+  /**
+   * 「判断」節。最新イベントのバッジ＋根拠（編集可）＋種別を選ぶトリガー。
+   * **イベント0件でもトリガーのために節は出る**——出さないと、マウスで
+   * 判断を付ける動線が展開した仮説から消える
+   */
+  judgement: { label: Rect; badge: Rect; note: Rect; trigger: Rect }
+  /**
+   * 「以前の判断」の見出し。1件も無ければ null（節ごと出ない）。
+   *
+   * **`previous` の配列とは別に持つ。** 見出しの場所を部品が
+   * 「先頭行の上」から逆算すると、節の組み方（`SECTION_GAP`）が
+   * レイアウトと部品の2箇所に散る
+   */
+  previousLabel: Rect | null
+  /** 「以前の判断」。`events[0 .. length-2]` の順。読み取り専用 */
+  previous: { badge: Rect; note: Rect }[]
+  rationale: { label: Rect; cell: Rect }
+  /** FB（`pendingNotes`）。`cells` は同じ添字。`add` は「＋ FB」のボタン行 */
+  notes: { label: Rect; cells: Rect[]; add: Rect }
 }
 
 export interface HypothesisPlacement {
-  /** カードの外枠 */
+  /** 行（畳まれていれば1行。展開していれば文言＋パネルの全体） */
   rect: Rect
+  /** 文言。畳まれていれば `body.lineHeight` ちょうどの1行（CSS で省略）。展開していれば折り返した高さ */
   text: Rect
-  /** 立っている問いのバッジ。立っていなければ null */
-  badge: Rect | null
-  rationale: Rect
-  notes: Rect[]
-  events: { label: Rect; note: Rect }[]
+  /** 状態のバッジ（行末。高さ `BADGE_HEIGHT`） */
+  badge: Rect
+  /** 展開パネル。畳まれていれば null */
+  expanded: HypothesisPanel | null
 }
 
 export interface IssueTreeLayout {
@@ -55,8 +104,33 @@ export interface IssueTreeLayout {
   height: number
 }
 
-/** カード内の1行を測る（余白はカードが1度だけ持つので、ここでは 0） */
-function rowHeight(text: string, font: { measure: MeasureWidth; lineHeight: number }, width: number): number {
+/**
+ * 「判断」節のトリガーの文言。**幅を測るのはレイアウトなので、文言もここに置く**
+ *——エディタが別の文字列を渡すと、空けた幅と描く幅がずれて根拠に被る
+ */
+export const JUDGEMENT_TRIGGER_LABELS = {
+  /** イベント0件（まだ何も判断していない） */
+  empty: '判断を追加',
+  /** 1件以上（最新を上書きせず、次のイベントを追記する） */
+  latest: '判断を変える',
+} as const
+
+/** 「判断」節でイベントが1件も無いときに根拠の場所へ出す文言 */
+export const NO_JUDGEMENT_TEXT = '判断はまだ無い'
+
+/** 節の見出し。**`derive.ts` には置かない**——Skill の報告には出ない画面だけの言葉 */
+export const SECTION_LABELS = {
+  judgement: '判断',
+  previous: '以前の判断',
+  rationale: '由来',
+  notes: 'FB',
+} as const
+
+/** 「＋ FB」のボタンの文言 */
+export const ADD_NOTE_LABEL = '＋ FB'
+
+/** 折り返した文章の高さ（余白は箱が1度だけ持つので、ここでは 0） */
+function textHeight(text: string, font: IssueTreeFont, width: number): number {
   return wrapWithin(text, font.measure, font.lineHeight, {
     maxWidth: width,
     minWidth: 0,
@@ -66,124 +140,287 @@ function rowHeight(text: string, font: { measure: MeasureWidth; lineHeight: numb
 }
 
 /**
+ * バッジの幅。**枠線ぶんを常に足す**——枠を持つ群（保留・未決・見送り・抑制）は
+ * 面を塗る群より 2px 広い。広い方で空けておけば、狭い群は右寄せの中で
+ * 2px 余るだけで済む（足りない方に倒すと文字が切れる）
+ */
+function badgeWidth(label: string, font: IssueTreeFont): number {
+  return Math.ceil(font.measure(label)) + BADGE_PADDING_X * 2 + BADGE_BORDER * 2
+}
+
+/** 小さなボタン（`buttonBase` ＋ `px-1` ＋ 枠線）の幅 */
+function actionWidth(label: string, font: IssueTreeFont): number {
+  return Math.ceil(font.measure(label)) + ACTION_INSET_X * 2
+}
+
+/** 仮説行1本の計画。高さを先に確定させ、置く場所が決まってから矩形を組む */
+interface RowPlan {
+  height: number
+  /** `x` は箱の内容の左端、`y` は行の上端（どちらも世界座標） */
+  build: (x: number, y: number) => HypothesisPlacement
+}
+
+/**
  * 課題ツリーのレイアウト（**完全な純関数**）。
  *
- * 課題ノードと、そこにぶら下がる仮説カードを縦に積んだものを1つのブロックと
- * して畳み、ブロックのサイズをコアの `layoutTree` へ渡す。木の畳み方
- *（親を最初の子と最後の子の中心に置く／兄弟の衝突を全深さで見る）は
- * ロジックツリーと同じ関数がやる。
+ * 新しい文法（M3）は「**箱は課題だけ／仮説は箱の中の1行**」である。仮説は
+ * 独立した矩形を持たなくなったので、ブロック＝箱そのものになり、コアの
+ * `layoutTree` へはその寸法だけを渡す。木の畳み方（親を最初の子と最後の子の
+ * 中心に置く／兄弟の衝突を全深さで見る）はロジックツリーと同じ関数がやる。
  *
- * **ここに「前回どこにあったか」の状態を混ぜないこと**——同じデータから
- * 違う図が出るようになった時点で「図は導出」（rev 3章）が崩れる
+ * 詳細（由来・根拠・FB・以前の判断）は**展開している1本の仮説にだけ**出る。
+ * `expandedIndex` は**ビュー状態であり `data` には無い**——座標と同じく、
+ * 「いまどれを開いているか」をファイルに書かない（rev 3章）。
+ *
+ * **ここに「前回どこにあったか」の状態を混ぜないこと**——同じデータと同じ
+ * 展開状態から違う図が出るようになった時点で「図は導出」が崩れる
  */
 export function layoutIssueTree(
   data: IssueTreeSchemaVersion2,
   posed: PosedQuestions,
   fonts: IssueTreeFonts,
+  /** 展開している仮説の添字。無ければ -1 */
+  expandedIndex: number,
 ): IssueTreeLayout {
-  const suppressed = suppressedIssueIds(data.issues)
-
-  // --- 1. 仮説カードの中身を測る（課題ごとにまとめる） ---
-  interface CardPlan { height: number; build: (x: number, y: number) => HypothesisPlacement }
-  // **`null` を混ぜない。** 「図に出ない仮説」は `hypotheses[ci]` が `null` の
+  // --- 1. 仮説行の計画（高さと組み立て） ---
+  // **`null` を混ぜない。** 「図に出ない仮説」は `hypotheses[hi]` が `null` の
   // ままであることで表される——`walkPlace` は根から到達できる課題しか歩かない
-  // ので、到達しない課題にぶら下がるカードは組み立て自体が呼ばれない。
-  // `plans` に `null` を許すと、その到達不能を2箇所で表すことになる
-  const plans: CardPlan[] = data.hypotheses.map((h, hi) => {
-    const q = posed.hypothesisQuestions[hi]
-    const hasBadge = q.result || q.judgement
-    const textH = rowHeight(h.text, fonts.body, CARD_CONTENT_WIDTH)
-    const rationaleH = rowHeight(h.rationale, fonts.small, CARD_CONTENT_WIDTH)
-    const noteHs = h.pendingNotes.map((n) => rowHeight(n, fonts.small, CARD_CONTENT_WIDTH - ROW_INDENT))
-    const eventHs = h.events.map((e) => rowHeight(e.note, fonts.small, CARD_CONTENT_WIDTH - ROW_INDENT))
-    let height = CARD_INSET_Y * 2 + textH
-    if (hasBadge) height += ROW_GAP + BADGE_HEIGHT
-    height += ROW_GAP + rationaleH
-    for (const nh of noteHs) height += ROW_GAP + nh
-    for (const eh of eventHs) height += ROW_GAP + BADGE_HEIGHT + ROW_GAP + eh
+  // ので、到達しない課題にぶら下がる行は組み立て自体が呼ばれない
+  const plans: RowPlan[] = data.hypotheses.map((h, hi) => {
+    const open = hi === expandedIndex
+    const group = badgeGroupOf(hypothesisStatus(h))
+    const badgeW = badgeWidth(BADGE_LABELS[group], fonts.small)
+    const textW = BOX_CONTENT_WIDTH - ROW_INDENT - BADGE_GAP - badgeW
+    // 畳まれた行は**必ず1行**（溢れは CSS の truncate が省略記号にする）。
+    // 展開している行だけが折り返して縦に伸びる
+    const textH = open ? textHeight(h.text, fonts.body, textW) : fonts.body.lineHeight
+    // バッジは行の中で縦中央に座るので、文言より高ければ行がその高さになる
+    const headH = Math.max(textH, BADGE_HEIGHT)
+
+    if (!open) {
+      return {
+        height: headH,
+        build: (x, y) => ({
+          rect: { x, y, width: BOX_CONTENT_WIDTH, height: headH },
+          text: { x: x + ROW_INDENT, y: y + Math.floor((headH - textH) / 2), width: textW, height: textH },
+          badge: {
+            x: x + BOX_CONTENT_WIDTH - badgeW,
+            y: y + Math.floor((headH - BADGE_HEIGHT) / 2),
+            width: badgeW,
+            height: BADGE_HEIGHT,
+          },
+          expanded: null,
+        }),
+      }
+    }
+
+    // --- 展開パネルの中身を測る ---
+    const labelH = fonts.small.lineHeight
+    const latest = h.events.length === 0 ? null : h.events[h.events.length - 1]
+    // 最新の判断は**正確な種別**で出す（俯瞰の5語は畳まれた行の仕事）。
+    // イベントが無いときだけ、導出の「未決」を出す
+    const latestLabel = latest === null ? BADGE_LABELS.open : EVENT_KIND_LABELS[latest.kind]
+    const latestBadgeW = badgeWidth(latestLabel, fonts.small)
+    const triggerW = actionWidth(
+      JUDGEMENT_TRIGGER_LABELS[latest === null ? 'empty' : 'latest'],
+      fonts.small,
+    )
+    const judgeNoteW = PANEL_CONTENT_WIDTH - latestBadgeW - BADGE_GAP - triggerW - BADGE_GAP
+    const judgeNoteH = textHeight(latest === null ? NO_JUDGEMENT_TEXT : latest.note, fonts.body, judgeNoteW)
+    const judgeRowH = Math.max(BADGE_HEIGHT, ACTION_HEIGHT, judgeNoteH)
+    const judgementH = labelH + SECTION_GAP + judgeRowH
+
+    // 以前の判断は追記専用の記録。**最新1件を除いた全部**を古い順に出す
+    const previous = h.events.slice(0, -1).map((e) => {
+      const w = badgeWidth(EVENT_KIND_LABELS[e.kind], fonts.small)
+      const noteW = PANEL_CONTENT_WIDTH - w - BADGE_GAP
+      return { badgeW: w, noteW, height: Math.max(BADGE_HEIGHT, textHeight(e.note, fonts.body, noteW)) }
+    })
+    const previousH =
+      previous.length === 0
+        ? 0
+        : labelH +
+          SECTION_GAP +
+          previous.reduce((sum, p) => sum + p.height, 0) +
+          ROW_GAP * (previous.length - 1)
+
+    const rationaleH = textHeight(h.rationale, fonts.body, PANEL_CONTENT_WIDTH)
+    const rationaleSectionH = labelH + SECTION_GAP + rationaleH
+
+    const noteHs = h.pendingNotes.map((n) => textHeight(n, fonts.body, PANEL_CONTENT_WIDTH))
+    const notesSectionH =
+      labelH +
+      SECTION_GAP +
+      noteHs.reduce((sum, nh) => sum + nh + ROW_GAP, 0) +
+      ACTION_HEIGHT
+
+    const sectionHs = [judgementH, previousH, rationaleSectionH, notesSectionH].filter((s) => s > 0)
+    const panelH =
+      PANEL_INSET_Y * 2 +
+      sectionHs.reduce((sum, s) => sum + s, 0) +
+      PANEL_GAP * (sectionHs.length - 1)
+    const height = headH + ROW_GAP + panelH
+
     return {
       height,
       build: (x, y) => {
-        let cursor = y + CARD_INSET_Y
-        const left = x + CARD_INSET_X
-        const text: Rect = { x: left, y: cursor, width: CARD_CONTENT_WIDTH, height: textH }
-        cursor += textH
-        let badge: Rect | null = null
-        if (hasBadge) {
-          cursor += ROW_GAP
-          badge = { x: left, y: cursor, width: CARD_CONTENT_WIDTH, height: BADGE_HEIGHT }
-          cursor += BADGE_HEIGHT
+        const panel: Rect = {
+          x: x + ROW_INDENT + PANEL_INDENT,
+          y: y + headH + ROW_GAP,
+          width: BOX_CONTENT_WIDTH - ROW_INDENT - PANEL_INDENT,
+          height: panelH,
         }
-        cursor += ROW_GAP
-        const rationale: Rect = { x: left, y: cursor, width: CARD_CONTENT_WIDTH, height: rationaleH }
+        const cx = panel.x + PANEL_INSET_X
+        let cursor = panel.y + PANEL_INSET_Y
+        /** 節の見出しを置いて本文の上端まで進める */
+        const sectionLabel = (): Rect => {
+          const r: Rect = { x: cx, y: cursor, width: PANEL_CONTENT_WIDTH, height: labelH }
+          cursor += labelH + SECTION_GAP
+          return r
+        }
+
+        const judgeLabel = sectionLabel()
+        const judgeBadge: Rect = { x: cx, y: cursor, width: latestBadgeW, height: BADGE_HEIGHT }
+        const judgeNote: Rect = {
+          x: cx + latestBadgeW + BADGE_GAP,
+          y: cursor,
+          width: judgeNoteW,
+          height: judgeNoteH,
+        }
+        const judgeTrigger: Rect = {
+          x: cx + PANEL_CONTENT_WIDTH - triggerW,
+          y: cursor,
+          width: triggerW,
+          height: ACTION_HEIGHT,
+        }
+        cursor += judgeRowH
+
+        const previousRects: { badge: Rect; note: Rect }[] = []
+        let previousLabel: Rect | null = null
+        if (previous.length > 0) {
+          cursor += PANEL_GAP
+          previousLabel = sectionLabel()
+          previous.forEach((p, j) => {
+            if (j > 0) cursor += ROW_GAP
+            previousRects.push({
+              badge: { x: cx, y: cursor, width: p.badgeW, height: BADGE_HEIGHT },
+              note: { x: cx + p.badgeW + BADGE_GAP, y: cursor, width: p.noteW, height: p.height },
+            })
+            cursor += p.height
+          })
+        }
+
+        cursor += PANEL_GAP
+        const rationaleLabel = sectionLabel()
+        const rationaleCell: Rect = { x: cx, y: cursor, width: PANEL_CONTENT_WIDTH, height: rationaleH }
         cursor += rationaleH
-        const notes = noteHs.map((nh) => {
-          cursor += ROW_GAP
-          const r: Rect = { x: left + ROW_INDENT, y: cursor, width: CARD_CONTENT_WIDTH - ROW_INDENT, height: nh }
-          cursor += nh
+
+        cursor += PANEL_GAP
+        const notesLabel = sectionLabel()
+        const noteCells = noteHs.map((nh) => {
+          const r: Rect = { x: cx, y: cursor, width: PANEL_CONTENT_WIDTH, height: nh }
+          cursor += nh + ROW_GAP
           return r
         })
-        const events = eventHs.map((eh) => {
-          cursor += ROW_GAP
-          const labelRect: Rect = { x: left, y: cursor, width: CARD_CONTENT_WIDTH, height: BADGE_HEIGHT }
-          cursor += BADGE_HEIGHT + ROW_GAP
-          const noteRect: Rect = { x: left + ROW_INDENT, y: cursor, width: CARD_CONTENT_WIDTH - ROW_INDENT, height: eh }
-          cursor += eh
-          return { label: labelRect, note: noteRect }
-        })
-        return { rect: { x, y, width: CARD_WIDTH, height }, text, badge, rationale, notes, events }
+        const addRect: Rect = { x: cx, y: cursor, width: PANEL_CONTENT_WIDTH, height: ACTION_HEIGHT }
+
+        return {
+          rect: { x, y, width: BOX_CONTENT_WIDTH, height },
+          text: { x: x + ROW_INDENT, y, width: textW, height: textH },
+          badge: {
+            x: x + BOX_CONTENT_WIDTH - badgeW,
+            y: y + Math.floor((fonts.body.lineHeight - BADGE_HEIGHT) / 2),
+            width: badgeW,
+            height: BADGE_HEIGHT,
+          },
+          expanded: {
+            panel,
+            judgement: {
+              label: judgeLabel,
+              badge: judgeBadge,
+              note: judgeNote,
+              trigger: judgeTrigger,
+            },
+            previousLabel,
+            previous: previousRects,
+            rationale: { label: rationaleLabel, cell: rationaleCell },
+            notes: { label: notesLabel, cells: noteCells, add: addRect },
+          },
+        }
       },
     }
   })
 
-  const cardsOf = new Map<string, number[]>()
+  const rowsOf = new Map<string, number[]>()
   data.hypotheses.forEach((h, i) => {
-    cardsOf.set(h.issueId, [...(cardsOf.get(h.issueId) ?? []), i])
+    rowsOf.set(h.issueId, [...(rowsOf.get(h.issueId) ?? []), i])
   })
 
-  // --- 2. 課題ノードとブロックの寸法を測る ---
+  // --- 2. 課題の箱を測る ---
   const built = buildTree(data.issues)
-  const nodeSizes: Size[] = data.issues.map((node) => {
-    const w = wrapWithin(node.text, fonts.body.measure, fonts.body.lineHeight, {
-      maxWidth: ISSUE_MAX_WIDTH,
-      minWidth: ISSUE_MIN_WIDTH,
-      insetX: ISSUE_INSET_X,
-      insetY: ISSUE_INSET_Y,
-    })
-    return { width: w.width, height: w.height }
-  })
-  const deferralHs: number[][] = data.issues.map((node) =>
-    node.events.map((e) => BADGE_HEIGHT + ROW_GAP + rowHeight(e.note, fonts.small, CARD_WIDTH - ROW_INDENT)),
-  )
-  const suppressedNoteH: (number | null)[] = data.issues.map((node) =>
-    suppressed.has(node.id) && node.events.length === 0
-      ? rowHeight(SUPPRESSED_NOTE, fonts.small, CARD_WIDTH)
-      : null,
-  )
-
-  const blockSizes = new Map<string, Size>()
-  const blockSizeOf = (index: number): Size => {
-    let height = nodeSizes[index].height
-    for (const dh of deferralHs[index]) height += ROW_GAP + dh
-    const note = suppressedNoteH[index]
-    if (note !== null) height += ROW_GAP + note
-    let width = nodeSizes[index].width
-    const cards = cardsOf.get(data.issues[index].id) ?? []
-    for (const ci of cards) {
-      const plan = plans[ci]
-      height += CARD_GAP + plan.height
-      width = Math.max(width, CARD_INDENT + CARD_WIDTH)
-    }
-    if (deferralHs[index].length > 0 || note !== null) width = Math.max(width, CARD_WIDTH)
-    return { width, height }
+  interface BoxPlan {
+    width: number
+    titleWidth: number
+    titleHeight: number
+    /** 見送りバッジ（無ければ 0）。タイトルの右に空ける幅は `BADGE_GAP + これ` */
+    badgeWidth: number
+    reasonHeight: number | null
+    height: number
+    rows: number[]
   }
+  const boxes: BoxPlan[] = data.issues.map((node, i) => {
+    const rows = rowsOf.get(node.id) ?? []
+    const deferred = node.events.length > 0
+    // 「仮説なし」と「見送り」は**排他**（見送った課題は抑制されるので問いが
+    // 立たない。`poseQuestions` がそう導出する）。同じ場所に置いてよい
+    const warn = posed.issueNeedsHypothesis[i]
+    const badgeW = deferred
+      ? badgeWidth(ISSUE_DEFERRED_LABEL, fonts.small)
+      : warn
+        ? badgeWidth(QUESTION_LABELS.hypothesis, fonts.small)
+        : 0
+    const reserve = badgeW === 0 ? 0 : BADGE_GAP + badgeW
+
+    // 仮説の行も見送りの理由も無い箱は、ロジックツリーのノードと同じ
+    // 「タイトルの自然幅」。**バッジのぶんは先に取り置く**——取り置かないと、
+    // 短いタイトルの箱でバッジが文言に重なる
+    let width: number
+    let titleWidth: number
+    if (rows.length > 0 || deferred) {
+      width = BOX_WIDTH
+      titleWidth = BOX_CONTENT_WIDTH - reserve
+    } else {
+      const wrapped = wrapWithin(node.text, fonts.title.measure, fonts.title.lineHeight, {
+        maxWidth: ISSUE_MAX_WIDTH - reserve,
+        minWidth: Math.max(ISSUE_MIN_WIDTH - reserve, 0),
+        insetX: ISSUE_INSET_X,
+        insetY: 0,
+      })
+      width = Math.min(ISSUE_MAX_WIDTH, wrapped.width + reserve)
+      titleWidth = width - ISSUE_INSET_X * 2 - reserve
+    }
+    const titleHeight = textHeight(node.text, fonts.title, titleWidth)
+    const reasonHeight = deferred
+      ? textHeight(node.events[node.events.length - 1].note, fonts.small, BOX_CONTENT_WIDTH - ROW_INDENT)
+      : null
+
+    let height = ISSUE_INSET_Y * 2 + titleHeight
+    if (reasonHeight !== null) height += TITLE_GAP + reasonHeight
+    if (rows.length > 0) {
+      height += TITLE_GAP + ROW_GAP * (rows.length - 1)
+      for (const hi of rows) height += plans[hi].height
+    }
+    return { width, titleWidth, titleHeight, badgeWidth: badgeW, reasonHeight, height, rows }
+  })
+
+  // --- 3. コアの木レイアウトへ渡す（ブロック＝箱。仮説は箱の中なので別途足さない） ---
+  const blockSizes = new Map<string, Size>()
   const walkSizes = (node: FlatTreeNode): void => {
-    blockSizes.set(node.key, blockSizeOf(node.index))
+    blockSizes.set(node.key, { width: boxes[node.index].width, height: boxes[node.index].height })
     for (const child of node.children) walkSizes(child)
   }
   for (const root of built.roots) walkSizes(root)
 
-  // --- 3. コアの木レイアウトへ渡す ---
   const { positions, width, height } = layoutTree(built.roots, blockSizes)
 
   // --- 4. 世界座標へ展開する ---
@@ -193,31 +430,41 @@ export function layoutIssueTree(
     const point = positions.get(node.key)
     if (point !== undefined) {
       const i = node.index
-      let cursor = point.y + nodeSizes[i].height
-      const deferrals = deferralHs[i].map((dh) => {
-        cursor += ROW_GAP
-        const r: Rect = { x: point.x + ROW_INDENT, y: cursor, width: CARD_WIDTH - ROW_INDENT, height: dh }
-        cursor += dh
-        return r
-      })
-      const noteH = suppressedNoteH[i]
-      let suppressedNote: Rect | null = null
-      if (noteH !== null) {
-        cursor += ROW_GAP
-        suppressedNote = { x: point.x, y: cursor, width: CARD_WIDTH, height: noteH }
-        cursor += noteH
+      const box = boxes[i]
+      const left = point.x + ISSUE_INSET_X
+      let cursor = point.y + ISSUE_INSET_Y
+      const title: Rect = { x: left, y: cursor, width: box.titleWidth, height: box.titleHeight }
+      cursor += box.titleHeight
+      let deferral: { badge: Rect; reason: Rect } | null = null
+      if (box.reasonHeight !== null) {
+        cursor += TITLE_GAP
+        deferral = {
+          badge: {
+            x: left + box.width - ISSUE_INSET_X * 2 - box.badgeWidth,
+            y: title.y,
+            width: box.badgeWidth,
+            height: BADGE_HEIGHT,
+          },
+          reason: {
+            x: left + ROW_INDENT,
+            y: cursor,
+            width: BOX_CONTENT_WIDTH - ROW_INDENT,
+            height: box.reasonHeight,
+          },
+        }
+        cursor += box.reasonHeight
       }
       issues[i] = {
-        rect: { x: point.x, y: point.y, width: nodeSizes[i].width, height: nodeSizes[i].height },
-        deferrals,
-        suppressedNote,
+        rect: { x: point.x, y: point.y, width: box.width, height: box.height },
+        title,
+        deferral,
       }
-      for (const ci of cardsOf.get(data.issues[i].id) ?? []) {
-        const plan = plans[ci]
-        cursor += CARD_GAP
-        hypotheses[ci] = plan.build(point.x + CARD_INDENT, cursor)
-        cursor += plan.height
-      }
+      if (box.rows.length > 0) cursor += TITLE_GAP
+      box.rows.forEach((hi, j) => {
+        if (j > 0) cursor += ROW_GAP
+        hypotheses[hi] = plans[hi].build(left, cursor)
+        cursor += plans[hi].height
+      })
     }
     for (const child of node.children) walkPlace(child)
   }

@@ -16,6 +16,7 @@ import type {
  */
 export type FocusTarget =
   | { cell: 'issue'; index: number }
+  | { cell: 'deferral'; index: number }
   | { cell: 'hypothesis'; index: number }
   | { cell: 'rationale'; index: number }
   | { cell: 'note'; index: number; noteIndex: number }
@@ -401,7 +402,33 @@ export function appendDeferral(
   const events = [...node.events, { kind, note: '' }]
   return {
     data: { ...data, issues: data.issues.map((n, i) => (i === index ? { ...n, events } : n)) },
-    focus: { cell: 'issue', index },
+    // 見送りを選んだら理由を打たせる（`appendJudgement` が根拠へ飛ばすのと同じ形）。
+    // **課題の文言へ戻さない**——見送りは理由が本体で、種別だけ残ると
+    // 「なぜ落としたか」が figure から消える
+    focus: { cell: 'deferral', index },
+  }
+}
+
+/**
+ * 見送りの理由を書く。**書けるのは最新の見送りだけ**（`setEventNote` と同じ規則）。
+ *
+ * 課題ノードのイベントも追記専用の列であり、過去の見送りの理由が後から
+ * 書き換わると「そのとき何を根拠に落としたか」が消える。見送りが1件も無い
+ * 課題では**同じ参照を返す**——`apply` がそれを見て何もしない契約
+ */
+export function setDeferralNote(
+  data: IssueTreeSchemaVersion2,
+  index: number,
+  note: string,
+): IssueTreeSchemaVersion2 {
+  const node = data.issues[index]
+  if (node === undefined || node.events.length === 0) return data
+  const last = node.events.length - 1
+  return {
+    ...data,
+    issues: data.issues.map((n, i) =>
+      i === index ? { ...n, events: n.events.map((e, j) => (j === last ? { ...e, note } : e)) } : n,
+    ),
   }
 }
 

@@ -3,15 +3,18 @@ import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
+import { badgeClass } from './badge-styles'
 import {
+  BADGE_LABELS,
   EVENT_KIND_LABELS,
+  ISSUE_DEFERRED_LABEL,
   poseQuestions,
   QUESTION_LABELS,
-  SUPPRESSED_NOTE,
   tallyLine,
   tallyQuestions,
 } from './derive'
 import { IssueTreeEditor } from './IssueTreeEditor'
+import { JUDGEMENT_TRIGGER_LABELS } from './layout'
 
 afterEach(cleanup)
 
@@ -74,8 +77,16 @@ function Harness({
 const issueCell = (n: number): HTMLTextAreaElement =>
   screen.getByRole('textbox', { name: new RegExp(`^課題${n}(?![0-9])`) }) as HTMLTextAreaElement
 
-const hypothesisCell = (n: number): HTMLTextAreaElement =>
-  screen.getByRole('textbox', { name: `仮説${n}` }) as HTMLTextAreaElement
+/**
+ * 仮説の文言の欄。**畳まれた行に textbox は無い**（M3 の文法）——行はボタンで、
+ * 押す（＝フォーカスが入る）と展開して textarea になる。
+ * 既に開いていればそのまま返す
+ */
+const openHypothesis = (n: number): HTMLTextAreaElement => {
+  const row = screen.queryByRole('button', { name: `仮説${n}を開く` })
+  if (row !== null) fireEvent.click(row)
+  return screen.getByRole('textbox', { name: `仮説${n}` }) as HTMLTextAreaElement
+}
 
 describe('IssueTreeEditor（木の操作）', () => {
   it('Tab は子課題を、Enter は兄弟課題を作る（子を持つ中間ノードの上で）', () => {
@@ -131,10 +142,17 @@ describe('IssueTreeEditor（主修飾キー＋Enter の写像）', () => {
   it('仮説セルでは判断のドロップダウンを開く（仮説は増えない）', async () => {
     const onChange = vi.fn()
     render(<Harness initial={file()} onChange={onChange} />)
-    expect(fireEvent.keyDown(hypothesisCell(1), { key: 'Enter', ctrlKey: true })).toBe(false)
+    expect(fireEvent.keyDown(openHypothesis(1), { key: 'Enter', ctrlKey: true })).toBe(false)
     // **項目名は EVENT_KIND_LABELS から引く**（打ち直すと Skill の報告と食い違う）
     await screen.findByRole('menuitem', { name: EVENT_KIND_LABELS.supported })
-    expect(screen.getAllByRole('menuitem')).toHaveLength(6)
+    // **件数を数えない。** かつてここは `toHaveLength(6)` で、`JUDGEMENT_KINDS` が
+    // 手書きの `readonly JudgementKind[]` だったため、スキーマへ `onHold` を
+    // 足しても配列は6件のまま——**アプリからは選べない判断**が静かに残り、
+    // このテストは緑のままだった。`EVENT_KIND_LABELS`（`Record<JudgementKind, string>`）
+    // の値の集合と突き合わせれば、種別が増えたときに必ず落ちる
+    expect(screen.getAllByRole('menuitem').map((el) => el.textContent).sort()).toEqual(
+      Object.values(EVENT_KIND_LABELS).sort(),
+    )
     expect(onChange).not.toHaveBeenCalled()
   })
 
@@ -147,7 +165,8 @@ describe('IssueTreeEditor（主修飾キー＋Enter の写像）', () => {
     const onChange = vi.fn()
     const { unmount } = render(<Harness initial={withNote} onChange={onChange} />)
     // イベントが0件なので移動先が無い＝データは動かない
-    fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のメモ1' }), {
+    openHypothesis(1)
+    fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のFB1' }), {
       key: 'Enter',
       ctrlKey: true,
     })
@@ -162,7 +181,8 @@ describe('IssueTreeEditor（主修飾キー＋Enter の写像）', () => {
     }
     const onMoved = vi.fn()
     render(<Harness initial={withEvent} onChange={onMoved} />)
-    fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のメモ1' }), {
+    openHypothesis(1)
+    fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のFB1' }), {
       key: 'Enter',
       ctrlKey: true,
     })
@@ -192,31 +212,47 @@ describe('IssueTreeEditor（IME）', () => {
 })
 
 describe('IssueTreeEditor（見送りと抑制）', () => {
-  it('祖先を見送りにすると、配下の問いのバッジが画面から消える', async () => {
+  it('祖先を見送りにすると、配下の箱とバッジが薄い枠に落ちる', () => {
     // `derive.ts` の抑制が描画まで繋がっていることを見る唯一の窓
     render(<Harness initial={file()} />)
-    expect(screen.getByText(QUESTION_LABELS.result)).toBeTruthy()
+    const badgeOf = (n: number): HTMLElement => {
+      const row = screen.getByRole('button', { name: `仮説${n}を開く` })
+      // バッジは行の中の inline-flex な要素（行頭の点は rounded-full の span）
+      const badge = row.querySelector('[class*="inline-flex"]')
+      if (badge === null) throw new Error(`仮説${n}のバッジが無い`)
+      return badge as HTMLElement
+    }
+    // 抑制されていない仮説のバッジは「未決」の面（warning の破線）
+    expect(badgeOf(1).className).toBe(badgeClass('open', false))
 
     // 見送りは課題ノードのドロップダウンから付ける（Radix のトリガーは pointerdown で開く）
     fireEvent.pointerDown(screen.getByRole('button', { name: '課題1を見送る' }), { button: 0 })
-    fireEvent.click(await screen.findByRole('menuitem', { name: EVENT_KIND_LABELS.deferred }))
+    fireEvent.click(screen.getByRole('menuitem', { name: EVENT_KIND_LABELS.deferred }))
 
-    // 選んだ後は見送った課題のセルへフォーカスが戻る（`appendDeferral` の行き先）。
+    // 選んだ後は**見送りの理由の欄**へフォーカスが来る（`appendDeferral` の行き先）。
     // Radix の既定に予約を奪われるとトリガーのボタンに残る
-    expect(document.activeElement).toBe(issueCell(1))
-    expect(screen.queryByText(QUESTION_LABELS.result)).toBeNull()
+    expect(document.activeElement).toBe(
+      screen.getByRole('textbox', { name: '課題1 の見送りの理由' }),
+    )
+    // **バッジは消えない——薄い枠（ink-faint）に落ちる。** 「いま作業する面では
+    // ない」ことを面の濃さで見せる（`opacity-*` では検算した比を割る）
+    expect(badgeOf(1).className).toBe(badgeClass('open', true))
+    expect(badgeOf(1).className).toContain('ink-faint')
+    // 箱も同じ段に落ちる（地の色には落とさない＝木の形は読めたまま）
+    const box = issueCell(2).closest('[class*="pointer-events-auto"]')
+    expect(box?.className).toContain('border-ink-faint')
+    expect(box?.className).toContain('text-ink-faint')
     // 未決の集計も0になる（抑制された配下は勘定に入らない）
     expect(
       screen.getByText(tallyLine({ hypothesis: 0, result: 0, hold: 0, judgement: 0, total: 0 })),
     ).toBeTruthy()
-    // 「なぜここには問いが無いのか」は配下の課題2件に出る（課題1は自分の見送り行を持つ）
-    expect(screen.getAllByText(SUPPRESSED_NOTE)).toHaveLength(2)
   })
 
-  it('見送りイベントの行を種別ラベルと理由で描く', () => {
+  it('見送った課題はバッジと理由の欄を持ち、打つと最新の見送りの note が変わる', () => {
     // レイアウトはこの行のぶん縦を空けている。描かないと、見送った課題は
     // 「箱の下に理由の分だけ空白が空いたノード」になる
     const base = file()
+    const onChange = vi.fn()
     render(
       <Harness
         initial={{
@@ -227,10 +263,25 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
               : n,
           ),
         }}
+        onChange={onChange}
       />,
     )
-    expect(screen.getByText(EVENT_KIND_LABELS.deferredToMainDev)).toBeTruthy()
-    expect(screen.getByText('本開発の設計と一緒に決める')).toBeTruthy()
+    // バッジは**見送りの2種を畳んだ1語**（正確な種別はドロップダウンの中に残る）。
+    // 同時にこれが見送りのトリガーを兼ねる
+    const badge = screen.getByRole('button', { name: '課題1を見送る' })
+    expect(badge.textContent).toBe(ISSUE_DEFERRED_LABEL)
+    // **見送りを付けた当の課題も抑制の集合に入る**（`suppressedIssueIds` は
+    // 自分自身を含む。エッジが「そこへ入る線から破線」にするのと同じ境目）
+    // ので、バッジは薄い枠で出る
+    expect(badge.className).toContain(badgeClass('deferred', true))
+
+    const reason = screen.getByRole('textbox', { name: '課題1 の見送りの理由' })
+    expect((reason as HTMLTextAreaElement).value).toBe('本開発の設計と一緒に決める')
+    fireEvent.change(reason, { target: { value: '通知は本開発で扱う' } })
+    const next: IssueTreeSchemaVersion2 = onChange.mock.calls[0][0]
+    expect(next.issues[0].events).toEqual([
+      { kind: 'deferredToMainDev', note: '通知は本開発で扱う' },
+    ])
   })
 })
 
@@ -292,10 +343,12 @@ describe('IssueTreeEditor（帯）', () => {
   })
 })
 
-describe('IssueTreeEditor（仮説カードの操作）', () => {
+describe('IssueTreeEditor（仮説の行の操作）', () => {
   it('判断を選ぶとイベントが追記される（マウスの動線）', async () => {
     const onChange = vi.fn()
     render(<Harness initial={file()} onChange={onChange} />)
+    // 判断のトリガーは**展開パネルの中**にある（畳まれた行はバッジ1つ）
+    openHypothesis(1)
     fireEvent.pointerDown(screen.getByRole('button', { name: '仮説1に判断を追加' }), { button: 0 })
     fireEvent.click(await screen.findByRole('menuitem', { name: EVENT_KIND_LABELS.rejected }))
     const next: IssueTreeSchemaVersion2 = onChange.mock.calls[0][0]
@@ -312,7 +365,7 @@ describe('IssueTreeEditor（仮説カードの操作）', () => {
     )
   })
 
-  it('メモの Enter は押した位置の次に足す（末尾ではない）', () => {
+  it('FB の Enter は押した位置の次に足す（末尾ではない）', () => {
     const base = file()
     const onChange = vi.fn()
     render(
@@ -325,13 +378,14 @@ describe('IssueTreeEditor（仮説カードの操作）', () => {
       />,
     )
     // **真ん中で押す**——末尾で押すと「末尾に足す実装」と結果が区別できない
+    openHypothesis(1)
     expect(
-      fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のメモ2' }), { key: 'Enter' }),
+      fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のFB2' }), { key: 'Enter' }),
     ).toBe(false)
     expect(onChange.mock.calls[0][0].hypotheses[0].pendingNotes).toEqual(['A', 'B', '', 'C'])
   })
 
-  it('メモの Alt+↑ で並びが入れ替わる（写像が noteIndex と向きを正しく渡す）', () => {
+  it('FB の Alt+↑ で並びが入れ替わる（写像が noteIndex と向きを正しく渡す）', () => {
     const base = file()
     const onChange = vi.fn()
     render(
@@ -343,8 +397,9 @@ describe('IssueTreeEditor（仮説カードの操作）', () => {
         onChange={onChange}
       />,
     )
+    openHypothesis(1)
     expect(
-      fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のメモ2' }), {
+      fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のFB2' }), {
         key: 'ArrowUp',
         altKey: true,
       }),
@@ -357,14 +412,15 @@ describe('IssueTreeEditor（仮説カードの操作）', () => {
     // そのままだとフォーカスが宙に浮き、続けて打ったキーがどこにも入らない
     const base = file()
     render(<Harness initial={{ ...base, hypotheses: [{ ...base.hypotheses[0], text: '' }] }} />)
-    expect(fireEvent.keyDown(hypothesisCell(1), { key: 'Backspace' })).toBe(false)
+    expect(fireEvent.keyDown(openHypothesis(1), { key: 'Backspace' })).toBe(false)
     expect(screen.queryByRole('textbox', { name: '仮説1' })).toBeNull()
     expect(document.activeElement).toBe(issueCell(3))
   })
 
-  it('由来の Enter はメモを生やす（移動先が無ければ作る）', () => {
+  it('由来の Enter は FB を生やす（移動先が無ければ作る）', () => {
     const onChange = vi.fn()
     render(<Harness initial={file()} onChange={onChange} />)
+    openHypothesis(1)
     expect(
       fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 の由来' }), { key: 'Enter' }),
     ).toBe(false)
@@ -380,9 +436,103 @@ describe('IssueTreeEditor（仮説カードの操作）', () => {
         onChange={onChange}
       />,
     )
+    openHypothesis(1)
     fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 の由来' }), { key: 'Backspace' })
     expect(onChange).not.toHaveBeenCalled()
     expect(screen.getByRole('textbox', { name: '仮説1' })).toBeTruthy()
+  })
+})
+
+describe('IssueTreeEditor（展開の継ぎ目）', () => {
+  /**
+   * **畳まれた行の `<button>` と展開後の `<textarea>` は同じ `data-cell` を
+   * 名乗る。** エディタは行に着いた瞬間に同じ鍵でフォーカスを予約し、展開後の
+   * DOM でそれを当てる——**2つが同時に DOM にあると `querySelector` が先頭を
+   * 掴み、予約が静かに外れる**（落ちるテストが他に無いので、ここで見る）
+   */
+  it('畳まれた行にフォーカスが入ると、同じ仮説の textarea へ移る', () => {
+    render(<Harness initial={file()} />)
+    const row = screen.getByRole('button', { name: '仮説1を開く' })
+    act(() => {
+      fireEvent.focus(row)
+    })
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説1' }))
+    // ボタンは DOM から消えている（同じ鍵の要素が2つ残らない）
+    expect(screen.queryByRole('button', { name: '仮説1を開く' })).toBeNull()
+  })
+
+  it('課題セルの Ctrl+Enter で生えた仮説は、展開された状態でフォーカスを受ける', () => {
+    render(<Harness initial={file()} />)
+    fireEvent.keyDown(issueCell(3), { key: 'Enter', ctrlKey: true })
+    // 新しい仮説は配列の末尾（仮説2）。畳まれたままだと打つ場所が無い
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説2' }))
+  })
+
+  it('展開しているのは同時に1つ（別の行を開くと前の行はボタンに戻る）', () => {
+    const base = file()
+    render(
+      <Harness
+        initial={{
+          ...base,
+          hypotheses: [
+            base.hypotheses[0],
+            { ...base.hypotheses[0], id: H(2), text: '受信を待つ作りに切り替える' },
+          ],
+        }}
+      />,
+    )
+    openHypothesis(1)
+    expect(screen.queryByRole('button', { name: '仮説1を開く' })).toBeNull()
+    openHypothesis(2)
+    // 前の行は畳まれて、詳細は1本ぶんだけ画面に出る
+    expect(screen.getByRole('button', { name: '仮説1を開く' })).toBeTruthy()
+    expect(screen.queryByRole('textbox', { name: '仮説1' })).toBeNull()
+    expect(screen.getAllByRole('textbox', { name: /の由来$/ })).toHaveLength(1)
+  })
+
+  it('課題のプレースホルダは「課題」で、「仮説なし」はバッジに出る', () => {
+    // **プレースホルダに問いを入れない**——空の箱のタイトルが「仮説なし」に
+    // 見える。問いはタイトル行の右端のバッジが運ぶ
+    const base = file()
+    render(
+      <Harness
+        initial={{
+          ...base,
+          issues: base.issues.map((n, i) => (i === 2 ? { ...n, text: '' } : n)),
+          hypotheses: [],
+        }}
+      />,
+    )
+    const cell = screen.getByRole('textbox', { name: /^課題3/ }) as HTMLTextAreaElement
+    expect(cell.placeholder).toBe('課題')
+    // 名前の後半には問いが入る（音声にも出す）
+    expect(cell.getAttribute('aria-label')).toBe(`課題3（未記入） ${QUESTION_LABELS.hypothesis}`)
+    expect(screen.getAllByText(QUESTION_LABELS.hypothesis)[0].className).toBe(
+      badgeClass('open', false),
+    )
+  })
+
+  it('仮説の行のバッジは5語（正確な種別は展開の中）', () => {
+    const base = file()
+    render(
+      <Harness
+        initial={{
+          ...base,
+          hypotheses: [
+            { ...base.hypotheses[0], events: [{ kind: 'rejectedWithoutTest', note: '' }] },
+          ],
+        }}
+      />,
+    )
+    const row = screen.getByRole('button', { name: '仮説1を開く' })
+    expect(row.textContent).toContain(BADGE_LABELS.no)
+    expect(row.textContent).not.toContain(EVENT_KIND_LABELS.rejectedWithoutTest)
+    // 展開すると正確な種別が出る
+    openHypothesis(1)
+    expect(screen.getByText(EVENT_KIND_LABELS.rejectedWithoutTest)).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: '仮説1に判断を追加' }).textContent,
+    ).toBe(JUDGEMENT_TRIGGER_LABELS.latest)
   })
 })
 
@@ -405,7 +555,9 @@ describe('IssueTreeEditor（キャンバス）', () => {
     expect(container.querySelector('[data-layer="nodes"]')?.className).toContain(
       'pointer-events-none',
     )
-    expect(issueCell(1).parentElement?.className).toContain('pointer-events-auto')
+    // 箱の矩形（`group/issue pointer-events-auto`）が受ける。入力欄はその中の
+    // 絶対配置の子なので、親を1段だけ見るのでは届かない
+    expect(issueCell(1).closest('[class*="pointer-events-auto"]')).not.toBeNull()
   })
 
   it('新しい課題へのフォーカスでコンテナをスクロールさせない', () => {

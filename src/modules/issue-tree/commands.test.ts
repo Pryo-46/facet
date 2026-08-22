@@ -14,6 +14,7 @@ import {
   movePendingNote,
   normalizeOrder,
   promoteNote,
+  setDeferralNote,
   setEventNote,
 } from './commands'
 
@@ -268,9 +269,46 @@ describe('イベントの追記（D2: 追記専用）', () => {
     expect(twice.focus).toEqual({ cell: 'event', index: 0, eventIndex: 1 })
   })
 
-  it('課題ノードへは見送り系だけを追記する', () => {
+  it('課題ノードへは見送り系だけを追記し、理由の欄へ行き先を返す', () => {
     const next = appendDeferral(normalizeOrder(data()), 1, 'deferred')
     expect(next.data.issues[1].events).toEqual([{ kind: 'deferred', note: '' }])
+    // **課題の文言ではなく理由の欄へ返す。** 種別だけ選んで理由が空のまま
+    // 残ると「なぜ落としたか」が図から消える
+    expect(next.focus).toEqual({ cell: 'deferral', index: 1 })
+  })
+
+  describe('setDeferralNote', () => {
+    it('最新の見送りの理由だけを書き換える', () => {
+      const d: IssueTreeSchemaVersion2 = {
+        ...data(),
+        issues: [
+          {
+            id: I(0),
+            parentId: null,
+            text: '根',
+            events: [
+              { kind: 'deferred', note: '古い理由' },
+              { kind: 'deferredToMainDev', note: '' },
+            ],
+          },
+        ],
+        hypotheses: [],
+      }
+      const out = setDeferralNote(d, 0, '通知は本開発で')
+      expect(out.issues[0].events).toEqual([
+        { kind: 'deferred', note: '古い理由' },
+        { kind: 'deferredToMainDev', note: '通知は本開発で' },
+      ])
+    })
+
+    it('見送りが無い課題では同じ参照を返す（apply が落とす契約）', () => {
+      const d: IssueTreeSchemaVersion2 = {
+        ...data(),
+        issues: [{ id: I(0), parentId: null, text: '根', events: [] }],
+        hypotheses: [],
+      }
+      expect(setDeferralNote(d, 0, 'x')).toBe(d)
+    })
   })
 
   it('最新イベントの note は書けるが、過去のイベントは書き換えられない', () => {

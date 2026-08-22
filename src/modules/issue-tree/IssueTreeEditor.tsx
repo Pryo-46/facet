@@ -32,7 +32,14 @@ import { currentPlatform } from '@/core/keyboard/platform'
 import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
 import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
-import { cellKey, hypothesisCellKey, issueCellKey, type HypothesisCell } from './cell-keys'
+import { badgeClass } from './badge-styles'
+import {
+  cellKey,
+  hypothesisCellKey,
+  issueCellKey,
+  issueDeferralCellKey,
+  type HypothesisCell,
+} from './cell-keys'
 import {
   addChildIssue,
   addHypothesis,
@@ -50,6 +57,7 @@ import {
   movePendingNote,
   promoteNote,
   removePendingNote,
+  setDeferralNote,
   setEventNote,
   setHypothesisText,
   setIssueText,
@@ -60,26 +68,26 @@ import {
 } from './commands'
 import {
   EVENT_KIND_LABELS,
+  ISSUE_DEFERRED_LABEL,
   poseQuestions,
-  SUPPRESSED_NOTE,
   suppressedIssueIds,
   tallyLine,
   tallyQuestions,
   type DeferralKind,
   type JudgementKind,
 } from './derive'
-import { HypothesisCard } from './HypothesisCard'
+import { HypothesisRow } from './HypothesisRow'
 import { IssueBox } from './IssueBox'
 import { IssueTreeEdges } from './IssueTreeEdges'
-import { layoutIssueTree, type IssueTreeFonts } from './layout'
-import { BADGE_HEIGHT, ROW_GAP } from './measure'
+import { JUDGEMENT_TRIGGER_LABELS, layoutIssueTree, type IssueTreeFonts } from './layout'
+import { TITLE_FONT_CLASS } from './measure'
 
 /** 測定結果のキャッシュ。会議1回分の打鍵で無限に増えないよう頭を押さえる */
 const MEASURE_CACHE_LIMIT = 2000
 
-/** カード・ノードの文言に当たるクラスのうち、フォントを決めている部分 */
+/** 仮説の文言・由来・根拠・FB に当たるクラスのうち、フォントを決めている部分 */
 const BODY_FONT_CLASS = 'text-sm'
-/** 由来・メモ・イベントの根拠に当たるクラス */
+/** 節の見出し・見送りの理由・バッジに当たるクラス */
 const SMALL_FONT_CLASS = 'text-xs'
 
 /** 木の操作ヒント。`$mod` / `$alt` は KeyHints が解決する */
@@ -94,16 +102,26 @@ const ISSUE_TREE_HINTS: readonly KeyHint[] = [
 /**
  * ドロップダウンに出す種別の並び。**文言は `EVENT_KIND_LABELS` から引く**
  *（打ち直すと、アプリの画面と Skill の報告が食い違う）。
- * 並びは意味の近いものを隣に置く——検証した2つ、検証せず決めた2つ、見送り2つ
+ * 並びは意味の近いものを隣に置く——検証した2つ、検証せず決めた2つ、保留、見送り2つ。
+ *
+ * **並びの表を `Record<JudgementKind, number>` にしてあるのは、種別が増えたときに
+ * tsc をここで落とすためである。** 以前は `readonly JudgementKind[]` の手書きで、
+ * `onHold` をスキーマへ足しても配列は6件のまま何も言わずに通った——
+ * **スキーマが受け入れる判断を、アプリからは選べない**状態が静かに残る。
+ * `EVENT_KIND_LABELS` が `Record<JudgementKind, string>` だから落ちたのと同じ形にする
  */
-const JUDGEMENT_KINDS: readonly JudgementKind[] = [
-  'supported',
-  'rejected',
-  'supportedWithoutTest',
-  'rejectedWithoutTest',
-  'deferred',
-  'deferredToMainDev',
-]
+const JUDGEMENT_MENU_ORDER: Record<JudgementKind, number> = {
+  supported: 1,
+  rejected: 2,
+  supportedWithoutTest: 3,
+  rejectedWithoutTest: 4,
+  onHold: 5,
+  deferred: 6,
+  deferredToMainDev: 7,
+}
+const JUDGEMENT_KINDS: readonly JudgementKind[] = (
+  Object.keys(JUDGEMENT_MENU_ORDER) as JudgementKind[]
+).sort((a, b) => JUDGEMENT_MENU_ORDER[a] - JUDGEMENT_MENU_ORDER[b])
 /** 課題ノードに付けられるのは見送り系2種だけ（スキーマの制約） */
 const DEFERRAL_KINDS: readonly DeferralKind[] = ['deferred', 'deferredToMainDev']
 
@@ -131,11 +149,20 @@ function cachedMeasurer(font: CanvasFont): { measure: MeasureWidth; lineHeight: 
   }
 }
 
+/**
+ * ドロップダウンのトリガーの既定の面。**`triggerClassName` を渡すと差し替わる**
+ *（面のクラスを2つ並べても、勝つのは生成 CSS の順序であってクラス名の順序ではない。M8）。
+ * 見送り済みの課題では、この面の代わりに見送りバッジの面が渡る
+ */
+const TRIGGER_FACE = 'border border-rule bg-surface px-1 text-xs text-ink-muted hover:bg-canvas'
+
 interface KindMenuProps<K extends JudgementKind> {
   /** アクセシブル名（トリガーのボタン） */
   label: string
   /** ボタンに出す短い文言 */
   triggerText: string
+  /** トリガーの面（既定は `TRIGGER_FACE`）。**足すのではなく差し替える** */
+  triggerClassName?: string
   kinds: readonly K[]
   onPick: (kind: K) => void
   open: boolean
@@ -159,7 +186,7 @@ function KindMenu<K extends JudgementKind>(props: KindMenuProps<K>) {
       <DropdownMenuTrigger
         type="button"
         aria-label={props.label}
-        className={`${buttonBase} pointer-events-auto border border-rule bg-surface px-1 text-xs text-ink-muted outline-none hover:bg-canvas focus:ring-2 focus:ring-inset focus:ring-ring`}
+        className={`${buttonBase} pointer-events-auto outline-none focus:ring-2 focus:ring-inset focus:ring-ring ${props.triggerClassName ?? TRIGGER_FACE}`}
       >
         {props.triggerText}
       </DropdownMenuTrigger>
@@ -211,8 +238,12 @@ export function IssueTreeEditor({
   modalOpen,
 }: EditorProps<IssueTreeSchemaVersion2>) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const titleProbeRef = useRef<HTMLSpanElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const smallProbeRef = useRef<HTMLSpanElement>(null)
+  // **課題のタイトルは太字**（`TITLE_FONT_CLASS`）で、同じ 14px でも細字より
+  // 広い。1本の測定器を使い回すと、タイトルが測定より早く折り返して字が切れる
+  const [titleFont, setTitleFont] = useState<CanvasFont>(FALLBACK_CANVAS_FONT)
   const [font, setFont] = useState<CanvasFont>(FALLBACK_CANVAS_FONT)
   const [smallFont, setSmallFont] = useState<CanvasFont>(FALLBACK_SMALL_FONT)
 
@@ -239,6 +270,12 @@ export function IssueTreeEditor({
   //（配列位置ではなく鍵で持つ——構造操作で位置は動くが鍵は動かない）
   const [lastIssueKey, setLastIssueKey] = useState<string | null>(null)
 
+  // 詳細（由来・根拠・FB・以前の判断）を出している仮説の行鍵。**同時に1本だけ。**
+  // **これはビュー状態であり、データには書かない**——座標と同じく、
+  // 「いまどれを開いていたか」をファイルへ持ち込まない（rev 3章）。
+  // 配列位置ではなく鍵で持つのも `lastIssueKey` と同じ理由
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
+
   // Web フォントの読み込みで canvas の measureText の結果は変わるが、
   // getComputedStyle が返す値は変わらない（宣言されたファミリ列を返すだけで、
   // どのフェイスに解決されたかは映らない）。だからフォントの同一性では
@@ -246,6 +283,10 @@ export function IssueTreeEditor({
   const [fontGeneration, setFontGeneration] = useState(0)
 
   const readFont = (): void => {
+    setTitleFont((prev) => {
+      const next = readCanvasFont(titleProbeRef.current)
+      return sameFont(prev, next) ? prev : next
+    })
     setFont((prev) => {
       const next = readCanvasFont(probeRef.current)
       return sameFont(prev, next) ? prev : next
@@ -283,12 +324,16 @@ export function IssueTreeEditor({
   // 進めるカウンタで、「読み込み後に測り直す」を成立させるのはこちらである。
   // **2種類のフォントを1つの入れ物に持つ**——鍵は文字列だけで、どちらの
   // フォントで測ったかを持っていないので、混ぜると片方が他方の幅を返す
-  const measurerKey = `${font.font}|${font.lineHeight}|${smallFont.font}|${smallFont.lineHeight}|${fontGeneration}`
+  const measurerKey = `${titleFont.font}|${titleFont.lineHeight}|${font.font}|${font.lineHeight}|${smallFont.font}|${smallFont.lineHeight}|${fontGeneration}`
   const measurerRef = useRef<{ key: string; fonts: IssueTreeFonts } | null>(null)
   if (measurerRef.current === null || measurerRef.current.key !== measurerKey) {
     measurerRef.current = {
       key: measurerKey,
-      fonts: { body: cachedMeasurer(font), small: cachedMeasurer(smallFont) },
+      fonts: {
+        title: cachedMeasurer(titleFont),
+        body: cachedMeasurer(font),
+        small: cachedMeasurer(smallFont),
+      },
     }
   }
   const fonts = measurerRef.current.fonts
@@ -296,7 +341,13 @@ export function IssueTreeEditor({
   const issueKeys = computeRowKeys(data.issues)
   const hypothesisKeys = computeRowKeys(data.hypotheses)
   const posed = poseQuestions(data)
-  const layout = layoutIssueTree(data, posed, fonts)
+  const expandedIndex = expandedKey === null ? -1 : hypothesisKeys.indexOf(expandedKey)
+  const layout = layoutIssueTree(data, posed, fonts, expandedIndex)
+  /** 課題 ID → ぶら下がる仮説の添字（配列順）。行は箱の中に描く */
+  const rowsOf = new Map<string, number[]>()
+  data.hypotheses.forEach((h, i) => {
+    rowsOf.set(h.issueId, [...(rowsOf.get(h.issueId) ?? []), i])
+  })
   const built = buildTree(data.issues)
   const suppressedIds = suppressedIssueIds(data.issues)
   const issueSuppressed = data.issues.map((node) => suppressedIds.has(node.id))
@@ -304,18 +355,22 @@ export function IssueTreeEditor({
   /** フォーカス移動のときに「見えるところまで寄せる」ための矩形。data-cell 鍵で引く */
   const rects = new Map<string, Rect>()
   layout.issues.forEach((placement, index) => {
-    if (placement !== null) rects.set(issueCellKey(issueKeys[index]), placement.rect)
+    if (placement === null) return
+    // 見送りの理由も箱ごと見せる（理由だけ見えても、どの課題の話か分からない）
+    rects.set(issueCellKey(issueKeys[index]), placement.rect)
+    rects.set(issueDeferralCellKey(issueKeys[index]), placement.rect)
   })
   layout.hypotheses.forEach((placement, index) => {
     if (placement === null) return
     const key = hypothesisKeys[index]
-    // カードの中の欄はどれもカード全体を見せる（由来だけ見えても文脈が無い）
+    const h = data.hypotheses[index]
+    // 行の中の欄はどれも行全体（＝展開パネルを含む矩形）を見せる
     rects.set(hypothesisCellKey(key, { cell: 'hypothesis' }), placement.rect)
     rects.set(hypothesisCellKey(key, { cell: 'rationale' }), placement.rect)
-    placement.notes.forEach((_r, noteIndex) => {
+    h.pendingNotes.forEach((_n, noteIndex) => {
       rects.set(hypothesisCellKey(key, { cell: 'note', noteIndex }), placement.rect)
     })
-    placement.events.forEach((_r, eventIndex) => {
+    h.events.forEach((_e, eventIndex) => {
       rects.set(hypothesisCellKey(key, { cell: 'event', eventIndex }), placement.rect)
     })
   })
@@ -357,11 +412,31 @@ export function IssueTreeEditor({
     // 構造操作は mergeKey に null を渡す（1操作1コミット。rev 10章）
     onChange(result.data, null)
     const focus = result.focus ?? fallback
-    setPendingFocus(
-      focus === null
-        ? null
-        : cellKey(focus, computeRowKeys(result.data.issues), computeRowKeys(result.data.hypotheses)),
-    )
+    if (focus === null) {
+      setPendingFocus(null)
+      return
+    }
+    const nextIssueKeys = computeRowKeys(result.data.issues)
+    const nextHypothesisKeys = computeRowKeys(result.data.hypotheses)
+    // **行き先が仮説の欄なら、先にその仮説を展開する。** 畳まれた行に
+    // 由来・根拠・FB の欄は無いので、展開しないまま予約しても当たらない
+    //（同じ更新の中でよい——予約を当てる effect は描画後に querySelector する）
+    if (focus.cell !== 'issue' && focus.cell !== 'deferral') {
+      setExpandedKey(nextHypothesisKeys[focus.index] ?? null)
+    }
+    setPendingFocus(cellKey(focus, nextIssueKeys, nextHypothesisKeys))
+  }
+
+  /**
+   * 仮説の行を開き、文言の欄へフォーカスを予約する。
+   *
+   * **畳まれた行の `<button>` と展開後の `<textarea>` は同じ `data-cell` を
+   * 名乗る**ので、この予約は「開いた後の textarea」に当たる（`HypothesisRow`
+   * が両方を同時に描かないことで成立している継ぎ目）
+   */
+  const expandRow = (key: string): void => {
+    setExpandedKey(key)
+    setPendingFocus(hypothesisCellKey(key, { cell: 'hypothesis' }))
   }
 
   /** data-cell 鍵のセルへ移る。戻り値 true＝移った（＝キーを消費した） */
@@ -623,8 +698,16 @@ export function IssueTreeEditor({
           測定と描画が同一の情報源を見る（rev 9章）。opacity-0 で見せないだけに
           するのは、display:none だと getComputedStyle がフォントを返さない環境が
           あるため。見本が2本あるのは、課題ノード・仮説の文言（text-sm）と
-          由来・メモ・根拠（text-xs）でフォント階級が違うため——1本を両方に
-          使い回すと、片方の高さを見誤る */}
+          由来・根拠・FB（text-xs）でフォント階級が違うため——1本を両方に
+          使い回すと、片方の高さを見誤る。**課題のタイトル（太字）も別に測る**
+          ——同じ 14px でも太字は幅が違い、細字で測るとタイトルが切れる */}
+      <span
+        ref={titleProbeRef}
+        aria-hidden="true"
+        className={`${TITLE_FONT_CLASS} pointer-events-none absolute top-0 left-0 select-none opacity-0`}
+      >
+        あ
+      </span>
       <span
         ref={probeRef}
         aria-hidden="true"
@@ -707,6 +790,9 @@ export function IssueTreeEditor({
           //（存在は整合性検証の指摘として額縁に出ている）
           if (placement === null) return null
           const key = issueKeys[index]
+          const suppressed = issueSuppressed[index]
+          // 課題ノードのイベントは見送り系だけで、**理由を書けるのは最新1件**
+          const deferral = node.events.length === 0 ? null : node.events[node.events.length - 1]
           return (
             <div key={key} onFocusCapture={() => setLastIssueKey(key)}>
               <IssueBox
@@ -715,123 +801,97 @@ export function IssueTreeEditor({
                 // 「課題{N}」で始まる約束をテストが前方一致で引く
                 label={`課題${index + 1}`}
                 text={node.text}
-                rect={placement.rect}
+                placement={placement}
                 invalid={invalidIssues.has(index)}
-                suppressed={issueSuppressed[index]}
+                suppressed={suppressed}
                 warn={posed.issueNeedsHypothesis[index]}
+                deferralNote={deferral === null ? null : deferral.note}
+                deferralCellKey={issueDeferralCellKey(key)}
                 onTextChange={(next) => onChange(setIssueText(data, index, next), `${key}:text`)}
+                onDeferralNoteChange={(next) =>
+                  onChange(setDeferralNote(data, index, next), `${key}:deferral`)
+                }
                 onFieldKeyDown={(e, state) => onIssueKeyDown(e, index, state)}
                 deferralMenu={
                   <KindMenu
                     label={`課題${index + 1}を見送る`}
-                    triggerText="見送り"
+                    // 見送り済みなら、**このトリガーが見送りバッジを兼ねる**
+                    //（同じ場所に2つ置かない）。まだなら、ホバーと
+                    // focus-within のときだけ出す小さなボタンにする
+                    triggerText={deferral === null ? '見送り' : ISSUE_DEFERRED_LABEL}
+                    triggerClassName={
+                      deferral === null
+                        ? `${TRIGGER_FACE} invisible group-hover/issue:visible group-focus-within/issue:visible`
+                        : badgeClass('deferred', suppressed)
+                    }
                     kinds={DEFERRAL_KINDS}
                     onPick={(kind) => apply(appendDeferral(data, index, kind))}
                     {...menuPropsFor(deferralMenuKey(key))}
                   />
                 }
-              />
-
-              {/* 見送りイベントの行。**レイアウトが縦の場所を空けているのはここ**
-                  ——描かないと、見送った課題は「箱の下に理由の分だけ空白が空いた
-                  ノード」になり、なぜ抑制されているのかが画面から消える。
-                  追記専用の記録なので読み取り専用で出す */}
-              {placement.deferrals.map((rect, eventIndex) => {
-                const event = node.events[eventIndex]
-                if (event === undefined) return null
-                return (
-                  <div
-                    key={`defer:${key}:${eventIndex}`}
-                    // **`overflow-hidden` を外さないこと。** 中身の高さは測定層が
-                    // 決めた値であり、ブラウザが測定より1行多く折り返したときに
-                    // ここが伸びると、レイアウトが予約したブロックを越えて
-                    // 下の仮説カードに重なる（HypothesisCard が各行の測定高さを
-                    // きっちり当てているのと同じ規律）
-                    className="absolute overflow-hidden text-xs text-ink-muted"
-                    style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
-                  >
-                    {/* **`BADGE_HEIGHT` ちょうどで描く。** レイアウトはこの高さで
-                        場所を空けており、縦の余白を足すと下の行がはみ出す */}
-                    <div
-                      className="overflow-hidden leading-5 font-medium select-none"
-                      style={{ height: BADGE_HEIGHT }}
-                    >
-                      {EVENT_KIND_LABELS[event.kind]}
-                    </div>
-                    {/* 理由の行も測定した高さで固定する（`layout.ts` は
-                        `BADGE_HEIGHT + ROW_GAP + 理由の高さ` で矩形を作っている）。
-                        自動の高さのままだと、外側の `overflow-hidden` が無ければ
-                        ブロックを越えて伸びる欄になる */}
-                    <div
-                      className="overflow-hidden break-all whitespace-pre-wrap"
-                      style={{ marginTop: ROW_GAP, height: rect.height - BADGE_HEIGHT - ROW_GAP }}
-                    >
-                      {event.note}
-                    </div>
-                  </div>
-                )
-              })}
-
-              {/* 「なぜここには問いが無いのか」の1文（`derive.ts` の導出の説明）。
-                  **文字列は import する**——打ち直すと Skill の報告と食い違う */}
-              {placement.suppressedNote !== null && (
-                <div
-                  className="absolute overflow-hidden text-xs break-all whitespace-pre-wrap text-ink-muted"
-                  style={{
-                    left: placement.suppressedNote.x,
-                    top: placement.suppressedNote.y,
-                    width: placement.suppressedNote.width,
-                    height: placement.suppressedNote.height,
-                  }}
-                >
-                  {SUPPRESSED_NOTE}
-                </div>
-              )}
+              >
+                {/* 仮説は**この箱の中の行**。ぶら下がり先の課題が図に無い仮説は
+                    どの箱の子にもならないので、そのまま描かれない
+                    （参照切れは整合性検証が赤くする） */}
+                {(rowsOf.get(node.id) ?? []).map((hi) => {
+                  const row = layout.hypotheses[hi]
+                  if (row === null) return null
+                  const h = data.hypotheses[hi]
+                  const rowKey = hypothesisKeys[hi]
+                  return (
+                    <HypothesisRow
+                      key={rowKey}
+                      hypothesisKey={rowKey}
+                      label={`仮説${hi + 1}`}
+                      placement={row}
+                      origin={placement.rect}
+                      text={h.text}
+                      rationale={h.rationale}
+                      notes={h.pendingNotes}
+                      events={h.events}
+                      invalid={invalidHypotheses.has(hi)}
+                      suppressed={suppressed}
+                      expanded={expandedKey === rowKey}
+                      onExpand={() => expandRow(rowKey)}
+                      onTextChange={(next) =>
+                        onChange(setHypothesisText(data, hi, next), `${rowKey}:text`)
+                      }
+                      onRationaleChange={(next) =>
+                        onChange(setRationale(data, hi, next), `${rowKey}:rationale`)
+                      }
+                      onNoteChange={(noteIndex, next) =>
+                        onChange(
+                          setPendingNote(data, hi, noteIndex, next),
+                          `${rowKey}:note:${noteIndex}`,
+                        )
+                      }
+                      onEventNoteChange={(eventIndex, next) =>
+                        onChange(
+                          setEventNote(data, hi, eventIndex, next),
+                          `${rowKey}:event:${eventIndex}`,
+                        )
+                      }
+                      onPromoteNote={(noteIndex) => apply(promoteNote(data, hi, noteIndex))}
+                      onAddNote={() => apply(addPendingNote(data, hi))}
+                      onFieldKeyDown={(e, state, cell) => onCardKeyDown(e, hi, state, cell)}
+                      judgementMenu={
+                        <KindMenu
+                          label={`仮説${hi + 1}に判断を追加`}
+                          // **文言はレイアウトが持つ**——空けた幅と描く幅を
+                          // 同じ文字列から出す（`layout.ts` が測っている）
+                          triggerText={
+                            JUDGEMENT_TRIGGER_LABELS[h.events.length === 0 ? 'empty' : 'latest']
+                          }
+                          kinds={JUDGEMENT_KINDS}
+                          onPick={(kind) => apply(appendJudgement(data, hi, kind))}
+                          {...menuPropsFor(judgementMenuKey(rowKey))}
+                        />
+                      }
+                    />
+                  )
+                })}
+              </IssueBox>
             </div>
-          )
-        })}
-
-        {data.hypotheses.map((h, index) => {
-          const placement = layout.hypotheses[index]
-          // ぶら下がり先の課題が図に無い仮説は置き場所を持たない
-          //（参照切れは整合性検証が赤くする）
-          if (placement === null) return null
-          const key = hypothesisKeys[index]
-          return (
-            <HypothesisCard
-              key={key}
-              hypothesisKey={key}
-              label={`仮説${index + 1}`}
-              placement={placement}
-              text={h.text}
-              rationale={h.rationale}
-              notes={h.pendingNotes}
-              events={h.events}
-              questions={posed.hypothesisQuestions[index]}
-              invalid={invalidHypotheses.has(index)}
-              suppressed={suppressedIds.has(h.issueId)}
-              onTextChange={(next) => onChange(setHypothesisText(data, index, next), `${key}:text`)}
-              onRationaleChange={(next) =>
-                onChange(setRationale(data, index, next), `${key}:rationale`)
-              }
-              onNoteChange={(noteIndex, next) =>
-                onChange(setPendingNote(data, index, noteIndex, next), `${key}:note:${noteIndex}`)
-              }
-              onEventNoteChange={(eventIndex, next) =>
-                onChange(setEventNote(data, index, eventIndex, next), `${key}:event:${eventIndex}`)
-              }
-              onPromoteNote={(noteIndex) => apply(promoteNote(data, index, noteIndex))}
-              onFieldKeyDown={(e, state, cell) => onCardKeyDown(e, index, state, cell)}
-              judgementMenu={
-                <KindMenu
-                  label={`仮説${index + 1}に判断を追加`}
-                  triggerText="判断"
-                  kinds={JUDGEMENT_KINDS}
-                  onPick={(kind) => apply(appendJudgement(data, index, kind))}
-                  {...menuPropsFor(judgementMenuKey(key))}
-                />
-              }
-            />
           )
         })}
       </div>

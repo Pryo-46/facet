@@ -16,6 +16,7 @@ const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
 
 const fonts = {
+  title: { measure: createEstimateMeasurer(14), lineHeight: 23 },
   body: { measure: createEstimateMeasurer(14), lineHeight: 23 },
   small: { measure: createEstimateMeasurer(12), lineHeight: 18 },
 }
@@ -50,7 +51,7 @@ const data: IssueTreeSchemaVersion2 = {
 }
 
 const built = buildTree(data.issues)
-const layout = layoutIssueTree(data, poseQuestions(data), fonts)
+const layout = layoutIssueTree(data, poseQuestions(data), fonts, -1)
 const suppressedIds = suppressedIssueIds(data.issues)
 const suppressed = data.issues.map((node) => suppressedIds.has(node.id))
 
@@ -91,20 +92,22 @@ const pathFor = (container: HTMLElement, parent: number, child: number): SVGPath
 
 describe('IssueTreeEdges: 線の引き元', () => {
   /**
-   * 線は**課題ノードの矩形**から引く。ブロック（ノード＋ぶら下がる仮説カード）
-   * の矩形から引くと、線が課題ではなくカードの束を指す——根には高さのある
-   * カードが2枚あるので、ブロックを使った実装ではこの `d` が一致しない
+   * 線は**課題の箱の矩形**から引く。M3 の文法では仮説は箱の中の行なので、
+   * 箱はぶら下がる仮説のぶんだけ縦に伸びる——**その伸びた矩形から引く**
+   *（別の矩形を作って引くと、線が箱の縁からずれた所を指す）
    */
-  it('親の矩形は課題ノードのもので、カードを含むブロックではない', () => {
+  it('親の矩形は課題の箱のもので、仮説の行はその中に収まる', () => {
     const container = renderEdges()
     const from = layout.issues[0]
     const to = layout.issues[3]
     if (from === null || to === null) throw new Error('図に位置を持たない課題がある')
     expect(pathFor(container, 0, 3).getAttribute('d')).toBe(edgePath(from.rect, to.rect))
-    // カードはノードより下へ伸びている＝ブロックの矩形はノードの矩形と別物
-    const card = layout.hypotheses[1]
-    if (card === null) throw new Error('仮説2が図に位置を持たない')
-    expect(card.rect.y + card.rect.height).toBeGreaterThan(from.rect.y + from.rect.height)
+    // 行は箱の中（はみ出さない）
+    const row = layout.hypotheses[1]
+    if (row === null) throw new Error('仮説2が図に位置を持たない')
+    expect(row.rect.y + row.rect.height).toBeLessThanOrEqual(from.rect.y + from.rect.height)
+    // それでも箱は仮説のぶんだけ高い（数え落とすと子の列が箱に重なる）
+    expect(from.rect.height).toBeGreaterThan(to.rect.height)
   })
 })
 
