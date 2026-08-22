@@ -1,7 +1,3 @@
-// logic-tree/useViewport.ts の複製（sequence M1）。core への共通化は
-// 2本目完成後に別マイルストーンで判断する（scope の禁止事項）。差分を
-// 作らないこと——直すときは両方を直し、open-issues の複製の項に従う
-
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { select } from 'd3-selection'
 import { zoom, zoomIdentity, type D3ZoomEvent, type ZoomBehavior } from 'd3-zoom'
@@ -134,7 +130,7 @@ export function useViewport(
       // ノードの入力欄は常に textarea。ここを抜くと文字（空白）が打てなくなる
       if (isTextEntry(active)) return
       // ボタン・リンクの Space は活性化のキー。**位置ではなく役割で判定する**
-      //（帯の「参加者を追加」などのボタンはキャンバスの内側にある）
+      //（帯の「追加」などのボタンはキャンバスの内側にある）
       if (active instanceof HTMLButtonElement || active instanceof HTMLAnchorElement) return
       // 額縁のツールバーなど、キャンバスの外の物にも渡さない
       if (focusIsOutsideCanvas(ref.current, active)) return

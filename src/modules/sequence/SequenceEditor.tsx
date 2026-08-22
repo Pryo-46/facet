@@ -78,17 +78,17 @@ import {
   type AnswerPath,
 } from './questions'
 import {
-  createSeqMeasurer,
-  FALLBACK_LABEL_FONT,
-  FALLBACK_SEQ_FONT,
-  readSeqFont,
+  createCanvasMeasurer,
+  FALLBACK_CANVAS_FONT,
+  FALLBACK_SMALL_FONT,
+  readCanvasFont,
   sameFont,
-  type SeqFont,
-} from './seq-font'
+  type CanvasFont,
+} from '@/core/canvas/canvas-font'
+import { cssTransform, type Rect } from '@/core/canvas/viewport'
+import { useViewport } from '@/core/canvas/use-viewport'
 import { SequenceEdges, type EdgeStep } from './SequenceEdges'
 import { StepShapeCell } from './StepShapeCell'
-import { useViewport } from './useViewport'
-import { cssTransform, type Rect } from './viewport'
 
 /** 測定結果のキャッシュ。会議1回分の打鍵で無限に増えないよう頭を押さえる */
 const MEASURE_CACHE_LIMIT = 2000
@@ -214,9 +214,9 @@ export function SequenceEditor({
 }: EditorProps<SequenceSchemaVersion1>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
-  const [font, setFont] = useState<SeqFont>(FALLBACK_SEQ_FONT)
+  const [font, setFont] = useState<CanvasFont>(FALLBACK_CANVAS_FONT)
   const labelProbeRef = useRef<HTMLSpanElement>(null)
-  const [labelFont, setLabelFont] = useState<SeqFont>(FALLBACK_LABEL_FONT)
+  const [labelFont, setLabelFont] = useState<CanvasFont>(FALLBACK_SMALL_FONT)
 
   // ガターのグレースロットの削除確認（Undo で戻せるとはいえ、削除は確認を挟む）
   const [confirmTarget, setConfirmTarget] = useState<{ index: number; path: AnswerPath } | null>(
@@ -262,11 +262,11 @@ export function SequenceEditor({
 
   const readFont = (): void => {
     setFont((prev) => {
-      const next = readSeqFont(probeRef.current)
+      const next = readCanvasFont(probeRef.current)
       return sameFont(prev, next) ? prev : next
     })
     setLabelFont((prev) => {
-      const next = readSeqFont(labelProbeRef.current)
+      const next = readCanvasFont(labelProbeRef.current)
       return sameFont(prev, next) ? prev : next
     })
   }
@@ -319,9 +319,9 @@ export function SequenceEditor({
     cache: Map<string, WrappedBlock>
   } | null>(null)
   if (measurerRef.current === null || measurerRef.current.key !== measurerKey) {
-    // createSeqMeasurer は canvas を取れない環境（jsdom）で自ら概算器に落ちる
-    // ——logic-tree がテストで通っているのと同じ経路（seq-font.ts）
-    measurerRef.current = { key: measurerKey, measure: createSeqMeasurer(font), cache: new Map() }
+    // createCanvasMeasurer は canvas を取れない環境（jsdom）で自ら概算器に落ちる
+    // ——logic-tree がテストで通っているのと同じ経路（canvas-font.ts）
+    measurerRef.current = { key: measurerKey, measure: createCanvasMeasurer(font), cache: new Map() }
   }
   const measurer = measurerRef.current
 
@@ -348,7 +348,7 @@ export function SequenceEditor({
   if (labelMeasurerRef.current === null || labelMeasurerRef.current.key !== labelMeasurerKey) {
     labelMeasurerRef.current = {
       key: labelMeasurerKey,
-      measure: createSeqMeasurer(labelFont),
+      measure: createCanvasMeasurer(labelFont),
       cache: new Map(),
     }
   }

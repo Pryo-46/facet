@@ -1,5 +1,3 @@
-import type { NodeTree } from './tree'
-
 export interface Size {
   width: number
   height: number
@@ -10,8 +8,14 @@ export interface Point {
   y: number
 }
 
+/** レイアウトが要求する木の形。FlatTreeNode がこれを満たす */
+export interface LayoutTreeNode {
+  key: string
+  children: readonly LayoutTreeNode[]
+}
+
 export interface LayoutResult {
-  /** NodeTree.key → 座標 */
+  /** LayoutTreeNode.key → 座標 */
   positions: Map<string, Point>
   width: number
   height: number
@@ -36,9 +40,9 @@ function sizeOf(sizes: ReadonlyMap<string, Size>, key: string): Size {
 }
 
 /** 深さごとの最大幅を積み上げて、各深さの x を決める */
-function columnXs(roots: readonly NodeTree[], sizes: ReadonlyMap<string, Size>): number[] {
+function columnXs(roots: readonly LayoutTreeNode[], sizes: ReadonlyMap<string, Size>): number[] {
   const maxWidth: number[] = []
-  const walk = (node: NodeTree, depth: number): void => {
+  const walk = (node: LayoutTreeNode, depth: number): void => {
     maxWidth[depth] = Math.max(maxWidth[depth] ?? 0, sizeOf(sizes, node.key).width)
     for (const child of node.children) walk(child, depth + 1)
   }
@@ -87,7 +91,7 @@ function mergePlaced(a: Placed, b: Placed): Placed {
  * 兄弟の並びを詰める。**次の部分木を下げる量は、重なる全深さの中で
  * 一番きつい制約で決まる**——1つの深さだけ見ると、孫の代で衝突する
  */
-function packSiblings(nodes: readonly NodeTree[], sizes: ReadonlyMap<string, Size>): Placed {
+function packSiblings(nodes: readonly LayoutTreeNode[], sizes: ReadonlyMap<string, Size>): Placed {
   let acc: Placed | null = null
   for (const node of nodes) {
     const p = placeSubtree(node, sizes)
@@ -104,7 +108,7 @@ function packSiblings(nodes: readonly NodeTree[], sizes: ReadonlyMap<string, Siz
   return acc ?? { ys: new Map(), top: [], bottom: [] }
 }
 
-function placeSubtree(node: NodeTree, sizes: ReadonlyMap<string, Size>): Placed {
+function placeSubtree(node: LayoutTreeNode, sizes: ReadonlyMap<string, Size>): Placed {
   const height = sizeOf(sizes, node.key).height
   if (node.children.length === 0) {
     return { ys: new Map([[node.key, 0]]), top: [0], bottom: [height] }
@@ -134,12 +138,12 @@ function placeSubtree(node: NodeTree, sizes: ReadonlyMap<string, Size>): Placed 
  * 起きず、輪郭は深さごとの上端・下端の配列で足りる。
  */
 export function layoutTree(
-  roots: readonly NodeTree[],
+  roots: readonly LayoutTreeNode[],
   sizes: ReadonlyMap<string, Size>,
 ): LayoutResult {
   const xs = columnXs(roots, sizes)
   const depths = new Map<string, number>()
-  const walk = (node: NodeTree, depth: number): void => {
+  const walk = (node: LayoutTreeNode, depth: number): void => {
     depths.set(node.key, depth)
     for (const child of node.children) walk(child, depth + 1)
   }

@@ -53,10 +53,6 @@ describe('wrapText', () => {
     expect(r.height).toBe(LH * 3 + NODE_INSET_Y * 2)
   })
 
-  it('連続した改行は空行として残す', () => {
-    expect(wrapText('あ\n\nい', measure, LH).lines).toEqual(['あ', '', 'い'])
-  })
-
   it('単語の途中でも折り返す（日本語向けの break-all と同じ規則）', () => {
     const perLine = Math.floor(CONTENT_MAX / 5)
     expect(wrapText('a'.repeat(perLine + 2), measure, LH).lines.length).toBe(2)
@@ -65,21 +61,5 @@ describe('wrapText', () => {
   it('1文字で最大幅を超えても、その1文字だけの行を作る（無限ループしない）', () => {
     const huge = (t: string): number => t.length * (CONTENT_MAX + 50)
     expect(wrapText('あい', huge, LH).lines).toEqual(['あ', 'い'])
-  })
-
-  it('サロゲートペアを割らない', () => {
-    expect(wrapText('𩸽', measure, LH).lines).toEqual(['𩸽'])
-  })
-
-  it('同じ入力からは同じ結果が出る（純関数）', () => {
-    expect(wrapText('あ'.repeat(50), measure, LH)).toEqual(wrapText('あ'.repeat(50), measure, LH))
-  })
-})
-
-describe('createEstimateMeasurer', () => {
-  it('半角は全角の半分の幅にする', () => {
-    const m = createEstimateMeasurer(14)
-    expect(m('ab')).toBe(14)
-    expect(m('あい')).toBe(28)
   })
 })

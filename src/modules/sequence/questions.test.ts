@@ -10,7 +10,7 @@ import {
   readSlot,
   unposedAnswers,
 } from './questions'
-import { FALLBACK_LABEL_FONT } from './seq-font'
+import { FALLBACK_SMALL_FONT } from '@/core/canvas/canvas-font'
 
 const call = (awaitsReply: boolean) =>
   ({ kind: 'call', awaitsReply }) as const
@@ -64,9 +64,9 @@ describe('questionLabels', () => {
   // QUESTION_LABEL_WIDTH 固定で、折り返すとその行だけ背が伸びる。
   // ifExecuted は GUTTER_INDENT ぶん列が狭く接頭辞も付くので、そこが一番きつい
   it('立つ問いはラベル列で1行に収まる', () => {
-    const measure = createEstimateMeasurer(FALLBACK_LABEL_FONT.fontSize)
+    const measure = createEstimateMeasurer(FALLBACK_SMALL_FONT.fontSize)
     const lineCount = (question: string, indent: boolean): number =>
-      wrapWithin(gutterLabelText(question, indent), measure, FALLBACK_LABEL_FONT.lineHeight, {
+      wrapWithin(gutterLabelText(question, indent), measure, FALLBACK_SMALL_FONT.lineHeight, {
         maxWidth: QUESTION_LABEL_WIDTH - (indent ? GUTTER_INDENT : 0),
         minWidth: 0,
         insetX: 0,

@@ -23,20 +23,20 @@ import {
   setText,
   type EditResult,
 } from './commands'
-import { layoutTree, type Size } from './layout'
-import { wrapText, type MeasureWidth, type WrappedText } from './measure'
 import {
-  createNodeMeasurer,
-  FALLBACK_NODE_FONT,
-  readNodeFont,
+  createCanvasMeasurer,
+  FALLBACK_CANVAS_FONT,
+  readCanvasFont,
   sameFont,
-  type NodeFont,
-} from './node-font'
+  type CanvasFont,
+} from '@/core/canvas/canvas-font'
+import { buildTree } from '@/core/canvas/flat-tree'
+import { cssTransform } from '@/core/canvas/viewport'
+import { useViewport } from '@/core/canvas/use-viewport'
+import { layoutTree, type Size } from '@/core/canvas/tree-layout'
+import { wrapText, type MeasureWidth, type WrappedText } from './measure'
 import { NodeBox } from './NodeBox'
-import { buildTree } from './tree'
 import { TreeEdges } from './TreeEdges'
-import { useViewport } from './useViewport'
-import { cssTransform } from './viewport'
 
 /** 測定結果のキャッシュ。会議1回分の打鍵で無限に増えないよう頭を押さえる */
 const MEASURE_CACHE_LIMIT = 2000
@@ -62,7 +62,7 @@ export function LogicTreeEditor({
 }: EditorProps<LogicTreeSchemaVersion1>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
-  const [font, setFont] = useState<NodeFont>(FALLBACK_NODE_FONT)
+  const [font, setFont] = useState<CanvasFont>(FALLBACK_CANVAS_FONT)
   // ズーム・パン（Ctrl+ホイール／Space・中ボタンのドラッグ）と新ノードへの追従。
   // モーダルが開いている間は止める（キーはモーダルが取る。rev 10章 境界規則）
   const { transform, spaceHeld, ensureVisible } = useViewport(containerRef, !modalOpen)
@@ -78,7 +78,7 @@ export function LogicTreeEditor({
 
   const readFont = (): void => {
     setFont((prev) => {
-      const next = readNodeFont(probeRef.current)
+      const next = readCanvasFont(probeRef.current)
       return sameFont(prev, next) ? prev : next
     })
   }
@@ -134,7 +134,7 @@ export function LogicTreeEditor({
     cache: Map<string, WrappedText>
   } | null>(null)
   if (measurerRef.current === null || measurerRef.current.key !== measurerKey) {
-    measurerRef.current = { key: measurerKey, measure: createNodeMeasurer(font), cache: new Map() }
+    measurerRef.current = { key: measurerKey, measure: createCanvasMeasurer(font), cache: new Map() }
   }
   const measurer = measurerRef.current
 

@@ -1,7 +1,7 @@
+import { buildTree, orderFlatNodes, siblingsOf, subtreeEnd, type BuiltTree } from '@/core/canvas/flat-tree'
 import { insertAt } from '@/core/list-ops'
 import { newId } from '@/core/new-id'
 import type { LogicTreeSchemaVersion1, TreeNode } from '@/types/logic-tree'
-import { buildTree, type BuiltTree, type NodeTree } from './tree'
 
 export interface EditResult {
   data: LogicTreeSchemaVersion1
@@ -20,45 +20,8 @@ function newNode(parentId: string | null): TreeNode {
   return { id: newId('node'), parentId, text: '' }
 }
 
-/**
- * 配列を DFS 行きがけ順に整える（兄弟の相対順は変えない）。
- *
- * 兄弟順の正本は配列順（rev 5章）なので、並べ替えても意味は変わらない。
- * この順を保つことで「挿入位置＝参照ノードの部分木の直後」という1つの規則が
- * 成立し、上から読めば木の形が追える JSON になる。
- *
- * 循環して根から到達できないノードは、末尾に元の順で残す。**消さないこと**
- *——ファイルにあるものが黙って減るのが一番たちが悪い
- */
-export function orderNodes(nodes: readonly TreeNode[]): TreeNode[] {
-  const built = buildTree(nodes)
-  const out: TreeNode[] = []
-  const walk = (node: NodeTree): void => {
-    out.push(nodes[node.index])
-    for (const child of node.children) walk(child)
-  }
-  for (const root of built.roots) walk(root)
-  for (const index of built.unreachable) out.push(nodes[index])
-  return out
-}
-
-/**
- * 行きがけ順の配列で、index の部分木が終わる位置（＝次の兄弟がいる位置）。
- * 深さが自分以下になる最初の位置を探せばよい
- */
-function subtreeEnd(built: BuiltTree, index: number): number {
-  const depth = built.depths[index]
-  for (let j = index + 1; j < built.depths.length; j++) {
-    if (built.depths[j] <= depth) return j
-  }
-  return built.depths.length
-}
-
-/** 兄弟（同じ親を持つノード）の配列位置を、並び順で返す */
-function siblingsOf(built: BuiltTree, index: number): number[] {
-  const parent = built.parents[index]
-  return parent === null ? built.roots.map((r) => r.index) : built.children[parent]
-}
+/** 配列を DFS 行きがけ順に整える（規則はコアの orderFlatNodes が持つ） */
+export const orderNodes = (nodes: readonly TreeNode[]): TreeNode[] => orderFlatNodes(nodes)
 
 /**
  * 並べ替えた配列の上で作業するための下ごしらえ。
