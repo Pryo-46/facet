@@ -369,6 +369,7 @@ export function movePendingNote(
 
 /**
  * 判断イベントを追記する（D2）。**追記専用**——過去の要素は書き換えない。
+ * **仮説側は例外を持たない**（例外は課題の見送りだけ。`toggleDeferral`）。
  *
  * `note` は空で作り、直後に最新イベントの note セルへフォーカスを移す。
  * **pendingNotes を自動で流し込まない**（D9）——雑談メモを公式の根拠へ
@@ -389,30 +390,55 @@ export function appendJudgement(
 }
 
 /**
- * 課題ノードへ見送りイベントを追記する（D3）。
- * **配下へ値をコピーしない**——抑制は derive.ts が祖先を遡って導出する
+ * 課題ノードの見送りを**入り切りする**（D3）。**配下へ値をコピーしない**
+ *——抑制は derive.ts が祖先を遡って導出する。
+ *
+ * **ここだけが D2 の追記専用の例外である**（設計ノート D2 の反転節を見よ）。
+ * 見送りは種別が `deferred` の1語しか無くなり、選ばせるものが無い操作になった
+ *——1択のドロップダウンをやめてトグルにしたので、「戻す」の意味を決める必要が
+ * 生まれ、**最新の見送りイベントを消す**を採った。追記による取り消しイベントは
+ * 作らない：`events` が「見送りの表明が1件」ではなく「見送って戻した履歴」に
+ * なった瞬間、抑制の導出（最新が `deferred` か）と俯瞰のバッジが列の中身に
+ * 依存し始める。**代償は、一度見送って戻した事実と、そのとき書いた理由が
+ * 消えることである**——受け入れた上での選択で、取り消しは Undo（1操作1コミット）
+ * が戻す。**仮説側（`appendJudgement`）は追記専用のまま。**
+ *
+ * **入り切りを1つの関数にしてあるのは、「いま見送っているか」を決める場所を
+ * 1つに保つためである。** 追加と削除を別の export にすると、呼ぶ側が
+ * `events.length > 0` を自分で見ることになり、レイアウト（`layout.ts` の
+ * `deferred`）・面（`derive.ts` の `issueStatus`）と並んで4箇所目の判定になる。
+ *
+ * **消すのは最新の1件だけ。** アプリが作る `events` は高々1件だが、手書きの
+ * ファイルは2件以上を持ちうる——そこで全部消すと、書いた人が見ていない過去の
+ * 理由まで1押しで飛ぶ。1件消してまだ見送りが残るなら、箱は見送りを掲げたまま
+ * （もう一度押せば次が消える）で、これは「最新から順に剥がす」として読める
  */
-export function appendDeferral(
-  data: IssueTreeSchemaVersion2,
-  index: number,
-  kind: DeferralEvent['kind'],
-): EditResult {
+export function toggleDeferral(data: IssueTreeSchemaVersion2, index: number): EditResult {
   const node = data.issues[index]
   if (node === undefined) return { data, focus: null }
-  const events = [...node.events, { kind, note: '' }]
+  const deferred = node.events.length > 0
+  const events: DeferralEvent[] = deferred
+    ? node.events.slice(0, -1)
+    : [...node.events, { kind: 'deferred', note: '' }]
   return {
     data: { ...data, issues: data.issues.map((n, i) => (i === index ? { ...n, events } : n)) },
-    // 見送りを選んだら理由を打たせる（`appendJudgement` が根拠へ飛ばすのと同じ形）。
-    // **課題の文言へ戻さない**——見送りは理由が本体で、種別だけ残ると
-    // 「なぜ落としたか」が figure から消える
-    focus: { cell: 'deferral', index },
+    // **付けたら理由を打たせる**（`appendJudgement` が根拠へ飛ばすのと同じ形）。
+    // 課題の文言へ戻さないのは、見送りは理由が本体で、バッジだけ残ると
+    // 「なぜ落としたか」が図から消えるため。
+    //
+    // **外したときは課題の文言へ返す。** 理由の欄はいま消えた欄であり、行き先に
+    // できない。null（＝どこへも移さない）にするとフォーカスはトグルのボタンに
+    // 残るが、ボタンの上では木の操作言語（Enter／Tab／←→）が1つも効かない
+    // ——押した後そのまま打ち続けられる場所は、箱の中ではタイトルだけである
+    focus: deferred ? { cell: 'issue', index } : { cell: 'deferral', index },
   }
 }
 
 /**
  * 見送りの理由を書く。**書けるのは最新の見送りだけ**（`setEventNote` と同じ規則）。
  *
- * 課題ノードのイベントも追記専用の列であり、過去の見送りの理由が後から
+ * 課題の `events` は `toggleDeferral` が最新1件を消せる列になったが、
+ * **書き換えの側は最新に限ったままである**——過去の見送りの理由が後から
  * 書き換わると「そのとき何を根拠に落としたか」が消える。見送りが1件も無い
  * 課題では**同じ参照を返す**——`apply` がそれを見て何もしない契約
  */

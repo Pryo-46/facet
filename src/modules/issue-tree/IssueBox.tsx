@@ -22,11 +22,12 @@ export interface IssueBoxProps {
   onDeferralNoteChange: (next: string) => void
   onFieldKeyDown?: (e: React.KeyboardEvent, state: FieldState) => void
   /**
-   * 見送りのドロップダウン。**必須にしてある**——省略できると、見送りを付ける
-   * 動線がマウスから消えていても型は通り、画面は一見正常なまま「押す場所が無い」になる。
-   * 見送り済みの箱では、このトリガー自身が見送りバッジを兼ねる（面はエディタが渡す）
+   * 見送りのトグル（入り＝見送り済み／切り＝見送っていない）。**必須にしてある**
+   *——省略できると、見送りを付ける動線がマウスから消えていても型は通り、
+   * 画面は一見正常なまま「押す場所が無い」になる。
+   * 見送り済みの箱では、このトグル自身が見送りバッジを兼ねる（面はエディタが渡す）
    */
-  deferralMenu: React.ReactNode
+  deferralToggle: React.ReactNode
   /** 仮説行（`HypothesisRow` の列）。箱の中に絶対配置で置かれる */
   children?: React.ReactNode
 }
@@ -46,8 +47,9 @@ export interface IssueBoxProps {
  * 2. 抑制された配下も**地の色に落とさない**。`bg-surface` のまま枠と文字を
  *    `ink-faint` にする——`bg-canvas` にすると箱が背景に溶けて木の形が読めない。
  *    **`opacity-*` で薄くしない**（検算したコントラストを割る）
- * 3. 見送りのドロップダウンを置く枠がある。**開閉の状態は親（エディタ）が持つ**
- *    ——同時に1つのドロップダウンしか開かない（sequence M3 で確定した形）
+ * 3. 見送りのトグルを置く枠がある。**押されているかどうかはデータの導出**
+ *    ——`events` が空でなければ入り。ビュー側に開閉の状態を持たない
+ *（判断のドロップダウンだけが、開閉の状態を親＝エディタに持たせている）
  */
 export function IssueBox(props: IssueBoxProps) {
   const { placement, label } = props
@@ -109,7 +111,7 @@ export function IssueBox(props: IssueBoxProps) {
         />
       </div>
 
-      {/* 見送りのドロップダウン。**箱の外（left-full）へ逃がさない**——列の
+      {/* 見送りのトグル。**箱の外（left-full）へ逃がさない**——列の
           間隔の中に置くと、隣の枝と重なる位置に出ることがある。
           **レイアウトはタイトル行の右上を常に1枠空けている**ので、
           見送り済みなら測定した矩形へ、まだなら同じ枠（右寄せ）へ置けば、
@@ -122,15 +124,15 @@ export function IssueBox(props: IssueBoxProps) {
             : inBox(placement.deferral.badge)
         }
       >
-        {props.deferralMenu}
+        {props.deferralToggle}
       </div>
 
       {/* 「仮説なし」。**見送りバッジとは排他**（見送った課題は抑制されるので
           問いが立たない）。読み取り専用の表示だが aria-hidden にしない——
           名前の後半に同じ言葉が入っており、音声でも二重には読まれない。
 
-          **ホバー・フォーカス中は隠して、見送りのトリガーと入れ替える。**
-          右上の枠は1つで、レイアウトが空けているのは「バッジかトリガーの
+          **ホバー・フォーカス中は隠して、見送りのトグルと入れ替える。**
+          右上の枠は1つで、レイアウトが空けているのは「バッジかトグルの
           広い方」1枠ぶんである（2枠ぶん空けるとタイトルが痩せる）。
           問いは名前の後半にも入っているので、隠しているあいだも音声からは消えない */}
       {props.warn && placement.deferral === null && (

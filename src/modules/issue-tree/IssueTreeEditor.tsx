@@ -48,7 +48,6 @@ import {
   addPendingNoteAfter,
   addRootIssue,
   addSiblingIssueAfter,
-  appendDeferral,
   appendJudgement,
   deleteHypothesis,
   deleteIssueSubtree,
@@ -63,6 +62,7 @@ import {
   setIssueText,
   setPendingNote,
   setRationale,
+  toggleDeferral,
   type EditResult,
   type FocusTarget,
 } from './commands'
@@ -74,7 +74,6 @@ import {
   suppressedIssueIds,
   TALLY_TOTAL_LABEL,
   tallyQuestions,
-  type DeferralKind,
   type JudgementKind,
 } from './derive'
 import { HypothesisRow } from './HypothesisRow'
@@ -127,18 +126,6 @@ const JUDGEMENT_MENU_ORDER: Record<JudgementKind, number> = {
 const JUDGEMENT_KINDS: readonly JudgementKind[] = (
   Object.keys(JUDGEMENT_MENU_ORDER) as JudgementKind[]
 ).sort((a, b) => JUDGEMENT_MENU_ORDER[a] - JUDGEMENT_MENU_ORDER[b])
-/**
- * 課題ノードに付けられるのは見送り（deferred）だけ（スキーマの制約）。
- * **1件でも `JUDGEMENT_KINDS` と同じ形にしてある**——手書きの配列だと、スキーマへ
- * 種別が増えても tsc が黙っており、選べない種別が静かに残る（`onHold` で
- * 実際に起きた穴。形を知りながら同じ穴を残さない）
- */
-const DEFERRAL_MENU_ORDER: Record<DeferralKind, number> = {
-  deferred: 1,
-}
-const DEFERRAL_KINDS: readonly DeferralKind[] = (
-  Object.keys(DEFERRAL_MENU_ORDER) as DeferralKind[]
-).sort((a, b) => DEFERRAL_MENU_ORDER[a] - DEFERRAL_MENU_ORDER[b])
 
 const PLATFORM = currentPlatform()
 
@@ -181,8 +168,9 @@ function cachedMeasurer(font: CanvasFont): { measure: MeasureWidth; lineHeight: 
 }
 
 /**
- * ドロップダウンのトリガーの土台。**`buttonBase` を敷かないのは角丸のため。**
- * `buttonBase` は `rounded-sm` を持つが、見送り済みの課題ではこのトリガーが
+ * ドロップダウンのトリガーと**見送りのトグル**に共通の土台。
+ * **`buttonBase` を敷かないのは角丸のため。**
+ * `buttonBase` は `rounded-sm` を持つが、見送り済みの課題ではトグル自身が
  * 見送りバッジ（`rounded`）を兼ねる——**角丸を2つ並べると勝つのは生成 CSS の
  * 順序であってクラス名の順序**であり、`TRIGGER_FACE` を切り出した理由（M8）が
  * 角丸について残ってしまう。**角丸は面が決める**ことにして口を1つにする。
@@ -192,8 +180,10 @@ const TRIGGER_BASE =
   'pointer-events-auto inline-flex items-center justify-center transition-colors outline-none focus:ring-2 focus:ring-inset focus:ring-ring'
 
 /**
- * トリガーの既定の面。**`triggerClassName` を渡すと差し替わる**（足さない）。
- * 見送り済みの課題では、この面の代わりに見送りバッジの面が渡る
+ * 小さなボタンの面。**呼び出し側が必ず渡す**（足すのではなく差し替える）
+ *——見送り済みの課題では、この面の代わりに見送りバッジの面が渡る。
+ * **幅を測っているのは `layout.ts` の `actionWidth`**（`ACTION_INSET_X` は
+ * ここの `px-1` ＋ 枠線 1px）なので、余白のクラスは対で直すこと
  */
 const TRIGGER_FACE =
   'rounded-sm border border-rule bg-surface px-1 text-xs text-ink-muted hover:bg-canvas'
@@ -213,28 +203,32 @@ const TRIGGER_FACE =
  */
 const CHIP_BASE = 'pointer-events-auto transition-colors'
 
-interface KindMenuProps<K extends JudgementKind> {
+interface KindMenuProps {
   /** アクセシブル名（トリガーのボタン） */
   label: string
   /** ボタンに出す短い文言 */
   triggerText: string
-  /** トリガーの面（既定は `TRIGGER_FACE`）。**足すのではなく差し替える** */
-  triggerClassName?: string
-  kinds: readonly K[]
-  onPick: (kind: K) => void
+  /** トリガーの面。**足すのではなく差し替える** */
+  triggerClassName: string
+  kinds: readonly JudgementKind[]
+  onPick: (kind: JudgementKind) => void
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
 /**
- * 種別を1つ選ぶドロップダウン（見送り／判断）。**開閉は親が持つ制御コンポーネント**
+ * 判断の種別を1つ選ぶドロップダウン。**開閉は親が持つ制御コンポーネント**
  *——同時に1つしか開かないことを、開いているセルの鍵1つで構造的に保証する
  *（`SequenceEditor` の `openCell` / `menuPropsFor` と同じ形）。
  *
  * ネイティブの `select` にしないのは、ブラウザ既定のドロップダウンがキャンバスの
- * transform を無視して出るため（`StepShapeCell` と同じ理由）
+ * transform を無視して出るため（`StepShapeCell` と同じ理由）。
+ *
+ * **かつては課題の見送りも同じ部品で出していた**（`K extends JudgementKind` の
+ * 型引数はそのためにあった）。見送りが `deferred` の1語に畳まれてトグルに
+ * なったので、いま使うのは仮説の判断だけである
  */
-function KindMenu<K extends JudgementKind>(props: KindMenuProps<K>) {
+function KindMenu(props: KindMenuProps) {
   // 選んだときだけ Radix の「トリガーへフォーカスを戻す」を降ろす。
   // 追記した直後は根拠の欄へフォーカスを予約してあり、取り合うと打てなくなる
   const picked = useRef(false)
@@ -243,7 +237,7 @@ function KindMenu<K extends JudgementKind>(props: KindMenuProps<K>) {
       <DropdownMenuTrigger
         type="button"
         aria-label={props.label}
-        className={`${TRIGGER_BASE} ${props.triggerClassName ?? TRIGGER_FACE}`}
+        className={`${TRIGGER_BASE} ${props.triggerClassName}`}
       >
         {props.triggerText}
       </DropdownMenuTrigger>
@@ -304,8 +298,11 @@ export function IssueTreeEditor({
   const [font, setFont] = useState<CanvasFont>(FALLBACK_CANVAS_FONT)
   const [smallFont, setSmallFont] = useState<CanvasFont>(FALLBACK_SMALL_FONT)
 
-  // 見送り／判断のドロップダウンは同時に1つだけ開く。**開いているセルの鍵を
+  // 判断のドロップダウンは同時に1つだけ開く。**開いているセルの鍵を
   // 1つだけ持つ**ことで構造的に複数オープンを禁止する（sequence M3 Task 11b）。
+  // **見送りはここに載らない**——1択のドロップダウンをやめてトグルにしたので、
+  // 開閉という状態そのものが無くなった。
+
   // **キャンバスのズーム・パンは止めない**——止めると「複数開いたまま1つ閉じると
   // キャンバスが復活する」に戻る。Radix の FocusScope（modal 既定）が
   // メニュー内にキーを閉じ込めるので、操作言語への漏れは起きない
@@ -609,7 +606,6 @@ export function IssueTreeEditor({
 
   /** ドロップダウンの鍵。**`data-cell` と同じ文字列にしないこと**——フォーカスの
       予約は `data-cell` で引くので、衝突するとトリガーを掴んでしまう */
-  const deferralMenuKey = (issueKey: string): string => `menu:defer:${issueKey}`
   const judgementMenuKey = (hypothesisKey: string): string => `menu:judge:${hypothesisKey}`
 
   /** 編集の打ち切り。フォーカスを外すと CellInput が確定値に戻す */
@@ -992,22 +988,33 @@ export function IssueTreeEditor({
                   onChange(setDeferralNote(data, index, next), `${key}:deferral`)
                 }
                 onFieldKeyDown={(e, state) => onIssueKeyDown(e, index, state)}
-                deferralMenu={
-                  <KindMenu
-                    label={`課題${index + 1}を見送る`}
-                    // 見送り済みなら、**このトリガーが見送りバッジを兼ねる**
+                deferralToggle={
+                  <button
+                    type="button"
+                    // **アクセシブル名は状態で動かさない。** 前半（`課題{N}`）を
+                    // 動かさない約束はそのままに、後半は「何を入り切りするか」
+                    // ——見送り——に固定し、**入っているかどうかは `aria-pressed`
+                    // が運ぶ**。名前の方を「見送る」／「見送りをやめる」と
+                    // 入れ替えると、`aria-pressed` と二重に状態を述べることになり、
+                    // 支援技術では「見送りをやめる、押されている」と読まれて
+                    // どちらが現状か分からなくなる
+                    aria-label={`課題${index + 1}の見送り`}
+                    aria-pressed={deferral !== null}
+                    // 見送り済みなら、**このトグルが見送りバッジを兼ねる**
                     //（同じ場所に2つ置かない）。まだなら、ホバーと
-                    // focus-within のときだけ出す小さなボタンにする
-                    triggerText={deferral === null ? DEFER_TRIGGER_LABEL : ISSUE_DEFERRED_LABEL}
-                    triggerClassName={
+                    // focus-within のときだけ出す小さなボタンにする。
+                    // **どちらの面もレイアウトが枠を空けている**——`layout.ts` の
+                    // `slotW` が、見送り済みならバッジ幅（`ISSUE_DEFERRED_LABEL`）、
+                    // まだならボタン幅（`DEFER_TRIGGER_LABEL`）で測る
+                    className={`${TRIGGER_BASE} ${
                       deferral === null
                         ? `${TRIGGER_FACE} invisible group-hover/issue:visible group-focus-within/issue:visible`
                         : badgeClass('deferred', suppressed)
-                    }
-                    kinds={DEFERRAL_KINDS}
-                    onPick={(kind) => apply(appendDeferral(data, index, kind))}
-                    {...menuPropsFor(deferralMenuKey(key))}
-                  />
+                    }`}
+                    onClick={() => apply(toggleDeferral(data, index))}
+                  >
+                    {deferral === null ? DEFER_TRIGGER_LABEL : ISSUE_DEFERRED_LABEL}
+                  </button>
                 }
               >
                 {/* 仮説は**この箱の中の行**。ぶら下がり先の課題が図に無い仮説は

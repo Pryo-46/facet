@@ -16,7 +16,7 @@ import {
   tallyQuestions,
 } from './derive'
 import { IssueTreeEditor } from './IssueTreeEditor'
-import { JUDGEMENT_TRIGGER_LABELS } from './layout'
+import { DEFER_TRIGGER_LABEL, JUDGEMENT_TRIGGER_LABELS } from './layout'
 
 afterEach(cleanup)
 
@@ -74,7 +74,7 @@ function Harness({
 /**
  * 課題ノードの入力欄。**アクセシブル名の前半（`課題{N}`）で引く**——後半には
  * 「（未記入）」や立っている問いが付く。role を textbox に絞るのは、
- * 同じ接頭辞を持つ見送りのボタン（`課題{N}を見送る`）と区別するため。
+ * 同じ接頭辞を持つ見送りのトグル（`課題{N}の見送り`）と区別するため。
  *
  * **後半を素通しにしない**——見送った課題は同じ箱の中に理由の欄
  *（`課題{N} の見送りの理由`）を持っており、前方一致だけだと2件引いてしまう。
@@ -233,14 +233,23 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     // 抑制されていない仮説のバッジは「未決」の面（warning の破線）
     expect(badgeOf(1).className).toBe(badgeClass('open', false))
 
-    // 見送りは課題ノードのドロップダウンから付ける（Radix のトリガーは pointerdown で開く）
-    fireEvent.pointerDown(screen.getByRole('button', { name: '課題1を見送る' }), { button: 0 })
-    fireEvent.click(screen.getByRole('menuitem', { name: EVENT_KIND_LABELS.deferred }))
+    // 見送りは課題ノードのトグルを1回押して付ける（種別は `deferred` の1語しか
+    // 無いので選ばせない。かつてはここが1択のドロップダウンだった）
+    const toggle = screen.getByRole('button', { name: '課題1の見送り' })
+    expect(toggle.getAttribute('aria-pressed')).toBe('false')
+    // **描く文字は、レイアウトが枠を測るのに使った文字と同じでなければならない**
+    //（`layout.ts` の `slotW`）。jsdom には版組が無いので、ここでずれても
+    // 画面が壊れるだけでどのテストも赤くならない——字面で対を縛る
+    expect(toggle.textContent).toBe(DEFER_TRIGGER_LABEL)
+    fireEvent.click(toggle)
 
-    // 選んだ後は**見送りの理由の欄**へフォーカスが来る（`appendDeferral` の行き先）。
-    // Radix の既定に予約を奪われるとトリガーのボタンに残る
+    // 押した後は**見送りの理由の欄**へフォーカスが来る（`toggleDeferral` の行き先）
     expect(document.activeElement).toBe(
       screen.getByRole('textbox', { name: '課題1 の見送りの理由' }),
+    )
+    // 入りになったことは名前ではなく `aria-pressed` が運ぶ（名前は動かさない）
+    expect(screen.getByRole('button', { name: '課題1の見送り' }).getAttribute('aria-pressed')).toBe(
+      'true',
     )
     // **バッジは消えない——薄い枠（ink-faint）に落ちる。** 「いま作業する面では
     // ない」ことを面の濃さで見せる（`opacity-*` では検算した比を割る）
@@ -297,7 +306,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     // 見送りを掲げている当人（課題2）は通常の面
     expect(boxOf(2).className).toContain('border-rule')
     expect(boxOf(2).className).not.toContain('ink-faint')
-    expect(screen.getByRole('button', { name: '課題2を見送る' }).className).toContain(
+    expect(screen.getByRole('button', { name: '課題2の見送り' }).className).toContain(
       badgeClass('deferred', false),
     )
     // 配下（課題3）は薄い枠と薄い文字に落ちる
@@ -400,8 +409,9 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
         onChange={onChange}
       />,
     )
-    // バッジは1語「見送り」。**同時にこれが見送りのトリガーを兼ねる**
-    const badge = screen.getByRole('button', { name: '課題1を見送る' })
+    // バッジは1語「見送り」。**同時にこれが見送りのトグルを兼ねる**
+    //（描く文字と `layout.ts` が測る文字が同じであることの、入り側の対）
+    const badge = screen.getByRole('button', { name: '課題1の見送り' })
     expect(badge.textContent).toBe(ISSUE_DEFERRED_LABEL)
     // **薄くならない。** 見送りは「そこで下した判断の表明」であって
     // 「もう見なくてよい枝」ではない（俯瞰モックの規則。薄いのは配下だけ）
@@ -414,6 +424,42 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     expect(next.issues[0].events).toEqual([
       { kind: 'deferred', note: '通知は本開発で扱う' },
     ])
+  })
+
+  /**
+   * **トグルを切ると、理由の欄ごと消える。** 「一度見送って戻した」履歴も、
+   * そのとき書いた理由も残らない——`toggleDeferral` が最新の見送りを消すので
+   * あって、打ち消しのイベントを追記するのではない（D2 の反転節）。
+   * ここは**代償の側を画面で固定するテスト**である
+   */
+  it('見送りを切ると理由の欄が消え、書いてあった理由も一緒に消える', () => {
+    const base = file()
+    const onChange = vi.fn()
+    render(
+      <Harness
+        initial={{
+          ...base,
+          issues: base.issues.map((n, i) =>
+            i === 0 ? { ...n, events: [{ kind: 'deferred', note: '本開発の設計と一緒に決める' }] } : n,
+          ),
+        }}
+        onChange={onChange}
+      />,
+    )
+    const toggle = screen.getByRole('button', { name: '課題1の見送り' })
+    expect(toggle.getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(toggle)
+
+    const next: IssueTreeSchemaVersion2 = onChange.mock.calls[0][0]
+    expect(next.issues[0].events).toEqual([])
+    // 理由の欄は消え、トグルは切りに戻る
+    expect(screen.queryByRole('textbox', { name: '課題1 の見送りの理由' })).toBeNull()
+    expect(screen.getByRole('button', { name: '課題1の見送り' }).getAttribute('aria-pressed')).toBe(
+      'false',
+    )
+    // **フォーカスは課題の文言へ戻る**（消えた欄には返せず、ボタンの上では
+    // 木の操作言語が効かない）
+    expect(document.activeElement).toBe(issueCell(1))
   })
 })
 

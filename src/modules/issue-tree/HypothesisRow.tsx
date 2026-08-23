@@ -53,7 +53,7 @@ export interface HypothesisRowProps {
   onFieldKeyDown?: (e: React.KeyboardEvent, state: FieldState, cell: HypothesisCell) => void
   /**
    * 判断イベントのドロップダウン。エディタが `menuPropsFor` で組んで渡す。
-   * **必須にしてある**（`IssueBox` の `deferralMenu` と同じ）——省略できると、
+   * **必須にしてある**（`IssueBox` の `deferralToggle` と同じ）——省略できると、
    * 判断を付ける動線がマウスから消えていても型は通る
    */
   judgementMenu: React.ReactNode
