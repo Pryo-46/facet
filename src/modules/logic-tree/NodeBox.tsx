@@ -12,6 +12,8 @@ export interface NodeBoxProps {
   height: number
   /** 整合性検証で赤表示の対象になっているか */
   invalid: boolean
+  /** 欠落（text が空）。invalid が勝つ */
+  missing: boolean
   onTextChange: (next: string) => void
   onFieldKeyDown?: (e: React.KeyboardEvent, state: FieldState) => void
 }
@@ -25,8 +27,14 @@ export interface NodeBoxProps {
  * ブラウザが測定より早く折り返して文字が切れることを防ぐ
  */
 export function NodeBox(props: NodeBoxProps) {
-  // 無効は `invalid` の枠＋淡い面（rev 9章 規約2）
-  const face = props.invalid ? 'border-invalid bg-invalid-face' : 'border-rule bg-surface'
+  // 無効は `invalid` の枠＋淡い面（rev 9章 規約2）。欠落（text が空）は
+  // 破線＋淡い面（missing-face。M22）——**invalid が勝つ**（両方立つのは
+  // 空ノードが指摘の対象にもなっているとき）
+  const face = props.invalid
+    ? 'border-invalid bg-invalid-face'
+    : props.missing
+      ? 'border-dashed border-missing bg-missing-face'
+      : 'border-rule bg-surface'
   return (
     <div
       // ノードのレイヤは pointer-events-none で操作を通す。操作を受けるのは
