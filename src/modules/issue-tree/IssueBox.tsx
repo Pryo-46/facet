@@ -39,15 +39,20 @@ export interface IssueBoxProps {
  * NodeBox.tsx` と同じ模型。IME・ドラフト・Undo 反映は `CellInput` が持つ）。
  * 高さは測定層が決めた値を CSS で当てる（`autoSize={false}`）。
  *
- * ロジックツリーのノードとの差は3つ:
+ * ロジックツリーのノードとの差は4つ:
  *
- * 1. 面が3種類ある（整合性エラー／抑制／通常）。**未決を面で見せない**
+ * 1. 面が4種類ある（整合性エラー／抑制／見送り／通常）。**未決を面で見せない**
  *    ——立っている問いはタイトル行の右端のバッジが運ぶ。面で塗ると、
  *    「まだ埋めていない」箱が図の大半を占めて地の色が意味を失う
  * 2. 抑制された配下も**地の色に落とさない**。`bg-surface` のまま枠と文字を
  *    `ink-faint` にする——`bg-canvas` にすると箱が背景に溶けて木の形が読めない。
  *    **`opacity-*` で薄くしない**（検算したコントラストを割る）
- * 3. 見送りのトグルを置く枠がある。**押されているかどうかはデータの導出**
+ * 3. **自分自身が見送りの箱は `bg-surface-accent` で塗る**（実機確認後に追加。
+ *    `docs/issue-tree/仮説検証モジュール-設計ノート.md` D8）。未決とは違って
+ *    見送りは稀で意図的な判断なので、1の理由（未決を面で塗ると図が警告で
+ *    埋まる）はここには効かない。塗るのは掲げた当人の箱だけ——抑制（2）が
+ *    勝つ。祖先由来で既に薄い箱は、自分も見送っていても濃い塗りには戻さない
+ * 4. 見送りのトグルを置く枠がある。**押されているかどうかはデータの導出**
  *    ——`events` が空でなければ入り。ビュー側に開閉の状態を持たない
  *（判断のドロップダウンだけが、開閉の状態を親＝エディタに持たせている）
  */
@@ -63,11 +68,28 @@ export function IssueBox(props: IssueBoxProps) {
   // `palette.test.ts` の紐づき検査は**片方を宣言したファイルに両方を要求する**
   // ——使わない定数を検査のためだけに置くのは、検査を騙すのと変わらない。
   // 濃さそのものは「検算していない濃さを使っていない」が字面で見ている
+  //
+  // **優先順位は 整合性エラー ＞ 抑制 ＞ 見送り ＞ 通常。** `placement.deferral`
+  // は layout.ts が「このノード自身が見送り済みか」だけで組む
+  // （`deferred = node.events.length > 0`。祖先は見ない）ので、自分自身の
+  // 見送りを判定するのに新しい prop は要らない。**`suppressed` を上に置くのが
+  // 要**——見送りが入れ子になったとき（祖先 B が見送り、配下 C も自分で見送りを
+  // 掲げている）、C は `suppressed`（祖先由来）が立つので塗りには進まない。
+  // ここを逆にすると、薄い配下の中に濃い塗りの C が挟まる退行になる
+  // （`IssueTreeEditor.tsx` の `inheritedSuppressed` のコメントが指す退行と
+  // 同じ形。実際にそのテストが「見送りが入れ子でも、配下は薄いまま」で見ている）。
+  // 塗りは `surface-accent`——新しいトークンは足さず、見出しの面
+  // （`HEADING_FACE`）を流用した。枠は素の `border-rule` のまま変えていない
+  // ——`GlossaryEditor.tsx` / `ErrorCatalogEditor.tsx` の見出し行が既に
+  // `border-rule bg-surface-accent` の組を使っており、新しい組ではない。
+  // 役割が2つになった経緯は `docs/issue-tree/仮説検証モジュール-設計ノート.md` D8
   const face = props.invalid
     ? 'border-warning bg-warning/20 text-ink'
     : props.suppressed
       ? 'border-ink-faint bg-surface text-ink-faint'
-      : 'border-rule bg-surface text-ink'
+      : placement.deferral !== null
+        ? 'border-rule bg-surface-accent text-ink'
+        : 'border-rule bg-surface text-ink'
 
   // 未記入と立っている問いは名前の後半に付ける。**前半（`課題{N}`）は動かさない**
   // ——エディタのテストが前方一致で引く

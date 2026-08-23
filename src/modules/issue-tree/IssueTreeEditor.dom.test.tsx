@@ -412,6 +412,56 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     expect(dashOf(2, 3)).toBe('4 3') // C→D は破線
   })
 
+  /**
+   * `bg-surface-accent` の塗りは**見送りを掲げた当人の箱だけ**に付く
+   *（`IssueBox.tsx` D8）。同じ入れ子の木（A 通常→B 見送り→C 見送り→D 通常）を
+   * 流用し、上のテストが見た「枠と文字の薄さ」に加えて塗りの有無も見る。
+   *
+   * **`toContain` ではなく `split(' ')` の完全一致で見る。** `bg-surface-accent`
+   * は文字列として `bg-surface` を含む（`'bg-surface-accent'.includes('bg-surface')`
+   * が真）ので、`toContain('bg-surface')` は `bg-surface-accent` の箱でも
+   * 通ってしまい、「非塗りの箱だけが `bg-surface` を持つ」を検査できない
+   */
+  it('bg-surface-accent は見送りを掲げた当人の箱だけ（通常・入れ子で抑制された配下は持たない）', () => {
+    const nested: IssueTreeSchemaVersion2 = {
+      schemaVersion: 2,
+      type: 'issueTree',
+      title: 'テスト',
+      issues: [
+        { id: I(1), parentId: null, text: 'A 通常', events: [] },
+        { id: I(2), parentId: I(1), text: 'B 見送り', events: [{ kind: 'deferred', note: '今回は追わない' }] },
+        {
+          id: I(3),
+          parentId: I(2),
+          text: 'C 見送り',
+          events: [{ kind: 'deferred', note: '本開発で扱う' }],
+        },
+        { id: I(4), parentId: I(3), text: 'D 通常', events: [] },
+      ],
+      hypotheses: [],
+    }
+    render(<Harness initial={nested} />)
+    const boxOf = (n: number): HTMLElement => {
+      const box = issueCell(n).closest('[class*="pointer-events-auto"]')
+      if (box === null) throw new Error(`課題${n}の箱が無い`)
+      return box as HTMLElement
+    }
+    const classesOf = (n: number): string[] => boxOf(n).className.split(' ')
+
+    // A：通常の箱は塗らない
+    expect(classesOf(1)).not.toContain('bg-surface-accent')
+    expect(classesOf(1)).toContain('bg-surface')
+    // B：見送りを掲げた当人だけが塗る
+    expect(classesOf(2)).toContain('bg-surface-accent')
+    expect(classesOf(2)).not.toContain('bg-surface')
+    // C：自分も見送っているが、祖先（B）由来の抑制が勝つので塗らない
+    expect(classesOf(3)).not.toContain('bg-surface-accent')
+    expect(classesOf(3)).toContain('bg-surface')
+    // D：ただの抑制された配下も塗らない
+    expect(classesOf(4)).not.toContain('bg-surface-accent')
+    expect(classesOf(4)).toContain('bg-surface')
+  })
+
   it('見送った課題はバッジと理由の欄を持ち、打つと最新の見送りの note が変わる', () => {
     // レイアウトはこの行のぶん縦を空けている。描かないと、見送った課題は
     // 「箱の下に理由の分だけ空白が空いたノード」になる
