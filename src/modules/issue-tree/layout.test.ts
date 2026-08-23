@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
 import type { Hypothesis, IssueNode, IssueTreeSchemaVersion2 } from '@/types/issue-tree'
-import { poseQuestions } from './derive'
-import { layoutIssueTree, type IssueTreeFonts } from './layout'
+import { ISSUE_DEFERRED_LABEL, poseQuestions } from './derive'
+import { DEFER_TRIGGER_LABEL, layoutIssueTree, type IssueTreeFonts } from './layout'
 import { BOX_WIDTH, ISSUE_INSET_X, ISSUE_TITLE_MIN_WIDTH } from './measure'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
@@ -185,6 +185,27 @@ describe('layoutIssueTree', () => {
     expect(p.rect.width).toBe(BOX_WIDTH)
     // バッジは箱の中（右端からはみ出さない）
     expect(p.deferral!.badge.x + p.deferral!.badge.width).toBeLessThanOrEqual(p.rect.x + p.rect.width)
+  })
+
+  /**
+   * **タイトル行の右上の枠に出る文言は2つあり、いまどちらも「見送り」である。**
+   * `DEFER_TRIGGER_LABEL`（まだ見送っていない箱でホバー中に出る小ボタン）と
+   * `ISSUE_DEFERRED_LABEL`（見送り済みのバッジ）で、`layout.ts` の `slotW` は
+   * 状態に応じてどちらかの幅で枠を空ける。
+   *
+   * **一致は偶然であって、統合したわけではない**——別々に置いてあるのは、
+   * 押す前と押した後で文言を変えられるようにするためである（`derive.ts` が
+   * `ISSUE_DEFERRED_LABEL` を `BADGE_LABELS.deferred` と別に持っているのと同じ趣旨）。
+   * **だから畳まないこと。**
+   *
+   * 固定するのは「一致していること」ではなく、**一致が黙って崩れないこと**である。
+   * ここが落ちたら、割るのか揃えるのかを決めてから検査を直す——割るなら、
+   * `IssueTreeEditor.dom.test.tsx` の `textContent` の照合が
+   * **その時点で初めて**切りと入りの取り違えを捕まえる検査に変わる
+   *（同値であるいまは捕まえない。あちらは面のクラスで分けている）
+   */
+  it('DEFER_TRIGGER_LABEL と ISSUE_DEFERRED_LABEL はたまたま同値な独立した定数である（畳まない）', () => {
+    expect(DEFER_TRIGGER_LABEL).toBe(ISSUE_DEFERRED_LABEL)
   })
 
   it('子の列は親の箱の右端より右に置かれる（箱の幅がブロックの幅に効く）', () => {

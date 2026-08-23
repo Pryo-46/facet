@@ -298,16 +298,26 @@ describe('イベントの記録（D2: 仮説は追記専用／課題の見送り
       expect(off.focus).toEqual({ cell: 'issue', index: 1 })
     })
 
-    it('見送っていない課題を切っても何も起きない（イベントは増えも減りもしない）', () => {
-      // トグルは押した瞬間の `events.length` で向きを決めるので、「見送って
-      // いないのに切る」という呼び出しは画面からは起きない。**それでも
-      // 空配列から要素を落とそうとしないことを固定する**——`slice(0, -1)` を
-      // `slice(1)` などに書き換えると、空では黙って通り、1件のときだけ壊れる
+    it('押すたびに向きが入れ替わり、往復すると元の課題に戻る', () => {
+      // **「見送っていないのに切る」という呼び出しは API に存在しない**——向きは
+      // `toggleDeferral` が押された瞬間の `events.length` から決めるので、
+      // 呼ぶ側が向きを指定する口が無い。だからここで見るのは片道ではなく
+      // **往復**である: 切った後のノードが「一度も見送っていないノード」と
+      // 区別できないこと（区別が残ると、次に押したとき別の向きへ倒れる）。
+      //
+      // **添字のずれ（`slice(0, -1)` を `slice(1)` などに書き換える退行）は
+      // ここでは捕まらない**——1件に `slice(1)` を当てても `[]` になるので
+      // 素通りする。それを捕まえるのは下の「手書きの2件」のテストである
       const d = normalizeOrder(data())
       const on = toggleDeferral(d, 1)
+      expect(on.data.issues[1].events).toEqual([{ kind: 'deferred', note: '' }])
+
       const off = toggleDeferral(on.data, 1)
+      // **往復して元のノードそのものに戻る**（`events` が空になるだけでなく、
+      // 取り消しの痕跡も残らない。D2 の反転節で受け入れた代償の裏返し）
+      expect(off.data.issues[1]).toEqual(d.issues[1])
+
       const again = toggleDeferral(off.data, 1)
-      // 空から押せば「入り」になる（＝切りの経路には入らない）
       expect(again.data.issues[1].events).toEqual([{ kind: 'deferred', note: '' }])
       expect(again.focus).toEqual({ cell: 'deferral', index: 1 })
     })

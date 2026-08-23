@@ -237,10 +237,28 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     // 無いので選ばせない。かつてはここが1択のドロップダウンだった）
     const toggle = screen.getByRole('button', { name: '課題1の見送り' })
     expect(toggle.getAttribute('aria-pressed')).toBe('false')
-    // **描く文字は、レイアウトが枠を測るのに使った文字と同じでなければならない**
-    //（`layout.ts` の `slotW`）。jsdom には版組が無いので、ここでずれても
-    // 画面が壊れるだけでどのテストも赤くならない——字面で対を縛る
+    /**
+     * **この2本が捕まえるのは「JSX に文字列を直書きした」ことだけである。**
+     *
+     * 描く側もレイアウト（`layout.ts` の `slotW`）も同じ定数を読むので、
+     * 定数を書き換えれば両方が一緒に動く。しかも `DEFER_TRIGGER_LABEL` と
+     * `ISSUE_DEFERRED_LABEL` は**いま同値**（どちらも「見送り」）なので、
+     * 切りと入りを取り違えてもここは通る——取り違えを捕まえるのは、すぐ下の
+     * **面のクラス**の照合の方である（同値であること自体は
+     * `layout.test.ts` が「畳まないこと」として固定している）。
+     *
+     * **空けた幅と描いた幅が一致することは、ここでは検査していない。**
+     * `px-1`→`px-2`・枠線の削除・`text-xs`→`text-sm`・`ACTION_INSET_X` の
+     * 変更——予約幅と描画幅を食い違わせる経路はどれも `textContent` を
+     * 動かさない。**jsdom には版組が無いので原理的に測れない**ので、
+     * 対は「measure.ts の定数と Tailwind クラスを対で直す」という規律
+     *（`measure.ts` の註）と実機確認が守っている
+     */
     expect(toggle.textContent).toBe(DEFER_TRIGGER_LABEL)
+    // **切りの面はバッジの面ではない。** ここが入りの面になっていたら、
+    // 見送っていない箱に見送りバッジが出ている
+    expect(toggle.className).not.toContain(badgeClass('deferred', false))
+    const offFace = toggle.className
     fireEvent.click(toggle)
 
     // 押した後は**見送りの理由の欄**へフォーカスが来る（`toggleDeferral` の行き先）
@@ -248,9 +266,12 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
       screen.getByRole('textbox', { name: '課題1 の見送りの理由' }),
     )
     // 入りになったことは名前ではなく `aria-pressed` が運ぶ（名前は動かさない）
-    expect(screen.getByRole('button', { name: '課題1の見送り' }).getAttribute('aria-pressed')).toBe(
-      'true',
-    )
+    const pressed = screen.getByRole('button', { name: '課題1の見送り' })
+    expect(pressed.getAttribute('aria-pressed')).toBe('true')
+    // **入りの面は見送りバッジそのもの**（課題1は根なので祖先由来の抑制は無い）。
+    // 面が状態で入れ替わることを、両側から挟んで固定する
+    expect(pressed.className).toContain(badgeClass('deferred', false))
+    expect(pressed.className).not.toBe(offFace)
     // **バッジは消えない——薄い枠（ink-faint）に落ちる。** 「いま作業する面では
     // ない」ことを面の濃さで見せる（`opacity-*` では検算した比を割る）
     expect(badgeOf(1).className).toBe(badgeClass('open', true))
@@ -409,8 +430,10 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
         onChange={onChange}
       />,
     )
-    // バッジは1語「見送り」。**同時にこれが見送りのトグルを兼ねる**
-    //（描く文字と `layout.ts` が測る文字が同じであることの、入り側の対）
+    // バッジは1語「見送り」。**同時にこれが見送りのトグルを兼ねる**。
+    // **これも「JSX に直書きしていない」ことしか見ていない**（上の註のとおり、
+    // 幅の一致は jsdom では測れないし、`DEFER_TRIGGER_LABEL` と同値なので
+    // 切り／入りの取り違えも捕まえない）——状態を分けているのは下の面の方
     const badge = screen.getByRole('button', { name: '課題1の見送り' })
     expect(badge.textContent).toBe(ISSUE_DEFERRED_LABEL)
     // **薄くならない。** 見送りは「そこで下した判断の表明」であって
@@ -452,11 +475,12 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
 
     const next: IssueTreeSchemaVersion2 = onChange.mock.calls[0][0]
     expect(next.issues[0].events).toEqual([])
-    // 理由の欄は消え、トグルは切りに戻る
+    // 理由の欄は消え、トグルは切りに戻る（面もバッジから小ボタンへ戻る）
     expect(screen.queryByRole('textbox', { name: '課題1 の見送りの理由' })).toBeNull()
-    expect(screen.getByRole('button', { name: '課題1の見送り' }).getAttribute('aria-pressed')).toBe(
-      'false',
-    )
+    const back = screen.getByRole('button', { name: '課題1の見送り' })
+    expect(back.getAttribute('aria-pressed')).toBe('false')
+    expect(back.className).not.toContain(badgeClass('deferred', false))
+    expect(back.textContent).toBe(DEFER_TRIGGER_LABEL)
     // **フォーカスは課題の文言へ戻る**（消えた欄には返せず、ボタンの上では
     // 木の操作言語が効かない）
     expect(document.activeElement).toBe(issueCell(1))
