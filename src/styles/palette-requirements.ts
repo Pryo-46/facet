@@ -140,7 +140,7 @@ export const OVERLAY_MIN = 4.5 * MARGIN
  */
 export const HEADING_FACE = 'surface-accent' as const
 
-/** `HEADING_FACE` の上に置く文字。載るのはカラム名の文字だけ */
+/** `HEADING_FACE` の上に置く文字。載るのはカラム名の文字と、見送った課題の箱の文字（タイトル・バッジ・理由） */
 export const HEADING_FACE_FOREGROUNDS = [
   { token: 'ink', min: 4.5, use: '本文・見出し' },
   { token: 'ink-muted', min: 4.5, use: '抑えた文字' },

@@ -324,8 +324,11 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
       if (box === null) throw new Error(`課題${n}の箱が無い`)
       return box as HTMLElement
     }
-    // 見送りを掲げている当人（課題2）は通常の面
-    expect(boxOf(2).className).toContain('border-rule')
+    // 見送りを掲げている当人（課題2）は薄くならず、見送りの塗り
+    // （`border-ink-muted bg-surface-accent`。`rule` は surface-accent 上で
+    // 3:1 を割るため枠だけ ink-muted にしてある）を持つ
+    expect(boxOf(2).className).toContain('border-ink-muted')
+    expect(boxOf(2).className).toContain('bg-surface-accent')
     expect(boxOf(2).className).not.toContain('ink-faint')
     expect(screen.getByRole('button', { name: '課題2の見送り' }).className).toContain(
       badgeClass('deferred', false),
