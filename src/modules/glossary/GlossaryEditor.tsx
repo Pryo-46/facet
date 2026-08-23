@@ -27,6 +27,7 @@ import {
 import { COLUMNS, nextWidthIndex, WIDTH_INDEX } from './columns'
 import { FIELD_LABELS, stepField, type GlossaryField } from './fields'
 import { kindLabel } from './kind-labels'
+import { isMissingCell } from './missing'
 import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } from './search'
 
 // 種別の選択肢はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂時に静かにずれる）
@@ -326,7 +327,7 @@ export function GlossaryEditor({
                       }
                     />
                   </td>
-                  <td className={`relative ${colBorder} ${cellClass(index, 'kind', term.kind === 'undecided')}`}>
+                  <td className={`relative ${colBorder} ${cellClass(index, 'kind', isMissingCell(term, 'kind'))}`}>
                     <select
                       className={`${cellInput} appearance-none pr-6`}
                       aria-label={`${FIELD_LABELS.kind}（${row}行目）`}
@@ -368,15 +369,14 @@ export function GlossaryEditor({
                       <path d="M3 4.5 L6 7.5 L9 4.5" />
                     </svg>
                   </td>
-                  <td className={`${colBorder} ${cellClass(index, 'definition', term.definition === '')}`}>
+                  <td className={`${colBorder} ${cellClass(index, 'definition', isMissingCell(term, 'definition'))}`}>
                     <CellInput
                       multiline
-                      className={`${cellInput} placeholder:text-ink-muted`}
+                      className={cellInput}
                       aria-label={`${FIELD_LABELS.definition}（${row}行目）`}
                       data-cell={cellId(rowKey, 'definition')}
-                      // 空欄は「未定義」と明示する（負債を消えなくして見せる。
-                      // M6 の Markdown 出力が空定義を「（未定義）」と書く仕様と揃える）
-                      placeholder="未定義"
+                      // 空は空のまま。欠落は cellClass の面（missing-face）が示す
+                      // （D1。placeholder に欠落の語を使わない——IssueBox と同じ判断）
                       value={term.definition}
                       onValueChange={(v) =>
                         updateTerm(index, { definition: v }, `${rowKey}:definition`)
