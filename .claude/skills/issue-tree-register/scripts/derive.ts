@@ -1,3 +1,4 @@
+import type { MissingTally } from '@/core/missing-tally'
 import type {
   DeferralEvent,
   Hypothesis,
@@ -218,6 +219,25 @@ export function tallyLine(t: IssueTreeTally): string {
     .map(([label, n]) => `${label} ${n}`)
   if (t.total === 0) return `${TALLY_TOTAL_LABEL} 0`
   return `⚠ ${TALLY_TOTAL_LABEL} ${t.total}（${parts.join(' ／ ')}）`
+}
+
+/**
+ * 帯（MissingTally 部品）へ渡す共通形。kind は OpenKind と同じ語で、
+ * チップの onJump がそのまま goToNextOpen に渡せる。
+ * variant の対応は元々 badge-variant.ts の chipVariantOf が持っていたものと
+ * 同じ——未決・仮説なしは破線（open）、保留は実線（hold）、未判断は着信の青
+ *（pending）。M22 でここに一本化し、chipVariantOf は削った
+ */
+export function toMissingTally(t: IssueTreeTally): MissingTally {
+  return {
+    total: t.total,
+    parts: [
+      { kind: 'hypothesis', label: QUESTION_LABELS.hypothesis, count: t.hypothesis, variant: 'open' as const },
+      { kind: 'result', label: QUESTION_LABELS.result, count: t.result, variant: 'open' as const },
+      { kind: 'hold', label: QUESTION_LABELS.hold, count: t.hold, variant: 'hold' as const },
+      { kind: 'judgement', label: QUESTION_LABELS.judgement, count: t.judgement, variant: 'pending' as const },
+    ].filter((p) => p.count > 0),
+  }
 }
 
 /**

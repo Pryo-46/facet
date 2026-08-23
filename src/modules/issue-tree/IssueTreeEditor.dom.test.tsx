@@ -646,7 +646,7 @@ describe('IssueTreeEditor（帯）', () => {
     expect(t).toMatchObject({ hypothesis: 1, result: 1, hold: 1, judgement: 1, total: 4 })
     render(<Harness initial={data} />)
     // **クラス名を打ち直さない**——`badgeClass` の戻り値と照合する。チップは
-    // 共通の面（`CHIP_BASE`）を前に足すので、一致ではなく包含で見る
+    // 共通部品 `MissingTally` が土台のクラスを前に足すので、一致ではなく包含で見る
     const hold = badgeClass('hold')
     const pending = badgeClass('pending')
     const open = badgeClass('open')

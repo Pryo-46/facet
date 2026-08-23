@@ -8,7 +8,7 @@ import { badgeClass } from './badge-styles'
  * 部品はモジュールの語彙を知らない——語（label）と鍵（kind）は tally が運ぶ。
  *
  * キャンバスの帯（pointer-events-none）に置かれる前提で、チップだけ
- * pointer-events-auto に戻す（IssueTreeEditor の CHIP_BASE と同じ理由）。
+ * pointer-events-auto に戻す（M22 前の IssueTreeEditor の CHIP_BASE と同じ理由）。
  * 0 件の内訳はチップを描かない——押しても行き先が無いボタンを置かない
  */
 export function MissingTally(props: {

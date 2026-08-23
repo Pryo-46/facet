@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { KeyHints } from '@/components/KeyHints'
+import { MissingTally } from '@/components/MissingTally'
 import { badgeClass } from '@/components/badge-styles'
 import { buttonBase } from '@/components/button-styles'
 import {
@@ -33,7 +34,7 @@ import { currentPlatform } from '@/core/keyboard/platform'
 import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
 import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
-import { badgeVariantOf, chipVariantOf } from './badge-variant'
+import { badgeVariantOf } from './badge-variant'
 import {
   cellKey,
   hypothesisCellKey,
@@ -71,10 +72,9 @@ import {
   EVENT_KIND_LABELS,
   ISSUE_DEFERRED_LABEL,
   poseQuestions,
-  QUESTION_LABELS,
   suppressedIssueIds,
-  TALLY_TOTAL_LABEL,
   tallyQuestions,
+  toMissingTally,
   type JudgementKind,
 } from './derive'
 import { HypothesisRow } from './HypothesisRow'
@@ -131,12 +131,6 @@ const JUDGEMENT_KINDS: readonly JudgementKind[] = (
 const PLATFORM = currentPlatform()
 
 /**
- * 帯のチップの並び。**`tallyLine` の内訳と同じ順**——画面と Skill の報告で
- * 読む順が変わると、同じ数を見ているのに別の話に見える
- */
-const CHIP_KINDS: readonly OpenKind[] = ['hypothesis', 'result', 'hold', 'judgement']
-
-/**
  * 最後にフォーカスがあったセル。**行の鍵で持つ**（配列位置ではない）
  *——構造操作や取り消しで位置は動くが鍵は動かない。
  *
@@ -188,21 +182,6 @@ const TRIGGER_BASE =
  */
 const TRIGGER_FACE =
   'rounded-sm border border-rule bg-surface px-1 text-xs text-ink-muted hover:bg-canvas'
-
-/**
- * 帯のチップの土台。**`buttonBase` を敷かないのは角丸のため**——`TRIGGER_BASE`
- * と同じ理由（M8）である。`buttonBase` の `rounded-sm` とバッジの `rounded` を
- * 並べても、勝つのは生成 CSS の順序であってクラス名の順序ではない（実測すると
- * `.rounded-sm`（0.375rem）が後に出て勝ち、キャンバスのバッジ（0.25rem）と
- * 角が食い違う）。**チップの要点はバッジと同じ語彙で見えること**なので、
- * 角丸は面（`badgeClass`）に決めさせて口を1つにする。
- *
- * `button-styles.ts` が「自前のレイアウトを持つボタンは土台の対象外」と
- * 断っているのもこの形——バッジは `inline-flex h-[18px] px-1.5` の積み方を
- * 自分で持っている。失うのは `justify-center` と `disabled:*` だけで、
- * チップは無効化しない（0 件なら描かない）
- */
-const CHIP_BASE = 'pointer-events-auto transition-colors'
 
 interface KindMenuProps {
   /** アクセシブル名（トリガーのボタン） */
@@ -896,34 +875,17 @@ export function IssueTreeEditor({
               キャンバスでは開いている問いが平面に散らばるので、合計と内訳を
               読み上げるだけでは「次に何をするか」に繋がらない——内訳を押せる
               チップにして、押すたびにその種類の次の1件へ視点を移す。
-              **文言は `tallyLine` と同じ言葉**（`QUESTION_LABELS`）を出す。
-              `tallyLine` 自体は消していない（Skill の報告が使う）。
-              **`whitespace-nowrap` を外さないこと**——折り返すと帯の高さが
-              変わり、下の図に重なる（SequenceEditor が同じ理由で付けている） */}
-          <div className="pointer-events-none flex items-center gap-2 whitespace-nowrap text-sm text-ink-muted">
-            <span>
-              {tally.total === 0
-                ? `${TALLY_TOTAL_LABEL} 0`
-                : `⚠ ${TALLY_TOTAL_LABEL} ${tally.total}`}
-            </span>
-            {/* **0 のチップは描かない**（`tallyLine` が0の内訳を出さないのと同じ規則）
-                ——押しても行き先が無いボタンを置かない。見た目はキャンバスの
-                バッジの語彙そのまま——未決の破線（`open`）と保留の実線（`hold`）で、
-                未判断は着信の青（`pending`）。**帯とキャンバスが同じ言葉を使う** */}
-            {CHIP_KINDS.map((kind) =>
-              tally[kind] === 0 ? null : (
-                <button
-                  key={kind}
-                  type="button"
-                  className={`${CHIP_BASE} ${badgeClass(chipVariantOf(kind))}`}
-                  aria-label={`次の${QUESTION_LABELS[kind]}へ`}
-                  onClick={() => goToNextOpen(kind)}
-                >
-                  {`${QUESTION_LABELS[kind]} ${tally[kind]}`}
-                </button>
-              ),
-            )}
-          </div>
+              **文言は `tallyLine` と同じ言葉**（`toMissingTally` が
+              `QUESTION_LABELS` から組み立てる）を出す。`tallyLine` 自体は
+              消していない（Skill の報告が使う）。
+              帯そのものは共通部品 `MissingTally`（M22）——合計・0件チップ非表示・
+              `whitespace-nowrap` は部品側が担う。**`as OpenKind` は
+              `toMissingTally` の kind が `OpenKind` の4語（'hypothesis' |
+              'result' | 'hold' | 'judgement'）と同じであることに依る** */}
+          <MissingTally
+            tally={toMissingTally(tally)}
+            onJump={(kind) => goToNextOpen(kind as OpenKind)}
+          />
           <KeyHints hints={ISSUE_TREE_HINTS} className="ml-auto shrink-0 bg-surface px-2 py-1" />
         </div>
       </div>
