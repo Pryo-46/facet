@@ -162,10 +162,12 @@ describe('LogicTreeEditor（描画）', () => {
     expect(target.className).toContain('bg-invalid-face')
     expect(target.className).not.toContain('border-rule')
 
-    // 指摘の付いていないノードは通常の枠のまま
+    // 指摘の付いていないノードは通常の枠と面のまま。**面の側も見る**
+    // ——枠だけ見ていると、淡い面を全ノードに撒いてしまっても緑になる
     const other = screen.getByLabelText('ノード2')
     expect(other.className).toContain('border-rule')
     expect(other.className).not.toContain('border-invalid')
+    expect(other.className).not.toContain('bg-invalid-face')
   })
 
   it('ノードのレイヤは操作を通し、ノードの矩形だけが受ける', () => {

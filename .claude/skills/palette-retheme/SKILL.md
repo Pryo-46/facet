@@ -23,7 +23,7 @@ description: facet 自身の配色（src/styles/palette.css）を、渡された
 2. 渡されたテーマを読む
 3. facet の役割へ対応づける（**拾うのは7色だけ**）
 4. `destructive` が本当に赤（`invalid`）か疑う
-5. 対応物がない11 個（`missing` / `pending` / `judge-yes` / `judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `ink-faint` / `missing-face` / `invalid-face` / `pending-face`）をユーザーと決める
+5. 対応物がない11個（`missing` / `pending` / `judge-yes` / `judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `ink-faint` / `missing-face` / `invalid-face` / `pending-face`）をユーザーと決める
 6. 下書き JSON を作り、同梱スクリプトで検算する（**終了コード 0 になるまで**）
 7. `palette.css` を `Edit` で書き換える（**由来コメントも同じ編集で書き直す**）
 8. `npm test` を走らせる
@@ -129,7 +129,7 @@ Amber Minimal から拾うのは背景・面・文字・境界・destructive の
 
 判定の道具は手順6の出力にある。トークン一覧の `oklch(L C H)` 列で `invalid` と `judge-yes` の H が近ければ怪しく、末尾の ΔE 行の `normal` が小さければ**両者はほぼ同じ色である**（現行配色でライト `invalid / judge-yes` の `normal=0.535`）。
 
-## 5. 対応物がない11 個を決める
+## 5. 対応物がない11個を決める
 
 | 役割 | 扱い | 導出の規則（候補の作り方） |
 | --- | --- | --- |
@@ -150,7 +150,7 @@ Amber Minimal から拾うのは背景・面・文字・境界・destructive の
 
 `missing` / `pending` / `judge-yes` / `judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `ink-faint` / `missing-face` / `invalid-face` / `pending-face` には、shadcn 系テーマに対応物が無い。**AI が黙って決めない。**
 
-ただし11 個を一律に聞くと会議が止まる。**判断の重さで分ける。**
+ただし11個を一律に聞くと会議が止まる。**判断の重さで分ける。**
 
 **`missing` / `pending` / `judge-yes` を必ず聞くのは、これらが意味を持つ色だからである。** facet は「欠落・無効・着信」の3系統と「支持・棄却」の判断軸で状態を区別する（rev 9章）。`invalid` は手順3で `destructive` から拾える。残る `missing` / `pending` / `judge-yes` には対応物が無く、色を選ぶこと自体が意味の割り当てになるため、AI が黙って決めてはならない。残り8つ（`judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `ink-faint` / `missing-face` / `invalid-face` / `pending-face`）は装飾か派生であり、上の規則から導出できる——**淡い面3つは意味色ではなく、聞いて決めた線色からの派生である**（同じ色相のまま白／黒へ寄せるだけ）。
 
@@ -318,7 +318,7 @@ npm test
 1. **元テーマの値 → 採用値**、および動かした量（どのトークンの L をいくつからいくつへ、なぜ）
 2. **捨てたテーマ色**（`primary` / `accent` / `secondary` / `ring` / `chart-*`）と、その帰結（手順3。「このテーマの主張色は facet に出ない」）
 3. **意味色4色（`missing` / `invalid` / `pending` / `judge-yes`）の ΔE**（標準色覚・P型・D型、ライト／ダーク、6ペアすべて）
-4. **候補から選んでもらった11 個**の最終値。**ユーザーに確認せずこちらの判断で決めたものがあれば、どれをどの候補から採ったかを名指しする**（特に `missing` / `pending` / `judge-yes`。手順5の非対話の逃げ道は、この名指しとセットでしか成立しない）
+4. **候補から選んでもらった11個**の最終値。**ユーザーに確認せずこちらの判断で決めたものがあれば、どれをどの候補から採ったかを名指しする**（特に `missing` / `pending` / `judge-yes`。手順5の非対話の逃げ道は、この名指しとセットでしか成立しない）
 
 **3 を必ず出す。** M21 で ΔE は合否の対象になった（`palette-requirements.ts` の `DISTINCT_MIN`）ので、満たさなければ手順6のスクリプトも `npm test` も赤になり、勝手には先へ進めない。それでも**数字そのものは報告に書く**——全部 0.10 以上で通っていたのか、`DISTINCT_MIN` を下げて通したのかは、次にこの配色を触る人が知るべき情報である。
 

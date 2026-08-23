@@ -52,10 +52,12 @@
     --invalid: oklch(0.38 0.15 30);         /* 暗い赤。missing と D型で分けるための明度 */
     --pending: oklch(0.48 0.135 250);       /* 青。同じく sRGB 内に収めた C（0.14 は 0.1388 へ丸められた） */
 
-    /* 淡い面（M21 の実機確認で追加）。同じ軸の線色と同じ色相で、ink /
-       ink-muted / その線色の3つが 4.5:1 で載る明るさに置く */
-    --missing-face: oklch(0.95 0.06 90);    /* 付箋の淡い黄。ink 16.3:1、ink-muted 7.3:1、missing 5.5:1 */
-    --invalid-face: oklch(0.93 0.035 25);   /* 淡い赤。ink 15.1:1、ink-muted 6.8:1、invalid 8.7:1 */
+    /* 淡い面（M21 の実機確認で追加）。**H は同じ軸の線色と揃える**
+       （missing 85 / invalid 30 / pending 250）——面と線が別の色相だと
+       「同じ軸の2段」に見えない。ink / ink-muted / その線色の3つが
+       4.5:1 で載る明るさに置く */
+    --missing-face: oklch(0.95 0.06 85);    /* 付箋の淡い黄。ink 16.2:1、ink-muted 7.3:1、missing 5.4:1 */
+    --invalid-face: oklch(0.93 0.035 30);   /* 淡い赤。ink 15.1:1、ink-muted 6.8:1、invalid 8.7:1 */
     --pending-face: oklch(0.94 0.03 250);   /* 淡い青。C 0.04 は sRGB の外だった（往復で 0.033 に落ちる）ので 0.03 へ下げた。ink 15.8:1、ink-muted 7.1:1、pending 5.5:1 */
 
     --judge-yes: oklch(0.87 0.08 165);      /* 明るい青緑。赤・黄土と P/D 型で離す */
