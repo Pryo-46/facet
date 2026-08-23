@@ -59,15 +59,17 @@ UI ノート §1.3 の診断——**彩度の予算が装飾に分散し、未�
 | `canvas` | 0.95 | 0 | — | 地。「地は方眼、作業する面は無地」は維持（rev 9章） |
 | `surface-muted` | 0.91 | 0 | — | `ink` `ink-muted` 4.5、`ink-faint` `rule` 3.0 が載る |
 | `grid` | 0.89 | 0 | — | `canvas` 上 1.17:1 の目安（M8 の実機裁定）を保つ |
-| `rule` | 0.62 | 0 | — | 3面すべてで 3:1 |
-| `ink-faint` | 0.60 | 0 | — | 同上 |
+| `rule` | 0.58 | 0 | — | 3面すべてで 3:1（`surface-muted` 上が最も厳しい） |
+| `ink-faint` | 0.58 | 0 | — | 同上 |
 | `ink-muted` | 0.42 | 0 | — | 3面すべてで 4.5:1 |
 | `ink` | 0.18 | 0 | — | |
 | `judge-no` | 0.35 | 0 | — | `judge-no-fg` = `surface` 相当 |
 | `judge-yes` | 0.87 | 0.08 | 165 | 青緑寄り（P型・D型で赤・黄土と離すため）。`judge-yes-fg` = `ink` 相当 |
-| `missing` | 0.52 | 0.12 | 85 | 黄土。3面で 4.5:1 |
-| `invalid` | 0.52 | 0.15 | 30 | 現行 `warning` の色相を踏襲 |
-| `pending` | 0.50 | 0.12 | 250 | 青 |
+| `missing` | 0.49 | 0.12 | 85 | 黄土。3面で 4.5:1 |
+| `invalid` | 0.38 | 0.15 | 30 | 現行 `warning` の色相を踏襲。**`missing` より一段暗い**（下の検算） |
+| `pending` | 0.48 | 0.14 | 250 | 青 |
+
+**検算で分かった帰結（計画の着手前スキャン）**：黄と赤は D型色覚では色相で分かれない。`missing` と `invalid` を同じ L 0.50 に置くと D型の OKLab 色差が 0.013 しか出ず、`DISTINCT_PAIRS` を満たせない。**明度で分ける**——`invalid` を L 0.38（暗い赤）まで落とすと 0.108 になる。上の表はその結果で、ライト・ダークとも全要件を `src/styles/contrast.ts` で検算済み（値は実装計画 Task 1 Step 4）。実機で「無効の赤が黒っぽい」と出たら、「色差の逃げ道」（決定5）で 0.08 に下げ、`invalid` を L 0.42 前後へ戻す。
 
 ダークは**設計対象外**（UI ノート §9）だが、`palette.test.ts` が両モードを見るので要件を満たす値を置く。ライトの反転ではなく独立に置く原則（rev 9章）は守るが、値の吟味はしない。
 
@@ -83,7 +85,7 @@ UI ノート §1.3 の診断——**彩度の予算が装飾に分散し、未�
 | 表記ゆれの「指摘」 | `invalid` | 波線下線 |
 | 未判断 | `pending` | 実線の枠／文字 |
 
-`src/types/*.ts`・`consistency.ts`・`warnings.ts` に出る `warning` は**データの重大度名**であって色トークンではない。触らない。計画では現行の `warning` 参照（スタイル・テスト以外で約 55 箇所）を1つずつこの表で振り分けた一覧を載せること。
+`src/types/*.ts`・`consistency.ts`・`warnings.ts` に出る `warning` は**データの重大度名**であって色トークンではない。触らない。計画では現行の `warning` / `ok` / `surface-accent` のクラス名参照（コメント・テスト・データ名を除くと 24 行。計画の着手前スキャンが一覧を持つ）を1つずつこの表で振り分けること。
 
 ### 付け替え表
 
@@ -92,17 +94,17 @@ UI ノート §1.3 の診断——**彩度の予算が装飾に分散し、未�
 | 選択中タブ（`App.tsx`）・種類見出し（`FileList.tsx`）・端末のアクティブタブ（`TerminalPane.tsx`）・xterm の選択面（`core/terminal/theme.ts`） | `surface-accent` | `surface-muted` |
 | 見送りの箱（`issue-tree/IssueBox.tsx`） | `bg-surface-accent border-ink-muted` | `bg-surface-muted border-rule`（`surface-muted` 上の `rule` 3:1 を要件に入れるので使える） |
 | カラム名（`GlossaryEditor.tsx`・`ErrorCatalogEditor.tsx`） | `bg-surface-accent font-bold` | **面なし**。`text-ink-muted font-medium tracking-wide` ＋ `border-b border-rule`。和文のウェイト段は E（フォント同梱）まで効かないので、A では字間とグレーで分ける |
-| フィルタチップの選択状態（用語集1・エラーカタログ2・`App.tsx` のサイドバー切替1） | `bg-ink text-canvas` の三項演算子 | `Chip` 部品（決定4）。選択＝`bg-surface-muted border-ink`、非選択＝`border-rule` |
+| フィルタチップの選択状態（用語集1・エラーカタログ2の計3箇所。`App.tsx` の更新ボタンの強調面は選択トグルではないので `bg-surface-muted` に置き換えるだけ） | `bg-ink text-canvas` の三項演算子 | `Chip` 部品（決定4）。選択＝`bg-surface-muted border-ink`、非選択＝`border-rule` |
 | `<Button>` の塗り（`App.tsx`「フォルダを開く」） | primary | `outline`。**facet に primary は置かない** |
-| `Button` の `destructive` variant（`ui/button.tsx`） | `bg-destructive/10 text-destructive` | 常時 `text-ink-muted`、`hover:text-invalid hover:border-invalid`。面は塗らない |
+| `Button` の `destructive` variant（`ui/button.tsx`） | 使用 0 件 | **触らない**（shadcn 生成物は手で整形しない——rev 7章）。許可リストにも入れない。削除は生の `<button>`＋常時 `text-ink-muted`・`hover:text-invalid` の形（`FileList.tsx`）を規約にする |
 | 削除のホバー（`FileList.tsx`） | `hover:text-warning` | `hover:text-invalid` |
-| バッジ（`issue-tree/badge-styles.ts` の4呼び出し・ヘッダの集計チップ `CHIP_KINDS`） | `ok` / `ink` / `warning` | `Badge` 部品（決定4） |
+| バッジ（`issue-tree/badge-styles.ts` の6呼び出し——うち1つがヘッダの集計チップ `CHIP_KINDS`） | `ok` / `ink` / `warning` | `Badge` 部品（決定4） |
 | 用語集・エラーカタログのセル（`core/list-editor/cell-face.ts`） | `bg-warning/20`（エラー）／`bg-warning/10`（未定義） | `invalid` 実線／`missing` 破線。**`outline` で引く**（`ring` は線種を持たず、`border` はテーブルの罫線と衝突する）。`outline-offset` は負にして枠の内側に収める。プレースホルダ文字列「未定義」「別名なし」の除去は C |
 | シーケンス（`SequenceEditor.tsx`・`GutterSlot.tsx`・`ActorRefCell.tsx`） | 行の帯 ＋ セルの面 | **行の帯は廃止し、セルだけ**（UI ノート D5。面を消す作業と同じ箇所なので A で済ませる）。未回答＝`missing` 破線、参照切れ＝`invalid`。`stepHas(index,'row')` の排他判定は帯と一緒に消える（open-issues「面が二重になりうる」が解消） |
 | ロジックツリー `NodeBox.tsx`・`IssueBanner.tsx`・`TerminalTab.tsx` | `warning` | 上の規則で振り分け（計画で実物を読んで確定） |
 | shadcn の導出（`index.css`） | `accent`/`secondary`/`muted` = `canvas`、`destructive` = `warning`、`chart-4/5` = `warning`/`ok` | `accent`/`secondary`/`muted` = `surface-muted`、`destructive` = `invalid`、`chart-4` = `missing`、`chart-5` = `judge-yes`。`primary` = `ink`、`ring` = `ink` は据え置き |
 | 数字（D9） | — | `@layer base` の `body` に `font-variant-numeric: tabular-nums` を一括適用。テーブルの No 列は右揃え |
-| 役割トークンの透過（`FileHeader.tsx` の `text-ink-muted/70`、`KeyHints` 帯の `bg-surface/80` ×2） | 透過 | 不透明に戻す（`text-ink-muted`、`bg-surface`）。`OVERLAYS` が消えた後は正当な透過が残らないので、決定5で全面禁止にする |
+| 役割トークンの透過（`FileHeader.tsx` の `text-ink-muted/70`、`KeyHints` 帯の `bg-surface/80` ×3（シーケンス・ロジックツリー・課題ツリーの各キャンバス）） | 透過 | 不透明に戻す（`text-ink-muted`、`bg-surface`）。`OVERLAYS` が消えた後は正当な透過が残らないので、決定5で全面禁止にする |
 
 ## 決定4: 共通部品
 
@@ -111,8 +113,8 @@ A が触るのはバッジとチップなので、作るのもこの2つだけ�
 | 部品 | 置き場 | 中身 |
 | --- | --- | --- |
 | `Badge` | `src/components/Badge.tsx` | 意味を `variant` で受ける：`open`（`missing` 破線）／`hold`（`missing` 実線）／`invalid`／`pending`／`yes`（`judge-yes` 面）／`no`（`judge-no` 面）／`deferred`（`surface-muted` 面・`rule` 枠・`ink-muted` 文字）／`faint`（`ink-faint` 枠・文字。抑制された配下）。**形（高さ・角丸・余白・`tabular-nums`・`whitespace-nowrap`）は部品が持ち、呼び側は意味だけ渡す** |
-| `Chip` | `src/components/Chip.tsx` | 選択トグル。`selected` を受けて面と枠を出す。`buttonBase` の上に載る。4箇所の三項演算子を置き換える |
-| `Button` | 既存 `ui/button.tsx` | variant を **`outline`（Secondary）／`ghost`（Tertiary）／`destructive`** に限る。`default`・`secondary`・`link` は `conventions.test.ts` で弾く（定義は shadcn の生成物なので消さない） |
+| `Chip` | `src/components/Chip.tsx` | 選択トグル。`selected` を受けて面と枠を出す。`buttonBase` の上に載る。3箇所の三項演算子を置き換える |
+| `Button` | 既存 `ui/button.tsx` | variant を **`outline`（Secondary）／`ghost`（Tertiary）** に限る。`default`・`secondary`・`destructive`・`link` は `conventions.test.ts` で弾く（定義は shadcn の生成物なので消さない） |
 
 - **`Badge` の高さは部品側の定数**（`BADGE_HEIGHT` 相当）として持ち、課題ツリーの `layout` はそこから読む。18 を2箇所に書かない
 - **クラス名は完全な字面で書く**（`badge-styles.ts` の既存コメントを引き継ぐ）。Tailwind の走査は静的なので `` `text-${色}` `` は生成 CSS に載らない
@@ -143,7 +145,7 @@ A が触るのはバッジとチップなので、作るのもこの2つだけ�
 
 足すもの:
 
-1. `<Button` は `variant` が `outline` / `ghost` / `destructive` のいずれか必須
+1. `<Button` は `variant` が `outline` / `ghost` のどちらか必須
 2. 軸のチャネル違反——`bg-(missing|invalid|pending)` と `(text|border|outline|ring|stroke)-judge-(yes|no)\b` を弾く（`-fg` は除く）
 3. **役割トークンの透過を全面禁止**——`(text|bg|border|…)-<token>/\d+` を弾く
 4. 旧トークン名（`warning` `warning-fg` `ok` `ok-fg` `surface-accent`）がクラス名として0件
