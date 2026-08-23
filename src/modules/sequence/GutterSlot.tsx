@@ -27,8 +27,10 @@ export interface GutterSlotProps {
 
 /**
  * 問いスロット1つ（design-notes 論点7）。
- * 未定義＝`missing` の淡い面＋破線の枠（rev 9章 規約2。M21 の実機確認で
- * 「破線だけではガターのスロットが方眼に埋もれて拾えない」と判断して面を足した）。
+ * 未回答＝`missing` の淡い面＋破線の枠（rev 9章 規約2。M21 の実機確認で
+ * 「破線だけではガターのスロットが方眼に埋もれて拾えない」と判断して面を足した。
+ * M22 で placeholder の「未定義」を消した——欠落は面が示すもので、
+ * データに無い語を空欄に書き込んで見せるものではない）。
  * handled＝無地・通常文字。notApplicable＝無地・ink-muted＋「考慮不要」の接頭
  * （M22。以前は `─` の記号だけだったが、初見に意図が伝わらないため語にした）。
  * 3状態の切替は Ctrl+Enter（toggle-item-state）で、キーの解釈は
@@ -68,7 +70,6 @@ export function GutterSlot(props: GutterSlotProps) {
           aria-label={props['aria-label']}
           data-cell={props['data-cell']}
           value={props.text}
-          placeholder={props.state === 'unanswered' ? '未定義' : undefined}
           onValueChange={props.onTextChange}
           onFieldKeyDown={props.onFieldKeyDown}
         />

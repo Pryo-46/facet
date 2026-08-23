@@ -406,7 +406,8 @@ export function SequenceEditor({
       const slot = readSlot(step, path)
       const text = slot.text ?? ''
       const state = slotStateOf(slot.decision)
-      // 未回答の枠は placeholder の「未定義」が入る高さを確保する（空だと潰れる）。
+      // 空スロットは全角1文字で1行ぶんの高さを測る（placeholder の語に
+      // 依存させない。M22 で placeholder の「未定義」自体を消した）。
       // notApplicable は「考慮不要」の接頭ぶん実効幅が狭いので専用の WrapOptions で測る。
       // **箱名も 'answer-na' に分ける。** wrap のキャッシュ鍵は `${box}:${text}` で
       // WrapOptions を含まないので、同じ 'answer' のまま options だけ変えると、
@@ -415,7 +416,7 @@ export function SequenceEditor({
       // ANSWER_WRAP なので 'answer' のままでよい）
       const block = wrap(
         state === 'notApplicable' ? 'answer-na' : 'answer',
-        text === '' ? '未定義' : text,
+        text === '' ? 'あ' : text,
         state === 'notApplicable' ? NOT_APPLICABLE_ANSWER_WRAP : ANSWER_WRAP,
       )
       return {
@@ -434,7 +435,7 @@ export function SequenceEditor({
         slot.decision === 'notApplicable' && (slot.text === undefined || slot.text === '')
           ? NOT_APPLICABLE_LABEL
           : (slot.text ?? '')
-      const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
+      const block = wrap('answer', text === '' ? 'あ' : text, ANSWER_WRAP)
       // GhostSlot もラベル列を持つ（インデントは無い）
       return {
         path,
@@ -872,7 +873,10 @@ export function SequenceEditor({
           // 順序であってクラス名の順序ではない（M8 が cascade layers で踏んだ形）
           const face = invalidActors.has(index)
             ? 'border-invalid bg-invalid-face'
-            : 'border-rule bg-surface'
+            : actor.name === ''
+              ? // 名前が空＝未記入（M22 決定1）。語で埋めず面で示す
+                'border-dashed border-missing bg-missing-face'
+              : 'border-rule bg-surface'
           return (
             <div
               key={key}
@@ -916,8 +920,15 @@ export function SequenceEditor({
           const row = layout.rows[index]
           const isSelf = view.shape === 'self'
           // 通常時は不透明の bg-surface を敷く——枠線の無いラベルセルが
-          // 入力可能に見えないという実機フィードバックへの対応
-          const labelFace = 'bg-surface'
+          // 入力可能に見えないという実機フィードバックへの対応。
+          // 文言が空＝未記入（M22 決定1）は破線＋淡い面で示す。**枠のクラスを
+          // ここで自前に持つ**のは、通常時の枠が self（SELF_BOX_CLASS ＋
+          // border-rule）と通常（枠なしの LABEL_BOX_CLASS）で持ち方が違うため。
+          // 面と枠のクラスは片方だけ出す（:871 のコメントと同じ理由）
+          const labelMissing = step.label === ''
+          const labelFace = labelMissing
+            ? 'border border-dashed border-missing bg-missing-face'
+            : 'bg-surface'
           // 文言は矢印の真上に置く（layout の arrowY は文言の高さから決まっている）
           const labelTop = row.arrowY - ARROW_GAP - view.label.height
           // 文言の置き方はレイアウトが決める（`labelLeft`）。**ここで
@@ -1021,7 +1032,9 @@ export function SequenceEditor({
                   multiline
                   autoSize={false}
                   className={`h-full w-full resize-none overflow-hidden whitespace-pre-wrap break-all rounded-sm ${
-                    isSelf ? `${SELF_BOX_CLASS} border-rule` : LABEL_BOX_CLASS
+                    isSelf
+                      ? `${SELF_BOX_CLASS}${labelMissing ? '' : ' border-rule'}`
+                      : LABEL_BOX_CLASS
                   } ${labelFace} text-center text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
                   aria-label={`ステップ${index + 1}の文言`}
                   data-cell={`${key}:label`}

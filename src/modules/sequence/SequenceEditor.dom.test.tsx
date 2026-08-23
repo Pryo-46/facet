@@ -140,6 +140,19 @@ describe('参加者ヘッダ', () => {
     fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'Backspace' })
     expect(last(onChange).actors).toHaveLength(2)
   })
+
+  it('名前が空の参加者ヘッダは欠落の面（破線＋淡い面）を持つ（M22 決定1）', () => {
+    const d = doc()
+    d.actors[1] = { ...d.actors[1], name: '' }
+    setup(d)
+    const cell = screen.getByLabelText('参加者2の名前')
+    expect(cell.className).toContain('bg-missing-face')
+    expect(cell.className).toContain('border-dashed')
+    // 面と枠は片方だけ（:871 のコメント）——border-rule が残ると欠落色が効かない
+    expect(cell.className).not.toContain('border-rule')
+    // 名前の埋まっているヘッダは巻き込まれない
+    expect(screen.getByLabelText('参加者1の名前').className).not.toContain('bg-missing-face')
+  })
 })
 
 describe('ステップ行', () => {
@@ -373,6 +386,26 @@ describe('問いスロット（ガター）', () => {
     expect(notApplicableHeight).toBeGreaterThan(handledHeight)
   })
 
+  it('未回答のスロットに placeholder の語を出さない（面が「未回答」を示す。M22 決定1）', () => {
+    setup()
+    const cell = screen.getByLabelText('ステップ1の答え: 失敗が確定したら？') as HTMLTextAreaElement
+    expect(cell.getAttribute('placeholder')).toBeNull()
+    expect(cell.className).toContain('bg-missing-face')
+  })
+
+  it('空の未回答スロットも1行ぶんの高さを確保する（全角1文字で測る。placeholder の語に依存させない）', () => {
+    const d = doc()
+    d.steps[2] = { ...d.steps[2], failures: { failed: { decision: 'handled', text: 'あ' } } }
+    setup(d)
+    const slotHeight = (labelText: string): number =>
+      Number.parseFloat(
+        (screen.getByLabelText(labelText).parentElement!.parentElement as HTMLElement).style.height,
+      )
+    expect(slotHeight('ステップ1の答え: 失敗が確定したら？')).toBe(
+      slotHeight('ステップ3の答え: 処理失敗したら？'),
+    )
+  })
+
   it('reply の行には「問いは呼出側」の説明が出る（空白にしない）', () => {
     setup()
     expect(
@@ -587,6 +620,29 @@ describe('操作ヒントとラベルの面', () => {
   it('通常時のラベルセルは不透明の面（bg-surface）を持つ（入力できる見た目のため）', () => {
     setup()
     expect(screen.getByLabelText('ステップ1の文言').className).toContain('bg-surface')
+  })
+
+  it('文言が空のステップのラベルセルは欠落の面（破線＋淡い面）を持つ（M22 決定1）', () => {
+    const d = doc()
+    d.steps[0] = { ...d.steps[0], label: '' }
+    setup(d)
+    const cell = screen.getByLabelText('ステップ1の文言')
+    expect(cell.className).toContain('bg-missing-face')
+    expect(cell.className).toContain('border-dashed')
+    expect(cell.className).not.toContain('bg-surface')
+  })
+
+  it('文言が空の self のラベルセルも欠落の面になり、通常時の枠（border-rule）とは排他になる', () => {
+    // self は SELF_BOX_CLASS が枠を持つ形なので、通常時のクラスをそのまま
+    // 並べると border-rule と border-missing が同居して勝敗が生成 CSS の
+    // 順序で決まる（:871 のコメントが禁じている形）
+    const d = doc()
+    d.steps[2] = { ...d.steps[2], label: '' }
+    setup(d)
+    const cell = screen.getByLabelText('ステップ3の文言')
+    expect(cell.className).toContain('bg-missing-face')
+    expect(cell.className).toContain('border-dashed')
+    expect(cell.className).not.toContain('border-rule')
   })
 })
 
