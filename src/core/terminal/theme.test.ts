@@ -10,13 +10,13 @@ import { contrastRatio, parseAnyCssColor, relativeLuminance } from '@/styles/con
  * `src/styles/palette.test.ts` の仕事）
  */
 const LIGHT: Record<string, string> = {
-  '--surface': 'oklch(0.961 0.007 88.6)',
-  '--ink': 'oklch(0.205 0 89.9)',
+  '--surface': 'oklch(0.985 0 0)',
+  '--ink': 'oklch(0.18 0 0)',
   '--surface-muted': 'oklch(0.91 0 0)',
 }
 const DARK: Record<string, string> = {
-  '--surface': 'oklch(0.205 0 89.9)',
-  '--ink': 'oklch(0.85 0.007 88.6)',
+  '--surface': 'oklch(0.205 0 0)',
+  '--ink': 'oklch(0.88 0 0)',
   '--surface-muted': 'oklch(0.27 0 0)',
 }
 
@@ -88,8 +88,8 @@ describe('buildTerminalTheme', () => {
     // ガードから落とす／別のトークン名に結ぶ形の退行は、上の2つでは
     // 素通りする。**`--surface-muted` は palette-retheme で人が選ぶ5つの
     // 1つ**（rev 9章）なので、配色差し替えで最も落ちやすい
-    const noAccent = { ...LIGHT }
-    delete noAccent['--surface-muted']
-    expect(buildTerminalTheme(reader(noAccent))).toBeNull()
+    const noMuted = { ...LIGHT }
+    delete noMuted['--surface-muted']
+    expect(buildTerminalTheme(reader(noMuted))).toBeNull()
   })
 })

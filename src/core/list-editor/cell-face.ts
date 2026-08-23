@@ -29,7 +29,7 @@ export function hasError(marks: ErrorMarks, index: number, field: string): boole
   return marks.get(index)?.has(field) ?? false
 }
 
-/** セルの面。'error' が最も強く、'warn' がそれに次ぐ。'none' は面を塗らない */
+/** セルの面。'error' が最も強く、'warn' がそれに次ぐ。'none' は輪郭を引かない */
 export type CellFace = 'error' | 'warn' | 'none'
 
 /**

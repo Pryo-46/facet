@@ -307,7 +307,7 @@ export function LogicTreeEditor({
               ノードを追加
             </button>
           )}
-          <KeyHints hints={TREE_HINTS} className="ml-auto shrink-0 bg-surface/80 px-2 py-1" />
+          <KeyHints hints={TREE_HINTS} className="ml-auto shrink-0 bg-surface px-2 py-1" />
         </div>
       </div>
 

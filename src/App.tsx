@@ -856,7 +856,7 @@ function App() {
             合わせると、開いているときの方がずれる） */}
         <h1 className="-ml-6 w-64 shrink-0 pl-6 text-2xl font-bold text-ink">facet</h1>
         <div className="flex shrink-0 items-center gap-2">
-          <Button onClick={() => void openFolder()}>フォルダを開く</Button>
+          <Button variant="outline" onClick={() => void openFolder()}>フォルダを開く</Button>
           {/* Undo/Redo はアイコンのみ。accessible name は aria-label で保つ
               （キーボードが本筋の操作なので、帯では幅を使わない） */}
           <Button
@@ -922,7 +922,7 @@ function App() {
               嘘をつくボタンになる。**`currentPlatform()` は描画のたびに呼ぶ**
               （モジュールスコープの定数にすると、テストが UA を差し替えても
               効かない）。強調は TerminalPane の選択中タブと同じ
-              bg-surface-accent（新しい役割トークンは足さない） */}
+              bg-surface-muted（一段沈んだ面） */}
           {currentPlatform() !== 'mac' && (
             <button
               type="button"
@@ -931,7 +931,7 @@ function App() {
               disabled={!canCheck(updateState)}
               className={
                 isEmphasized(updateState)
-                  ? `${buttonBase} gap-1 bg-surface-accent px-2 py-1 text-ink`
+                  ? `${buttonBase} gap-1 bg-surface-muted px-2 py-1 text-ink`
                   : `${buttonBase} p-1 text-ink-muted`
               }
               onClick={() => {
@@ -969,7 +969,7 @@ function App() {
 
       {BANNER_ORDER.map((kind) =>
         banners[kind] === null ? null : (
-          <p key={kind} className="px-6 py-2 text-sm text-warning">
+          <p key={kind} className="px-6 py-2 text-sm text-invalid">
             {banners[kind]}
           </p>
         ),
@@ -1052,7 +1052,7 @@ function App() {
               )}
               {selected?.result.status === 'rejected' && (
                 <div className="p-6">
-                  <h2 className="mb-2 font-bold text-warning">
+                  <h2 className="mb-2 font-bold text-invalid">
                     このファイルは開けません（{selected.result.reason}）
                   </h2>
                   <ul className="list-disc pl-5 text-sm text-ink">

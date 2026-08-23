@@ -924,7 +924,7 @@ export function IssueTreeEditor({
               ),
             )}
           </div>
-          <KeyHints hints={ISSUE_TREE_HINTS} className="ml-auto shrink-0 bg-surface/80 px-2 py-1" />
+          <KeyHints hints={ISSUE_TREE_HINTS} className="ml-auto shrink-0 bg-surface px-2 py-1" />
         </div>
       </div>
 

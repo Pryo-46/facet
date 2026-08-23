@@ -76,7 +76,7 @@ export const ROW_INDENT = 12
 export const ROW_DOT_SIZE = 4
 export const ROW_DOT_INSET = 2
 
-/** バッジの横の余白と枠線は部品（Badge.tsx）が持つ。文言との空き（gap-2 = 8px）だけここ */
+/** バッジの横の余白と枠線は部品（`src/components/badge-styles.ts`）が持つ。文言との空き（gap-2 = 8px）だけここ */
 export { BADGE_BORDER, BADGE_PADDING_X }
 export const BADGE_GAP = 8
 /** バッジが座る行の高さ。バッジ自身（`BADGE_BOX_HEIGHT`）の上下に 1px ずつ */

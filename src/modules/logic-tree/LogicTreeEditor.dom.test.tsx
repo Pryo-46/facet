@@ -140,7 +140,7 @@ describe('LogicTreeEditor（描画）', () => {
     expect(container.querySelectorAll('path').length).toBe(0)
   })
 
-  it('指摘の対象になったノードに警告の面と枠を当てる（面と枠は片方だけ）', () => {
+  it('指摘の対象になったノードに無効の枠を当てる（面は塗らない）', () => {
     render(
       <LogicTreeEditor
         data={file([[1, null, 'x'], [2, 1, 'y']])}
@@ -156,17 +156,15 @@ describe('LogicTreeEditor（描画）', () => {
       />,
     )
     const target = screen.getByLabelText('ノード1')
-    expect(target.className).toContain('bg-warning/20')
-    expect(target.className).toContain('border-warning')
-    // **面と枠のクラスは片方だけ出す。** 両方並べると勝つのは生成 CSS の
-    // 順序であってクラス名の順序ではない（M8 が cascade layers で踏んだ形）
-    expect(target.className).not.toContain('bg-surface')
+    // 無効は枠だけ `invalid`。面は通常と同じ `bg-surface`（rev 9章 規約2）
+    expect(target.className).toContain('border-invalid')
+    expect(target.className).toContain('bg-surface')
     expect(target.className).not.toContain('border-rule')
 
-    // 指摘の付いていないノードは通常の面のまま
+    // 指摘の付いていないノードは通常の枠のまま
     const other = screen.getByLabelText('ノード2')
-    expect(other.className).toContain('bg-surface')
-    expect(other.className).not.toContain('bg-warning')
+    expect(other.className).toContain('border-rule')
+    expect(other.className).not.toContain('border-invalid')
   })
 
   it('ノードのレイヤは操作を通し、ノードの矩形だけが受ける', () => {

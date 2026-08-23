@@ -188,7 +188,7 @@ export function GlossaryEditor({
   })
 
   // locations を「配列位置 → 赤表示するフィールド集合」に引き直す。判定
-  // ロジック（優先順位・二重塗り防止）とあわせて cell-face.ts の純関数へ
+  // ロジック（優先順位・行アンカー）とあわせて cell-face.ts の純関数へ
   // 切り出してある。DOM テストは role・アクセシブル名で引きクラス名を見ないため、
   // この振る舞いを固定する場所が別に要る（M8 でつぶした残件2の裏付け）
   const marks = buildErrorMarks(issues)

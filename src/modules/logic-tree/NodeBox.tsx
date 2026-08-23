@@ -25,11 +25,8 @@ export interface NodeBoxProps {
  * ブラウザが測定より早く折り返して文字が切れることを防ぐ
  */
 export function NodeBox(props: NodeBoxProps) {
-  // **面と枠のクラスは片方だけ出す。** bg-surface と bg-warning/20 を両方
-  // 並べても、勝つのは生成 CSS の順序であってクラス名の順序ではない
-  //（M8 が cascade layers で踏んだのと同じ形）。
-  // 赤表示の濃さは M8 で確定した「エラーは warning/20 の面」に揃える
-  const face = props.invalid ? 'border-warning bg-warning/20' : 'border-rule bg-surface'
+  // 無効は枠だけ `invalid`。面は塗らない（rev 9章 規約2）
+  const face = props.invalid ? 'border-invalid bg-surface' : 'border-rule bg-surface'
   return (
     <div
       // ノードのレイヤは pointer-events-none で操作を通す。操作を受けるのは

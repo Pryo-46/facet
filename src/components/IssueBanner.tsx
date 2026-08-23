@@ -30,7 +30,7 @@ export function IssueBanner({ issues, className = '' }: IssueBannerProps) {
   const shown = expanded || hidden <= 0 ? issues : issues.slice(0, ISSUE_PREVIEW_COUNT)
   return (
     <div className={`border-b border-rule bg-surface px-6 py-2 ${className}`}>
-      <ul className="list-disc pl-4 text-sm text-warning">
+      <ul className="list-disc pl-4 text-sm text-invalid">
         {shown.map((issue, i) => (
           <li key={`${issue.rule}-${i}`}>{issue.message}</li>
         ))}

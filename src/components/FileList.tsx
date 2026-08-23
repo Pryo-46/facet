@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import { Folder, Plus, Trash2 } from 'lucide-react'
+import { Badge } from './Badge'
 import { buttonBase } from '@/components/button-styles'
 import type { FileGroup } from '@/core/file-grouping'
 import { canCreateFileOfType } from '@/core/file-ops'
@@ -78,24 +79,23 @@ function FileRow(props: {
         </span>
         <span id={descId} className="block truncate text-xs text-ink-muted">
           {showFileName && file.name}
-          {file.result.status === 'rejected' && <span className="ml-1 text-warning">開けない</span>}
+          {file.result.status === 'rejected' && <span className="ml-1 text-invalid">開けない</span>}
           {file.result.status === 'listOnly' && <span className="ml-1">編集不可</span>}
           {file.issues.length > 0 && (
-            <span className="ml-1 rounded-sm bg-warning px-1 text-xs text-warning-fg">
-              {file.issues.length}
-            </span>
+            <Badge variant="invalid" className="ml-1">{file.issues.length}</Badge>
           )}
         </span>
       </button>
       {/* 開けない・編集不可のファイルにも削除を出す——単一性違反の解消には
           「壊れている方の用語集を消す」が必要で、そこを塞ぐと外部エディタを
           強いることになる（rev 5章「拒否は最小限に」のファイル操作への適用）。
-          赤は warning（facet のパレットに destructive 役割は無い） */}
+          削除は常時 `ink-muted`、ホバーでだけ無効軸の赤を借りる
+          （rev 9章 規約5。赤を借りる唯一の例外） */}
       <button
         type="button"
         aria-label={`${fullName} を削除`}
         title={`${fullName} を削除`}
-        className={`${buttonBase} shrink-0 px-3 text-ink-muted hover:bg-canvas hover:text-warning`}
+        className={`${buttonBase} shrink-0 px-3 text-ink-muted hover:bg-canvas hover:text-invalid`}
         onClick={props.onDelete}
       >
         <Trash2 aria-hidden className="size-4" />
@@ -187,7 +187,7 @@ export function FileList(props: FileListProps) {
                   先頭だけ線を外すのは、真上の新規作成ボタンの帯が既に
                   `border-b border-rule` を持っており、二重線になるため */}
               <h2
-                className={`bg-surface-accent px-4 py-1 text-xs font-bold text-ink-muted ${
+                className={`bg-surface-muted px-4 py-1 text-xs font-medium tracking-wide text-ink-muted ${
                   i === 0 ? '' : 'border-t border-rule'
                 }`}
               >

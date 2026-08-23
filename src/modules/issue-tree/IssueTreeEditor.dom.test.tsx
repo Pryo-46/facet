@@ -326,8 +326,8 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
       return box as HTMLElement
     }
     // 見送りを掲げている当人（課題2）は薄くならず、見送りの塗り
-    // （`border-rule bg-surface-muted`。`rule` はこの面の上でも 3:1 を満たす）を持つ
-    expect(boxOf(2).className).toContain('border-rule')
+    // （`border-rule bg-surface-muted`。`rule` はこの面の上でも 3:1 を満たす）を持つ。
+    // 枠は通常の箱と揃えたので、見送りを識別するのは面だけ
     expect(boxOf(2).className).toContain('bg-surface-muted')
     expect(boxOf(2).className).not.toContain('ink-faint')
     expect(screen.getByRole('button', { name: '課題2の見送り' }).className).toContain(
