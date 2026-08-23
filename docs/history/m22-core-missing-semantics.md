@@ -80,7 +80,7 @@ npm run tauri dev
 - [ ] 8. 課題ツリー: pendingNotes を持つ行に青の「未判断」バッジが判断バッジと重ならず出る
 - [ ] 9. ガターの未回答の面（canvas 上の missing-face）が地から分離して見える（M21 からの持ち越し確認）
 
-確認後は次で後片付けする（[`../CLAUDE.md`](../CLAUDE.md)「マージ後の後片付け」1）:
+確認後は次で後片付けする（[`../../CLAUDE.md`](../../CLAUDE.md)「マージ後の後片付け」1）:
 
 ```bash
 git checkout -- sample-project/ && git clean -fdx sample-project/
