@@ -33,20 +33,21 @@ export function hasError(marks: ErrorMarks, index: number, field: string): boole
 export type CellFace = 'error' | 'warn' | 'none'
 
 /**
- * セルの面のクラス名（M21）。**淡い面＋輪郭**——無効は `invalid-face` に
- * `invalid` の実線、欠落は `missing-face` に `missing` の破線（rev 9章 規約2）。
- * 淡い面は M21 の実機確認で足した——1px の輪郭だけでは、テーブルのセルが
- * 方眼と罫線に埋もれて拾えなかった。
+ * セルの面のクラス名（M21）。**淡い面だけ**——無効は `invalid-face`、欠落は
+ * `missing-face`（rev 9章 規約2の例外）。
  *
- * `outline` で引くのは、`ring` が線種（破線）を持たず、`border` がテーブルの
- * 罫線（`border-b border-grid`）と衝突するため。`-outline-offset-1` で
- * 枠をセルの内側に収める。**当てる要素は `<td>`**——中の入力欄は
- * `outline-none` を持っており、同じ要素に両方を書くとどちらが勝つかが
- * 生成 CSS の順序で決まる（M8 が cascade layers で踏んだ形）
+ * 淡い面は M21 の実機確認で足した——1px の輪郭だけでは、テーブルのセルが
+ * 方眼と罫線に埋もれて拾えなかった。そのうえで**輪郭は外した**（2026-08-24 の
+ * 実機確認）——表の中では輪郭がテーブルの罫線（`border-b border-grid`）と
+ * 競合し、情報ではなくノイズになる。欠落と無効の区別は面の色相（黄／赤）が
+ * 運ぶ。バッジ（`badge-styles.ts`）は線種が「まだ見ていない／保留」を運ぶので
+ * 線を残しており、セルとは扱いが違う。
+ *
+ * 当てる要素は `<td>`（中の入力欄は `bg-transparent`）
  */
 export const CELL_FACE_CLASS: Record<CellFace, string> = {
-  error: 'bg-invalid-face outline-1 -outline-offset-1 outline-invalid',
-  warn: 'bg-missing-face outline-1 outline-dashed -outline-offset-1 outline-missing',
+  error: 'bg-invalid-face',
+  warn: 'bg-missing-face',
   none: '',
 }
 
