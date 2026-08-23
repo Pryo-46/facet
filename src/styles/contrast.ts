@@ -299,7 +299,7 @@ export function decodeSrgb(v: number): number {
  * **合成はガンマ補正済み sRGB の上で行う。** ブラウザが画面へ塗るときの
  * 空間がそこだからで、線形空間で混ぜると実際より明るい色が出る。
  *
- * Tailwind v4 の `bg-invalid/25` は
+ * Tailwind v4 で「`invalid` を 25% の透過で重ねた面」を書くと
  * `color-mix(in oklab, var(--color-invalid) 25%, transparent)` を生成する。
  * `transparent` との混合は premultiplied で行われるため、結果は
  * 「元の色にアルファ 25% が付いたもの」と厳密に等価であり、そのあと
