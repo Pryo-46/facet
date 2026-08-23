@@ -120,17 +120,24 @@ const errors = normalized.errors ?? [];
 // アプリの normalizeForMatch（src/core/normalize.ts）と同じ規則。
 // **trim を落とさないこと**——末尾に空白を足すだけで重複判定をすり抜けられる。
 const fold = (s) => String(s).normalize("NFKC").trim().toLowerCase();
+// アプリの rowRef（src/core/row-ref.ts）と同じ規則。行を指すメッセージは
+// 配列位置＋1（No 列の値）で呼ぶ
+const rowRef = (i) => `#${i + 1}`;
 
 // ID重複（IDは機械的識別子なので正規化しない完全一致）。
 // 文言・計上規則ともアプリ（src/modules/error-catalog/consistency.ts）と
-// 同一であること——グループごとに1件・件数付き。出現ごとに数えない
+// 同一であること——グループごとに1件・件数＋行番号付き。出現ごとに数えない
 const byId = new Map();
 errors.forEach((e, i) => {
   if (!byId.has(e.id)) byId.set(e.id, []);
   byId.get(e.id).push(i);
 });
 for (const [id, indices] of byId) {
-  if (indices.length > 1) warnings.push(`ID が重複しています（${indices.length}件）: ${id}`);
+  if (indices.length > 1) {
+    warnings.push(
+      `ID が重複しています（${indices.length}件。${indices.map(rowRef).join(" ／ ")}）: ${id}`,
+    );
+  }
 }
 
 // エラー名の重複（同名2件は「この名前で引ける」という前提の矛盾。アプリで赤表示になる）
@@ -142,7 +149,9 @@ errors.forEach((e, i) => {
 });
 for (const indices of byName.values()) {
   if (indices.length > 1) {
-    warnings.push(`エラー名が重複しています: ${indices.map((i) => `「${errors[i].name}」`).join(' と ')}`);
+    warnings.push(
+      `エラー名「${errors[indices[0]].name}」が${indices.length}件重複しています（${indices.map(rowRef).join(" ／ ")}）`,
+    );
   }
 }
 
@@ -150,12 +159,12 @@ for (const indices of byName.values()) {
 const REQUIRED_ACTION = { user: "userAction", support: "supportAction", engineer: "engineerAction" };
 const ACTION_LABEL = { userAction: "ユーザーの対応", supportAction: "サポートの対応", engineerAction: "エンジニアの対応" };
 const LEVEL_LABEL = { user: "ユーザー対応", support: "サポート対応", engineer: "エンジニア対応", none: "解決不可", undecided: "未分類" };
-for (const e of errors) {
+errors.forEach((e, i) => {
   const field = REQUIRED_ACTION[e.resolutionLevel];
   if (field && e[field] === "") {
-    warnings.push(`対応文の未記入: 「${e.name}」は${LEVEL_LABEL[e.resolutionLevel]}としていますが、${ACTION_LABEL[field]}が空です`);
+    warnings.push(`${rowRef(i)}「${e.name}」は${LEVEL_LABEL[e.resolutionLevel]}としていますが、${ACTION_LABEL[field]}が空です`);
   }
-}
+});
 
 // エラーカタログはプロジェクトにつき1つ（コア横断検証）
 if (targetPath) {

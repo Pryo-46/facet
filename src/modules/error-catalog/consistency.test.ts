@@ -124,6 +124,43 @@ describe('resolution-action-missing', () => {
   })
 })
 
+describe('メッセージ', () => {
+  it('件数と行番号で指す（D4）', () => {
+    // ID 重複2件（位置 0, 1）
+    const idIssue = checkErrorCatalogConsistency(
+      catalog([
+        entry({ id: 'error_dddddddddd', name: 'A' }),
+        entry({ id: 'error_dddddddddd', name: 'B' }),
+      ]),
+    ).find((i) => i.rule === 'duplicate-id')
+    expect(idIssue?.message).toBe('ID が重複しています（2件。#1 ／ #2）: error_dddddddddd')
+
+    // エラー名重複2件（位置 0, 2）
+    const nameIssue = checkErrorCatalogConsistency(
+      catalog([
+        entry({ id: 'error_aaaaaaaaaa', name: 'ログイン失敗' }),
+        entry({ id: 'error_bbbbbbbbbb', name: '別のエラー' }),
+        entry({ id: 'error_cccccccccc', name: 'ログイン失敗' }),
+      ]),
+    ).find((i) => i.rule === 'duplicate-name')
+    expect(nameIssue?.message).toBe('エラー名「ログイン失敗」が2件重複しています（#1 ／ #3）')
+
+    // resolution-action-missing（位置 1）
+    const missingIssue = checkErrorCatalogConsistency(
+      catalog([
+        entry({ id: 'error_eeeeeeeeee', name: 'X', resolutionLevel: 'none' }),
+        entry({
+          id: 'error_ffffffffff',
+          name: '在庫不足',
+          resolutionLevel: 'user',
+          userAction: '',
+        }),
+      ]),
+    ).find((i) => i.rule === 'resolution-action-missing')
+    expect(missingIssue?.message).toBe('#2「在庫不足」はユーザー対応としていますが、ユーザーの対応が空です')
+  })
+})
+
 describe('ルールの範囲', () => {
   it('レベル2は3ルールだけ（warning を issue に混ぜない）', () => {
     // 空欄だらけでも undecided でも、赤の指摘は増えない。
