@@ -911,7 +911,7 @@ export function SequenceEditor({
                   ここに出す**——行を帯で染めると問題箇所が特定できない（UI ノート D5） */}
               <div
                 aria-hidden="true"
-                className={`absolute select-none rounded-sm text-right text-xs ${
+                className={`absolute select-none rounded-sm text-center text-xs ${
                   stepHas(index, 'row')
                     ? 'text-invalid bg-invalid-face outline-1 -outline-offset-1 outline-invalid'
                     : 'text-ink-muted'
