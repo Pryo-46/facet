@@ -66,7 +66,11 @@ export function ActorRefCell(props: ActorRefCellProps) {
     <DropdownMenu open={props.open} onOpenChange={props.onOpenChange}>
       <DropdownMenuTrigger
         type="button"
-        className={`w-full truncate rounded-sm border px-1.5 py-0.5 text-left text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring ${face}`}
+        // **`min-h-6` を外さないこと。** 名前が空の参加者を指しているときは
+        // 本文が空になり、子が無いボタンは行ボックスを作らないので内容高 0＋
+        // 余白だけの帯に潰れる（親は height を渡さない）。押す面積が消え、
+        // 同じ railTop に並ぶ種別セルとも段が揃わなくなる
+        className={`min-h-6 w-full truncate rounded-sm border px-1.5 py-0.5 text-left text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring ${face}`}
         aria-label={props['aria-label']}
         data-cell={props['data-cell']}
         onKeyDown={(e) => {
@@ -88,10 +92,18 @@ export function ActorRefCell(props: ActorRefCellProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         {props.actors.map((actor) => (
-          <DropdownMenuItem key={actor.id} onSelect={() => props.onSelect(actor.id)}>
+          <DropdownMenuItem
+            key={actor.id}
+            onSelect={() => props.onSelect(actor.id)}
+            // **名前は項目そのものに付ける。** 素の span（generic ロール）への
+            // aria-label は accname 仕様で無視されうる命名禁止ロールで、
+            // 実ブラウザでは「空白の項目」として支援技術に届く。menuitem は
+            // 命名できるロールなので、名前はこちら、面は aria-hidden の飾りにする
+            aria-label={actor.name === '' ? '名前が空の参加者' : undefined}
+          >
             {actor.name === '' ? (
               <span
-                aria-label="名前が空の参加者"
+                aria-hidden="true"
                 className="inline-block h-4 w-16 rounded-sm border border-dashed border-missing bg-missing-face"
               />
             ) : (

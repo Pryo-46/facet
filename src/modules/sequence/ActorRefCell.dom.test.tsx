@@ -50,6 +50,9 @@ describe('ActorRefCell: 表示', () => {
     expect(cell.className).toContain('border-dashed')
     // 面と枠は片方だけ——通常時の枠が残ると border-missing が効かない
     expect(cell.className).not.toContain('border-rule')
+    // **本文が空でも押す面積を残す。** 子が無いボタンは行ボックスを作らず
+    // 内容高 0 に潰れる（jsdom はレイアウトを持たないのでクラスの字面で固定する）
+    expect(cell.className).toContain('min-h-6')
   })
 
   it('名前が埋まっているセルは欠落の面を持たない', () => {
@@ -148,9 +151,14 @@ describe('ActorRefCell: マウス', () => {
       actors: [...actors, { id: 'actor_Aaaaaaaaa9', name: '' }],
     })
     fireEvent.pointerDown(cell, { button: 0, ctrlKey: false })
+    // 名前は menuitem 自身の aria-label。**素の span に付けない**——generic は
+    // 命名禁止ロールで、実ブラウザでは名前が落ちて「空白の項目」になる
     const item = await screen.findByRole('menuitem', { name: '名前が空の参加者' })
+    expect(item.getAttribute('aria-label')).toBe('名前が空の参加者')
     expect(item.textContent).toBe('')
-    expect(screen.getByLabelText('名前が空の参加者').className).toContain('bg-missing-face')
+    const mark = item.querySelector('span')!
+    expect(mark.className).toContain('bg-missing-face')
+    expect(mark.getAttribute('aria-hidden')).toBe('true')
     expect(screen.queryByText('（未定義）')).toBeNull()
   })
 })
