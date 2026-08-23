@@ -145,7 +145,7 @@ describe('layoutIssueTree', () => {
 
   it('見送った課題はタイトル行の右端にバッジ、その下に理由の行を持つ', () => {
     const data = make({
-      issues: [{ ...root, events: [{ kind: 'deferredToMainDev', note: '通知は本開発で扱う' }] }],
+      issues: [{ ...root, events: [{ kind: 'deferred', note: '通知は本開発で扱う' }] }],
     })
     const p = run(data).issues[0]!
     expect(p.deferral).not.toBeNull()

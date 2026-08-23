@@ -343,7 +343,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
           id: I(3),
           parentId: I(2),
           text: 'C 見送り',
-          events: [{ kind: 'deferredToMainDev', note: '本開発で扱う' }],
+          events: [{ kind: 'deferred', note: '本開発で扱う' }],
         },
         { id: I(4), parentId: I(3), text: 'D 通常', events: [] },
       ],
@@ -393,15 +393,14 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
           ...base,
           issues: base.issues.map((n, i) =>
             i === 0
-              ? { ...n, events: [{ kind: 'deferredToMainDev', note: '本開発の設計と一緒に決める' }] }
+              ? { ...n, events: [{ kind: 'deferred', note: '本開発の設計と一緒に決める' }] }
               : n,
           ),
         }}
         onChange={onChange}
       />,
     )
-    // バッジは**見送りの2種を畳んだ1語**（正確な種別はドロップダウンの中に残る）。
-    // 同時にこれが見送りのトリガーを兼ねる
+    // バッジは1語「見送り」。**同時にこれが見送りのトリガーを兼ねる**
     const badge = screen.getByRole('button', { name: '課題1を見送る' })
     expect(badge.textContent).toBe(ISSUE_DEFERRED_LABEL)
     // **薄くならない。** 見送りは「そこで下した判断の表明」であって
@@ -413,7 +412,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     fireEvent.change(reason, { target: { value: '通知は本開発で扱う' } })
     const next: IssueTreeSchemaVersion2 = onChange.mock.calls[0][0]
     expect(next.issues[0].events).toEqual([
-      { kind: 'deferredToMainDev', note: '通知は本開発で扱う' },
+      { kind: 'deferred', note: '通知は本開発で扱う' },
     ])
   })
 })
@@ -788,27 +787,38 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
     )
   })
 
-  it('仮説の行のバッジは5語（正確な種別は展開の中）', () => {
+  /**
+   * **かつてここは「俯瞰は5語、展開では正確な種別」を見ていた**——`rejectedWithoutTest`
+   * の行が畳まれていれば「棄却」、開けば「検証せず棄却」と出ることを固定していた。
+   * 判断を5語に畳んだいま、その差は無くなった（どちらも「棄却」）。
+   *
+   * 残っているのは**畳まれた行とその中身の関係**である: 行は判断の語を1つだけ運び、
+   * 開くと判断の節（バッジ＋「判断を変える」のトリガー）が現れる。畳まれた行が
+   * 語を2つ運んだり、節が畳まれた行に漏れ出したりしないことは、いまも壊れうる
+   */
+  it('畳まれた行は判断の語を1つだけ運び、展開すると判断の節が出る', () => {
     const base = file()
     render(
       <Harness
         initial={{
           ...base,
-          hypotheses: [
-            { ...base.hypotheses[0], events: [{ kind: 'rejectedWithoutTest', note: '' }] },
-          ],
+          hypotheses: [{ ...base.hypotheses[0], events: [{ kind: 'rejected', note: '' }] }],
         }}
       />,
     )
     const row = screen.getByRole('button', { name: '仮説1を開く' })
     expect(row.textContent).toContain(BADGE_LABELS.no)
-    expect(row.textContent).not.toContain(EVENT_KIND_LABELS.rejectedWithoutTest)
-    // 展開すると正確な種別が出る
+    // 畳まれた行に判断の節は出ない（「判断を変える」のトリガーは中の人）
+    expect(row.textContent).not.toContain(JUDGEMENT_TRIGGER_LABELS.latest)
+    expect(screen.getAllByText(EVENT_KIND_LABELS.rejected)).toHaveLength(1)
+
     openHypothesis(1)
-    expect(screen.getByText(EVENT_KIND_LABELS.rejectedWithoutTest)).toBeTruthy()
-    expect(
-      screen.getByRole('button', { name: '仮説1に判断を追加' }).textContent,
-    ).toBe(JUDGEMENT_TRIGGER_LABELS.latest)
+    // **展開すると同じ語が2つ出る**——行末の俯瞰バッジと、判断の節のバッジ。
+    // 5語に畳む前は後者だけが「検証せず棄却」で、2つは別の語だった
+    expect(screen.getAllByText(EVENT_KIND_LABELS.rejected)).toHaveLength(2)
+    expect(screen.getByRole('button', { name: '仮説1に判断を追加' }).textContent).toBe(
+      JUDGEMENT_TRIGGER_LABELS.latest,
+    )
   })
 })
 

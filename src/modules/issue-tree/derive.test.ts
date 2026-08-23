@@ -74,12 +74,6 @@ describe('suppressedIssueIds（D3: 抑制は祖先を遡る導出）', () => {
     expect([...suppressedIssueIds(list)].sort()).toEqual([id(1), id(2), id(4)].sort())
   })
 
-  it('本開発送りも抑制する（見送り系2種のどちらでも同じ）', () => {
-    const list = issues()
-    list[1] = { ...list[1], events: [{ kind: 'deferredToMainDev', note: '' }] }
-    expect(suppressedIssueIds(list).has(id(2))).toBe(true)
-  })
-
   it('兄弟の枝には及ばない', () => {
     const list = issues()
     list[1] = { ...list[1], events: [{ kind: 'deferred', note: '' }] }
@@ -155,14 +149,16 @@ describe('集計と表示文言（アプリと Skill が同じ文字列を出す
     )
   })
 
-  it('7種すべてに表示ラベルがある', () => {
+  it('4種すべてに表示ラベルがあり、判断の語彙はその4種で尽きる', () => {
     expect(EVENT_KIND_LABELS.supported).toBe('支持')
     expect(EVENT_KIND_LABELS.rejected).toBe('棄却')
-    expect(EVENT_KIND_LABELS.supportedWithoutTest).toBe('自明に成立')
-    expect(EVENT_KIND_LABELS.rejectedWithoutTest).toBe('検証せず棄却')
     expect(EVENT_KIND_LABELS.onHold).toBe('保留')
-    expect(EVENT_KIND_LABELS.deferred).toBe('今回見送り')
-    expect(EVENT_KIND_LABELS.deferredToMainDev).toBe('本開発送り')
+    expect(EVENT_KIND_LABELS.deferred).toBe('見送り')
+    // **鍵の集合そのものを固定する。** 個々の値だけ見ていると、種別が足された
+    // ときに「ラベルはあるが誰も知らない5種目」が静かに増える
+    expect(Object.keys(EVENT_KIND_LABELS).sort()).toEqual(
+      ['deferred', 'onHold', 'rejected', 'supported'].sort(),
+    )
   })
 })
 
@@ -188,14 +184,17 @@ describe('保留（onHold）の問い', () => {
 })
 
 describe('バッジ群（5語）', () => {
-  it('7種の kind と未決を5語に畳む', () => {
+  /**
+   * **判断を5語に畳んだいま、この対応はほぼ名前の付け替えである**（畳まれるのは
+   * もう何も無い）。それでも固定するのは、`undecided`——保存されない導出値——が
+   * `open` に落ちる経路がここにしか無いためと、`badgeGroupOf` が
+   * `HypothesisStatus` の全値を網羅していることを実行時にも見ておくため
+   */
+  it('4種の kind と未決が5語に1対1で対応する', () => {
     expect(badgeGroupOf('supported')).toBe('yes')
-    expect(badgeGroupOf('supportedWithoutTest')).toBe('yes')
     expect(badgeGroupOf('rejected')).toBe('no')
-    expect(badgeGroupOf('rejectedWithoutTest')).toBe('no')
     expect(badgeGroupOf('onHold')).toBe('hold')
     expect(badgeGroupOf('deferred')).toBe('deferred')
-    expect(badgeGroupOf('deferredToMainDev')).toBe('deferred')
     expect(badgeGroupOf('undecided')).toBe('open')
   })
 

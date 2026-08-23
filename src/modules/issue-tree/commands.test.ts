@@ -269,7 +269,7 @@ describe('イベントの追記（D2: 追記専用）', () => {
     expect(twice.focus).toEqual({ cell: 'event', index: 0, eventIndex: 1 })
   })
 
-  it('課題ノードへは見送り系だけを追記し、理由の欄へ行き先を返す', () => {
+  it('課題ノードへは見送りだけを追記し、理由の欄へ行き先を返す', () => {
     const next = appendDeferral(normalizeOrder(data()), 1, 'deferred')
     expect(next.data.issues[1].events).toEqual([{ kind: 'deferred', note: '' }])
     // **課題の文言ではなく理由の欄へ返す。** 種別だけ選んで理由が空のまま
@@ -286,9 +286,11 @@ describe('イベントの追記（D2: 追記専用）', () => {
             id: I(0),
             parentId: null,
             text: '根',
+            // 同じ `deferred` が2件。**見送りの種別は1つしか無い**ので、
+            // 「最新だけを書き換える」は種別の違いではなく位置で効く必要がある
             events: [
               { kind: 'deferred', note: '古い理由' },
-              { kind: 'deferredToMainDev', note: '' },
+              { kind: 'deferred', note: '' },
             ],
           },
         ],
@@ -297,7 +299,7 @@ describe('イベントの追記（D2: 追記専用）', () => {
       const out = setDeferralNote(d, 0, '通知は本開発で')
       expect(out.issues[0].events).toEqual([
         { kind: 'deferred', note: '古い理由' },
-        { kind: 'deferredToMainDev', note: '通知は本開発で' },
+        { kind: 'deferred', note: '通知は本開発で' },
       ])
     })
 

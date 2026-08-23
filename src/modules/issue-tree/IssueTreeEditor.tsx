@@ -109,7 +109,8 @@ const ISSUE_TREE_HINTS: readonly KeyHint[] = [
 /**
  * ドロップダウンに出す種別の並び。**文言は `EVENT_KIND_LABELS` から引く**
  *（打ち直すと、アプリの画面と Skill の報告が食い違う）。
- * 並びは意味の近いものを隣に置く——検証した2つ、検証せず決めた2つ、保留、見送り2つ。
+ * 並びは決着の強い順——支持・棄却（決めた）、保留（決められなかった）、
+ * 見送り（今回は決めない）。
  *
  * **並びの表を `Record<JudgementKind, number>` にしてあるのは、種別が増えたときに
  * tsc をここで落とすためである。** 以前は `readonly JudgementKind[]` の手書きで、
@@ -120,24 +121,20 @@ const ISSUE_TREE_HINTS: readonly KeyHint[] = [
 const JUDGEMENT_MENU_ORDER: Record<JudgementKind, number> = {
   supported: 1,
   rejected: 2,
-  supportedWithoutTest: 3,
-  rejectedWithoutTest: 4,
-  onHold: 5,
-  deferred: 6,
-  deferredToMainDev: 7,
+  onHold: 3,
+  deferred: 4,
 }
 const JUDGEMENT_KINDS: readonly JudgementKind[] = (
   Object.keys(JUDGEMENT_MENU_ORDER) as JudgementKind[]
 ).sort((a, b) => JUDGEMENT_MENU_ORDER[a] - JUDGEMENT_MENU_ORDER[b])
 /**
- * 課題ノードに付けられるのは見送り系2種だけ（スキーマの制約）。
- * **`JUDGEMENT_KINDS` と同じ形にしてある**——手書きの配列だと、スキーマへ
+ * 課題ノードに付けられるのは見送り（deferred）だけ（スキーマの制約）。
+ * **1件でも `JUDGEMENT_KINDS` と同じ形にしてある**——手書きの配列だと、スキーマへ
  * 種別が増えても tsc が黙っており、選べない種別が静かに残る（`onHold` で
  * 実際に起きた穴。形を知りながら同じ穴を残さない）
  */
 const DEFERRAL_MENU_ORDER: Record<DeferralKind, number> = {
   deferred: 1,
-  deferredToMainDev: 2,
 }
 const DEFERRAL_KINDS: readonly DeferralKind[] = (
   Object.keys(DEFERRAL_MENU_ORDER) as DeferralKind[]
@@ -970,7 +967,7 @@ export function IssueTreeEditor({
           // 箱の中の仮説行は `issueSuppressed`（自分の見送りを含む）で薄くする
           // ——「その課題はもう追わない」は配下の仮説にも及ぶ
           const suppressed = inheritedSuppressed[index]
-          // 課題ノードのイベントは見送り系だけで、**理由を書けるのは最新1件**
+          // 課題ノードのイベントは見送りだけで、**理由を書けるのは最新1件**
           const deferral = node.events.length === 0 ? null : node.events[node.events.length - 1]
           return (
             // **フォーカスの捕捉は外から内へ走る。** 仮説の行の中の欄に入ると、

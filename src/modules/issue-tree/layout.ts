@@ -224,7 +224,8 @@ export function layoutIssueTree(
     // --- 展開パネルの中身を測る ---
     const labelH = fonts.small.lineHeight
     const latest = h.events.length === 0 ? null : h.events[h.events.length - 1]
-    // 最新の判断は**正確な種別**で出す（俯瞰の5語は畳まれた行の仕事）。
+    // 最新の判断は保存された種別の文言（`EVENT_KIND_LABELS`）で出す。判断を5語に
+    // 畳んだいまは俯瞰のバッジと同じ語になるが、引く先は分けたまま（derive.ts の註）。
     // イベントが無いときだけ、導出の「未決」を出す
     const latestLabel = latest === null ? BADGE_LABELS.open : EVENT_KIND_LABELS[latest.kind]
     const latestBadgeW = badgeWidth(latestLabel, fonts.small)

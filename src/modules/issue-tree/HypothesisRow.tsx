@@ -250,7 +250,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
 
       {/* 以前の判断。**`CellInput` にしない**——追記専用の列であり、
           「そのとき何を根拠に決めたか」が後から書き換わってはならない。
-          バッジは俯瞰の5語ではなく**正確な種別**で、面は薄い枠にする
+          バッジは保存された種別の文言（`EVENT_KIND_LABELS`）で、面は薄い枠にする
           （いま決まっているのは最新1件だけだと見せる） */}
       {panel.previousLabel !== null && (
         <div className={`${sectionLabelClass} ${mutedInk}`} style={inBox(panel.previousLabel)}>

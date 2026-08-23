@@ -48,7 +48,7 @@ export function issueStatus(node: Pick<IssueNode, 'events'>): IssueStatus {
 /**
  * 見送りが効いている課題の ID 集合（D3）。自分自身の見送りも含む。
  *
- * **課題ノードのイベントは見送り系2種しか無い**（スキーマ）ので、1件でもあれば
+ * **課題ノードのイベントは見送り（deferred）しか無い**（スキーマ）ので、1件でもあれば
  * 抑制される。見送りを解除して拾い直すときは、配下の仮説へ新しい判断イベントを
  * 追記して最新を更新する——課題側から解除イベントを打つ機構は持たない。
  *
@@ -180,15 +180,20 @@ export const QUESTION_LABELS = {
   judgement: '未判断',
 } as const
 
-/** イベント種別の表示ラベル。俯瞰のバッジは `badgeGroupOf` の5群で、面は塗らず枠と塗りの形で分ける（D8 改。Task 9 の設計ノート参照） */
+/**
+ * イベント種別の表示ラベル（展開したときの「以前の判断」に出る文言）。
+ *
+ * **いまは `BADGE_LABELS` と同じ語しか並んでいない**——判断の種別を5語に畳んだ
+ * ため、俯瞰のバッジと展開の行が同じ言葉を出す。それでも `BADGE_LABELS` と
+ * 別に置くのは、鍵が違う（こちらは `JudgementKind`、あちらは `BadgeGroup`）
+ * からであり、俯瞰と詳細をまた別の言葉に分けたくなったとき、片方だけ動かせる
+ * ようにしておくため（`ISSUE_DEFERRED_LABEL` を別に置いているのと同じ理由）
+ */
 export const EVENT_KIND_LABELS: Record<JudgementKind, string> = {
   supported: '支持',
   rejected: '棄却',
-  supportedWithoutTest: '自明に成立',
-  rejectedWithoutTest: '検証せず棄却',
   onHold: '保留',
-  deferred: '今回見送り',
-  deferredToMainDev: '本開発送り',
+  deferred: '見送り',
 }
 
 export const TALLY_TOTAL_LABEL = '要対応'
@@ -209,21 +214,23 @@ export function tallyLine(t: IssueTreeTally): string {
   return `⚠ ${TALLY_TOTAL_LABEL} ${t.total}（${parts.join(' ／ ')}）`
 }
 
-/** 俯瞰のバッジは5語。正確な種別（EVENT_KIND_LABELS）は展開で出す */
+/**
+ * 俯瞰のバッジの5語。**判断を5語に畳んだいまは `JudgementKind` の4種＋未決と
+ * 一対一で、`badgeGroupOf` はほぼ名前の付け替えにすぎない。** それでも別の型に
+ * してあるのは、俯瞰の語彙（バッジ）と保存する種別（`kind`）が別の関心事だから
+ * である——`undecided` は保存されない導出値であり、この型でしか名前を持たない
+ */
 export type BadgeGroup = 'yes' | 'no' | 'hold' | 'open' | 'deferred'
 
 export function badgeGroupOf(status: HypothesisStatus): BadgeGroup {
   switch (status) {
     case 'supported':
-    case 'supportedWithoutTest':
       return 'yes'
     case 'rejected':
-    case 'rejectedWithoutTest':
       return 'no'
     case 'onHold':
       return 'hold'
     case 'deferred':
-    case 'deferredToMainDev':
       return 'deferred'
     case 'undecided':
       return 'open'
@@ -238,5 +245,5 @@ export const BADGE_LABELS: Record<BadgeGroup, string> = {
   deferred: '見送り',
 }
 
-/** 課題側（見送りの2種）のバッジ。仮説の5語と独立に変えられるよう別名 */
+/** 課題側の見送りバッジ。値は `BADGE_LABELS.deferred` と同じだが、課題と仮説を独立に変えられるよう別名で持つ */
 export const ISSUE_DEFERRED_LABEL = '見送り'

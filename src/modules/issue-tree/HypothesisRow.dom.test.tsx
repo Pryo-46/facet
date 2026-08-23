@@ -46,7 +46,7 @@ const data: IssueTreeSchemaVersion2 = {
       text: '同期取得で間に合う',
       rationale: '先行プロジェクトの実測',
       events: [
-        { kind: 'supportedWithoutTest', note: '前回の実測値がそのまま使える' },
+        { kind: 'supported', note: '前回の実測値がそのまま使える' },
         { kind: 'rejected', note: '実機では3秒を超えた' },
       ],
       pendingNotes: [],
@@ -122,7 +122,7 @@ describe('HypothesisRow: 畳まれた行', () => {
     renderRow(0)
     const row = screen.getByRole('button', { name: '仮説1を開く' })
     expect(row.textContent).toContain('同期取得で間に合う')
-    // 俯瞰は5語。**正確な種別（棄却／検証せず棄却）は展開で出す**
+    // 行末に出るのは俯瞰の5語のバッジ（最新の判断＝棄却）
     expect(row.textContent).toContain(BADGE_LABELS.no)
     // 畳まれている行に詳細は無い（由来・FB・以前の判断は出さない）
     expect(screen.queryByRole('textbox')).toBeNull()
@@ -169,13 +169,22 @@ describe('HypothesisRow: 展開した行', () => {
     expect(screen.getByText('前回の実測値がそのまま使える')).toBeTruthy()
   })
 
-  it('以前の判断は正確な種別で出る（俯瞰の5語ではない）', () => {
+  /**
+   * **かつてここは「以前の判断は俯瞰の5語ではなく正確な種別で出る」を見ていた**
+   *（1つ前が `supportedWithoutTest` なら「支持」ではなく「自明に成立」と出る）。
+   * 判断を5語に畳んだいま、語では現在と過去を区別できない——**区別するのは面**
+   * である。覆される前の判断が「いま決まっていること」に見えないのは薄い枠のおかげで、
+   * それが崩れると履歴が現役の判断の顔をする
+   */
+  it('以前の判断は薄い面で出る（現在の判断と語では区別できない）', () => {
     renderRow(0, { expanded: true })
-    // 最新（rejected）ではなく1つ前（supportedWithoutTest）の話。
-    // 5語なら「支持」になるところが「自明に成立」で出る
-    const badge = screen.getByText(EVENT_KIND_LABELS.supportedWithoutTest)
+    // 最新（rejected）ではなく1つ前（supported）の話
+    const badge = screen.getByText(EVENT_KIND_LABELS.supported)
     expect(badge.className).toBe(badgeClass('yes', true))
-    expect(screen.queryByText(BADGE_LABELS.yes)).toBeNull()
+    // 現在の判断（棄却）の面は塗られたまま——薄いのは過去だけ
+    expect(screen.getAllByText(EVENT_KIND_LABELS.rejected)[0].className).toBe(
+      badgeClass('no', false),
+    )
   })
 
   it('イベントが無い仮説の判断の節は「未決」のバッジと「判断を追加」のトリガーを持つ', () => {

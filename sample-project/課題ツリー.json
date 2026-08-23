@@ -83,7 +83,7 @@
       "rationale": "",
       "events": [
         {
-          "kind": "rejectedWithoutTest",
+          "kind": "rejected",
           "note": "類似連携の実測が3〜8秒。同期待ちは体験として成立しない"
         }
       ],
@@ -122,7 +122,7 @@
       "rationale": "",
       "events": [
         {
-          "kind": "supportedWithoutTest",
+          "kind": "supported",
           "note": "PdM確認済み。途中経過を使う業務要件は存在しない"
         }
       ],
@@ -135,7 +135,7 @@
       "rationale": "",
       "events": [
         {
-          "kind": "deferredToMainDev",
+          "kind": "deferred",
           "note": "画面の詳細は本開発の設計で扱う。PoCはAPI疎通に集中"
         }
       ],
