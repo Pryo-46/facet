@@ -45,7 +45,7 @@ export function ActorRefCell(props: ActorRefCellProps) {
     const next = (at + delta + props.actors.length) % props.actors.length
     props.onSelect(props.actors[next].id)
   }
-  const face = props.invalid ? 'border-warning bg-warning/20' : 'border-rule bg-surface'
+  const face = props.invalid ? 'border-invalid bg-surface' : 'border-rule bg-surface'
   return (
     <DropdownMenu open={props.open} onOpenChange={props.onOpenChange}>
       <DropdownMenuTrigger

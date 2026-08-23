@@ -661,44 +661,7 @@ describe('立っていない答えのグレースロット', () => {
   })
 })
 
-describe('self の to-mismatch は行の帯になる', () => {
-  it('self なのに to があるステップは行の帯（row）扱いになる', () => {
-    const d = doc()
-    d.steps[2] = { ...d.steps[2], to: 'actor_Aaaaaaaaa1' }
-    const { container } = setup(d, [
-      {
-        rule: 'to-mismatch',
-        message: 'x',
-        locations: [{ entityId: 'step_Aaaaaaaaa3', entityIndex: 2, field: 'to' }],
-      },
-    ])
-    const bands = container.querySelectorAll<HTMLElement>('[data-layer="background"] .bg-warning\\/20')
-    expect(bands).toHaveLength(1)
-  })
-})
-
 describe('赤表示', () => {
-  it('行全体の赤は warning の面を2枚重ねない（M8「面は片方だけ」）', () => {
-    const { container } = setup(doc(), [
-      {
-        rule: 'duplicate-id',
-        message: 'x',
-        locations: [{ entityId: 'step_Aaaaaaaaa1', entityIndex: 0, field: 'id' }],
-      },
-    ])
-    const band = container.querySelector<HTMLElement>('[data-layer="background"] .bg-warning\\/20')
-    expect(band).not.toBe(null)
-    // 図の側: 文言セルは自分の面を持たない（帯を透かす）
-    expect(screen.getByLabelText('ステップ1の文言').className).toContain('bg-transparent')
-    expect(screen.getByLabelText('ステップ1の文言').className).not.toContain('bg-warning')
-    // ガターの側: 帯はスロット（未定義の bg-warning/10）の手前で止まる
-    const slot = screen.getByLabelText('ステップ1の答え: 失敗が確定したら？')
-    const slotBox = slot.parentElement?.parentElement as HTMLElement
-    const bandRight =
-      Number.parseFloat(band?.style.left ?? '0') + Number.parseFloat(band?.style.width ?? '0')
-    expect(bandRight).toBeLessThanOrEqual(Number.parseFloat(slotBox.style.left))
-  })
-
   it('missing-actor の issue が from セルに赤を付ける', () => {
     const d = doc()
     d.steps[0] = { ...d.steps[0], from: 'actor_Zzzzzzzzz9' }
@@ -710,7 +673,7 @@ describe('赤表示', () => {
       },
     ])
     const cell = screen.getByLabelText('ステップ1の送り手') as HTMLInputElement
-    expect(cell.className).toContain('bg-warning/20')
+    expect(cell.className).toContain('border-invalid')
   })
 })
 

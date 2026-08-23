@@ -134,8 +134,6 @@ const GHOST_QUESTION_LABEL: Record<AnswerPath, string> = {
 /** 答えセルの外形幅（内容幅＋左右の inset）。ガターの幅も layout がこれで導出する */
 const ANSWER_BOX_WIDTH = ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2
 
-const CELL_GAP = 4
-
 /**
  * レール（行の左端の編集セル列。編集の足場であって図の一部ではない）の内訳。
  *
@@ -496,7 +494,8 @@ export function SequenceEditor({
         location.field === 'from' || location.field === 'to' || location.field === 'failures'
           ? location.field
           : 'row'
-      // self は to セルを描画しないので、to への指摘は行の帯で見せる（ブレスト決定7）
+      // self は to セルを描画しないので、to への指摘は行全体（'row'）に回す（ブレスト決定7）。
+      // 出し先は #N セル（上の rail number。UI ノート D5）
       const field =
         rawField === 'to' && data.steps[location.entityIndex]?.kind === 'self' ? 'row' : rawField
       const fields = invalidStepFields.get(location.entityIndex) ?? new Set<string>()
@@ -796,11 +795,11 @@ export function SequenceEditor({
             <Plus aria-hidden className="size-4" />
             参加者を追加
           </button>
-          <KeyHints hints={SEQ_HINTS} className="ml-auto shrink-0 bg-surface/80 px-2 py-1" />
+          <KeyHints hints={SEQ_HINTS} className="ml-auto shrink-0 bg-surface px-2 py-1" />
         </div>
       </div>
 
-      {/* 背景レイヤ: ライフライン・責任境界の縦線・行全体の赤表示
+      {/* 背景レイヤ: ライフライン・責任境界の縦線
           （ゾーン導入時はその帯もこの層に載る） */}
       <div
         aria-hidden="true"
@@ -808,25 +807,6 @@ export function SequenceEditor({
         style={{ transform: cssTransform(transform) }}
         data-layer="background"
       >
-        {/* 行全体の赤（id 重複など、欄を特定できない指摘）。
-            **同じピクセルに warning の面を2枚重ねない**（M8 の「面は片方だけ」）。
-            そのため帯はガターの手前で止める——ガターのセルは未定義の
-            `bg-warning/10` を自分で持っており、重ねると未検算の濃さになる。
-            図の側では文言セルが面を降りる（下の labelFace） */}
-        {data.steps.map((_step, index) =>
-          stepHas(index, 'row') ? (
-            <div
-              key={`row-${stepKeys[index]}`}
-              className="absolute bg-warning/20"
-              style={{
-                left: DIAGRAM_MARGIN,
-                top: layout.rows[index].top,
-                width: Math.max(0, layout.gutterX - DIAGRAM_MARGIN - CELL_GAP * 2),
-                height: layout.rows[index].height,
-              }}
-            />
-          ) : null,
-        )}
         {data.actors.map((_actor, index) => (
           <div
             key={`life-${actorKeys[index]}`}
@@ -865,9 +845,7 @@ export function SequenceEditor({
           const width = actorWidths[index]
           // **面と枠のクラスは片方だけ出す。** 両方並べると勝つのは生成 CSS の
           // 順序であってクラス名の順序ではない（M8 が cascade layers で踏んだ形）
-          const face = invalidActors.has(index)
-            ? 'border-warning bg-warning/20'
-            : 'border-rule bg-surface'
+          const face = invalidActors.has(index) ? 'border-invalid bg-surface' : 'border-rule bg-surface'
           return (
             <div
               key={key}
@@ -911,12 +889,8 @@ export function SequenceEditor({
           const row = layout.rows[index]
           const isSelf = view.shape === 'self'
           // 通常時は不透明の bg-surface を敷く——枠線の無いラベルセルが
-          // 入力可能に見えないという実機フィードバックへの対応（rounded-sm は
-          // 呼び出し側の className に既にある。ここは色だけを決める）。
-          // 行全体が赤い行では、文言セルは面を持たない（背景の帯を透かす）。
-          // bg-warning/20 を重ねると同じ色を2枚敷くことになり、
-          // bg-surface のまま塗ると帯に穴が開く（どちらも「面は片方だけ」に反する）
-          const labelFace = stepHas(index, 'row') ? 'bg-transparent' : 'bg-surface'
+          // 入力可能に見えないという実機フィードバックへの対応
+          const labelFace = 'bg-surface'
           // 文言は矢印の真上に置く（layout の arrowY は文言の高さから決まっている）
           const labelTop = row.arrowY - ARROW_GAP - view.label.height
           // 文言の置き方はレイアウトが決める（`labelLeft`）。**ここで
@@ -930,10 +904,16 @@ export function SequenceEditor({
           return (
             <div key={key} onFocusCapture={() => setFocusedRow(index)}>
               {/* レールの通し番号。aria-hidden にするのは、各セルの aria-label が
-                  すでに「ステップN の…」と名乗っており、二重に読ませないため */}
+                  すでに「ステップN の…」と名乗っており、二重に読ませないため。
+                  **行全体の指摘（id 重複・self の to など欄を特定できない指摘）は
+                  ここに出す**——行を帯で染めると問題箇所が特定できない（UI ノート D5） */}
               <div
                 aria-hidden="true"
-                className="absolute select-none text-right text-xs text-ink-muted"
+                className={`absolute select-none rounded-sm text-right text-xs ${
+                  stepHas(index, 'row')
+                    ? 'text-invalid outline-1 -outline-offset-1 outline-invalid'
+                    : 'text-ink-muted'
+                }`}
                 style={{ left: RAIL_NUM_X, top: railTop + 4, width: RAIL_NUM_WIDTH }}
               >
                 {`#${index + 1}`}
