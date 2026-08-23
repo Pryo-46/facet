@@ -31,7 +31,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 
 | 寿命 | 文書 | 扱い |
 | --- | --- | --- |
-| **正（living・規範）** | `overview-rev.md`, `glossary/*`, `project-setup.md` | 実装で確定した設計判断は**ここへ反映する**。マイルストーンの完了コミットで済ませ、TODO として申し送りに残さない |
+| **正（living・規範）** | `overview-rev.md`, `missing-semantics.md`, `glossary/*`, `project-setup.md` | 実装で確定した設計判断は**ここへ反映する**。マイルストーンの完了コミットで済ませ、TODO として申し送りに残さない |
 | **現在の状態（living・可変）** | `open-issues.md` | 解消したら**消す**。消した事実は `history/` に残る |
 | **記録（append-only・不変）** | `history/`, `lessons-for-planning.md` | そのとき何が起きたかの監査証跡。後から書き換えない（`lessons-` は一般化した規則を足していく） |
 

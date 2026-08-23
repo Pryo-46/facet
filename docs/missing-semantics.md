@@ -27,7 +27,7 @@
 
 ### 2. 空は空のまま描く
 
-画面に「未定義」「別名なし」のような、データに実在しない文字列を捏造してはならない。`placeholder` にも欠落を意味する語を使わない——面が欠落を運ぶので、`placeholder` は同じ情報の二重表現になる。**データに実在する値のラベルは捏造ではない**ので、`undecided` の「未分類」、`notApplicable` の「考慮不要」、空タイトルの「(無題)」は使ってよい。
+画面に「未定義」「別名なし」のような、データに実在しない文字列を捏造してはならない。`placeholder` にも欠落を意味する語を使わない——面が欠落を運ぶので、`placeholder` は同じ情報の二重表現になる。**データに実在する値のラベルは捏造ではない**ので、`undecided` の「未分類」、`notApplicable` の「考慮不要」は使ってよい。空タイトルの `(無題)`（`src/core/load.ts` の `UNTITLED`）も引き続き使ってよいが、理由は別で——**タイトルは決定1の表に無く、この文書が規約する欠落軸そのものではない**（ファイル一覧・帯の見出しの表示上の便宜であって、`missing` の面を伴わない）。欠落軸のフィールド（決定1の表にある値）を空のまま実在しない文字列で埋めることは、このルールが引き続き禁じる。
 
 出力（Markdown / Mermaid）は画面と別の制約を持つ。出力先（NotePM 等）には面が無く文字でしか欠落を残せないため、未回答は出力に `（未定義）` と書く（`src/modules/sequence/output-labels.ts` の `UNDEFINED_VALUE`）。**ただし `notApplicable`（考慮不要）は画面・出力のどちらも同じ語 `考慮不要` を書く**——`NOT_APPLICABLE_LABEL` は `'考慮不要'` で（かつて `'─ 考慮不要'` だったが M22 で記号を外した）、`GutterSlot.tsx` の画面表示にも `markdown.ts` の出力にも同じ定数を使う。`（未解決）`（`UNRESOLVED_ACTOR_LABEL`。参照先の参加者が無い）は無効軸の表示であって欠落ではなく、捏造でもない。
 
@@ -69,7 +69,7 @@
 `#N`（＝配列位置＋1＝ No 列の値）で行を指す。重複は件数＋行番号の列挙で示す。番号が画面に無いモジュール（ロジックツリー・課題ツリーのようなキャンバス系）は、これまでどおり名前や「（未記入・N番目）」の形で指す——D4 は「行番号が存在するモジュールでは必ず行番号で」であって、キャンバスに番号を持ち込む規約ではない。
 
 - 行番号の生成: `src/core/row-ref.ts`（`rowRef(index)` = `'#' + (index + 1)`）
-- 用語集の No 列: `src/modules/glossary/columns.ts`（導出列。編集対象ではない）／`src/modules/glossary/GlossaryEditor.tsx`（No セルへ `rowAnchor` を移す）
-- 重複・行指摘のメッセージ: `src/modules/glossary/consistency.ts`／`src/modules/error-catalog/consistency.ts`（`名称「X」が N 件重複しています（#2 ／ #5 ／ #7）` の形）
+- 用語集の No 列: `src/modules/glossary/columns.ts`（導出列。編集対象ではない）／`src/modules/glossary/GlossaryEditor.tsx`（No セルへ `rowAnchor` を移す）。エラーカタログは M10 から同じ形の No 列を持つ（`src/modules/error-catalog/columns.ts:22` の `ErrorColumn = 'no' | ErrorField`）
+- 重複・行指摘のメッセージ: `src/modules/glossary/consistency.ts`／`src/modules/error-catalog/consistency.ts`（`名称「X」が${N}件重複しています（#2 ／ #5 ／ #7）` の形。コード上は間に空白を入れない）
 - シーケンスの行呼称: `src/modules/sequence/consistency.ts` の `stepName()`（`rowRef` を経由。文面は変えていない）
 - キャンバス系（名前で指す。触っていない）: `src/modules/logic-tree/consistency.ts`／`src/modules/issue-tree/consistency.ts`（`（未記入・N番目）`）
