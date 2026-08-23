@@ -181,10 +181,12 @@ describe('HypothesisRow: 展開した行', () => {
     // 最新（rejected）ではなく1つ前（supported）の話
     const badge = screen.getByText(EVENT_KIND_LABELS.supported)
     expect(badge.className).toBe(badgeClass('yes', true))
-    // 現在の判断（棄却）の面は塗られたまま——薄いのは過去だけ
-    expect(screen.getAllByText(EVENT_KIND_LABELS.rejected)[0].className).toBe(
-      badgeClass('no', false),
-    )
+    // 現在の判断（棄却）の面は塗られたまま——薄いのは過去だけ。
+    // **「棄却」は2つ出る**（行末のバッジと、判断の節のバッジ）。`[0]` だけを見ると
+    // どちらを掴んでも通ってしまい、節のバッジだけが薄れる退行を見逃す
+    const filled = screen.getAllByText(EVENT_KIND_LABELS.rejected)
+    expect(filled).toHaveLength(2)
+    for (const b of filled) expect(b.className).toBe(badgeClass('no', false))
   })
 
   it('イベントが無い仮説の判断の節は「未決」のバッジと「判断を追加」のトリガーを持つ', () => {

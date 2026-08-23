@@ -24,7 +24,7 @@ import {
   ISSUE_INSET_X,
   ISSUE_INSET_Y,
   ISSUE_MAX_WIDTH,
-  ISSUE_MIN_WIDTH,
+  ISSUE_TITLE_MIN_WIDTH,
   PANEL_CONTENT_WIDTH,
   PANEL_GAP,
   PANEL_INDENT,
@@ -416,12 +416,17 @@ export function layoutIssueTree(
     let width: number
     let titleWidth: number
     if (rows.length > 0 || deferred) {
+      // 固定幅（320）から取り置く側。一番広い枠（「仮説なし」バッジ）でも
+      // 残りは `ISSUE_TITLE_MIN_WIDTH` を大きく上回る（layout.test.ts が固定している）
       width = BOX_WIDTH
       titleWidth = BOX_CONTENT_WIDTH - reserve
     } else {
+      // **下限を持つのはタイトルであって箱ではない**（measure.ts の解説）。
+      // 箱の下限から枠のぶんを引くと、空けた枠が文章を食って入力欄が数 px になる。
+      // ここでは逆に、タイトルの下限＋枠のぶんまで**箱の方を広げる**
       const wrapped = wrapWithin(node.text, fonts.title.measure, fonts.title.lineHeight, {
         maxWidth: ISSUE_MAX_WIDTH - reserve,
-        minWidth: Math.max(ISSUE_MIN_WIDTH - reserve, 0),
+        minWidth: ISSUE_TITLE_MIN_WIDTH + ISSUE_INSET_X * 2,
         insetX: ISSUE_INSET_X,
         insetY: 0,
       })

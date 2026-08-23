@@ -12,6 +12,7 @@ import {
   suppressedIssueIds,
   tallyLine,
   tallyQuestions,
+  type JudgementKind,
 } from './derive'
 
 const id = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
@@ -200,6 +201,28 @@ describe('バッジ群（5語）', () => {
 
   it('5語の文言はここ1箇所から引ける', () => {
     expect(Object.values(BADGE_LABELS)).toEqual(['支持', '棄却', '保留', '未決', '見送り'])
+  })
+
+  /**
+   * **判断を5語に畳んだ結果、`EVENT_KIND_LABELS` の4語は `BADGE_LABELS` の
+   * 部分集合になった。これは偶然であって、統合したわけではない**——2つの表は
+   * 鍵が違い（`JudgementKind` と `BadgeGroup`）、俯瞰と詳細をまた別の言葉に
+   * 分けられるよう別々に残してある（derive.ts の註）。
+   *
+   * だから固定するのは「一致していること」ではなく、**一致が黙って崩れないこと**
+   * である。`BADGE_LABELS.deferred` を書き換えた人が `EVENT_KIND_LABELS.deferred`
+   * に思い至らないと、行末のバッジと展開した行の語が誰の判断も経ずに割れる。
+   * **ここが落ちたら、割るのか揃えるのかを決めてからこの検査を直すこと**
+   *（`ISSUE_DEFERRED_LABEL` を別の定数として記録しているのと同じ趣旨）
+   */
+  it('EVENT_KIND_LABELS の4語は badgeGroupOf を通した BADGE_LABELS と一致する（偶然の一致を見える所に出す）', () => {
+    for (const kind of Object.keys(EVENT_KIND_LABELS) as JudgementKind[]) {
+      expect(EVENT_KIND_LABELS[kind]).toBe(BADGE_LABELS[badgeGroupOf(kind)])
+    }
+    // 俯瞰だけが持つのは「未決」の1語——保存されない導出値なので kind 側に席が無い
+    expect(
+      Object.values(BADGE_LABELS).filter((l) => !Object.values(EVENT_KIND_LABELS).includes(l)),
+    ).toEqual([BADGE_LABELS.open])
   })
 
   it('課題側の見送りバッジ（ISSUE_DEFERRED_LABEL）は BADGE_LABELS.deferred と値がたまたま同じ独立した定数である', () => {

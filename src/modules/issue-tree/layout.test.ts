@@ -3,7 +3,7 @@ import { createEstimateMeasurer } from '@/core/canvas/wrap'
 import type { Hypothesis, IssueNode, IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { poseQuestions } from './derive'
 import { layoutIssueTree, type IssueTreeFonts } from './layout'
-import { BOX_WIDTH, ISSUE_MIN_WIDTH } from './measure'
+import { BOX_WIDTH, ISSUE_INSET_X, ISSUE_TITLE_MIN_WIDTH } from './measure'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
@@ -80,7 +80,38 @@ describe('layoutIssueTree', () => {
   it('仮説を持たない課題の箱はタイトルの自然幅（ロジックツリーと同じ）', () => {
     const out = run(make({ issues: [{ ...root, text: '短い' }] }))
     expect(out.issues[0]!.rect.width).toBeLessThan(BOX_WIDTH)
-    expect(out.issues[0]!.rect.width).toBeGreaterThanOrEqual(ISSUE_MIN_WIDTH)
+    // **箱の下限は定数ではない**——タイトルの下限に、右上へ常に空ける枠のぶんが乗る
+    expect(out.issues[0]!.rect.width).toBeGreaterThan(ISSUE_TITLE_MIN_WIDTH)
+  })
+
+  /**
+   * **実機で踏んだ欠陥の再現。** タイトル行の右上を「常に1枠空ける」ようにしたとき、
+   * 折り返しの下限を**箱の**下限から枠のぶんを引いて作っていた。「仮説なし」バッジは
+   * 70px 前後を取るので、96 の箱では入力欄が数 px になり、新しく作った課題に
+   * 1字も打てなくなる。**枠が文章を食うのではなく、箱が枠のぶん広がる**のが正しい
+   */
+  it('空のタイトルでもバッジのぶん箱が広がり、入力欄は下限を割らない', () => {
+    // 葉で仮説が無い＝「仮説なし」が立つ（右上に一番広い枠を取るのがこの場合）
+    const data = make({ issues: [{ ...root, text: '' }] })
+    expect(poseQuestions(data).issueNeedsHypothesis[0]).toBe(true)
+    const box = run(data).issues[0]!
+    expect(box.title.width).toBeGreaterThanOrEqual(ISSUE_TITLE_MIN_WIDTH)
+    // 箱は「タイトル＋左右の余白」よりさらに広い（＝枠のぶんを箱が負担している）
+    expect(box.rect.width).toBeGreaterThan(box.title.width + ISSUE_INSET_X * 2)
+    // タイトルは箱からはみ出さない
+    expect(box.title.x + box.title.width).toBeLessThanOrEqual(box.rect.x + box.rect.width)
+  })
+
+  it('固定幅（BOX_WIDTH）の箱でも、枠を引いたタイトルは下限を割らない', () => {
+    // 仮説を持つ箱では「仮説なし」は立たないが、ホバー中に出る見送りトリガーの枠は空く
+    const withRows = run(make({ issues: [root], hypotheses: [h(1)] })).issues[0]!
+    expect(withRows.rect.width).toBe(BOX_WIDTH)
+    expect(withRows.title.width).toBeGreaterThanOrEqual(ISSUE_TITLE_MIN_WIDTH)
+    const deferred = run(
+      make({ issues: [{ ...root, events: [{ kind: 'deferred', note: '今回は追わない' }] }] }),
+    ).issues[0]!
+    expect(deferred.rect.width).toBe(BOX_WIDTH)
+    expect(deferred.title.width).toBeGreaterThanOrEqual(ISSUE_TITLE_MIN_WIDTH)
   })
 
   it('展開した仮説だけパネルを持ち、箱はその分だけ高くなる', () => {
