@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
-import { Badge, badgeClass, BADGE_BOX_HEIGHT } from './Badge'
+import { Badge } from './Badge'
+import { badgeClass, BADGE_BOX_HEIGHT } from './badge-styles'
 
 afterEach(cleanup)
 
