@@ -57,10 +57,15 @@ describe('cellFace', () => {
     expect(cellFace(marks, 0, 'kind', false)).toBe('none')
   })
 
-  it('行全体がエラー（id）のときは、フィールド個別のエラーより優先して none を返す（二重塗り防止）', () => {
-    // ID 重複と名称重複が同時に起きた行を模す
+  it('行全体がエラー（id）でも、フィールド個別のエラーはそのまま error（輪郭は重ならない）', () => {
     const marks = buildErrorMarks([issue([loc('a', 0, 'id'), loc('a', 0, 'name')])])
-    expect(cellFace(marks, 0, 'name', false)).toBe('none')
+    expect(cellFace(marks, 0, 'name', false)).toBe('error')
+  })
+
+  it('行全体がエラー（id）のとき、rowAnchor のセルだけが error になる', () => {
+    const marks = buildErrorMarks([issue([loc('a', 0, 'id')])])
+    expect(cellFace(marks, 0, 'name', false, true)).toBe('error')
+    expect(cellFace(marks, 0, 'definition', false)).toBe('none')
   })
 
   it('行全体がエラーな行があっても、他の行のセルには影響しない', () => {

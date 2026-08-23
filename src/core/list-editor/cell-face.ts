@@ -33,23 +33,40 @@ export function hasError(marks: ErrorMarks, index: number, field: string): boole
 export type CellFace = 'error' | 'warn' | 'none'
 
 /**
- * セルの面を決める。**エラーは warning より強いので優先する。**
+ * セルの面のクラス名（M21）。**面は塗らず輪郭だけ**——無効は `invalid` の実線、
+ * 欠落は `missing` の破線（rev 9章 規約2）。
+ *
+ * `outline` で引くのは、`ring` が線種（破線）を持たず、`border` がテーブルの
+ * 罫線（`border-b border-grid`）と衝突するため。`-outline-offset-1` で
+ * 枠をセルの内側に収める。**当てる要素は `<td>`**——中の入力欄は
+ * `outline-none` を持っており、同じ要素に両方を書くとどちらが勝つかが
+ * 生成 CSS の順序で決まる（M8 が cascade layers で踏んだ形）
+ */
+export const CELL_FACE_CLASS: Record<CellFace, string> = {
+  error: 'outline-1 -outline-offset-1 outline-invalid',
+  warn: 'outline-1 outline-dashed -outline-offset-1 outline-missing',
+  none: '',
+}
+
+/**
+ * セルの面を決める。**エラーは warn より強いので優先する。**
  * 定義セル・種別セルも見る——見ていないと、これらを指す検証ルールが
  * 増えた時点で「issue 一覧には出るのにセルが赤くならない」になる
  * （M8 でつぶした残件2）。いまは該当ルールが無いので到達しない。
  *
- * **行全体がエラー（field 'id'）のときはセルの面を塗らない。** 同じ半透明を
- * 二重に重ねると検証済みの濃さ（warning/20）より濃くなり、コントラストが
- * palette.test.ts の検証範囲の外へ出る。ID 重複と名称重複が同時に
- * 起きた行で実際に発生する組み合わせである
+ * **行全体の指摘（field 'id'。ID 重複など欄を特定できない指摘）は、行の
+ * 先頭セル（`rowAnchor`）に出す。** 行を染めると「この行は全部ダメ」に見え、
+ * 問題箇所が特定できない（UI ノート D5）。M8 の「行がエラーならセルは none」
+ * は半透明の二重塗りを避けるための規則で、輪郭は重ならないので要らない
  */
 export function cellFace(
   marks: ErrorMarks,
   index: number,
   field: string,
   warn = false,
+  rowAnchor = false,
 ): CellFace {
-  if (hasError(marks, index, 'id')) return 'none'
   if (hasError(marks, index, field)) return 'error'
+  if (rowAnchor && hasError(marks, index, 'id')) return 'error'
   return warn ? 'warn' : 'none'
 }
