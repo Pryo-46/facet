@@ -126,11 +126,11 @@
       "additionalProperties": false
     },
     "judgementEvent": {
-      "description": "仮説への判断イベント1件。kind が判断そのものであり、note は補助（空を許し warning にしない。根拠は pendingNotes からの選別移動で入るのが主経路）。enum の拡張は schemaVersion の改訂として扱う。",
+      "description": "仮説への判断イベント1件。kind が判断そのものであり、note は補助（空を許し warning にしない。根拠は pendingNotes からの選別移動で入るのが主経路）。enum の増減（拡張も削除も）は schemaVersion の改訂として扱う。",
       "type": "object",
       "properties": {
         "kind": {
-          "description": "判断の種類。supported＝支持（この仮説は成り立つ）／rejected＝棄却（成り立たない）／onHold＝保留（見たが判断できなかった。理由を note に書く。次のレビューで拾い直す）／deferred＝見送り（今回は追わない。次のPoC選定で拾い直す）。語彙はこの4つで尽きる——「検証したか／実験なしで決めたか」は kind では区別せず、note に書く（区別を持っても俯瞰の読みは変わらず、選ぶ側の迷いだけが増えた）。未決は kind ではなく events が0件であることから導出するので、ここには現れない。日時はデータに持たない——配列順が時系列の正であり、厳密な日時は Git 履歴が正。",
+          "description": "判断の種類。supported＝支持（この仮説は成り立つ）／rejected＝棄却（成り立たない）／onHold＝保留（見たが判断できなかった。理由を note に書く。次のレビューで拾い直す）／deferred＝見送り（今回は追わない。次のPoC選定で拾い直すのか、本開発へ送ってPoC中は戻らないのかは kind では区別せず note に書く）。語彙はこの4つで尽きる——「検証したか／実験なしで決めたか」は kind では区別せず、note に書く（区別を持っても俯瞰の読みは変わらず、選ぶ側の迷いだけが増えた）。未決は kind ではなく events が0件であることから導出するので、ここには現れない。日時はデータに持たない——配列順が時系列の正であり、厳密な日時は Git 履歴が正。",
           "enum": [
             "supported",
             "rejected",
