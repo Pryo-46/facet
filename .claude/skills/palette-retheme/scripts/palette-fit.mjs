@@ -26,6 +26,7 @@ import {
   deltaEok,
   fitLightness,
   linearToOklch,
+  oklchToLinear,
   parseAnyCssColor,
   parseOklch,
   simulate,
@@ -39,6 +40,7 @@ import {
   DISTINCT_PAIRS,
   FACE_PAIRS,
   FACE_REQUIREMENTS,
+  GAMUT_MAX_C_DRIFT,
   MARGIN,
   MODES,
   readTokenBlock,
@@ -296,6 +298,33 @@ for (const mode of MODE_KEYS) {
     if (!ok) failCount += 1
     lines.push(
       `    ${ok ? '✓' : '✗'} ${pad(pair.a, 12)}/ ${pad(pair.b, 9)}${fmtRatio(ratio).padStart(8)}  (>= ${pair.min.toFixed(2)})`,
+    )
+  }
+  lines.push('')
+
+  // -- 色域 ------------------------------------------------------------------
+  // 書いた値が sRGB の外にあると、ブラウザも oklchToLinear もクランプする。
+  // クランプされてもコントラストと ΔE は通るので、「C 0.12 の黄土」と書いた
+  // まま実際は 0.102 の色が出ている状態を誰も見つけられない。往復で C が
+  // 戻るかどうかで見る（palette.test.ts の「色域」と同じ判定）
+  //
+  // **見るのは `oklch(...)` で書かれた値だけ。** hex / rgb / hsl で渡された色は
+  // 定義上 sRGB の中にあり、往復させても差は出ない（`oklch[mode.key][token]` は
+  // 既に測った側の値なので、それを往復させると常に一致してしまう。ここでは
+  // 生の文字列を厳格パーサでもう一度読む）
+  lines.push(`  色域（sRGB に収まっているか。書いた C との差 < ${GAMUT_MAX_C_DRIFT}）`)
+  for (const token of TOKENS) {
+    const written = parseOklch(raw[mode.key][token])
+    if (written === null) {
+      lines.push(`    - ${pad(token, 12)}oklch 表記ではないので対象外（sRGB の中にある）`)
+      continue
+    }
+    const measured = linearToOklch(oklchToLinear(written))
+    const diff = Math.abs(measured.C - written.C)
+    const ok = diff < GAMUT_MAX_C_DRIFT
+    if (!ok) failCount += 1
+    lines.push(
+      `    ${ok ? '✓' : '✗'} ${pad(token, 12)}C ${written.C.toFixed(3)} → ${measured.C.toFixed(4)}（差 ${diff.toFixed(4)}）${ok ? '' : '  → C を下げる'}`,
     )
   }
   lines.push('')

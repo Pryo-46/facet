@@ -19,6 +19,7 @@ import {
   DISTINCT_PAIRS,
   FACE_PAIRS,
   FACE_REQUIREMENTS,
+  GAMUT_MAX_C_DRIFT,
   MODES,
   readTokenBlock,
   REQUIREMENTS,
@@ -105,6 +106,37 @@ describe('意味色の識別（標準・P型・D型）', () => {
           expect(d, `ΔE = ${d.toFixed(3)}`).toBeGreaterThanOrEqual(DISTINCT_MIN)
         })
       }
+    }
+  }
+})
+
+/**
+ * **書いた値と、画面に出る値が一致すること。**
+ *
+ * `oklch(L C H)` は sRGB より広い空間なので、C を上げすぎた値は
+ * ブラウザ（と `oklchToLinear`）が sRGB へクランプする。クランプされても
+ * コントラストや ΔE の検査は通ってしまうため、**「C 0.12 の黄土」と
+ * 書いたまま実際は 0.102 の色が出ている**状態を誰も見つけられない。
+ * M21 のライトの `missing` が実際にそうなっていた（最終ブランチレビューで発覚）。
+ *
+ * 往復（oklch → 線形 sRGB → oklch）で C が戻れば色域の中にある。
+ * L も動くが、動く量は C の食い違いに従属するので C だけを見る。
+ * 許容差は契約側（`GAMUT_MAX_C_DRIFT`）にある——`palette-fit.mjs` と共有する。
+ */
+describe('色域', () => {
+  for (const mode of MODES) {
+    const block = readTokenBlock(paletteCss, mode.pattern, mode.label)
+    for (const token of TOKENS) {
+      it(`${mode.label}の ${token} が sRGB の色域に収まっている（書いた値と測る値が一致する）`, () => {
+        const written = parseOklch(block[token])
+        if (written === null) throw new Error(`--${token} が oklch(L C H) ではない: ${block[token]}`)
+        const measured = linearToOklch(oklchToLinear(written))
+        const diff = Math.abs(measured.C - written.C)
+        expect(
+          diff,
+          `書いた C = ${written.C} / 測った C = ${measured.C.toFixed(4)}（差 ${diff.toFixed(4)}）。C を下げること`,
+        ).toBeLessThan(GAMUT_MAX_C_DRIFT)
+      })
     }
   }
 })

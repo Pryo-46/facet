@@ -86,8 +86,10 @@ describe('buildTerminalTheme', () => {
     expect(buildTerminalTheme(reader({ ...LIGHT, '--surface': 'rebeccapurple' }))).toBeNull()
     // `--surface-muted` **単独**の欠落も踏む。selectionBackground を null
     // ガードから落とす／別のトークン名に結ぶ形の退行は、上の2つでは
-    // 素通りする。**`--surface-muted` は palette-retheme で人が選ぶ5つの
-    // 1つ**（rev 9章）なので、配色差し替えで最も落ちやすい
+    // 素通りする。**`--surface-muted` は palette-retheme が外部テーマの
+    // `muted` から機械的に拾う7つの1つ**（Skill 手順3）で、しかも
+    // **拾うのは L だけで C は捨てる**——その「L だけ写す」手順で
+    // 落としやすい側のトークンである
     const noMuted = { ...LIGHT }
     delete noMuted['--surface-muted']
     expect(buildTerminalTheme(reader(noMuted))).toBeNull()

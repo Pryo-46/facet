@@ -89,9 +89,14 @@ C ≤ 0.01 でなければならない（`palette.test.ts` の `ACHROMATIC` が�
 **捨てるのは手抜きではなく設計である。** `index.css` の導出はこう決まっている（rev 9章）:
 
 ```css
-/* ボタンが緑になると judge-yes（支持）と意味が衝突する */
+/* ボタン・選択状態。primary は ink に紐づけるが、facet は塗りボタン
+   （default variant）を使わない（M21。conventions.test.ts が弾く）。
+   shadcn の他の部品（メニューの選択行等）が accent / muted を参照するので、
+   「一段沈んだ面」をそこへ流す */
 --primary: var(--ink);
-/* 「いまフォーカスがある」と「支持した」は別の意味 */
+
+/* フォーカスリング。**judge-yes を当てない**——「いまフォーカスがある」と
+   「支持した」は別の意味であり、同じ色にすると型区別が薄まる */
 --ring: var(--ink);
 ```
 
@@ -180,9 +185,9 @@ node .claude/skills/palette-retheme/scripts/palette-fit.mjs --in <path>
     "ink-faint": "oklch(0.58 0 0)",
     "rule": "oklch(0.58 0 0)",
     "grid": "oklch(0.89 0 0)",
-    "missing": "oklch(0.49 0.12 85)",
+    "missing": "oklch(0.49 0.10 85)",
     "invalid": "oklch(0.38 0.15 30)",
-    "pending": "oklch(0.48 0.14 250)",
+    "pending": "oklch(0.48 0.135 250)",
     "judge-yes": "oklch(0.87 0.08 165)",
     "judge-yes-fg": "oklch(0.18 0 0)",
     "judge-no": "oklch(0.35 0 0)",
@@ -200,7 +205,7 @@ node .claude/skills/palette-retheme/scripts/palette-fit.mjs --in <path>
 
 ### 出力の読み方
 
-要件を満たさない行は `✗` で、**コントラスト**と**面の文字**の節では直し方が付く。**面どうし**・**無彩色**・**意味色の識別**の3節には付かない（下で説明する）。
+要件を満たさない行は `✗` で、**コントラスト**と**面の文字**の節では直し方が付く（**色域**の節も「C を下げる」とだけ付く）。**面どうし**・**無彩色**・**意味色の識別**の3節には付かない（下で説明する）。
 
 ```
   コントラスト
@@ -235,6 +240,8 @@ node .claude/skills/palette-retheme/scripts/palette-fit.mjs --in <path>
 
 **無彩色にも提案が出ない。** 直し方は常に同じ（C を 0 にする）ので、計算するまでもない。
 
+**色域は「書いた C と、実際に出る C が一致するか」を見る。** `oklch()` は sRGB より広いので、C を上げすぎた値はブラウザが sRGB へクランプする。クランプされてもコントラストも ΔE も通ってしまうため、**「C 0.12 の黄土」と書いたまま 0.102 の色が出ている**状態は、この節でしか見つからない（M21 のライトの `missing` が実際にそうだった）。`✗` が出たら、その行の「→」が示すとおり **C を下げる**——L は動かさない。
+
 **意味色の識別（ΔE）は合否の対象である。** 標準・P型・D型のすべてで `DISTINCT_MIN`（既定 0.1）以上を要求する。満たせない組み合わせがあれば、`missing` / `invalid` / `pending` / `judge-yes` のどれかの色相か明度を動かす。それでも満たせないときの逃げ道は手順9にある。
 
 **「この色相・彩度では満たせない」は、動かせる側が振り切れているという意味である。** 上の例では `judge-yes-fg` がこの色相・彩度の範囲では 4.5:1 に届かない。直すのは面の側（`judge-yes` を暗くする）か、彩度を下げるかである。
@@ -254,7 +261,7 @@ node .claude/skills/palette-retheme/scripts/palette-fit.mjs --in <path>
 理由は**このファイルはコメントが情報の本体だから**である。ヘッダー（禁止事項・役割の定義・由来）に加えて、各行が由来を持つ:
 
 ```css
---rule: oklch(0.6 0.014 120);           /* Mineral Line の色相から導出 */
+--rule: oklch(0.58 0 0);                /* surface-muted 上でも 3:1 */
 --ink: oklch(0.85 0.007 88.6);          /* Ash Surface をそのまま置くと 16.79:1 で眩しい */
 ```
 
@@ -266,7 +273,7 @@ node .claude/skills/palette-retheme/scripts/palette-fit.mjs --in <path>
 | --- | --- |
 | 各行の末尾コメント（例: `/* Amber Minimal の border から */`） | 新しいテーマの語彙に置き換える。元の色名が分からないなら書かない（**古い名前を残すより空の方がよい**） |
 | 調整の理由（`/* Ember Fault を 4.5:1 超へ */`） | 今回動かした量と理由に書き直す。動かさなかったなら理由の記述ごと消す |
-| ヘッダの由来の段落 | 新しいテーマの出所・拾い方・調整方針に書き換える。Morphos 固有の生成ミスの注記も、そのテーマに該当しないなら消す |
+| ヘッダの由来の段落 | 新しいテーマの出所・拾い方・調整方針に書き換える |
 
 書式の制約（`palette.test.ts` が弾く）:
 
@@ -311,12 +318,12 @@ npm test
 
 ```
 意味色の識別（ΔE、標準 / P型 / D型）
-  ライト   missing / invalid   normal=0.160  protan=0.173  deutan=0.108
-  ライト   missing / pending   normal=0.240  protan=0.220  deutan=0.242
-  ライト   missing / judge-yes normal=0.398  protan=0.432  deutan=0.380
-  ライト   invalid / pending   normal=0.289  protan=0.279  deutan=0.231
+  ライト   missing / invalid   normal=0.166  protan=0.176  deutan=0.105
+  ライト   missing / pending   normal=0.233  protan=0.216  deutan=0.236
+  ライト   missing / judge-yes normal=0.398  protan=0.430  deutan=0.382
+  ライト   invalid / pending   normal=0.286  protan=0.276  deutan=0.227
   ライト   invalid / judge-yes normal=0.535  protan=0.598  deutan=0.481
-  ライト   pending / judge-yes normal=0.419  protan=0.413  deutan=0.433
+  ライト   pending / judge-yes normal=0.418  protan=0.413  deutan=0.432
   （ダークも同様に6行）
 ```
 

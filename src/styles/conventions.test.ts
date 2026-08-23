@@ -83,21 +83,21 @@ describe('色値の直書き禁止（rev 9章）', () => {
     const offenders = offendingLines(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|\boklch\(/)
     expect(
       offenders,
-      `色値は palette.css だけが持つ。役割名（text-ink / bg-missing …）を使うこと:\n${offenders.join('\n')}`,
+      `色値は palette.css だけが持つ。役割名（text-ink / bg-surface / text-missing …）を使うこと:\n${offenders.join('\n')}`,
     ).toEqual([])
   })
 
   it('Tailwind 標準パレットのユーティリティを使っていない', () => {
     // #rrggbb や oklch(...) の直書きより、こちらの方が起きやすい違反。
     // bg-red-500 のような Tailwind 標準パレットのクラスは色値の直書きと
-    // 検査パターンが違うため上のテストをすり抜ける。役割名（bg-missing …）
+    // 検査パターンが違うため上のテストをすり抜ける。役割名（text-missing …）
     // を経由しない色は、配色をpalette.cssで差し替えても追従しないので弾く
     const TAILWIND_PALETTE =
       /\b(bg|text|border|ring|fill|stroke|decoration|outline|from|via|to)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(50|[1-9]00|950)\b/
     const offenders = offendingLines(TAILWIND_PALETTE)
     expect(
       offenders,
-      `Tailwind 標準パレットは配色差し替えに追従しない。役割名（text-ink / bg-missing …）を使うこと:\n${offenders.join('\n')}`,
+      `Tailwind 標準パレットは配色差し替えに追従しない。役割名（text-ink / border-invalid …）を使うこと:\n${offenders.join('\n')}`,
     ).toEqual([])
   })
 })
@@ -153,6 +153,11 @@ describe('役割トークンの使い方（rev 9章 M21）', () => {
   it('<Button> は variant が outline / ghost のどちらか（塗りの primary は使わない）', () => {
     // JSX の開始タグは複数行に跨るので、行単位の offendingLines ではなくタグ単位で見る。
     // `<Button\b` は `<ButtonGroup` に当たらない（\b が b と G の間で成立しない）
+    //
+    // **`<AlertDialogAction>` は規約の例外なので、ここでは見ない**（rev 9章）。
+    // モーダルの本体はそのボタンで、主操作が1つだけ存在する——塗りが
+    // 許されるのはそこだけである。`<Button` しか見ないこの検査は、
+    // その例外を素通りさせる形になっている（見落としではない）
     const out: string[] = []
     for (const file of sourceFiles()) {
       const stripped = stripComments(readFileSync(file, 'utf8'))
