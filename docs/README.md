@@ -7,6 +7,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | 知りたいこと | 読むもの |
 | --- | --- |
 | なぜこの設計なのか | [`overview-rev.md`](overview-rev.md) — **全体方針の「正」**。3〜10章が設計制約の本体。他の文書はここを `rev N章` の形で参照する |
+| UI の見た目がなぜそう決まったか（色は意味だけ・欠落は線・判断は面） | [`facet-UI設計ノート.md`](facet-UI設計ノート.md) — **UI の設計ノート**（診断と決定 D1〜D19。**A〜F への分割は設計スペック [`superpowers/plans/2026-08-23-m21-design-tokens-v2-design.md`](superpowers/plans/2026-08-23-m21-design-tokens-v2-design.md) の末尾にある**。A（色の規約）は M21 で実装し、残る B〜F は [`open-issues.md`](open-issues.md) の「デザイン」節に1項ずつ） |
 | 何をどの順で作るか（用語集） | [`glossary/scope.md`](glossary/scope.md) |
 | 用語集の仕様がなぜそう決まったか | [`glossary/session-notes.md`](glossary/session-notes.md) |
 | 何をどの順で作るか（ロジックツリー） | [`logic-tree/logic-tree-m1-scope.md`](logic-tree/logic-tree-m1-scope.md) |
@@ -62,6 +63,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [M18](history/m18-restore-last-folder.md) | 起動時に直近フォルダを自動で復元する | コア |
 | [M19](history/m19-core-auto-update.md) | Windows の自動アップデート | コア |
 | [M20](history/m20-core-canvas.md) | キャンバス基盤のコア化 | コア |
+| [M21](history/m21-core-design-tokens-v2.md) | 役割トークン v2——色を持つのは意味だけ | コア・デザイン |
 | [logic-tree-m1](history/logic-tree-m1-keyboard-editor.md) | キーボードで打ち切れるキャンバスエディタ | ロジックツリー |
 | [sequence-m1](history/sequence-m1-keyboard-editor.md) | ステップ入力＋全ステップに立つ「失敗したら？」の問い | シーケンス |
 | [sequence-m2](history/sequence-m2-usability.md) | 会議で使ってみて出た使い勝手9点 | シーケンス |

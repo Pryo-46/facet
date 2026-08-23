@@ -83,21 +83,21 @@ describe('色値の直書き禁止（rev 9章）', () => {
     const offenders = offendingLines(/#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(|\boklch\(/)
     expect(
       offenders,
-      `色値は palette.css だけが持つ。役割名（text-ink / bg-warning …）を使うこと:\n${offenders.join('\n')}`,
+      `色値は palette.css だけが持つ。役割名（text-ink / bg-surface / text-missing …）を使うこと:\n${offenders.join('\n')}`,
     ).toEqual([])
   })
 
   it('Tailwind 標準パレットのユーティリティを使っていない', () => {
     // #rrggbb や oklch(...) の直書きより、こちらの方が起きやすい違反。
     // bg-red-500 のような Tailwind 標準パレットのクラスは色値の直書きと
-    // 検査パターンが違うため上のテストをすり抜ける。役割名（bg-warning …）
+    // 検査パターンが違うため上のテストをすり抜ける。役割名（text-missing …）
     // を経由しない色は、配色をpalette.cssで差し替えても追従しないので弾く
     const TAILWIND_PALETTE =
       /\b(bg|text|border|ring|fill|stroke|decoration|outline|from|via|to)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-(50|[1-9]00|950)\b/
     const offenders = offendingLines(TAILWIND_PALETTE)
     expect(
       offenders,
-      `Tailwind 標準パレットは配色差し替えに追従しない。役割名（text-ink / bg-warning …）を使うこと:\n${offenders.join('\n')}`,
+      `Tailwind 標準パレットは配色差し替えに追従しない。役割名（text-ink / border-invalid …）を使うこと:\n${offenders.join('\n')}`,
     ).toEqual([])
   })
 })
@@ -119,5 +119,62 @@ describe('フォントサイズの段階（M7 決定6、M14 で1段追加）', (
       offenders,
       `使ってよいのは text-xs / text-sm / text-base / text-lg / text-2xl の5段:\n${offenders.join('\n')}`,
     ).toEqual([])
+  })
+})
+
+describe('役割トークンの使い方（rev 9章 M21）', () => {
+  it('旧トークン名（warning / ok / surface-accent）をクラス名として使っていない', () => {
+    const offenders = offendingLines(
+      /\b(?:[a-z-]+:)?(bg|text|border|ring|outline|stroke|fill|decoration|placeholder|divide)-(warning|warning-fg|ok|ok-fg|surface-accent)\b/,
+    )
+    expect(offenders, `M21 で消えたトークン。missing / invalid / pending / judge-* / surface-muted に振り分けること:\n${offenders.join('\n')}`).toEqual([])
+  })
+
+  it('欠落・無効・着信の面は淡い面（bg-*-face）だけ。線色そのものを面にしない', () => {
+    // **`(?!-face)` を落とさないこと。** `\b` は `g` と `-` の間で成立するので、
+    // 付けないと正当な `bg-missing-face` まで違反として拾う（検査3の
+    // `(?!-fg)` と同じ穴）。M21 の実機確認で淡い面を足したときに開けた口で、
+    // 濃い面（`bg-missing` 等）は依然として禁止のまま
+    const offenders = offendingLines(/\b(?:[a-z-]+:)?bg-(missing|invalid|pending)\b(?!-face)/)
+    expect(
+      offenders,
+      `開いているものは淡い面（bg-missing-face 等）と線、決着したものは濃い面（規約2）:\n${offenders.join('\n')}`,
+    ).toEqual([])
+  })
+
+  it('判断の面を線や文字にしない（-fg を除く）', () => {
+    const offenders = offendingLines(/\b(?:[a-z-]+:)?(text|border|outline|ring|stroke|fill|decoration)-judge-(yes|no)\b(?!-fg)/)
+    expect(offenders, `judge-yes / judge-no は面。文字は judge-*-fg を使う:\n${offenders.join('\n')}`).toEqual([])
+  })
+
+  it('役割トークンに透過を掛けていない', () => {
+    // トークンのコントラストは palette.test.ts が値で保証する。透過を掛けた
+    // 使用箇所はその保証の外に出る。半透明の面（M8 の bg-warning/20）が
+    // 消えた今、正当な透過は残っていない
+    const offenders = offendingLines(
+      /\b(?:[a-z-]+:)?(bg|text|border|ring|outline|stroke|fill|decoration|placeholder|divide)-(canvas|surface|surface-muted|ink|ink-muted|ink-faint|rule|grid|missing|invalid|pending|missing-face|invalid-face|pending-face|judge-yes|judge-yes-fg|judge-no|judge-no-fg)\/\d+/,
+    )
+    expect(offenders, `透過は使わない。一段薄くしたければ ink-muted / ink-faint の段を使う:\n${offenders.join('\n')}`).toEqual([])
+  })
+
+  it('<Button> は variant が outline / ghost のどちらか（塗りの primary は使わない）', () => {
+    // JSX の開始タグは複数行に跨るので、行単位の offendingLines ではなくタグ単位で見る。
+    // `<Button\b` は `<ButtonGroup` に当たらない（\b が b と G の間で成立しない）
+    //
+    // **`<AlertDialogAction>` は規約の例外なので、ここでは見ない**（rev 9章）。
+    // モーダルの本体はそのボタンで、主操作が1つだけ存在する——塗りが
+    // 許されるのはそこだけである。`<Button` しか見ないこの検査は、
+    // その例外を素通りさせる形になっている（見落としではない）
+    const out: string[] = []
+    for (const file of sourceFiles()) {
+      const stripped = stripComments(readFileSync(file, 'utf8'))
+      for (const m of stripped.matchAll(/<Button\b[^>]*>/g)) {
+        if (!/\bvariant="(outline|ghost)"/.test(m[0])) {
+          const line = stripped.slice(0, m.index).split('\n').length
+          out.push(`src/${relative(file)}:${line}  ${m[0].replace(/\s+/g, ' ').slice(0, 80)}`)
+        }
+      }
+    }
+    expect(out, `facet は塗りボタンを置かない（UI ノート D19）。variant="outline" か "ghost" を書く:\n${out.join('\n')}`).toEqual([])
   })
 })

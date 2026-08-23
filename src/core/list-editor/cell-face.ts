@@ -29,27 +29,48 @@ export function hasError(marks: ErrorMarks, index: number, field: string): boole
   return marks.get(index)?.has(field) ?? false
 }
 
-/** セルの面。'error' が最も強く、'warn' がそれに次ぐ。'none' は面を塗らない */
+/** セルの面。'error' が最も強く、'warn' がそれに次ぐ。'none' は輪郭を引かない */
 export type CellFace = 'error' | 'warn' | 'none'
 
 /**
- * セルの面を決める。**エラーは warning より強いので優先する。**
+ * セルの面のクラス名（M21）。**淡い面だけ**——無効は `invalid-face`、欠落は
+ * `missing-face`（rev 9章 規約2の例外）。
+ *
+ * 淡い面は M21 の実機確認で足した——1px の輪郭だけでは、テーブルのセルが
+ * 方眼と罫線に埋もれて拾えなかった。そのうえで**輪郭は外した**（2026-08-24 の
+ * 実機確認）——表の中では輪郭がテーブルの罫線（`border-b border-grid`）と
+ * 競合し、情報ではなくノイズになる。欠落と無効の区別は面の色相（黄／赤）が
+ * 運ぶ。バッジ（`badge-styles.ts`）は線種が「まだ見ていない／保留」を運ぶので
+ * 線を残しており、セルとは扱いが違う。
+ *
+ * 当てる要素は `<td>`（中の入力欄は `bg-transparent`）
+ */
+export const CELL_FACE_CLASS: Record<CellFace, string> = {
+  error: 'bg-invalid-face',
+  warn: 'bg-missing-face',
+  none: '',
+}
+
+/**
+ * セルの面を決める。**エラーは warn より強いので優先する。**
  * 定義セル・種別セルも見る——見ていないと、これらを指す検証ルールが
  * 増えた時点で「issue 一覧には出るのにセルが赤くならない」になる
  * （M8 でつぶした残件2）。いまは該当ルールが無いので到達しない。
  *
- * **行全体がエラー（field 'id'）のときはセルの面を塗らない。** 同じ半透明を
- * 二重に重ねると検証済みの濃さ（warning/20）より濃くなり、コントラストが
- * palette.test.ts の検証範囲の外へ出る。ID 重複と名称重複が同時に
- * 起きた行で実際に発生する組み合わせである
+ * **行全体の指摘（field 'id'。ID 重複など欄を特定できない指摘）は、行の
+ * 先頭セル（`rowAnchor`）に出す。** 行を染めると「この行は全部ダメ」に見え、
+ * 問題箇所が特定できない（UI ノート D5）。M8 の「行がエラーならセルは none」
+ * は半透明の二重塗りを避けるための規則で、いまは要らない——`CellFace` は
+ * 1セルにつき1つしか返せず、淡い面も不透明なので重ね塗りが起きない
  */
 export function cellFace(
   marks: ErrorMarks,
   index: number,
   field: string,
   warn = false,
+  rowAnchor = false,
 ): CellFace {
-  if (hasError(marks, index, 'id')) return 'none'
   if (hasError(marks, index, field)) return 'error'
+  if (rowAnchor && hasError(marks, index, 'id')) return 'error'
   return warn ? 'warn' : 'none'
 }

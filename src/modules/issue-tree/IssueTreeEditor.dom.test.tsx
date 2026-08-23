@@ -2,9 +2,10 @@
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { badgeClass } from '@/components/badge-styles'
 import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
-import { badgeClass } from './badge-styles'
+import { badgeVariantOf } from './badge-variant'
 import {
   BADGE_LABELS,
   EVENT_KIND_LABELS,
@@ -230,8 +231,8 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
       if (badge === null) throw new Error(`仮説${n}のバッジが無い`)
       return badge as HTMLElement
     }
-    // 抑制されていない仮説のバッジは「未決」の面（warning の破線）
-    expect(badgeOf(1).className).toBe(badgeClass('open', false))
+    // 抑制されていない仮説のバッジは「未決」の面（missing の破線）
+    expect(badgeOf(1).className).toBe(badgeClass(badgeVariantOf('open', false)))
 
     // 見送りは課題ノードのトグルを1回押して付ける（種別は `deferred` の1語しか
     // 無いので選ばせない。かつてはここが1択のドロップダウンだった）
@@ -257,7 +258,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     expect(toggle.textContent).toBe(DEFER_TRIGGER_LABEL)
     // **切りの面はバッジの面ではない。** ここが入りの面になっていたら、
     // 見送っていない箱に見送りバッジが出ている
-    expect(toggle.className).not.toContain(badgeClass('deferred', false))
+    expect(toggle.className).not.toContain(badgeClass(badgeVariantOf('deferred', false)))
     const offFace = toggle.className
     fireEvent.click(toggle)
 
@@ -270,11 +271,11 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     expect(pressed.getAttribute('aria-pressed')).toBe('true')
     // **入りの面は見送りバッジそのもの**（課題1は根なので祖先由来の抑制は無い）。
     // 面が状態で入れ替わることを、両側から挟んで固定する
-    expect(pressed.className).toContain(badgeClass('deferred', false))
+    expect(pressed.className).toContain(badgeClass(badgeVariantOf('deferred', false)))
     expect(pressed.className).not.toBe(offFace)
     // **バッジは消えない——薄い枠（ink-faint）に落ちる。** 「いま作業する面では
     // ない」ことを面の濃さで見せる（`opacity-*` では検算した比を割る）
-    expect(badgeOf(1).className).toBe(badgeClass('open', true))
+    expect(badgeOf(1).className).toBe(badgeClass(badgeVariantOf('open', true)))
     expect(badgeOf(1).className).toContain('ink-faint')
     // 箱も同じ段に落ちる（地の色には落とさない＝木の形は読めたまま）
     const box = issueCell(2).closest('[class*="pointer-events-auto"]')
@@ -325,13 +326,12 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
       return box as HTMLElement
     }
     // 見送りを掲げている当人（課題2）は薄くならず、見送りの塗り
-    // （`border-ink-muted bg-surface-accent`。`rule` は surface-accent 上で
-    // 3:1 を割るため枠だけ ink-muted にしてある）を持つ
-    expect(boxOf(2).className).toContain('border-ink-muted')
-    expect(boxOf(2).className).toContain('bg-surface-accent')
+    // （`border-rule bg-surface-muted`。`rule` はこの面の上でも 3:1 を満たす）を持つ。
+    // 枠は通常の箱と揃えたので、見送りを識別するのは面だけ
+    expect(boxOf(2).className).toContain('bg-surface-muted')
     expect(boxOf(2).className).not.toContain('ink-faint')
     expect(screen.getByRole('button', { name: '課題2の見送り' }).className).toContain(
-      badgeClass('deferred', false),
+      badgeClass(badgeVariantOf('deferred', false)),
     )
     // 配下（課題3）は薄い枠と薄い文字に落ちる
     expect(boxOf(3).className).toContain('border-ink-faint')
@@ -346,9 +346,9 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     }
     // 仮説2 は**見送った課題2に直接**ぶら下がる（ここが分割の要。箱と同じ配列を
     // 行にも渡すと、この行だけが濃くなる）
-    expect(rowBadgeClass(2)).toBe(badgeClass('open', true))
+    expect(rowBadgeClass(2)).toBe(badgeClass(badgeVariantOf('open', true)))
     // 仮説1 は配下の課題3 にぶら下がる
-    expect(rowBadgeClass(1)).toBe(badgeClass('open', true))
+    expect(rowBadgeClass(1)).toBe(badgeClass(badgeVariantOf('open', true)))
   })
 
   /**
@@ -416,16 +416,16 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
   })
 
   /**
-   * `bg-surface-accent` の塗りは**見送りを掲げた当人の箱だけ**に付く
+   * `bg-surface-muted` の塗りは**見送りを掲げた当人の箱だけ**に付く
    *（`IssueBox.tsx` D8）。同じ入れ子の木（A 通常→B 見送り→C 見送り→D 通常）を
    * 流用し、上のテストが見た「枠と文字の薄さ」に加えて塗りの有無も見る。
    *
-   * **`toContain` ではなく `split(' ')` の完全一致で見る。** `bg-surface-accent`
-   * は文字列として `bg-surface` を含む（`'bg-surface-accent'.includes('bg-surface')`
-   * が真）ので、`toContain('bg-surface')` は `bg-surface-accent` の箱でも
+   * **`toContain` ではなく `split(' ')` の完全一致で見る。** `bg-surface-muted`
+   * は文字列として `bg-surface` を含む（`'bg-surface-muted'.includes('bg-surface')`
+   * が真）ので、`toContain('bg-surface')` は `bg-surface-muted` の箱でも
    * 通ってしまい、「非塗りの箱だけが `bg-surface` を持つ」を検査できない
    */
-  it('bg-surface-accent は見送りを掲げた当人の箱だけ（通常・入れ子で抑制された配下は持たない）', () => {
+  it('bg-surface-muted は見送りを掲げた当人の箱だけ（通常・入れ子で抑制された配下は持たない）', () => {
     const nested: IssueTreeSchemaVersion2 = {
       schemaVersion: 2,
       type: 'issueTree',
@@ -452,16 +452,16 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     const classesOf = (n: number): string[] => boxOf(n).className.split(' ')
 
     // A：通常の箱は塗らない
-    expect(classesOf(1)).not.toContain('bg-surface-accent')
+    expect(classesOf(1)).not.toContain('bg-surface-muted')
     expect(classesOf(1)).toContain('bg-surface')
     // B：見送りを掲げた当人だけが塗る
-    expect(classesOf(2)).toContain('bg-surface-accent')
+    expect(classesOf(2)).toContain('bg-surface-muted')
     expect(classesOf(2)).not.toContain('bg-surface')
     // C：自分も見送っているが、祖先（B）由来の抑制が勝つので塗らない
-    expect(classesOf(3)).not.toContain('bg-surface-accent')
+    expect(classesOf(3)).not.toContain('bg-surface-muted')
     expect(classesOf(3)).toContain('bg-surface')
     // D：ただの抑制された配下も塗らない
-    expect(classesOf(4)).not.toContain('bg-surface-accent')
+    expect(classesOf(4)).not.toContain('bg-surface-muted')
     expect(classesOf(4)).toContain('bg-surface')
   })
 
@@ -491,7 +491,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     expect(badge.textContent).toBe(ISSUE_DEFERRED_LABEL)
     // **薄くならない。** 見送りは「そこで下した判断の表明」であって
     // 「もう見なくてよい枝」ではない（俯瞰モックの規則。薄いのは配下だけ）
-    expect(badge.className).toContain(badgeClass('deferred', false))
+    expect(badge.className).toContain(badgeClass(badgeVariantOf('deferred', false)))
 
     const reason = screen.getByRole('textbox', { name: '課題1 の見送りの理由' })
     expect((reason as HTMLTextAreaElement).value).toBe('本開発の設計と一緒に決める')
@@ -532,7 +532,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     expect(screen.queryByRole('textbox', { name: '課題1 の見送りの理由' })).toBeNull()
     const back = screen.getByRole('button', { name: '課題1の見送り' })
     expect(back.getAttribute('aria-pressed')).toBe('false')
-    expect(back.className).not.toContain(badgeClass('deferred', false))
+    expect(back.className).not.toContain(badgeClass(badgeVariantOf('deferred', false)))
     expect(back.textContent).toBe(DEFER_TRIGGER_LABEL)
     // **フォーカスは課題の文言へ戻る**（消えた欄には返せず、ボタンの上では
     // 木の操作言語が効かない）
@@ -635,26 +635,30 @@ describe('IssueTreeEditor（帯）', () => {
   })
 
   /**
-   * チップの面は**キャンバスのバッジの語彙そのまま**——保留は実線の枠
-   *（`badgeClass('hold')`）、それ以外の3種は「まだ開いている」の破線
-   *（`badgeClass('open')`）。帯とキャンバスが同じ言葉を使うという約束が
-   * `kind === 'hold' ? 'hold' : 'open'` の1行に載っている
+   * チップの面は**キャンバスのバッジの語彙そのまま**（`chipVariantOf`）——保留は
+   * 実線の枠（`hold`）、未判断は着信の青（`pending`。レビューの FB に返答して
+   * いない＝欠落ではなく受信箱）、仮説なし・未決は「まだ見ていない」の破線
+   *（`open`）。帯とキャンバスが同じ言葉を使う
    */
-  it('保留のチップだけ実線のバッジ、他の3種は破線のバッジ', () => {
+  it('保留と未判断は実線、仮説なし・未決は破線のバッジ（未判断だけ色も違う）', () => {
     const data = allKindsFile()
     const t = tallyQuestions(poseQuestions(data))
     expect(t).toMatchObject({ hypothesis: 1, result: 1, hold: 1, judgement: 1, total: 4 })
     render(<Harness initial={data} />)
     // **クラス名を打ち直さない**——`badgeClass` の戻り値と照合する。チップは
     // 共通の面（`CHIP_BASE`）を前に足すので、一致ではなく包含で見る
-    const solid = badgeClass('hold', false)
-    const dashed = badgeClass('open', false)
-    expect(chip('hold')?.className).toContain(solid)
-    expect(chip('hold')?.className).not.toContain(dashed)
-    for (const kind of ['hypothesis', 'result', 'judgement'] as const) {
-      expect(chip(kind)?.className, kind).toContain(dashed)
-      expect(chip(kind)?.className, kind).not.toContain(solid)
+    const hold = badgeClass('hold')
+    const pending = badgeClass('pending')
+    const open = badgeClass('open')
+    expect(chip('hold')?.className).toContain(hold)
+    expect(chip('judgement')?.className).toContain(pending)
+    for (const kind of ['hypothesis', 'result'] as const) {
+      expect(chip(kind)?.className, kind).toContain(open)
     }
+    // 3つの面は互いに異なる（同じクラスへ潰れていないこと）
+    expect(hold).not.toBe(pending)
+    expect(hold).not.toBe(open)
+    expect(pending).not.toBe(open)
   })
 
   it('帯のチップを押すと、その種類の次の要対応へフォーカスが移る（末尾なら先頭へ）', () => {
@@ -906,7 +910,7 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
     // 名前の後半には問いが入る（音声にも出す）
     expect(cell.getAttribute('aria-label')).toBe(`課題3（未記入） ${QUESTION_LABELS.hypothesis}`)
     expect(screen.getAllByText(QUESTION_LABELS.hypothesis)[0].className).toBe(
-      badgeClass('open', false),
+      badgeClass(badgeVariantOf('open', false)),
     )
   })
 

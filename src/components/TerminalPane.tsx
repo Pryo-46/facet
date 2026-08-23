@@ -49,7 +49,7 @@ export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
               type="button"
               aria-pressed={state.activeId === session.id}
               className={`${buttonBase} px-2 py-1 text-xs ${
-                state.activeId === session.id ? 'bg-surface-accent text-ink' : 'text-ink-muted'
+                state.activeId === session.id ? 'bg-surface-muted text-ink' : 'text-ink-muted'
               }`}
               onClick={() => onActivate(session.id)}
             >

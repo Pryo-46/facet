@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { badgeClass } from '@/components/badge-styles'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
 import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
-import { badgeClass } from './badge-styles'
+import { badgeVariantOf } from './badge-variant'
 import { BADGE_LABELS, EVENT_KIND_LABELS } from './derive'
 import { HypothesisRow } from './HypothesisRow'
 import { poseQuestions } from './derive'
@@ -138,7 +139,7 @@ describe('HypothesisRow: 畳まれた行', () => {
   it('抑制された行のバッジは群を問わず薄い枠になる', () => {
     renderRow(0, { suppressed: true })
     // **クラス名を打ち直さない**——`badgeClass` の戻り値と照合する
-    expect(screen.getByText(BADGE_LABELS.no).className).toBe(badgeClass('no', true))
+    expect(screen.getByText(BADGE_LABELS.no).className).toBe(badgeClass(badgeVariantOf('no', true)))
   })
 })
 
@@ -180,13 +181,13 @@ describe('HypothesisRow: 展開した行', () => {
     renderRow(0, { expanded: true })
     // 最新（rejected）ではなく1つ前（supported）の話
     const badge = screen.getByText(EVENT_KIND_LABELS.supported)
-    expect(badge.className).toBe(badgeClass('yes', true))
+    expect(badge.className).toBe(badgeClass(badgeVariantOf('yes', true)))
     // 現在の判断（棄却）の面は塗られたまま——薄いのは過去だけ。
     // **「棄却」は2つ出る**（行末のバッジと、判断の節のバッジ）。`[0]` だけを見ると
     // どちらを掴んでも通ってしまい、節のバッジだけが薄れる退行を見逃す
     const filled = screen.getAllByText(EVENT_KIND_LABELS.rejected)
     expect(filled).toHaveLength(2)
-    for (const b of filled) expect(b.className).toBe(badgeClass('no', false))
+    for (const b of filled) expect(b.className).toBe(badgeClass(badgeVariantOf('no', false)))
   })
 
   it('イベントが無い仮説の判断の節は「未決」のバッジと「判断を追加」のトリガーを持つ', () => {
@@ -195,7 +196,7 @@ describe('HypothesisRow: 展開した行', () => {
     // **どちらも同じ面**（破線の枠）で、面を塗らない
     const badges = screen.getAllByText(BADGE_LABELS.open)
     expect(badges).toHaveLength(2)
-    for (const badge of badges) expect(badge.className).toBe(badgeClass('open', false))
+    for (const badge of badges) expect(badge.className).toBe(badgeClass(badgeVariantOf('open', false)))
     expect(screen.getByText(NO_JUDGEMENT_TEXT)).toBeTruthy()
     expect(screen.getByRole('button', { name: JUDGEMENT_TRIGGER_LABELS.empty })).toBeTruthy()
     // 以前の判断の節は出ない（1件も無い）

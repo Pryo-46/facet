@@ -26,7 +26,8 @@ export interface GutterSlotProps {
 
 /**
  * 問いスロット1つ（design-notes 論点7）。
- * 未定義＝warning/10 の面（M8 の「未定義」の規約そのまま）。
+ * 未定義＝`missing` の淡い面＋破線の枠（rev 9章 規約2。M21 の実機確認で
+ * 「破線だけではガターのスロットが方眼に埋もれて拾えない」と判断して面を足した）。
  * handled＝無地・通常文字。notApplicable＝無地・ink-muted＋「─ 考慮不要」の接頭。
  * 3状態の切替は Ctrl+Enter（toggle-item-state）で、キーの解釈は
  * エディタ側の resolveCommand が行う——ここはキーの意味を決めない
@@ -34,7 +35,7 @@ export interface GutterSlotProps {
 export function GutterSlot(props: GutterSlotProps) {
   const face =
     props.state === 'unanswered'
-      ? 'border-warning bg-warning/10 text-ink-muted'
+      ? 'border-dashed border-missing bg-missing-face text-ink-muted'
       : props.state === 'notApplicable'
         ? 'border-rule bg-surface text-ink-muted'
         : 'border-rule bg-surface text-ink'

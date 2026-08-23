@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { CellInput, type FieldState } from '@/components/CellInput'
 import { buttonBase } from '@/components/button-styles'
+import { Chip } from '@/components/Chip'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -10,7 +11,7 @@ import {
   type KeyContext,
 } from '@/core/keyboard/keymap'
 import { altModifierLabel, currentPlatform } from '@/core/keyboard/platform'
-import { buildErrorMarks, cellFace, hasError } from '@/core/list-editor/cell-face'
+import { buildErrorMarks, cellFace, CELL_FACE_CLASS } from '@/core/list-editor/cell-face'
 import { stepField } from '@/core/list-editor/field-step'
 import { cellId, useListRows } from '@/core/list-editor/use-list-rows'
 import { newId } from '@/core/new-id'
@@ -34,14 +35,10 @@ import { isWarnCell } from './warnings'
 const LEVEL_OPTIONS = errorCatalogSchema.$defs.errorEntry.properties.resolutionLevel.enum
 
 // フォーカスは面の塗り替えではなくリングで示す（M8 修正3）。エラー・未記入セルは
-// bg-warning/20・/10 の面を警告として持っているので、フォーカスで背景を塗り替えると
-// その警告表示が消えてしまう
+// 輪郭（CELL_FACE_CLASS）で示す。フォーカスで背景を塗り替えても消えないが、
+// リングで示す方針は変えない
 const cellInput =
   'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
-// レベル2エラー（受け入れて赤表示）と warning はどちらも同系色の面で示し、
-// 濃さで強度を区別する（M8 決定13。合成後のコントラストは palette.test.ts が機械検査する）
-const errorCell = 'bg-warning/20'
-const warnCell = 'bg-warning/10'
 
 /** 列の境界の縦罫。先頭列（No）には引かない（M8 決定2） */
 const colBorder = 'border-l border-grid'
@@ -220,11 +217,10 @@ export function ErrorCatalogEditor({
   // locations を「配列位置 → 赤表示するフィールド集合」に引き直す（コアの純関数）
   const marks = buildErrorMarks(issues)
 
-  /** セルの面のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ */
-  const cellClass = (index: number, field: ErrorField, warn: boolean): string => {
-    const face = cellFace(marks, index, field, warn)
-    return face === 'error' ? errorCell : face === 'warn' ? warnCell : ''
-  }
+  /** セルの輪郭のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ。
+      No 列は profile.fields に含まれないので rowAnchor はここでは常に false */
+  const cellClass = (index: number, field: ErrorField, warn: boolean): string =>
+    CELL_FACE_CLASS[cellFace(marks, index, field, warn)]
 
   /** セルの中身。列ごとの違いはここ1箇所に閉じる */
   const cellNode = (
@@ -323,17 +319,9 @@ export function ErrorCatalogEditor({
           {PROFILES.map((p) => {
             const active = p.id === profile.id
             return (
-              <button
-                key={p.id}
-                type="button"
-                aria-pressed={active}
-                className={`${buttonBase} border border-rule px-2 py-1 text-xs ${
-                  active ? 'bg-ink text-canvas' : 'bg-canvas text-ink hover:bg-surface'
-                }`}
-                onClick={() => setProfile(p)}
-              >
+              <Chip key={p.id} selected={active} onClick={() => setProfile(p)}>
                 {p.label}
-              </button>
+              </Chip>
             )
           })}
         </div>
@@ -346,13 +334,9 @@ export function ErrorCatalogEditor({
           {LEVEL_OPTIONS.map((level) => {
             const active = filter.levels.includes(level)
             return (
-              <button
+              <Chip
                 key={level}
-                type="button"
-                aria-pressed={active}
-                className={`${buttonBase} border border-rule px-2 py-1 text-xs ${
-                  active ? 'bg-ink text-canvas' : 'bg-canvas text-ink hover:bg-surface'
-                }`}
+                selected={active}
                 onClick={() =>
                   setFilter((f) => ({
                     ...f,
@@ -361,7 +345,7 @@ export function ErrorCatalogEditor({
                 }
               >
                 {resolutionLabel(level)}
-              </button>
+              </Chip>
             )
           })}
         </div>
@@ -389,7 +373,7 @@ export function ErrorCatalogEditor({
             })}
           </colgroup>
           <thead>
-            <tr className="text-left text-ink">
+            <tr className="text-left">
               {cols.columns.map((col, i) => {
                 const w = cols.widthIndex[i]
                 const label = col.field === 'no' ? NO_COLUMN_LABEL : FIELD_LABELS[col.field]
@@ -398,7 +382,7 @@ export function ErrorCatalogEditor({
                   <th
                     key={col.field}
                     // sticky 自体が絶対配置の包含ブロックになるので relative は要らない
-                    className={`sticky top-0 z-10 border-b border-rule bg-surface-accent px-2 py-1 font-bold${i === 0 ? '' : ` ${colBorder}`}`}
+                    className={`sticky top-0 z-10 border-b border-rule bg-surface-muted px-2 py-1 text-xs font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
                   >
                     {label}
                     {/* No 列は導出（データ配列の index+1）なのでハンドルを出さない。
@@ -428,12 +412,16 @@ export function ErrorCatalogEditor({
               const entry = data.errors[index]
               const rowKey = rowKeys[index]
               return (
-                <tr
-                  key={rowKey}
-                  className={`border-b border-grid align-middle${hasError(marks, index, 'id') ? ` ${errorCell}` : ''}`}
-                >
-                  {/* No は編集対象ではない。データ配列の位置なので絞り込んでも動かない */}
-                  <td className="px-2 py-1 text-ink-muted">{index + 1}</td>
+                <tr key={rowKey} className="border-b border-grid align-middle">
+                  {/* No は編集対象ではない。データ配列の位置なので絞り込んでも動かない。
+                      右揃え（UI ノート D9）。'no' は ErrorField ではないが cellFace の
+                      field は string なので通る。hasError(marks, index, 'no') は常に
+                      false で、rowAnchor だけが効く */}
+                  <td
+                    className={`px-2 py-1 text-right text-ink-muted ${CELL_FACE_CLASS[cellFace(marks, index, 'no', false, true)]}`}
+                  >
+                    {index + 1}
+                  </td>
                   {profile.fields.map((field) => (
                     <td
                       key={field}

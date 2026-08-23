@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { CellInput, type FieldState } from '@/components/CellInput'
 import { buttonBase } from '@/components/button-styles'
+import { Chip } from '@/components/Chip'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -10,7 +11,7 @@ import {
   type KeyContext,
 } from '@/core/keyboard/keymap'
 import { altModifierLabel, currentPlatform } from '@/core/keyboard/platform'
-import { buildErrorMarks, cellFace, hasError } from '@/core/list-editor/cell-face'
+import { buildErrorMarks, cellFace, CELL_FACE_CLASS } from '@/core/list-editor/cell-face'
 import { cellId, useListRows } from '@/core/list-editor/use-list-rows'
 import { newId } from '@/core/new-id'
 import type { EditorProps } from '@/core/registry'
@@ -33,22 +34,12 @@ const KIND_OPTIONS = glossarySchema.$defs.term.properties.kind.enum
 
 // フォーカスは面の塗り替えではなくリングで示す（M8 修正3）。テーブルの面が
 // bg-surface になった今、focus:bg-surface はコントラスト比 1.00:1 で見えない。
-// エラー・未定義セルは bg-warning/20・/10 の面を警告として持っているので、
-// フォーカスで背景を塗り替えるとその警告表示が消えてしまう——リングなら
-// 面の色を潰さずに重ねられる。色は役割トークンの --ring から取る（既に
-// --ink に紐づいている。palette.css は変更していない）
+// エラー・未定義セルは輪郭（CELL_FACE_CLASS）で警告を示しているので、
+// フォーカスで背景を塗り替えても輪郭は消えない——リングは輪郭とは別の見た目
+// なので、どちらも潰さずに重ねられる。色は役割トークンの --ring から取る
+// （既に --ink に紐づいている。palette.css は変更していない）
 const cellInput =
   'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
-// レベル2エラー（受け入れて赤表示）と warning（undecided / 未定義）は
-// どちらも同系色の面で示し、濃さで強度を区別する。
-// 波線下線は表記ゆれの「指摘（suggestion）」用に予約されているため使わない
-// （glossary-session-notes 論点5）。
-//
-// **濃さは M8 で確定した**（設計スペック 決定13）。合成後のコントラストは
-// src/styles/palette.test.ts が機械検査しており、値を変えるとそちらが落ちる。
-// /25 はダークの surface 上で ink-muted が 4.58:1 に落ちるため使えない
-const errorCell = 'bg-warning/20'
-const warnCell = 'bg-warning/10'
 
 /** 列の境界の縦罫。先頭列には引かない（M8 決定2） */
 const colBorder = 'border-l border-grid'
@@ -197,16 +188,15 @@ export function GlossaryEditor({
   })
 
   // locations を「配列位置 → 赤表示するフィールド集合」に引き直す。判定
-  // ロジック（優先順位・二重塗り防止）とあわせて cell-face.ts の純関数へ
+  // ロジック（優先順位・行アンカー）とあわせて cell-face.ts の純関数へ
   // 切り出してある。DOM テストは role・アクセシブル名で引きクラス名を見ないため、
   // この振る舞いを固定する場所が別に要る（M8 でつぶした残件2の裏付け）
   const marks = buildErrorMarks(issues)
 
-  /** セルの面のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ */
-  const cellClass = (index: number, field: GlossaryField, warn = false): string => {
-    const face = cellFace(marks, index, field, warn)
-    return face === 'error' ? errorCell : face === 'warn' ? warnCell : ''
-  }
+  /** セルの輪郭のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ。
+      行全体の指摘は先頭列（名称）の輪郭で示す（UI ノート D5） */
+  const cellClass = (index: number, field: GlossaryField, warn = false): string =>
+    CELL_FACE_CLASS[cellFace(marks, index, field, warn, field === COLUMNS[0].field)]
 
   return (
     <div ref={rows.containerRef} className="p-4">
@@ -222,13 +212,9 @@ export function GlossaryEditor({
         {KIND_OPTIONS.map((kind) => {
           const active = filter.kinds.includes(kind)
           return (
-            <button
+            <Chip
               key={kind}
-              type="button"
-              aria-pressed={active}
-              className={`${buttonBase} border border-rule px-2 py-1 text-xs ${
-                active ? 'bg-ink text-canvas' : 'bg-canvas text-ink hover:bg-surface'
-              }`}
+              selected={active}
               onClick={() =>
                 setFilter((f) => ({
                   ...f,
@@ -237,7 +223,7 @@ export function GlossaryEditor({
               }
             >
               {kindLabel(kind)}
-            </button>
+            </Chip>
           )
         })}
         <span className="text-xs text-ink-muted">
@@ -278,13 +264,13 @@ export function GlossaryEditor({
             })}
           </colgroup>
           <thead>
-            <tr className="text-left text-ink">
+            <tr className="text-left">
               {COLUMNS.map((col, i) => {
                 const w = WIDTH_INDEX[i]
                 return (
                   <th
                     key={col.field}
-                    className={`sticky top-0 z-10 relative border-b border-rule bg-surface-accent px-2 py-1 font-bold${i === 0 ? '' : ` ${colBorder}`}`}
+                    className={`sticky top-0 z-10 relative border-b border-rule bg-surface-muted px-2 py-1 text-xs font-medium tracking-wide text-ink-muted${i === 0 ? '' : ` ${colBorder}`}`}
                   >
                     {FIELD_LABELS[col.field]}
                     {/* 幅を持たない定義列は自分ではハンドルを出さないが、右隣に
@@ -318,7 +304,7 @@ export function GlossaryEditor({
               const rowKey = rowKeys[index]
               const row = visiblePos + 1
               return (
-                <tr key={rowKey} className={`border-b border-grid align-middle${hasError(marks, index, 'id') ? ` ${errorCell}` : ''}`}>
+                <tr key={rowKey} className="border-b border-grid align-middle">
                   <td className={cellClass(index, 'name')}>
                     <CellInput
                       className={cellInput}
