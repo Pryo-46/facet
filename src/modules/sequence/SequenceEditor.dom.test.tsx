@@ -661,6 +661,35 @@ describe('立っていない答えのグレースロット', () => {
   })
 })
 
+describe('self の to-mismatch は #N のセルに出る', () => {
+  it('self なのに to があるステップは、レールの通し番号が無効の輪郭を持つ', () => {
+    const d = doc()
+    d.steps[2] = { ...d.steps[2], to: 'actor_Aaaaaaaaa1' }
+    const { container } = setup(d, [
+      {
+        rule: 'to-mismatch',
+        message: 'x',
+        locations: [{ entityId: 'step_Aaaaaaaaa3', entityIndex: 2, field: 'to' }],
+      },
+    ])
+    // aria-hidden の通し番号だけを見る。**getByText('#1') 等は使わない**
+    // ——ガターの行見出し（`#N 文言`）も aria-hidden で、文言が空だと
+    // 同じく `#N` 単独のテキストになり得るため取り違える
+    const railNums = [...container.querySelectorAll('[aria-hidden="true"]')].filter(
+      (el) => el.textContent === '#3',
+    )
+    expect(railNums).toHaveLength(1)
+    expect(railNums[0]?.className).toContain('outline-invalid')
+    // 対照: 問題の無いステップ（#1）は輪郭を持たない
+    // （区別したい2つの実装が同じ答えを返す入力を選ばない）
+    const okRailNums = [...container.querySelectorAll('[aria-hidden="true"]')].filter(
+      (el) => el.textContent === '#1',
+    )
+    expect(okRailNums).toHaveLength(1)
+    expect(okRailNums[0]?.className).not.toContain('outline-invalid')
+  })
+})
+
 describe('赤表示', () => {
   it('missing-actor の issue が from セルに赤を付ける', () => {
     const d = doc()
