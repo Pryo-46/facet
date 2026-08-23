@@ -407,9 +407,14 @@ export function SequenceEditor({
       const text = slot.text ?? ''
       const state = slotStateOf(slot.decision)
       // 未回答の枠は placeholder の「未定義」が入る高さを確保する（空だと潰れる）。
-      // notApplicable は「考慮不要」の接頭ぶん実効幅が狭いので専用の WrapOptions で測る
+      // notApplicable は「考慮不要」の接頭ぶん実効幅が狭いので専用の WrapOptions で測る。
+      // **箱名も 'answer-na' に分ける。** wrap のキャッシュ鍵は `${box}:${text}` で
+      // WrapOptions を含まないので、同じ 'answer' のまま options だけ変えると、
+      // 同一文字列が先に測られた側（handled/ghosts の ANSWER_WRAP）の結果を誤って
+      // 引いてしまう（M22 レビューで発覚。ghosts（下の wrap 呼び出し）は常に
+      // ANSWER_WRAP なので 'answer' のままでよい）
       const block = wrap(
-        'answer',
+        state === 'notApplicable' ? 'answer-na' : 'answer',
         text === '' ? '未定義' : text,
         state === 'notApplicable' ? NOT_APPLICABLE_ANSWER_WRAP : ANSWER_WRAP,
       )

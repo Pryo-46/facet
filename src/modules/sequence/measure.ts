@@ -42,12 +42,12 @@ export const ANSWER_BOX_CLASS = 'border px-2 py-1'
 
 /**
  * notApplicable の答えは GutterSlot が「考慮不要」の接頭ぶん左を空ける
- * （`pl-16` = 4rem = 64px。M22 で `pl-6` から広げた）。通常の
- * `ANSWER_PADDING_X`（px-2 = 8px）よりこの分だけ実効幅が狭いので、
- * SequenceEditor の折り返し測定はこの値を足した inset で見積もらないと、
- * reason 付きの notApplicable で行数を過小に見積もり、CellInput の
- * `overflow-hidden` で下端が欠ける。**GutterSlot.tsx の `pl-16` と対応する。
- * 片方だけ変えないこと**
+ * （`pl-16` = 4rem = 64px。M22 で `pl-6` から広げた）。この `pl-16` は通常の
+ * `ANSWER_PADDING_X`（px-2 = 8px）の**左側だけ**を置き換えるので、実効幅が
+ * 狭くなるのは 64px そのものではなく差分の56px（64-8）。SequenceEditor の
+ * 折り返し測定はこの狭さを見積もりに反映しないと、reason 付きの notApplicable
+ * で行数を過小に見積もり、CellInput の `overflow-hidden` で下端が欠ける。
+ * **GutterSlot.tsx の `pl-16` と対応する。片方だけ変えないこと**
  */
 export const ANSWER_NOT_APPLICABLE_PREFIX_PAD_X = 64
 
