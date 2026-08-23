@@ -47,9 +47,10 @@ import {
   TOKENS,
 } from '../../../../src/styles/palette-requirements.ts'
 
-// palette-requirements.ts の VISIONS は「決定J: ΔE は合否の対象外」のため
-// export されていない。ここは表示専用の値なので、要件として二重管理には
-// あたらない（要件を増減させたければ REQUIREMENTS 側を直す）
+// VISIONS は palette.test.ts と同じ3値。ΔE は M21 から合否の対象
+// （DISTINCT_MIN、下の failCount 加算を見よ）。契約側（palette-requirements.ts）
+// に VISIONS を置かないのは、色覚の種類が要件そのものではなく検査の観点
+// だから——要件は DISTINCT_PAIRS と DISTINCT_MIN の側にある
 const VISIONS = ['normal', 'protan', 'deutan']
 
 // == 出口 ==================================================================
