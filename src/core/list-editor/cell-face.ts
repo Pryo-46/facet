@@ -33,8 +33,10 @@ export function hasError(marks: ErrorMarks, index: number, field: string): boole
 export type CellFace = 'error' | 'warn' | 'none'
 
 /**
- * セルの面のクラス名（M21）。**面は塗らず輪郭だけ**——無効は `invalid` の実線、
- * 欠落は `missing` の破線（rev 9章 規約2）。
+ * セルの面のクラス名（M21）。**淡い面＋輪郭**——無効は `invalid-face` に
+ * `invalid` の実線、欠落は `missing-face` に `missing` の破線（rev 9章 規約2）。
+ * 淡い面は M21 の実機確認で足した——1px の輪郭だけでは、テーブルのセルが
+ * 方眼と罫線に埋もれて拾えなかった。
  *
  * `outline` で引くのは、`ring` が線種（破線）を持たず、`border` がテーブルの
  * 罫線（`border-b border-grid`）と衝突するため。`-outline-offset-1` で
@@ -43,8 +45,8 @@ export type CellFace = 'error' | 'warn' | 'none'
  * 生成 CSS の順序で決まる（M8 が cascade layers で踏んだ形）
  */
 export const CELL_FACE_CLASS: Record<CellFace, string> = {
-  error: 'outline-1 -outline-offset-1 outline-invalid',
-  warn: 'outline-1 outline-dashed -outline-offset-1 outline-missing',
+  error: 'bg-invalid-face outline-1 -outline-offset-1 outline-invalid',
+  warn: 'bg-missing-face outline-1 outline-dashed -outline-offset-1 outline-missing',
   none: '',
 }
 
@@ -57,7 +59,8 @@ export const CELL_FACE_CLASS: Record<CellFace, string> = {
  * **行全体の指摘（field 'id'。ID 重複など欄を特定できない指摘）は、行の
  * 先頭セル（`rowAnchor`）に出す。** 行を染めると「この行は全部ダメ」に見え、
  * 問題箇所が特定できない（UI ノート D5）。M8 の「行がエラーならセルは none」
- * は半透明の二重塗りを避けるための規則で、輪郭は重ならないので要らない
+ * は半透明の二重塗りを避けるための規則で、いまは要らない——`CellFace` は
+ * 1セルにつき1つしか返せず、淡い面も不透明なので重ね塗りが起きない
  */
 export function cellFace(
   marks: ErrorMarks,

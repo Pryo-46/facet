@@ -1,13 +1,13 @@
 /**
  * 状態のバッジのクラス組み立て（rev 9章 M21）。**意味だけを受け、形は部品が持つ。**
  *
- * 語彙は「開いているものは線、決着したものは面」：
- *   open     欠落・まだ見ていない（未定義・未決・仮説なし）  missing の破線
- *   hold     欠落・見たが決められない（保留）                missing の実線
- *   invalid  無効（重複・参照切れ・整合性違反）              invalid の実線
- *   pending  着信（返答していない入力＝未判断）              pending の実線
- *   yes      支持                                            judge-yes の面
- *   no       棄却                                            judge-no の面
+ * 語彙は「開いているものは淡い面と線、決着したものは濃い面」：
+ *   open     欠落・まだ見ていない（未定義・未決・仮説なし）  missing の淡い面＋破線
+ *   hold     欠落・見たが決められない（保留）                missing の淡い面＋実線
+ *   invalid  無効（重複・参照切れ・整合性違反）              invalid の淡い面＋実線
+ *   pending  着信（返答していない入力＝未判断）              pending の淡い面＋実線
+ *   yes      支持                                            judge-yes の濃い面
+ *   no       棄却                                            judge-no の濃い面
  *   deferred 見送り                                          surface-muted の面・rule の枠
  *   faint    抑制された配下（いま作業する面ではない）        ink-faint の枠と文字
  *
@@ -30,10 +30,10 @@ const base =
 
 // yes / no は面なので枠を透明にする（border を base に持たせ、全語で高さと幅の計算を揃えるため）
 const faces: Record<BadgeVariant, string> = {
-  open: 'border-dashed border-missing text-missing',
-  hold: 'border-missing text-missing',
-  invalid: 'border-invalid text-invalid',
-  pending: 'border-pending text-pending',
+  open: 'border-dashed border-missing bg-missing-face text-missing',
+  hold: 'border-missing bg-missing-face text-missing',
+  invalid: 'border-invalid bg-invalid-face text-invalid',
+  pending: 'border-pending bg-pending-face text-pending',
   yes: 'border-transparent bg-judge-yes text-judge-yes-fg',
   no: 'border-transparent bg-judge-no text-judge-no-fg',
   deferred: 'border-rule bg-surface-muted text-ink-muted',

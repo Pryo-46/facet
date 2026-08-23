@@ -187,7 +187,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
         style={inBox(dot)}
       />
       <div
-        className={`absolute${props.invalid ? ' outline-1 -outline-offset-1 outline-invalid' : ''}`}
+        className={`absolute${props.invalid ? ' bg-invalid-face outline-1 -outline-offset-1 outline-invalid' : ''}`}
         style={inBox(placement.text)}
       >
         <CellInput
@@ -198,7 +198,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
           // 描くと同じ字数がより広くなって測定より1行多く折り返す。高さ固定＋
           // overflow-hidden の textarea なので、**打っている最後の行が黙って
           // 見えなくなる**（`fonts.title` を別に持っている理由と同じ）。
-          // 整合性検証の無効は外側の箱に `invalid` の輪郭（面は塗らない。rev 9章 規約2）
+          // 整合性検証の無効は外側の箱に `invalid` の輪郭＋淡い面（rev 9章 規約2）
           className={`${inputClass} text-sm ${ink}`}
           aria-label={label}
           placeholder="仮説"

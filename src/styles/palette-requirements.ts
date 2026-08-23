@@ -47,6 +47,9 @@ export const TOKENS = [
   'missing',
   'invalid',
   'pending',
+  'missing-face',
+  'invalid-face',
+  'pending-face',
   'judge-yes',
   'judge-yes-fg',
   'judge-no',
@@ -76,7 +79,9 @@ export const REQUIREMENTS = [
   // **アクティブな本文に使わない**（使うと本文の保証を割る）
   { token: 'ink-faint', min: 3.0, use: '非アクティブの文字・枠（抑制された配下）' },
   { token: 'rule', min: 3.0, use: 'セル境界・入力枠' },
-  // 意味色3軸は線と文字にしか使わないが、**文字**に使う以上 4.5:1 が要る
+  // 意味色3軸は線と文字に使う（面は淡い面 `*-face` の側が持つ）。
+  // **文字**に使う以上 4.5:1 が要る。淡い面の上での 4.5:1 は
+  // `FACE_REQUIREMENTS` が別に課す——ここは地の3面に対する要件である
   { token: 'missing', min: 4.5, use: '欠落（未定義・未決・仮説なし・保留）の線と文字' },
   { token: 'invalid', min: 4.5, use: '無効（重複・参照切れ・整合性違反）の線と文字' },
   { token: 'pending', min: 4.5, use: '着信（返答していない入力）の線と文字' },
@@ -94,12 +99,27 @@ export const REQUIREMENTS = [
 export const BACKGROUNDS = ['canvas', 'surface', 'surface-muted'] as const
 
 /**
- * 判断の面に載せる文字色の要件。judge-yes-fg / judge-no-fg は自分の面にしか
- * 載らない専用の文字色で、`BACKGROUNDS` に対して測る意味が無い
+ * 面に載せる色の要件。judge-yes-fg / judge-no-fg は自分の面にしか
+ * 載らない専用の文字色で、`BACKGROUNDS` に対して測る意味が無い。
+ *
+ * **淡い面（`*-face`。M21 の実機確認で追加）も同じ表で見る。** 淡い面は
+ * `BACKGROUNDS` には入れない——地ではなく「ここが欠けている／無効だ」と
+ * 示すための局所的な面であり、全トークンをその上で測る対象ではない。
+ * 代わりに、その面の上に実際に載る3色（`ink` の本文・`ink-muted` の
+ * 抑えた文字・同じ軸の線色）だけをここで課す
  */
 export const FACE_REQUIREMENTS = [
   { token: 'judge-yes-fg', face: 'judge-yes', min: 4.5, use: '支持の面の文字' },
   { token: 'judge-no-fg', face: 'judge-no', min: 4.5, use: '棄却の面の文字' },
+  { token: 'ink', face: 'missing-face', min: 4.5, use: '欠落の淡い面の本文' },
+  { token: 'ink-muted', face: 'missing-face', min: 4.5, use: '欠落の淡い面の抑えた文字' },
+  { token: 'missing', face: 'missing-face', min: 4.5, use: '欠落の淡い面の線と文字' },
+  { token: 'ink', face: 'invalid-face', min: 4.5, use: '無効の淡い面の本文' },
+  { token: 'ink-muted', face: 'invalid-face', min: 4.5, use: '無効の淡い面の抑えた文字' },
+  { token: 'invalid', face: 'invalid-face', min: 4.5, use: '無効の淡い面の線と文字' },
+  { token: 'ink', face: 'pending-face', min: 4.5, use: '着信の淡い面の本文' },
+  { token: 'ink-muted', face: 'pending-face', min: 4.5, use: '着信の淡い面の抑えた文字' },
+  { token: 'pending', face: 'pending-face', min: 4.5, use: '着信の淡い面の線と文字' },
 ] as const
 
 /**
@@ -116,6 +136,15 @@ export const FACE_PAIRS = [{ a: 'judge-yes', b: 'judge-no', min: 3.0 }] as const
  *
  * **満たせないときは 0.08 まで下げてよい。** 下げたらこの定数の隣に
  * 実測値と理由を書く。閾値を黙って消さない（設計スペック 決定5）
+ *
+ * **淡い面（`missing-face` / `invalid-face` / `pending-face`）はここに入れない。**
+ * 欠落・無効・着信の識別を運ぶのは線の色と線種（破線／実線）であり、その6組は
+ * 上の表で既に3色覚ぶん検査している。淡い面は「目に留まる」ための強調で、
+ * 識別の担い手ではない——L 0.93〜0.95 まで白へ寄せた面どうしの色差は
+ * 原理的に小さく、実測でも ΔE 0.05 前後（ライトの missing-face / invalid-face が
+ * 標準 0.059・D型 0.049）しか出ない。ここへ足せば閾値 0.10 は即座に割れ、
+ * **通すために面を濃くすれば「淡い面」であること自体が壊れる**（濃い面は
+ * 判断軸に専有させる、が規約2）。面の色差に意味を負わせないのが正しい
  */
 export const DISTINCT_PAIRS = [
   { a: 'missing', b: 'invalid' },

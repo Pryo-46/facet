@@ -845,7 +845,9 @@ export function SequenceEditor({
           const width = actorWidths[index]
           // **面と枠のクラスは片方だけ出す。** 両方並べると勝つのは生成 CSS の
           // 順序であってクラス名の順序ではない（M8 が cascade layers で踏んだ形）
-          const face = invalidActors.has(index) ? 'border-invalid bg-surface' : 'border-rule bg-surface'
+          const face = invalidActors.has(index)
+            ? 'border-invalid bg-invalid-face'
+            : 'border-rule bg-surface'
           return (
             <div
               key={key}
@@ -911,7 +913,7 @@ export function SequenceEditor({
                 aria-hidden="true"
                 className={`absolute select-none rounded-sm text-right text-xs ${
                   stepHas(index, 'row')
-                    ? 'text-invalid outline-1 -outline-offset-1 outline-invalid'
+                    ? 'text-invalid bg-invalid-face outline-1 -outline-offset-1 outline-invalid'
                     : 'text-ink-muted'
                 }`}
                 style={{ left: RAIL_NUM_X, top: railTop + 4, width: RAIL_NUM_WIDTH }}

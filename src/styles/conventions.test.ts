@@ -130,9 +130,16 @@ describe('役割トークンの使い方（rev 9章 M21）', () => {
     expect(offenders, `M21 で消えたトークン。missing / invalid / pending / judge-* / surface-muted に振り分けること:\n${offenders.join('\n')}`).toEqual([])
   })
 
-  it('欠落・無効・着信を面にしない（線と文字だけ）', () => {
-    const offenders = offendingLines(/\b(?:[a-z-]+:)?bg-(missing|invalid|pending)\b/)
-    expect(offenders, `開いているものは線、決着したものは面（規約2）:\n${offenders.join('\n')}`).toEqual([])
+  it('欠落・無効・着信の面は淡い面（bg-*-face）だけ。線色そのものを面にしない', () => {
+    // **`(?!-face)` を落とさないこと。** `\b` は `g` と `-` の間で成立するので、
+    // 付けないと正当な `bg-missing-face` まで違反として拾う（検査3の
+    // `(?!-fg)` と同じ穴）。M21 の実機確認で淡い面を足したときに開けた口で、
+    // 濃い面（`bg-missing` 等）は依然として禁止のまま
+    const offenders = offendingLines(/\b(?:[a-z-]+:)?bg-(missing|invalid|pending)\b(?!-face)/)
+    expect(
+      offenders,
+      `開いているものは淡い面（bg-missing-face 等）と線、決着したものは濃い面（規約2）:\n${offenders.join('\n')}`,
+    ).toEqual([])
   })
 
   it('判断の面を線や文字にしない（-fg を除く）', () => {
@@ -145,7 +152,7 @@ describe('役割トークンの使い方（rev 9章 M21）', () => {
     // 使用箇所はその保証の外に出る。半透明の面（M8 の bg-warning/20）が
     // 消えた今、正当な透過は残っていない
     const offenders = offendingLines(
-      /\b(?:[a-z-]+:)?(bg|text|border|ring|outline|stroke|fill|decoration|placeholder|divide)-(canvas|surface|surface-muted|ink|ink-muted|ink-faint|rule|grid|missing|invalid|pending|judge-yes|judge-yes-fg|judge-no|judge-no-fg)\/\d+/,
+      /\b(?:[a-z-]+:)?(bg|text|border|ring|outline|stroke|fill|decoration|placeholder|divide)-(canvas|surface|surface-muted|ink|ink-muted|ink-faint|rule|grid|missing|invalid|pending|missing-face|invalid-face|pending-face|judge-yes|judge-yes-fg|judge-no|judge-no-fg)\/\d+/,
     )
     expect(offenders, `透過は使わない。一段薄くしたければ ink-muted / ink-faint の段を使う:\n${offenders.join('\n')}`).toEqual([])
   })

@@ -23,7 +23,7 @@ const SCRIPT = path.join(REPO_ROOT, '.claude/skills/palette-retheme/scripts/pale
 const PALETTE_CSS = path.join(REPO_ROOT, 'src/styles/palette.css')
 
 /**
- * 実物の `palette.css` と同じ15トークン×2モード。
+ * 実物の `palette.css` と同じ18トークン×2モード。
  * `overrides` で1つだけ書き換えて、狙った節だけを破る
  */
 function draft(overrides: { light?: Record<string, string>; dark?: Record<string, string> } = {}): string {
@@ -39,6 +39,9 @@ function draft(overrides: { light?: Record<string, string>; dark?: Record<string
     missing: 'oklch(0.49 0.10 85)',
     invalid: 'oklch(0.38 0.15 30)',
     pending: 'oklch(0.48 0.135 250)',
+    'missing-face': 'oklch(0.95 0.06 90)',
+    'invalid-face': 'oklch(0.93 0.035 25)',
+    'pending-face': 'oklch(0.94 0.03 250)',
     'judge-yes': 'oklch(0.87 0.08 165)',
     'judge-yes-fg': 'oklch(0.18 0 0)',
     'judge-no': 'oklch(0.35 0 0)',
@@ -57,6 +60,9 @@ function draft(overrides: { light?: Record<string, string>; dark?: Record<string
     missing: 'oklch(0.82 0.13 85)',
     invalid: 'oklch(0.68 0.15 30)',
     pending: 'oklch(0.75 0.12 250)',
+    'missing-face': 'oklch(0.30 0.05 85)',
+    'invalid-face': 'oklch(0.30 0.05 30)',
+    'pending-face': 'oklch(0.30 0.05 250)',
     'judge-yes': 'oklch(0.80 0.10 165)',
     'judge-yes-fg': 'oklch(0.17 0 0)',
     'judge-no': 'oklch(0.36 0 0)',

@@ -8,14 +8,19 @@
  *
  * 値は `oklch(L C H)` の形で書く。L は 0..1 の小数（% 不可）、アルファ不可。
  *
- * 役割（rev 9章。15個）:
+ * 役割（rev 9章。18個）:
  *   面（無彩色）   canvas / surface / surface-muted（一段沈んだ面）
  *   文字（無彩色） ink / ink-muted / ink-faint（3:1。本文に使わない）
  *   線（無彩色）   rule（3:1）/ grid（方眼。装飾）
- *   欠落軸（黄）   missing   線と文字だけ。面にしない
- *   無効軸（赤）   invalid   線と文字だけ
- *   着信軸（青）   pending   線と文字だけ
+ *   欠落軸（黄）   missing / missing-face   線・文字／淡い面
+ *   無効軸（赤）   invalid / invalid-face   線・文字／淡い面
+ *   着信軸（青）   pending / pending-face   線・文字／淡い面
  *   判断軸         judge-yes / judge-yes-fg（緑の面）、judge-no / judge-no-fg（無彩色の面）
+ *
+ * 開いているもの（欠落・無効・着信）は**淡い面＋線＋文字**、決着したもの
+ * （判断軸）は**濃い面**（規約2）。M21 の実機確認で「1px の輪郭だけでは
+ * テーブルのセル・ガターのスロット・バッジが方眼と罫線に埋もれて拾えない」
+ * と判断されて改めた。淡い面と濃い面は明度で分かれるので、区別は残る。
  *
  * **書いた C が sRGB の色域に収まっていること。** 外れた値はブラウザ側で
  * クランプされるので、書いた数字と実際に出る色が食い違う（読む人が
@@ -47,6 +52,12 @@
     --invalid: oklch(0.38 0.15 30);         /* 暗い赤。missing と D型で分けるための明度 */
     --pending: oklch(0.48 0.135 250);       /* 青。同じく sRGB 内に収めた C（0.14 は 0.1388 へ丸められた） */
 
+    /* 淡い面（M21 の実機確認で追加）。同じ軸の線色と同じ色相で、ink /
+       ink-muted / その線色の3つが 4.5:1 で載る明るさに置く */
+    --missing-face: oklch(0.95 0.06 90);    /* 付箋の淡い黄。ink 16.3:1、ink-muted 7.3:1、missing 5.5:1 */
+    --invalid-face: oklch(0.93 0.035 25);   /* 淡い赤。ink 15.1:1、ink-muted 6.8:1、invalid 8.7:1 */
+    --pending-face: oklch(0.94 0.03 250);   /* 淡い青。C 0.04 は sRGB の外だった（往復で 0.033 に落ちる）ので 0.03 へ下げた。ink 15.8:1、ink-muted 7.1:1、pending 5.5:1 */
+
     --judge-yes: oklch(0.87 0.08 165);      /* 明るい青緑。赤・黄土と P/D 型で離す */
     --judge-yes-fg: oklch(0.18 0 0);
     --judge-no: oklch(0.35 0 0);            /* チャコール。judge-yes と 7.9:1 */
@@ -67,6 +78,12 @@
     --missing: oklch(0.82 0.13 85);
     --invalid: oklch(0.68 0.15 30);
     --pending: oklch(0.75 0.12 250);
+
+    /* 淡い面のダーク側。線色より十分暗い面として置いた
+       （invalid は invalid-face の上で 4.52:1 と、要件 4.5 への余裕が薄い） */
+    --missing-face: oklch(0.30 0.05 85);
+    --invalid-face: oklch(0.30 0.05 30);
+    --pending-face: oklch(0.30 0.05 250);
 
     --judge-yes: oklch(0.80 0.10 165);
     --judge-yes-fg: oklch(0.17 0 0);

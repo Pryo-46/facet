@@ -45,7 +45,8 @@ export function ActorRefCell(props: ActorRefCellProps) {
     const next = (at + delta + props.actors.length) % props.actors.length
     props.onSelect(props.actors[next].id)
   }
-  const face = props.invalid ? 'border-invalid bg-surface' : 'border-rule bg-surface'
+  // 無効は `invalid` の枠＋淡い面（rev 9章 規約2）
+  const face = props.invalid ? 'border-invalid bg-invalid-face' : 'border-rule bg-surface'
   return (
     <DropdownMenu open={props.open} onOpenChange={props.onOpenChange}>
       <DropdownMenuTrigger

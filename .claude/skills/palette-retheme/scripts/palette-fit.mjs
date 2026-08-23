@@ -268,7 +268,11 @@ for (const mode of MODE_KEYS) {
   // -- 面の文字 --------------------------------------------------------------
   // judge-yes-fg / judge-no-fg は自分の面（judge-yes / judge-no）にしか
   // 載らないので、条件はその面1つだけ。動かせるのは他に何にも縛られていない
-  // fg 自身なので、コントラストと同じく提案を出す
+  // fg 自身なので、コントラストと同じく提案を出す。
+  //
+  // **淡い面（`*-face`）の上に載る ink / ink-muted / 線色もこの節で見る。**
+  // そちらは他の面にも縛られている側なので、出た提案（fg の L を動かす）は
+  // そのまま採らない——直すのは面（`*-face`）の L の方である
   lines.push('  面の文字')
   for (const req of FACE_REQUIREMENTS) {
     const ratio = contrastRatio(linear[mode.key][req.token], linear[mode.key][req.face])

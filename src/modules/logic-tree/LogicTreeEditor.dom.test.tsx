@@ -140,7 +140,7 @@ describe('LogicTreeEditor（描画）', () => {
     expect(container.querySelectorAll('path').length).toBe(0)
   })
 
-  it('指摘の対象になったノードに無効の枠を当てる（面は塗らない）', () => {
+  it('指摘の対象になったノードに無効の枠と淡い面を当てる', () => {
     render(
       <LogicTreeEditor
         data={file([[1, null, 'x'], [2, 1, 'y']])}
@@ -156,9 +156,10 @@ describe('LogicTreeEditor（描画）', () => {
       />,
     )
     const target = screen.getByLabelText('ノード1')
-    // 無効は枠だけ `invalid`。面は通常と同じ `bg-surface`（rev 9章 規約2）
+    // 無効は `invalid` の枠＋淡い面（rev 9章 規約2。M21 の実機確認で、
+    // 1px の枠だけでは方眼に埋もれて拾えないと判断して面を足した）
     expect(target.className).toContain('border-invalid')
-    expect(target.className).toContain('bg-surface')
+    expect(target.className).toContain('bg-invalid-face')
     expect(target.className).not.toContain('border-rule')
 
     // 指摘の付いていないノードは通常の枠のまま

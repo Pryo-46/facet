@@ -9,7 +9,8 @@
 /* =========================================================================
  * 役割トークン（rev 9章）を Tailwind のユーティリティに生やす。
  * text-ink / bg-canvas / border-rule / text-missing / border-invalid …
- * がここから来る（欠落・無効・着信は線と文字だけ。面にしない＝規約2）。
+ * がここから来る（欠落・無効・着信は淡い面＋線（bg-missing-face 等）で、
+ * 線色そのものを面にしない＝規約2）。
  *
  * ★ 色値はここに書かない。src/styles/palette.css が唯一の出所。★
  * ========================================================================= */
@@ -50,6 +51,9 @@
     --color-missing: var(--missing);
     --color-invalid: var(--invalid);
     --color-pending: var(--pending);
+    --color-missing-face: var(--missing-face);
+    --color-invalid-face: var(--invalid-face);
+    --color-pending-face: var(--pending-face);
     --color-judge-yes: var(--judge-yes);
     --color-judge-yes-fg: var(--judge-yes-fg);
     --color-judge-no: var(--judge-no);

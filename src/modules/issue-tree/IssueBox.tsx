@@ -78,9 +78,9 @@ export function IssueBox(props: IssueBoxProps) {
   //
   // 見送りの箱は一段沈んだ面（`surface-muted`）。`rule` はこの面の上でも
   // 3:1 を満たす（`palette-requirements.ts` の `BACKGROUNDS` に入っている）。
-  // 無効は枠だけ赤くし面は塗らない（rev 9章 規約2）
+  // 無効は赤い枠＋淡い面（`invalid-face`。rev 9章 規約2）
   const face = props.invalid
-    ? 'border-invalid bg-surface text-ink'
+    ? 'border-invalid bg-invalid-face text-ink'
     : props.suppressed
       ? 'border-ink-faint bg-surface text-ink-faint'
       : placement.deferral !== null

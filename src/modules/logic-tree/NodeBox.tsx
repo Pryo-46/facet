@@ -25,8 +25,8 @@ export interface NodeBoxProps {
  * ブラウザが測定より早く折り返して文字が切れることを防ぐ
  */
 export function NodeBox(props: NodeBoxProps) {
-  // 無効は枠だけ `invalid`。面は塗らない（rev 9章 規約2）
-  const face = props.invalid ? 'border-invalid bg-surface' : 'border-rule bg-surface'
+  // 無効は `invalid` の枠＋淡い面（rev 9章 規約2）
+  const face = props.invalid ? 'border-invalid bg-invalid-face' : 'border-rule bg-surface'
   return (
     <div
       // ノードのレイヤは pointer-events-none で操作を通す。操作を受けるのは
