@@ -745,6 +745,65 @@ describe('IssueTreeEditor（帯）', () => {
   })
 })
 
+/**
+ * 帯の「未判断 N」と、行に出る「未判断」バッジを**一対一にする**（M22）。
+ * 集計だけが増えて「どの行のことか」が図から読めない状態を作らない。
+ *
+ * **`allKindsFile` を使うのは、立つ行と立たない行が同じ画面に並ぶから**である
+ *（立つ行だけのファイルだと「常に出す」実装でも緑になる）
+ */
+describe('IssueTreeEditor（行の未判断バッジ）', () => {
+  /** 行の中のバッジ（`Badge` は inline-flex。行頭の点は rounded-full の span） */
+  const rowBadges = (n: number): HTMLElement[] => {
+    const row = screen.getByRole('button', { name: `仮説${n}を開く` })
+    return Array.from(row.querySelectorAll('[class*="inline-flex"]')) as HTMLElement[]
+  }
+
+  it('未判断が立つ仮説の行にだけ「未判断」バッジが出る（帯のチップと同じ面）', () => {
+    const data = allKindsFile()
+    expect(poseQuestions(data).hypothesisQuestions.map((q) => q.judgement)).toEqual([
+      false,
+      false,
+      true,
+    ])
+    render(<Harness initial={data} />)
+
+    // 立っていない行は状態のバッジ1つだけ
+    expect(rowBadges(1).map((e) => e.textContent)).toEqual([BADGE_LABELS.open])
+    expect(rowBadges(2).map((e) => e.textContent)).toEqual([BADGE_LABELS.hold])
+    // 立っている行は2つ。**状態のバッジは残る**（置き換えではなく、その左へ並ぶ）
+    expect(rowBadges(3).map((e) => e.textContent)).toEqual([
+      BADGE_LABELS.yes,
+      QUESTION_LABELS.judgement,
+    ])
+
+    // 面は帯のチップと同じ語彙（着信の青＝`pending`）。**クラス名を打ち直さない**
+    const pending = rowBadges(3)[1]
+    expect(pending.className).toBe(badgeClass('pending'))
+
+    /**
+     * **未判断は状態のバッジの左に置く。** 幅は jsdom では測れない（版組が無い）が、
+     * 絶対配置の `left` はレイアウトが返した矩形そのままなので、
+     * `placement.badge` を流用して2つを同じ場所へ重ねた実装はここで落ちる
+     */
+    const leftOf = (el: HTMLElement): number =>
+      parseFloat((el.parentElement as HTMLElement).style.left)
+    expect(leftOf(pending)).toBeLessThan(leftOf(rowBadges(3)[0]))
+  })
+
+  it('展開した仮説の頭部にも「未判断」バッジが残る', () => {
+    // 頭部は閉じた行と別の分岐で描かれる（`inRow` と `inBox`）ので、別に見る
+    render(<Harness initial={allKindsFile()} />)
+    const box = openHypothesis(3).closest('[class*="pointer-events-auto"]')
+    if (box === null) throw new Error('仮説3の箱が無い')
+    const found = Array.from(box.querySelectorAll('[class*="inline-flex"]')).filter(
+      (e) => e.textContent === QUESTION_LABELS.judgement,
+    )
+    expect(found).toHaveLength(1)
+    expect((found[0] as HTMLElement).className).toBe(badgeClass('pending'))
+  })
+})
+
 describe('IssueTreeEditor（仮説の行の操作）', () => {
   it('判断を選ぶとイベントが追記される（マウスの動線）', async () => {
     const onChange = vi.fn()
