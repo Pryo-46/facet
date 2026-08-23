@@ -437,9 +437,62 @@ describe('問いスロット（ガター）', () => {
     expect(last(onChange).steps[0].failures?.failed).toEqual({ decision: 'notApplicable' })
   })
 
-  it('未回答の集計が出る（doc() は failed/unknown/ifExecuted ＋ self の failed の計4問が未回答）', () => {
+  it('帯に「要対応」と内訳チップが出る（doc() は failed/unknown/ifExecuted ＋ self の failed の計4問が未回答）', () => {
     setup()
-    expect(screen.getByText(/未定義 4/)).toBeDefined()
+    expect(screen.getByText(/要対応 4/)).toBeDefined()
+    expect(screen.getByRole('button', { name: '次の未回答へ' })).toBeDefined()
+    // 回答済・考慮不要は欠落ではないのでチップにしない（補足の文言で添える）
+    expect(screen.getByText('回答済 0 ／ 考慮不要 0')).toBeDefined()
+    expect(screen.queryByRole('button', { name: '次の未記入へ' })).toBeNull()
+  })
+
+  it('回答済・考慮不要・未記入が帯に効く（未記入＝参加者名／ステップ文言の空）', () => {
+    const d = doc()
+    d.steps[0] = {
+      ...d.steps[0],
+      failures: {
+        failed: { decision: 'handled', text: 'エラー表示' },
+        unknown: { decision: 'notApplicable' },
+      },
+    }
+    d.actors[2] = { ...d.actors[2], name: '' }
+    d.steps[1] = { ...d.steps[1], label: '' }
+    setup(d)
+    // 未回答＝step1 の ifExecuted ＋ step3（self）の failed の2件、未記入＝2件
+    expect(screen.getByText(/要対応 4/)).toBeDefined()
+    expect(screen.getByText('未回答 2')).toBeDefined()
+    expect(screen.getByText('未記入 2')).toBeDefined()
+    expect(screen.getByText('回答済 1 ／ 考慮不要 1')).toBeDefined()
+  })
+
+  it('未回答のチップは未回答のスロットだけを巡る（回答済みは飛ばす）', () => {
+    const d = doc()
+    d.steps[0] = { ...d.steps[0], failures: { failed: { decision: 'handled', text: '再試行' } } }
+    setup(d)
+    const chip = screen.getByRole('button', { name: '次の未回答へ' })
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ1の答え: 結果不明だったら？'))
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ1の答え: 実行済みだったら？'))
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ3の答え: 処理失敗したら？'))
+    // 一周して先頭へ戻る（回答済みの failed には止まらない）
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ1の答え: 結果不明だったら？'))
+  })
+
+  it('未記入のチップは空の参加者名 → 空のステップ文言の順に巡る', () => {
+    const d = doc()
+    d.actors[1] = { ...d.actors[1], name: '' }
+    d.steps[2] = { ...d.steps[2], label: '' }
+    setup(d)
+    const chip = screen.getByRole('button', { name: '次の未記入へ' })
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('参加者2の名前'))
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ3の文言'))
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('参加者2の名前'))
   })
 })
 
