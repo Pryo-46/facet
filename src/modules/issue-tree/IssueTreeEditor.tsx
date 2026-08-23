@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { KeyHints } from '@/components/KeyHints'
+import { badgeClass } from '@/components/badge-styles'
 import { buttonBase } from '@/components/button-styles'
 import {
   DropdownMenu,
@@ -32,7 +33,7 @@ import { currentPlatform } from '@/core/keyboard/platform'
 import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
 import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
-import { badgeClass } from './badge-styles'
+import { badgeVariantOf, chipVariantOf } from './badge-variant'
 import {
   cellKey,
   hypothesisCellKey,
@@ -908,13 +909,13 @@ export function IssueTreeEditor({
             {/* **0 のチップは描かない**（`tallyLine` が0の内訳を出さないのと同じ規則）
                 ——押しても行き先が無いボタンを置かない。見た目はキャンバスの
                 バッジの語彙そのまま——未決の破線（`open`）と保留の実線（`hold`）で、
-                **帯とキャンバスが同じ言葉を使う** */}
+                未判断は着信の青（`pending`）。**帯とキャンバスが同じ言葉を使う** */}
             {CHIP_KINDS.map((kind) =>
               tally[kind] === 0 ? null : (
                 <button
                   key={kind}
                   type="button"
-                  className={`${CHIP_BASE} ${badgeClass(kind === 'hold' ? 'hold' : 'open', false)}`}
+                  className={`${CHIP_BASE} ${badgeClass(chipVariantOf(kind))}`}
                   aria-label={`次の${QUESTION_LABELS[kind]}へ`}
                   onClick={() => goToNextOpen(kind)}
                 >
@@ -1009,7 +1010,7 @@ export function IssueTreeEditor({
                     className={`${TRIGGER_BASE} ${
                       deferral === null
                         ? `${TRIGGER_FACE} invisible group-hover/issue:visible group-focus-within/issue:visible`
-                        : badgeClass('deferred', suppressed)
+                        : badgeClass(badgeVariantOf('deferred', suppressed))
                     }`}
                     onClick={() => apply(toggleDeferral(data, index))}
                   >

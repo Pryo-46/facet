@@ -1,8 +1,9 @@
+import { Badge } from '@/components/Badge'
 import { buttonBase } from '@/components/button-styles'
 import { CellInput, type FieldState } from '@/components/CellInput'
 import type { Rect } from '@/core/canvas/viewport'
 import type { JudgementEvent } from '@/types/issue-tree'
-import { badgeClass } from './badge-styles'
+import { badgeVariantOf } from './badge-variant'
 import { hypothesisCellKey, type HypothesisCell } from './cell-keys'
 import { badgeGroupOf, BADGE_LABELS, EVENT_KIND_LABELS, latestKind } from './derive'
 import type { HypothesisPlacement } from './layout'
@@ -169,7 +170,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
           {props.text === '' ? '仮説' : props.text.replace(/\n/g, ' ')}
         </span>
         <span className="absolute flex items-center justify-end" style={inRow(placement.badge)}>
-          <span className={badgeClass(group, props.suppressed)}>{BADGE_LABELS[group]}</span>
+          <Badge variant={badgeVariantOf(group, props.suppressed)}>{BADGE_LABELS[group]}</Badge>
         </span>
       </button>
     )
@@ -185,7 +186,10 @@ export function HypothesisRow(props: HypothesisRowProps) {
         className={`absolute rounded-full ${props.suppressed ? 'bg-ink-faint' : 'bg-ink-muted'}`}
         style={inBox(dot)}
       />
-      <div className="absolute" style={inBox(placement.text)}>
+      <div
+        className={`absolute${props.invalid ? ' outline-1 -outline-offset-1 outline-invalid' : ''}`}
+        style={inBox(placement.text)}
+      >
         <CellInput
           multiline
           autoSize={false}
@@ -194,8 +198,8 @@ export function HypothesisRow(props: HypothesisRowProps) {
           // 描くと同じ字数がより広くなって測定より1行多く折り返す。高さ固定＋
           // overflow-hidden の textarea なので、**打っている最後の行が黙って
           // 見えなくなる**（`fonts.title` を別に持っている理由と同じ）。
-          // 整合性検証の赤は検算した `bg-warning/20`（palette-requirements.ts の OVERLAYS）
-          className={`${inputClass} text-sm ${ink} ${props.invalid ? 'bg-warning/20' : ''}`}
+          // 整合性検証の無効は外側の箱に `invalid` の輪郭（面は塗らない。rev 9章 規約2）
+          className={`${inputClass} text-sm ${ink}`}
           aria-label={label}
           placeholder="仮説"
           data-cell={cellOf({ cell: 'hypothesis' })}
@@ -205,7 +209,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
         />
       </div>
       <span className="absolute flex items-center justify-end" style={inBox(placement.badge)}>
-        <span className={badgeClass(group, props.suppressed)}>{BADGE_LABELS[group]}</span>
+        <Badge variant={badgeVariantOf(group, props.suppressed)}>{BADGE_LABELS[group]}</Badge>
       </span>
 
       {/* パネルは面だけを描き、中身は同じ座標系（箱の中）に置く。
@@ -220,9 +224,9 @@ export function HypothesisRow(props: HypothesisRowProps) {
         {SECTION_LABELS.judgement}
       </div>
       <span className="absolute flex items-start" style={inBox(panel.judgement.badge)}>
-        <span className={badgeClass(latest === undefined ? 'open' : badgeGroupOf(latest.kind), props.suppressed)}>
+        <Badge variant={badgeVariantOf(latest === undefined ? 'open' : badgeGroupOf(latest.kind), props.suppressed)}>
           {latest === undefined ? BADGE_LABELS.open : EVENT_KIND_LABELS[latest.kind]}
-        </span>
+        </Badge>
       </span>
       {latest === undefined ? (
         <div className={`${staticTextClass} ${mutedInk}`} style={inBox(panel.judgement.note)}>
@@ -263,9 +267,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
         return (
           <span key={`prev:${j}`}>
             <span className="absolute flex items-start" style={inBox(rects.badge)}>
-              <span className={badgeClass(badgeGroupOf(event.kind), true)}>
-                {EVENT_KIND_LABELS[event.kind]}
-              </span>
+              <Badge variant="faint">{EVENT_KIND_LABELS[event.kind]}</Badge>
             </span>
             <span className={`${staticTextClass} ${mutedInk}`} style={inBox(rects.note)}>
               {event.note}

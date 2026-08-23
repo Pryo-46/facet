@@ -1,6 +1,7 @@
+import { Badge } from '@/components/Badge'
 import { CellInput, type FieldState } from '@/components/CellInput'
 import type { Rect } from '@/core/canvas/viewport'
-import { badgeClass } from './badge-styles'
+import { badgeVariantOf } from './badge-variant'
 import { QUESTION_LABELS } from './derive'
 import type { IssuePlacement } from './layout'
 import { ISSUE_BORDER, ISSUE_BOX_CLASS, ISSUE_PADDING_X, ISSUE_PADDING_Y, TITLE_FONT_CLASS } from './measure'
@@ -47,13 +48,13 @@ export interface IssueBoxProps {
  * 2. 抑制された配下も**地の色に落とさない**。`bg-surface` のまま枠と文字を
  *    `ink-faint` にする——`bg-canvas` にすると箱が背景に溶けて木の形が読めない。
  *    **`opacity-*` で薄くしない**（検算したコントラストを割る）
- * 3. **自分自身が見送りの箱は `bg-surface-accent` で塗る**（実機確認後に追加。
+ * 3. **自分自身が見送りの箱は `bg-surface-muted` で塗る**（実機確認後に追加。
  *    `docs/issue-tree/仮説検証モジュール-設計ノート.md` D8）。未決とは違って
  *    見送りは稀で意図的な判断なので、1の理由（未決を面で塗ると図が警告で
  *    埋まる）はここには効かない。塗るのは掲げた当人の箱だけ——抑制（2）が
  *    勝つ。祖先由来で既に薄い箱は、自分も見送っていても濃い塗りには戻さない。
- *    枠は他の面と揃えず `border-ink-muted`（`rule` は `surface-accent` の上で
- *    3:1 を割るため。理由は `face` 計算のコメントを見よ）
+ *    枠は他の面と揃えて `border-rule`（`rule` は `surface-muted` の上でも
+ *    3:1 を満たす。理由は `face` 計算のコメントを見よ）
  * 4. 見送りのトグルを置く枠がある。**押されているかどうかはデータの導出**
  *    ——`events` が空でなければ入り。ビュー側に開閉の状態を持たない
  *（判断のドロップダウンだけが、開閉の状態を親＝エディタに持たせている）
@@ -62,14 +63,8 @@ export function IssueBox(props: IssueBoxProps) {
   const { placement, label } = props
   const rect = placement.rect
 
-  // **面と枠のクラスは片方だけ出す。** bg-surface と bg-warning/20 を両方
-  // 並べても、勝つのは生成 CSS の順序であってクラス名の順序ではない（M8）。
-  //
-  // **`errorCell` / `warnCell` の定数を置いていないのは意図的である。**
-  // 未決を面で見せなくなった（前提3）ので `warnCell` に使い道が無く、
-  // `palette.test.ts` の紐づき検査は**片方を宣言したファイルに両方を要求する**
-  // ——使わない定数を検査のためだけに置くのは、検査を騙すのと変わらない。
-  // 濃さそのものは「検算していない濃さを使っていない」が字面で見ている
+  // **面と枠のクラスは片方だけ出す。** 生成 CSS の順序に頼らず、条件分岐で
+  // 排他にする（M8）。
   //
   // **優先順位は 整合性エラー ＞ 抑制 ＞ 見送り ＞ 通常。** `placement.deferral`
   // は layout.ts が「このノード自身が見送り済みか」だけで組む
@@ -80,26 +75,16 @@ export function IssueBox(props: IssueBoxProps) {
   // ここを逆にすると、薄い配下の中に濃い塗りの C が挟まる退行になる
   // （`IssueTreeEditor.tsx` の `inheritedSuppressed` のコメントが指す退行と
   // 同じ形。実際にそのテストが「見送りが入れ子でも、配下は薄いまま」で見ている）。
-  // 塗りは `surface-accent`——新しいトークンは足さず、見出しの面
-  // （`HEADING_FACE`）を流用した。役割が2つになった経緯は
-  // `docs/issue-tree/仮説検証モジュール-設計ノート.md` D8
   //
-  // **枠だけ `border-ink-muted` にしてある——他の3面と揃えて `border-rule` に
-  // しない。** `rule` は `surface-accent` の上で 3:1 を割る（実測ライト
-  // 2.680:1・ダーク 2.502:1。`palette-requirements.ts` の要件 3:1 未満）。
-  // `GlossaryEditor.tsx` / `ErrorCatalogEditor.tsx` の見出し行は同じ
-  // `border-rule bg-surface-accent` の組を使っているが、あちらは `border-b`
-  // （セル間の下線）で効かなくても実害が小さい。この箱の枠は**箱全体を
-  // 囲って地から輪郭を切り出す**役なので、同じ扱いはできない。`ink-muted` は
-  // `HEADING_FACE_FOREGROUNDS` で `surface-accent` に対し 4.5:1 以上が既に
-  // 機械検証されており（実測ライト 6.774:1・ダーク 5.427:1）、3:1 を
-  // 新しい測定なしで安全に上回る
+  // 見送りの箱は一段沈んだ面（`surface-muted`）。`rule` はこの面の上でも
+  // 3:1 を満たす（`palette-requirements.ts` の `BACKGROUNDS` に入っている）。
+  // 無効は枠だけ赤くし面は塗らない（rev 9章 規約2）
   const face = props.invalid
-    ? 'border-warning bg-warning/20 text-ink'
+    ? 'border-invalid bg-surface text-ink'
     : props.suppressed
       ? 'border-ink-faint bg-surface text-ink-faint'
       : placement.deferral !== null
-        ? 'border-ink-muted bg-surface-accent text-ink'
+        ? 'border-rule bg-surface-muted text-ink'
         : 'border-rule bg-surface text-ink'
 
   // 未記入と立っている問いは名前の後半に付ける。**前半（`課題{N}`）は動かさない**
@@ -173,7 +158,7 @@ export function IssueBox(props: IssueBoxProps) {
           className="pointer-events-none absolute flex items-center justify-end group-hover/issue:invisible group-focus-within/issue:invisible"
           style={{ top: ISSUE_PADDING_Y, right: ISSUE_PADDING_X }}
         >
-          <span className={badgeClass('open', props.suppressed)}>{QUESTION_LABELS.hypothesis}</span>
+          <Badge variant={badgeVariantOf('open', props.suppressed)}>{QUESTION_LABELS.hypothesis}</Badge>
         </div>
       )}
 

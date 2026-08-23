@@ -1,3 +1,5 @@
+import { BADGE_BORDER, BADGE_BOX_HEIGHT, BADGE_PADDING_X } from '@/components/badge-styles'
+
 /**
  * 課題ツリーの箱の寸法（DOM 非依存の定数だけ）。折り返しの規則は
  * core/canvas/wrap.ts が持つ。
@@ -74,12 +76,11 @@ export const ROW_INDENT = 12
 export const ROW_DOT_SIZE = 4
 export const ROW_DOT_INSET = 2
 
-/** バッジの横の余白（px-1.5 = 6px）と枠線（1px）、文言との空き（gap-2 = 8px） */
-export const BADGE_PADDING_X = 6
-export const BADGE_BORDER = 1
+/** バッジの横の余白と枠線は部品（Badge.tsx）が持つ。文言との空き（gap-2 = 8px）だけここ */
+export { BADGE_BORDER, BADGE_PADDING_X }
 export const BADGE_GAP = 8
-/** バッジが座る行の高さ（バッジ自体は 18px で、その中に縦中央で置く） */
-export const BADGE_HEIGHT = 20
+/** バッジが座る行の高さ。バッジ自身（`BADGE_BOX_HEIGHT`）の上下に 1px ずつ */
+export const BADGE_HEIGHT = BADGE_BOX_HEIGHT + 2
 
 /**
  * 展開パネル。モックの `.panel`（margin-left 12 / padding 10px 12px / border 1 / gap 12）。
