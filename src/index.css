@@ -38,18 +38,21 @@
     --text-base--line-height: 1.5;
     --text-lg--line-height: 1.4;
 
+    --color-canvas: var(--canvas);
+    --color-surface: var(--surface);
+    --color-surface-muted: var(--surface-muted);
     --color-ink: var(--ink);
     --color-ink-muted: var(--ink-muted);
     --color-ink-faint: var(--ink-faint);
-    --color-warning: var(--warning);
-    --color-warning-fg: var(--warning-fg);
-    --color-ok: var(--ok);
-    --color-ok-fg: var(--ok-fg);
-    --color-canvas: var(--canvas);
-    --color-surface: var(--surface);
-    --color-surface-accent: var(--surface-accent);
     --color-rule: var(--rule);
     --color-grid: var(--grid);
+    --color-missing: var(--missing);
+    --color-invalid: var(--invalid);
+    --color-pending: var(--pending);
+    --color-judge-yes: var(--judge-yes);
+    --color-judge-yes-fg: var(--judge-yes-fg);
+    --color-judge-no: var(--judge-no);
+    --color-judge-no-fg: var(--judge-no-fg);
 
     /* shadcn の生成物が参照するトークン */
     --color-sidebar-ring: var(--sidebar-ring);
@@ -108,21 +111,22 @@
     --popover: var(--surface);
     --popover-foreground: var(--ink);
 
-    /* ボタン・選択状態。**Lichen Green を primary に流さない**——
-       ボタンが緑になると ok（確定）と意味が衝突する */
+    /* ボタン・選択状態。primary は ink に紐づけるが、facet は塗りボタン
+       （default variant）を使わない（M21。conventions.test.ts が弾く）。
+       shadcn の他の部品（メニューの選択行等）が accent / muted を参照するので、
+       「一段沈んだ面」をそこへ流す */
     --primary: var(--ink);
     --primary-foreground: var(--surface);
-    --secondary: var(--canvas);
+    --secondary: var(--surface-muted);
     --secondary-foreground: var(--ink);
-    --muted: var(--canvas);
+    --muted: var(--surface-muted);
     --muted-foreground: var(--ink-muted);
-    --accent: var(--canvas);
+    --accent: var(--surface-muted);
     --accent-foreground: var(--ink);
 
-    /* 破壊的アクション。Morphos の theme.css はここが Primary で上書き
-       される生成ミスがあり、Basalt では緑になっていた。
+    /* 破壊的アクション。無効軸の赤を借りる唯一の例外（rev 9章 規約5）。
        palette.test.ts が紐づきを検査する */
-    --destructive: var(--warning);
+    --destructive: var(--invalid);
 
     --border: var(--rule);
     --input: var(--rule);
@@ -135,14 +139,14 @@
     --chart-1: var(--ink);
     --chart-2: var(--ink-muted);
     --chart-3: var(--rule);
-    --chart-4: var(--warning);
-    --chart-5: var(--ok);
+    --chart-4: var(--missing);
+    --chart-5: var(--judge-yes);
 
     --sidebar: var(--surface);
     --sidebar-foreground: var(--ink);
     --sidebar-primary: var(--ink);
     --sidebar-primary-foreground: var(--surface);
-    --sidebar-accent: var(--canvas);
+    --sidebar-accent: var(--surface-muted);
     --sidebar-accent-foreground: var(--ink);
     --sidebar-border: var(--rule);
     --sidebar-ring: var(--ink);
@@ -162,6 +166,9 @@
     }
   body {
     @apply bg-background text-foreground;
+    /* 数字を等幅にする（UI ノート D9）。No 列・件数・#番号が縦に揃う。
+       一括で当てる——比例数字でなければならない箇所は facet に無い */
+    font-variant-numeric: tabular-nums;
     }
   html {
     @apply font-sans;

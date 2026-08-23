@@ -37,17 +37,22 @@ export function readTokenBlock(
 export const TOKENS = [
   'canvas',
   'surface',
-  'surface-accent',
+  'surface-muted',
   'ink',
   'ink-muted',
   'ink-faint',
   'rule',
   'grid',
-  'warning',
-  'ok',
-  'warning-fg',
-  'ok-fg',
+  'missing',
+  'invalid',
+  'pending',
+  'judge-yes',
+  'judge-yes-fg',
+  'judge-no',
+  'judge-no-fg',
 ] as const
+
+export type Token = (typeof TOKENS)[number]
 
 export const MODES = [
   { label: 'ライト', pattern: ':root' },
@@ -59,7 +64,7 @@ export const MODES = [
  *
  * **`grid` がここに無いのは意図的。** 方眼紙の線は純粋な装飾であり、
  * WCAG 1.4.11（情報を伝える非テキスト UI 要素は 3:1）の対象外。
- * むしろ薄いことに意味がある（設計スペック 決定2）
+ * むしろ薄いことに意味がある（M7 設計スペック 決定2）
  */
 export const REQUIREMENTS = [
   { token: 'ink', min: 4.5, use: '本文・見出し' },
@@ -70,48 +75,74 @@ export const REQUIREMENTS = [
   // **アクティブな本文に使わない**（使うと本文の保証を割る）
   { token: 'ink-faint', min: 3.0, use: '非アクティブの文字・枠（抑制された配下）' },
   { token: 'rule', min: 3.0, use: 'セル境界・入力枠' },
-  { token: 'warning', min: 4.5, use: '未定義・削除' },
-  { token: 'ok', min: 4.5, use: '確定・応答' },
+  // 意味色3軸は線と文字にしか使わないが、**文字**に使う以上 4.5:1 が要る
+  { token: 'missing', min: 4.5, use: '欠落（未定義・未決・仮説なし・保留）の線と文字' },
+  { token: 'invalid', min: 4.5, use: '無効（重複・参照切れ・整合性違反）の線と文字' },
+  { token: 'pending', min: 4.5, use: '着信（返答していない入力）の線と文字' },
 ] as const
 
 /**
- * **背景は canvas と surface の両方を見る。**
- * テーブルもカードもモーダルも surface の上に乗るので、canvas だけで
- * 満たしても足りない（実際、ダークの rule を canvas だけ見て決めたとき
- * surface 上で 2.997:1 と 3:1 を割った）
+ * **背景は canvas / surface / surface-muted の3面を見る。**
+ * テーブルもカードもモーダルも surface の上に乗るので canvas だけでは足りない
+ * （ダークの rule を canvas だけ見て決めたとき surface 上で 2.997:1 と 3:1 を割った）。
+ * surface-muted（一段沈んだ面）も、選択中タブ・種類見出し・見送りの箱として
+ * 文字とバッジと罫線が載る汎用の面なので、同じ集合に入れる。
+ * M8 の `surface-accent` を集合に入れなかった判断（淡い緑を選べなくなる）は、
+ * 面が無彩色になった今は効かない——無彩色の面なら 3:1 / 4.5:1 は明度だけで作れる
  */
-export const BACKGROUNDS = ['canvas', 'surface'] as const
+export const BACKGROUNDS = ['canvas', 'surface', 'surface-muted'] as const
 
 /**
- * warning / ok を面として使うときに載せる文字色の要件。
- *
- * **`REQUIREMENTS` には無い。** warning-fg / ok-fg は自分の面（warning /
- * ok）の上にしか載らない専用の文字色で、`BACKGROUNDS`（canvas / surface）に
- * 対して測る意味が無い。`REQUIREMENTS` の形（token, min, use）に、載る面を
- * 指す `face` を足しただけで、意味は同じ
+ * 判断の面に載せる文字色の要件。judge-yes-fg / judge-no-fg は自分の面にしか
+ * 載らない専用の文字色で、`BACKGROUNDS` に対して測る意味が無い
  */
 export const FACE_REQUIREMENTS = [
-  { token: 'warning-fg', face: 'warning', min: 4.5, use: '警告・削除の面の文字' },
-  { token: 'ok-fg', face: 'ok', min: 4.5, use: '確定・応答の面の文字' },
+  { token: 'judge-yes-fg', face: 'judge-yes', min: 4.5, use: '支持の面の文字' },
+  { token: 'judge-no-fg', face: 'judge-no', min: 4.5, use: '棄却の面の文字' },
 ] as const
 
 /**
- * 半透明の重ね合わせ（M8 決定11）。**値は GlossaryEditor.tsx の
- * errorCell / warnCell と一致していなければならない**（下の紐づき検査が見る）
+ * 面どうしの明度差。支持と棄却は正反対の結論なので、白黒印刷でも
+ * 判別できる 3:1 を課す（UI ノート D15「支持を明るく、棄却を暗く」）
  */
-export const OVERLAYS = [
-  { label: 'エラーセル', alpha: 0.2, className: 'bg-warning/20' },
-  { label: '未定義・未分類セル', alpha: 0.1, className: 'bg-warning/10' },
-] as const
+export const FACE_PAIRS = [{ a: 'judge-yes', b: 'judge-no', min: 3.0 }] as const
 
 /**
- * これらの面の上に置く文字。**warning は置かない**（M8 決定12）——
- * 測ると warning/10 の面の上で 4.59:1 しか出ず、同系色が重なって読みにくい
+ * 意味色どうしの識別。**標準・P型・D型のすべてで** OKLab の色差が
+ * `DISTINCT_MIN` 以上であること。M7 は warning/ok の色差を印字するだけで
+ * 失敗させなかった（M7 決定4）が、意味色が4つに増えた今は
+ * 「色は当てにならない」と学習された瞬間に警告機能が死ぬので、門番にする。
+ *
+ * **満たせないときは 0.08 まで下げてよい。** 下げたらこの定数の隣に
+ * 実測値と理由を書く。閾値を黙って消さない（設計スペック 決定5）
  */
-export const OVERLAY_FOREGROUNDS = [
-  { token: 'ink', use: '本文' },
-  { token: 'ink-muted', use: 'プレースホルダ「未定義」' },
+export const DISTINCT_PAIRS = [
+  { a: 'missing', b: 'invalid' },
+  { a: 'missing', b: 'pending' },
+  { a: 'missing', b: 'judge-yes' },
+  { a: 'invalid', b: 'pending' },
+  { a: 'invalid', b: 'judge-yes' },
+  { a: 'pending', b: 'judge-yes' },
 ] as const
+export const DISTINCT_MIN = 0.1
+
+/**
+ * 無彩色でなければならないトークン。「色を持つのは意味だけ」（rev 9章）を
+ * 機械検査にする。微かな暖色（M7 の canvas は C 0.012）も装飾なので弾く
+ */
+export const ACHROMATIC = [
+  'canvas',
+  'surface',
+  'surface-muted',
+  'ink',
+  'ink-muted',
+  'ink-faint',
+  'rule',
+  'grid',
+  'judge-no',
+  'judge-no-fg',
+] as const
+export const ACHROMATIC_MAX_C = 0.01
 
 /**
  * 閾値ちょうどを置かない（M7 の教訓）。**この余裕は `palette-fit.mjs` の
@@ -119,29 +150,3 @@ export const OVERLAY_FOREGROUNDS = [
  * 1箇所を直せば両方に効く——書き写すと片方だけ直したときに食い違う。
  */
 export const MARGIN = 1.03
-
-/** 本文 4.5:1 に `MARGIN` の余裕を載せた、重ね合わせの面の要件 */
-export const OVERLAY_MIN = 4.5 * MARGIN
-
-/**
- * 見出しの面（テーブルのカラム名・選択中タブ）。**issue-tree の見送った課題
- * 自身の箱の塗りもこの面を流用している**（`IssueBox.tsx`。新しいトークンを
- * 足す代わりに検算済みの面を再利用した。役割が2つになった経緯と、
- * 「未決を面で塗らない」「地の色に落とさない」の既存規則がなぜ及ばないかは
- * `docs/issue-tree/仮説検証モジュール-設計ノート.md` D8）。載る文字は
- * どちらの用途でも `ink` / `ink-muted` だけなので、下の検証はそのままでよい。
- *
- * **`BACKGROUNDS` に入れないのは意図的。** あちらは「あらゆる役割トークンが
- * 載りうる汎用の面」（地とカードの面）の集合で、`surface-accent` の上に載るのは
- * 見出しの文字と見送りの箱の文字だけである。`warning` や `ok` や `rule` を
- * この面の上で要件を満たすよう縛ると、淡い緑を選べなくなる（この面より
- * 暗い色でしか 3:1 / 4.5:1 を作れないため）。**載らないものを検証しない**
- * 代わりに、載るものは両モードで必ず検証する
- */
-export const HEADING_FACE = 'surface-accent' as const
-
-/** `HEADING_FACE` の上に置く文字。載るのはカラム名の文字と、見送った課題の箱の文字（タイトル・バッジ・理由） */
-export const HEADING_FACE_FOREGROUNDS = [
-  { token: 'ink', min: 4.5, use: '本文・見出し' },
-  { token: 'ink-muted', min: 4.5, use: '抑えた文字' },
-] as const

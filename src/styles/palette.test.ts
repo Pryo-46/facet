@@ -1,11 +1,9 @@
-import { readdirSync, readFileSync } from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
-  composite,
   contrastRatio,
   deltaEok,
+  linearToOklch,
   oklchToLinear,
   parseOklch,
   simulate,
@@ -14,14 +12,14 @@ import {
   type Vision,
 } from './contrast'
 import {
+  ACHROMATIC,
+  ACHROMATIC_MAX_C,
   BACKGROUNDS,
+  DISTINCT_MIN,
+  DISTINCT_PAIRS,
+  FACE_PAIRS,
   FACE_REQUIREMENTS,
-  HEADING_FACE,
-  HEADING_FACE_FOREGROUNDS,
   MODES,
-  OVERLAY_FOREGROUNDS,
-  OVERLAY_MIN,
-  OVERLAYS,
   readTokenBlock,
   REQUIREMENTS,
   stripCssComments,
@@ -87,73 +85,50 @@ for (const mode of MODES) {
       })
     }
 
-    for (const bg of BACKGROUNDS) {
-      for (const overlay of OVERLAYS) {
-        for (const fg of OVERLAY_FOREGROUNDS) {
-          it(`${fg.token}（${fg.use}）が ${overlay.className} を ${bg} に重ねた面の上で ${OVERLAY_MIN.toFixed(2)}:1 以上`, () => {
-            const face = composite(palette.warning, palette[bg], overlay.alpha)
-            const ratio = contrastRatio(palette[fg.token], face)
-            expect(
-              ratio,
-              `${toHex(palette[fg.token])} / ${toHex(face)} = ${ratio.toFixed(2)}:1`,
-            ).toBeGreaterThanOrEqual(OVERLAY_MIN)
-          })
-        }
-      }
+    for (const pair of FACE_PAIRS) {
+      it(`${pair.a} と ${pair.b} の面どうしが ${pair.min}:1 以上（白黒でも判別できる）`, () => {
+        const ratio = contrastRatio(palette[pair.a], palette[pair.b])
+        expect(ratio, `${toHex(palette[pair.a])} / ${toHex(palette[pair.b])} = ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(pair.min)
+      })
     }
   })
 }
 
-// 要件本体（「なぜ BACKGROUNDS に入れないか」のコメント含む）は
-// palette-requirements.ts の HEADING_FACE / HEADING_FACE_FOREGROUNDS へ
-describe('見出しの面（surface-accent）', () => {
+describe('意味色の識別（標準・P型・D型）', () => {
   for (const mode of MODES) {
     const palette = toPalette(mode.pattern, mode.label)
-    for (const req of HEADING_FACE_FOREGROUNDS) {
-      it(`${mode.label}の ${req.token} が ${HEADING_FACE} の上で ${req.min}:1 以上`, () => {
-        const ratio = contrastRatio(palette[req.token], palette[HEADING_FACE])
-        expect(
-          ratio,
-          `${toHex(palette[req.token])} / ${toHex(palette[HEADING_FACE])} = ${ratio.toFixed(2)}:1`,
-        ).toBeGreaterThanOrEqual(req.min)
-      })
+    for (const pair of DISTINCT_PAIRS) {
+      for (const vision of VISIONS) {
+        it(`${mode.label}の ${pair.a} と ${pair.b} が ${vision} で ΔE ${DISTINCT_MIN} 以上`, () => {
+          const d = deltaEok(simulate(palette[pair.a], vision), simulate(palette[pair.b], vision))
+          // NaN は toBeGreaterThanOrEqual で落ちる（比較が false になる）ので別建ての検査は要らない
+          expect(d, `ΔE = ${d.toFixed(3)}`).toBeGreaterThanOrEqual(DISTINCT_MIN)
+        })
+      }
     }
   }
 })
 
-describe('warning と ok の識別（記録のみ。失敗させない）', () => {
+describe('無彩色（色を持つのは意味だけ）', () => {
   for (const mode of MODES) {
-    it(`${mode.label}の ΔE を標準色覚・P型・D型で出力する`, () => {
-      const palette = toPalette(mode.pattern, mode.label)
-      const values = VISIONS.map((vision) =>
-        deltaEok(simulate(palette.warning, vision), simulate(palette.ok, vision)),
-      )
-      const measured = VISIONS.map((vision, i) => `${vision}=${values[i].toFixed(3)}`)
-
-      // ★ この値では失敗させない（設計スペック 決定4）。
-      //
-      //   採用した配色は P型・D型で ΔE が実用域（0.10）を割る。それを承知で
-      //   選んでおり、ここで失敗にすると配色を差し替えるたびに人間の判断を
-      //   要求する門番になる。**このテストが守るものは無い。見せるだけである。**
-      //   閾値を足して「守るもの」に変えるなら、それは設計判断の変更なので
-      //   設計スペックの側を先に直すこと。
-      //   ただし「見せる数字が数字であること」だけは保証する——計算が壊れて
-      //   NaN になっても、この形のアサーションは気づかずに緑を返すため
-      console.info(`[palette] ${mode.label} warning/ok ΔE — ${measured.join(' / ')}`)
-      expect(measured).toHaveLength(3)
-      expect(values.every(Number.isFinite)).toBe(true)
-    })
+    const palette = toPalette(mode.pattern, mode.label)
+    for (const token of ACHROMATIC) {
+      it(`${mode.label}の ${token} の C が ${ACHROMATIC_MAX_C} 以下`, () => {
+        const c = linearToOklch(palette[token]).C
+        expect(c, `C = ${c.toFixed(4)}`).toBeLessThanOrEqual(ACHROMATIC_MAX_C)
+      })
+    }
   }
 })
 
 const indexCss = stripCssComments(readFileSync(new URL('../index.css', import.meta.url), 'utf8'))
 
 describe('index.css', () => {
-  it('destructive が warning に紐づいている', () => {
+  it('destructive が invalid に紐づいている', () => {
     // Morphos の theme.css は light.destructive が Primary で上書きされる
     // 生成ミスがあり、Basalt では「削除」が緑になっていた。
     // 配色を差し替えるたびに人の目で確かめなくて済むよう機械で見る
-    expect(indexCss).toMatch(/--destructive:\s*var\(--warning\)\s*;/)
+    expect(indexCss).toMatch(/--destructive:\s*var\(--invalid\)\s*;/)
   })
 
   it('色値を直接持たない（palette.css が唯一の出所）', () => {
@@ -204,118 +179,5 @@ describe('index.css', () => {
     const utility = indexCss.match(/@utility\s+bg-grid-paper\s*\{[^}]*\}/)?.[0] ?? ''
     expect(utility).not.toMatch(/repeating-linear-gradient/)
     expect(utility).toMatch(/background-size:\s*var\(--grid-size\)\s+var\(--grid-size\)/)
-  })
-})
-
-/**
- * TSX のコメントを落とす。**行番号を保つ必要は無いので単純に消す。**
- *
- * 既存の `stripCssComments`（`palette-requirements.ts`）は CSS 用で `/* *​/` しか
- * 落とさない。TSX には `//` があるうえ、下の検査が読む GlossaryEditor.tsx は
- * コメントの中で `/25`（不採用にした濃さ）に言及している。コメントを
- * 落とさずに走査すると、説明文が違反として検出される——M7 の Task 5 が
- * 踏んだ「計画自身が機械検査と衝突する」形そのものである
- */
-const stripTsComments = (source: string): string =>
-  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
-
-const glossaryEditorSource = stripTsComments(
-  readFileSync(new URL('../modules/glossary/GlossaryEditor.tsx', import.meta.url), 'utf8'),
-)
-
-/**
- * モジュール配下の画面コンポーネントを走査する。**決め打ちのパスを列挙しない。**
- *
- * M10 で ErrorCatalogEditor.tsx が加わり、同じ半透明の濃さ（errorCell /
- * warnCell）を GlossaryEditor.tsx から独立に宣言した。パスを列挙する形だと
- * 3本目・4本目が増えたときに登録し忘れが構造的に起きるので、
- * conventions.test.ts の sourceFiles() と同じ「readdirSync で歩く」形に揃える。
- *
- * **`*Editor.tsx` に絞らない。** ロジックツリーは赤表示の面をエディタ本体
- * ではなく NodeBox.tsx（ノード1つ分の部品）が当てており、エディタだけを
- * 読む形では検算していない濃さがそこを素通りしていた
- */
-const MODULES_DIR = fileURLToPath(new URL('../modules/', import.meta.url))
-
-function componentSourceFiles(): string[] {
-  const found: string[] = []
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name)
-      if (entry.isDirectory()) {
-        walk(full)
-      } else if (/\.tsx$/.test(entry.name) && !/\.(test|spec)\.tsx$/.test(entry.name)) {
-        found.push(full)
-      }
-    }
-  }
-  walk(MODULES_DIR)
-  return found
-}
-
-const componentSources = componentSourceFiles().map((file) => ({
-  file: path.relative(MODULES_DIR, file).split(path.sep).join('/'),
-  source: stripTsComments(readFileSync(file, 'utf8')),
-}))
-
-describe('重ね合わせの値が実装と一致している', () => {
-  it('走査でコンポーネントのソースを1つ以上見つけている', () => {
-    // 除外条件の書き間違いや対象の取り違えで0件になり、何も検査しないまま
-    // 緑になるのを防ぐ（conventions.test.ts「ソースを1つ以上見つけている」と同じ理由）
-    expect(componentSources.length).toBeGreaterThan(0)
-  })
-
-  // 上の検算は OVERLAYS の alpha を見ているだけなので、実装が別の濃さを
-  // 使っていても緑になる。**検算と実装を繋ぐのはこの検査である**
-  //
-  // 「その文字列がどこかにある」だけでは弱い——errorCell と warnCell の
-  // 値を入れ替えても、両方の文字列は存在し続けるので緑のまま通ってしまう。
-  // それでは「エラーが警告より濃い」という関係が壊れても検知できない。
-  // 変数名と値を直接結びつけることで、入れ替えを検出できるようにする。
-  //
-  // **宣言している側を全部見る。** 決め打ちで1本だけ読むと、2本目以降が
-  // 独立に別の濃さを宣言しても検知できない（M10 で実際に起きた）。
-  //
-  // 「全コンポーネントがこの2本を宣言している」ことは要求しない——
-  // 表を持たないエディタ（ロジックツリー）はセルという単位を持たず、
-  // 使いもしない定数を検査のためだけに置かせるのは本末転倒である。
-  //
-  // ただし**「宣言があるファイルだけを見る」形にはしないこと。** それだと
-  // 検査対象がソース側の自己申告になり、定数名を errorCell → errorFace に
-  // 変えるだけで検査から抜けられる（濃さを入れ替えても 20 と 10 はどちらも
-  // 既知の alpha なので、下の「検算していない濃さ」も受け皿にならない）。
-  // **名前が error / warn を名乗るなら濃さは検算した値でなければならない**
-  // という否定形にして、名前を変えて逃げる道を塞ぐ
-  it('errorCell と warnCell がそれぞれ検算した濃さに紐づいている', () => {
-    const declaring = componentSources.filter(({ source }) =>
-      /const\s+(errorCell|warnCell)\s*=/.test(source),
-    )
-    // 宣言が1本も無くなったら、この検査は何も守っていない
-    expect(declaring.length).toBeGreaterThan(0)
-    for (const { file, source } of declaring) {
-      expect(source, file).toMatch(/const errorCell = 'bg-warning\/20'/)
-      expect(source, file).toMatch(/const warnCell = 'bg-warning\/10'/)
-    }
-    for (const { file, source } of componentSources) {
-      expect(source, file).not.toMatch(/const\s+\w*[eE]rror\w*\s*=\s*'bg-warning\/(?!20\b)\d+'/)
-      expect(source, file).not.toMatch(/const\s+\w*[wW]arn\w*\s*=\s*'bg-warning\/(?!10\b)\d+'/)
-    }
-  })
-
-  it('検算していない濃さを使っていない', () => {
-    // bg- だけでなく border- / text- も見る。**枠線や文字も半透明の
-    // warning を名乗りうる**ため、面（bg-）に絞ると素通りする
-    // （GutterSlot.tsx の枠が実際にすり抜けていた。M1 sequence Task 12）
-    for (const { file, source } of componentSources) {
-      const used = [...source.matchAll(/(?:bg|border|text)-warning\/(\d+)/g)].map((m) =>
-        Number(m[1]),
-      )
-      const known = OVERLAYS.map((o) => Math.round(o.alpha * 100))
-      expect([...new Set(used)].filter((u) => !known.includes(u)), file).toEqual([])
-    }
-  })
-
-  it('プレースホルダに warning 系の文字色を使っていない（M8 決定12）', () => {
-    expect(glossaryEditorSource).not.toMatch(/placeholder:text-warning/)
   })
 })

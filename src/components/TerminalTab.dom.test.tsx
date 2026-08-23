@@ -852,12 +852,12 @@ describe('端末の配色', () => {
   const LIGHT: Record<string, string> = {
     '--surface': 'oklch(0.961 0.007 88.6)',
     '--ink': 'oklch(0.205 0 89.9)',
-    '--surface-accent': 'oklch(0.87 0.04 126)',
+    '--surface-muted': 'oklch(0.91 0 0)',
   }
   const DARK: Record<string, string> = {
     '--surface': 'oklch(0.205 0 89.9)',
     '--ink': 'oklch(0.85 0.007 88.6)',
-    '--surface-accent': 'oklch(0.28 0.04 126)',
+    '--surface-muted': 'oklch(0.27 0 0)',
   }
 
   const setTokens = (next: Record<string, string>): void => {

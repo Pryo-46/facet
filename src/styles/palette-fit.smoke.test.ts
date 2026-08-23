@@ -43,32 +43,38 @@ describe('palette-fit.mjs（型ストリップ経由の import が生きてい�
     const fixture = path.join(dir, 'broken.css')
     const broken = `
 :root {
-    --canvas: oklch(0.921 0.012 96.4);
-    --surface: oklch(0.961 0.007 88.6);
-    --ink: oklch(0.9 0 89.9);
-    --ink-muted: oklch(0.381 0.007 170.1);
-    --ink-faint: oklch(0.58 0.007 170);
-    --rule: oklch(0.6 0.014 120);
-    --grid: oklch(0.87 0.014 120.3);
-    --warning: oklch(0.518 0.132 34.6);
-    --ok: oklch(0.5 0.068 126);
-    --warning-fg: oklch(0.961 0.007 88.6);
-    --ok-fg: oklch(0.961 0.007 88.6);
-    --surface-accent: oklch(0.87 0.04 126);
+    --canvas: oklch(0.95 0 0);
+    --surface: oklch(0.985 0 0);
+    --surface-muted: oklch(0.91 0 0);
+    --ink: oklch(0.9 0 0);
+    --ink-muted: oklch(0.42 0 0);
+    --ink-faint: oklch(0.58 0 0);
+    --rule: oklch(0.58 0 0);
+    --grid: oklch(0.89 0 0);
+    --missing: oklch(0.49 0.12 85);
+    --invalid: oklch(0.38 0.15 30);
+    --pending: oklch(0.48 0.14 250);
+    --judge-yes: oklch(0.87 0.08 165);
+    --judge-yes-fg: oklch(0.18 0 0);
+    --judge-no: oklch(0.35 0 0);
+    --judge-no-fg: oklch(0.985 0 0);
 }
 .dark {
-    --canvas: oklch(0.18 0.004 164.6);
-    --surface: oklch(0.205 0 89.9);
-    --ink: oklch(0.85 0.007 88.6);
-    --ink-muted: oklch(0.698 0.042 120);
-    --ink-faint: oklch(0.55 0.007 170);
-    --rule: oklch(0.508 0.007 170.1);
-    --grid: oklch(0.26 0.006 165);
-    --warning: oklch(0.68 0.13 35);
-    --ok: oklch(0.75 0.085 126);
-    --warning-fg: oklch(0.18 0.004 164.6);
-    --ok-fg: oklch(0.18 0.004 164.6);
-    --surface-accent: oklch(0.28 0.04 126);
+    --canvas: oklch(0.17 0 0);
+    --surface: oklch(0.205 0 0);
+    --surface-muted: oklch(0.27 0 0);
+    --ink: oklch(0.88 0 0);
+    --ink-muted: oklch(0.70 0 0);
+    --ink-faint: oklch(0.55 0 0);
+    --rule: oklch(0.56 0 0);
+    --grid: oklch(0.25 0 0);
+    --missing: oklch(0.82 0.13 85);
+    --invalid: oklch(0.68 0.15 30);
+    --pending: oklch(0.75 0.12 250);
+    --judge-yes: oklch(0.80 0.10 165);
+    --judge-yes-fg: oklch(0.17 0 0);
+    --judge-no: oklch(0.36 0 0);
+    --judge-no-fg: oklch(0.95 0 0);
 }
 `
     try {

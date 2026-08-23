@@ -44,9 +44,9 @@ export function buildTerminalTheme(readToken: (name: string) => string): Termina
   }
   const background = hex('--surface')
   const foreground = hex('--ink')
-  // 選択の面は見出しの面を流用する。**ink / ink-muted が載ることを
-  // palette.test.ts が既に検証している唯一の淡い面**だから
-  const selectionBackground = hex('--surface-accent')
+  // 選択の面は「一段沈んだ面」。ink / ink-muted が載ることを
+  // palette.test.ts が BACKGROUNDS の一員として検証している
+  const selectionBackground = hex('--surface-muted')
   if (background === null || foreground === null || selectionBackground === null) return null
   return {
     background,

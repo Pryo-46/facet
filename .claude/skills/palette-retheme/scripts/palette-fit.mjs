@@ -22,7 +22,6 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
 import {
-  composite,
   contrastRatio,
   deltaEok,
   fitLightness,
@@ -33,15 +32,15 @@ import {
   toHex,
 } from '../../../../src/styles/contrast.ts'
 import {
+  ACHROMATIC,
+  ACHROMATIC_MAX_C,
   BACKGROUNDS,
+  DISTINCT_MIN,
+  DISTINCT_PAIRS,
+  FACE_PAIRS,
   FACE_REQUIREMENTS,
-  HEADING_FACE,
-  HEADING_FACE_FOREGROUNDS,
   MARGIN,
   MODES,
-  OVERLAY_FOREGROUNDS,
-  OVERLAY_MIN,
-  OVERLAYS,
   readTokenBlock,
   REQUIREMENTS,
   stripCssComments,
@@ -229,37 +228,14 @@ for (const mode of MODE_KEYS) {
   // -- コントラスト --------------------------------------------------------
   lines.push('  コントラスト')
   for (const req of REQUIREMENTS) {
-    // 「あるトークンが満たすべき条件」は、このトークンを縛る**すべての表**に
-    // 対して同時に成り立たなければならない。canvas / surface だけを見て
-    // 提案すると、重ね合わせや見出しの面で縛られているトークン（ink-muted
-    // など）では提案どおりに直しても他の面を割ったままになる
-    // （Important 2。「1つずつ直すと片方がもう片方を割る」の一段上）
+    // 「あるトークンが満たすべき条件」は、このトークンを縛る**すべての背景**に
+    // 対して同時に成り立たなければならない。1面だけを見て提案すると、
+    // 他の面（canvas / surface / surface-muted のどれか）を割ったままになる
+    // （Important 2。「1つずつ直すと片方がもう片方を割る」）
     const conditions = BACKGROUNDS.map((bg) => ({
       against: linear[mode.key][bg],
       min: req.min * MARGIN, // 閾値ちょうどを置かない
     }))
-    // この面は前景（このトークン）が動く一方、背景側は固定——重ね合わせの
-    // 面は warning から、見出しの面は surface-accent 自身から来る。
-    // 「動かせるのはこのトークンだけ」という点で BACKGROUNDS と同じ
-    // 種類の制約なので、提案を出す条件集合に合流させる
-    const overlayEntry = OVERLAY_FOREGROUNDS.find((f) => f.token === req.token)
-    if (overlayEntry !== undefined) {
-      for (const bg of BACKGROUNDS) {
-        for (const overlay of OVERLAYS) {
-          conditions.push({
-            against: composite(linear[mode.key].warning, linear[mode.key][bg], overlay.alpha),
-            min: OVERLAY_MIN,
-          })
-        }
-      }
-    }
-    const headingEntry = HEADING_FACE_FOREGROUNDS.find((f) => f.token === req.token)
-    if (headingEntry !== undefined) {
-      conditions.push({
-        against: linear[mode.key][HEADING_FACE],
-        min: headingEntry.min * MARGIN,
-      })
-    }
     let suggestion // 遅延評価。全 bg が通っていれば要らない
     let suggestionComputed = false
 
@@ -287,9 +263,9 @@ for (const mode of MODE_KEYS) {
   lines.push('')
 
   // -- 面の文字 --------------------------------------------------------------
-  // warning-fg / ok-fg は自分の面（warning / ok）にしか載らないので、
-  // 条件はその面1つだけ。動かせるのは他に何にも縛られていない fg 自身なので、
-  // コントラストと同じく提案を出す
+  // judge-yes-fg / judge-no-fg は自分の面（judge-yes / judge-no）にしか
+  // 載らないので、条件はその面1つだけ。動かせるのは他に何にも縛られていない
+  // fg 自身なので、コントラストと同じく提案を出す
   lines.push('  面の文字')
   for (const req of FACE_REQUIREMENTS) {
     const ratio = contrastRatio(linear[mode.key][req.token], linear[mode.key][req.face])
@@ -311,52 +287,41 @@ for (const mode of MODE_KEYS) {
   }
   lines.push('')
 
-  // -- 重ね合わせ ------------------------------------------------------------
-  // ここは提案を出さない。面の色は warning から来るので、直すべきは
-  // warning か ink-muted であり、どちらを動かすかは人の判断
-  lines.push('  重ね合わせ')
-  for (const bg of BACKGROUNDS) {
-    for (const overlay of OVERLAYS) {
-      const face = composite(linear[mode.key].warning, linear[mode.key][bg], overlay.alpha)
-      for (const fg of OVERLAY_FOREGROUNDS) {
-        const ratio = contrastRatio(linear[mode.key][fg.token], face)
-        const ok = ratio >= OVERLAY_MIN
-        const mark = ok ? '✓' : '✗'
-        if (!ok) failCount += 1
-        const label = `${overlay.className} on ${bg}`
-        lines.push(
-          `    ${mark} ${pad(fg.token, 12)}/ ${pad(label, 22)}${fmtRatio(ratio).padStart(8)}  (>= ${OVERLAY_MIN.toFixed(2)})`,
-        )
-      }
-    }
+  // -- 面どうし --------------------------------------------------------------
+  lines.push('  面どうし')
+  for (const pair of FACE_PAIRS) {
+    const ratio = contrastRatio(linear[mode.key][pair.a], linear[mode.key][pair.b])
+    const ok = ratio >= pair.min
+    if (!ok) failCount += 1
+    lines.push(
+      `    ${ok ? '✓' : '✗'} ${pad(pair.a, 12)}/ ${pad(pair.b, 9)}${fmtRatio(ratio).padStart(8)}  (>= ${pair.min.toFixed(2)})`,
+    )
   }
   lines.push('')
 
-  // -- 見出しの面 ------------------------------------------------------------
-  // ink / ink-muted は他の全要件で明度が縛られているので動かせない。
-  // 動かすとすれば surface-accent 自身であり、それは人の判断なので
-  // 重ね合わせと同じく提案を出さない
-  lines.push(`  見出しの面（${HEADING_FACE}）`)
-  for (const req of HEADING_FACE_FOREGROUNDS) {
-    const ratio = contrastRatio(linear[mode.key][req.token], linear[mode.key][HEADING_FACE])
-    const ok = ratio >= req.min
-    const mark = ok ? '✓' : '✗'
+  // -- 無彩色 ----------------------------------------------------------------
+  lines.push(`  無彩色（C <= ${ACHROMATIC_MAX_C}）`)
+  for (const token of ACHROMATIC) {
+    const c = linearToOklch(linear[mode.key][token]).C
+    const ok = c <= ACHROMATIC_MAX_C
     if (!ok) failCount += 1
-    lines.push(
-      `    ${mark} ${pad(req.token, 12)}/ ${pad(HEADING_FACE, 15)}${fmtRatio(ratio).padStart(8)}  (>= ${req.min.toFixed(2)})`,
-    )
+    lines.push(`    ${ok ? '✓' : '✗'} ${pad(token, 12)}C = ${c.toFixed(4)}`)
   }
   lines.push('')
 }
 
-// -- ΔE（合否は付けない） ----------------------------------------------------
-lines.push('warning と ok の色差（ΔE、合否は付けない）')
+// -- 意味色の識別（標準・P型・D型で ΔE >= DISTINCT_MIN） ------------------------
+lines.push(`意味色の識別（ΔE >= ${DISTINCT_MIN}、標準 / P型 / D型）`)
 for (const mode of MODE_KEYS) {
-  const values = VISIONS.map((vision) =>
-    deltaEok(simulate(linear[mode.key].warning, vision), simulate(linear[mode.key].ok, vision)),
-  )
-  const measured = VISIONS.map((vision, i) => `${vision}=${values[i].toFixed(3)}`)
-  lines.push(`  ${pad(mode.label, 6)}${measured.join('  ')}`)
+  for (const pair of DISTINCT_PAIRS) {
+    const values = VISIONS.map((vision) =>
+      deltaEok(simulate(linear[mode.key][pair.a], vision), simulate(linear[mode.key][pair.b], vision)),
+    )
+    const ok = values.every((v) => v >= DISTINCT_MIN)
+    if (!ok) failCount += 1
+    const measured = VISIONS.map((vision, i) => `${vision}=${values[i].toFixed(3)}`)
+    lines.push(`  ${ok ? '✓' : '✗'} ${pad(mode.label, 6)}${pad(`${pair.a} / ${pair.b}`, 22)}${measured.join('  ')}`)
+  }
 }
 lines.push('')
 
