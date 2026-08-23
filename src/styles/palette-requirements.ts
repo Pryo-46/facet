@@ -40,6 +40,7 @@ export const TOKENS = [
   'surface-accent',
   'ink',
   'ink-muted',
+  'ink-faint',
   'rule',
   'grid',
   'warning',
@@ -63,6 +64,11 @@ export const MODES = [
 export const REQUIREMENTS = [
   { token: 'ink', min: 4.5, use: '本文・見出し' },
   { token: 'ink-muted', min: 4.5, use: '抑えた文字' },
+  // **非アクティブな内容の文字と枠。** WCAG 1.4.3 は非アクティブ UI 部品を
+  // 本文の 4.5:1 から免除しているが、読めなくてよいわけではない——
+  // 「いま作業する面ではない」と読めて、かつ消えて見えない段として 3:1 を課す。
+  // **アクティブな本文に使わない**（使うと本文の保証を割る）
+  { token: 'ink-faint', min: 3.0, use: '非アクティブの文字・枠（抑制された配下）' },
   { token: 'rule', min: 3.0, use: 'セル境界・入力枠' },
   { token: 'warning', min: 4.5, use: '未定義・削除' },
   { token: 'ok', min: 4.5, use: '確定・応答' },
@@ -118,18 +124,23 @@ export const MARGIN = 1.03
 export const OVERLAY_MIN = 4.5 * MARGIN
 
 /**
- * 見出しの面（テーブルのカラム名）。
+ * 見出しの面（テーブルのカラム名・選択中タブ）。**issue-tree の見送った課題
+ * 自身の箱の塗りもこの面を流用している**（`IssueBox.tsx`。新しいトークンを
+ * 足す代わりに検算済みの面を再利用した。役割が2つになった経緯と、
+ * 「未決を面で塗らない」「地の色に落とさない」の既存規則がなぜ及ばないかは
+ * `docs/issue-tree/仮説検証モジュール-設計ノート.md` D8）。載る文字は
+ * どちらの用途でも `ink` / `ink-muted` だけなので、下の検証はそのままでよい。
  *
  * **`BACKGROUNDS` に入れないのは意図的。** あちらは「あらゆる役割トークンが
  * 載りうる汎用の面」（地とカードの面）の集合で、`surface-accent` の上に載るのは
- * カラム名の文字だけである。`warning` や `ok` や `rule` をこの面の上で
- * 要件を満たすよう縛ると、淡い緑を選べなくなる（この面より暗い色でしか
- * 3:1 / 4.5:1 を作れないため）。**載らないものを検証しない**代わりに、
- * 載るものは両モードで必ず検証する
+ * 見出しの文字と見送りの箱の文字だけである。`warning` や `ok` や `rule` を
+ * この面の上で要件を満たすよう縛ると、淡い緑を選べなくなる（この面より
+ * 暗い色でしか 3:1 / 4.5:1 を作れないため）。**載らないものを検証しない**
+ * 代わりに、載るものは両モードで必ず検証する
  */
 export const HEADING_FACE = 'surface-accent' as const
 
-/** `HEADING_FACE` の上に置く文字。載るのはカラム名の文字だけ */
+/** `HEADING_FACE` の上に置く文字。載るのはカラム名の文字と、見送った課題の箱の文字（タイトル・バッジ・理由） */
 export const HEADING_FACE_FOREGROUNDS = [
   { token: 'ink', min: 4.5, use: '本文・見出し' },
   { token: 'ink-muted', min: 4.5, use: '抑えた文字' },

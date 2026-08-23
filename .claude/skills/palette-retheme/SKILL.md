@@ -1,11 +1,11 @@
 ---
 name: palette-retheme
-description: facet 自身の配色（src/styles/palette.css）を、渡されたテーマに差し替える。「配色を変えて」「テーマを差し替えて」「この theme.css を入れて」「palette.css を書き換えて」「もっと暗い配色にして」と言われたときに使う。外部テーマの31変数のうち facet が使うのは6つだけで、対応物がない役割（ok / grid / surface-accent / warning-fg / ok-fg）は候補を出してユーザーに選ばせる。コントラストの実測と明度の調整は同梱スクリプトが行うため、色を手で見繕わない。
+description: facet 自身の配色（src/styles/palette.css）を、渡されたテーマに差し替える。「配色を変えて」「テーマを差し替えて」「この theme.css を入れて」「palette.css を書き換えて」「もっと暗い配色にして」と言われたときに使う。外部テーマの31変数のうち facet が使うのは6つだけで、対応物がない役割（ok / grid / surface-accent / warning-fg / ok-fg / ink-faint）は候補を出してユーザーに選ばせる。コントラストの実測と明度の調整は同梱スクリプトが行うため、色を手で見繕わない。
 ---
 
 # 配色差し替え
 
-外部テーマ（shadcn 系の `theme.css`、Morphos の `theme.json`、色のリスト）を受け取り、`src/styles/palette.css` の11トークン×2モードを埋めて、`npm test` が緑になる状態まで持っていく。
+外部テーマ（shadcn 系の `theme.css`、Morphos の `theme.json`、色のリスト）を受け取り、`src/styles/palette.css` の12トークン×2モードを埋めて、`npm test` が緑になる状態まで持っていく。
 
 **この Skill が触るのはアプリ自身のソースである。** 同じディレクトリにある `glossary-term-register` / `error-catalog-register` は**ユーザーのデータ**（プロジェクトフォルダの JSON）を作る Skill で、アプリは AI が触ったことを知らない。こちらは**アプリのリポジトリの中身**を書き換える。既存2本の形を期待して読むと、無いものを探すことになる:
 
@@ -23,7 +23,7 @@ description: facet 自身の配色（src/styles/palette.css）を、渡された
 2. 渡されたテーマを読む
 3. facet の役割へ対応づける（**拾うのは6色だけ**）
 4. `destructive` が本当に警告色か疑う
-5. 対応物がない5つ（`ok` / `surface-accent` / `grid` / `warning-fg` / `ok-fg`）をユーザーと決める
+5. 対応物がない6つ（`ok` / `surface-accent` / `grid` / `warning-fg` / `ok-fg` / `ink-faint`）をユーザーと決める
 6. 下書き JSON を作り、同梱スクリプトで検算する（**終了コード 0 になるまで**）
 7. `palette.css` を `Edit` で書き換える（**由来コメントも同じ編集で書き直す**）
 8. `npm test` を走らせる
@@ -118,11 +118,11 @@ Morphos が配布する `theme.css` は `light.destructive` が Primary（Lichen
 
 判定の道具は手順6の出力にある。トークン一覧の `oklch(L C H)` 列で `warning` と `ok` の H が近ければ怪しく、末尾の ΔE 行の `normal` が小さければ**両者はほぼ同じ色である**（現行配色でライト `normal=0.151`）。
 
-## 5. 対応物がない5つを決める
+## 5. 対応物がない6つを決める
 
-`ok` / `surface-accent` / `grid` / `warning-fg` / `ok-fg` には、shadcn 系テーマに対応物が無い。**AI が黙って決めない。**
+`ok` / `surface-accent` / `grid` / `warning-fg` / `ok-fg` / `ink-faint` には、shadcn 系テーマに対応物が無い。**AI が黙って決めない。**
 
-ただし5つを一律に聞くと会議が止まる。**判断の重さで分ける。**
+ただし6つを一律に聞くと会議が止まる。**判断の重さで分ける。**
 
 | 役割 | 扱い | 導出の規則（候補の作り方） |
 | --- | --- | --- |
@@ -130,6 +130,7 @@ Morphos が配布する `theme.css` は `light.destructive` が Primary（Lichen
 | `surface-accent` | 候補と既定値を示して1往復で確認 | `ok` の色相から起こした淡い面。`ink` と `ink-muted` の**両方**が 4.5:1 で載ること |
 | `grid` | 既定値を示して確認 | `rule` の色相を保ったまま `canvas` に寄せた薄い線。**ライトは `canvas` 上 1.17:1 を目安にする** |
 | `warning-fg` / `ok-fg` | 既定値を示して確認 | それぞれの面に 4.5:1 で載る文字。面が明るければ暗い方（`canvas` 相当）、暗ければ明るい方（`surface` 相当）を当てる |
+| `ink-faint` | 既定値を示して確認 | **外部テーマが持つ「抑えた前景色」は1段しかない**（facet の `ink-muted` に対応する1色のみで、さらに薄い段は無い）。新しい色相を起こさず、その1色の色相・彩度を保ったまま `ink-muted` からさらに一段動かす——ライトはより明るく、ダークはより暗く（段の向きを反転させない）。両面（`canvas` / `surface`）で 3:1 を満たすまで L を 0.01 刻みで動かす |
 
 **`ok` だけを必ず聞くのは、これが意味を持つ色だからである。** `ok` は「応答・結果・確定」で、facet の設計思想「未定義と無効の型区別」を運ぶ3系統（`ink` / `warning` / `ok`）の1つである（rev 9章）。残り4つは装飾か派生であり、上の規則から導出できる。
 
@@ -152,7 +153,7 @@ node .claude/skills/palette-retheme/scripts/palette-fit.mjs --in <path>
 
 **現行配色を基準に取りたいときは `--in src/styles/palette.css`。** 差し替え前に走らせておくと、「どこがどれだけ余裕を持っていたか」が分かる。1トークンだけ微調整するときも、下書きを起こさずこれで足りる。
 
-下書き JSON の形（**11トークン×2モードすべて**が要る。値は hex / `rgb()` / `hsl()` / `oklch()` のどれでもよい）:
+下書き JSON の形（**12トークン×2モードすべて**が要る。値は hex / `rgb()` / `hsl()` / `oklch()` のどれでもよい）:
 
 ```json
 {
@@ -161,6 +162,7 @@ node .claude/skills/palette-retheme/scripts/palette-fit.mjs --in <path>
     "surface": "oklch(1 0 0)",
     "ink": "oklch(0.2686 0 0)",
     "ink-muted": "oklch(0.5555 0 0)",
+    "ink-faint": "oklch(0.72 0 0)",
     "rule": "oklch(0.9276 0.0058 264.53)",
     "grid": "oklch(0.95 0.005 264.53)",
     "warning": "oklch(0.6368 0.2078 25.33)",
@@ -169,7 +171,7 @@ node .claude/skills/palette-retheme/scripts/palette-fit.mjs --in <path>
     "ok-fg": "oklch(1 0 0)",
     "surface-accent": "oklch(0.92 0.04 145)"
   },
-  "dark": { "...": "同じ11キー" }
+  "dark": { "...": "同じ12キー" }
 }
 ```
 
@@ -279,7 +281,7 @@ npm test
 1. **元テーマの値 → 採用値**、および動かした量（どのトークンの L をいくつからいくつへ、なぜ）
 2. **捨てたテーマ色**（`primary` / `accent` / `secondary` / `ring` / `chart-*`）と、その帰結（手順3。「このテーマの主張色は facet に出ない」）
 3. **`warning` と `ok` の ΔE**（標準色覚・P型・D型、ライト／ダーク）
-4. **候補から選んでもらった5つ**の最終値。**ユーザーに確認せずこちらの判断で決めたものがあれば、どれをどの候補から採ったかを名指しする**（特に `ok`。手順5の非対話の逃げ道は、この名指しとセットでしか成立しない）
+4. **候補から選んでもらった6つ**の最終値。**ユーザーに確認せずこちらの判断で決めたものがあれば、どれをどの候補から採ったかを名指しする**（特に `ok`。手順5の非対話の逃げ道は、この名指しとセットでしか成立しない）
 
 **3 を必ず出す。** `open-issues.md` に「色を差し替えるときに、青緑側（`oklch(0.470 0.075 168)` 付近）へ振る案を再検討すること」という宿題が明示的に開いている。現行配色は P型 0.050 / D型 0.041 で、実用域とされる 0.10 を大きく下回っており、**差し替えはこの宿題を片付けられる唯一の機会**である。だから毎回この数字を突きつける。
 

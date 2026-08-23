@@ -2,16 +2,20 @@ import type {
   DeferralEvent,
   Hypothesis,
   IssueNode,
-  IssueTreeSchemaVersion1,
+  IssueTreeSchemaVersion2,
   JudgementEvent,
 } from '@/types/issue-tree'
 
 /**
  * 課題ツリーの導出（設計ノート D1〜D3・D9。このツールの心臓部）。
  *
- * 仮説と課題は**ミュータブルな状態を持たない**。現在ステータスは追記専用の
- * イベント列の最新から、問いの立ち方は木の形と件数から、抑制は祖先を遡って
- * 導出する。導出元のない手動ステータスは更新忘れで嘘をつく（D2）。
+ * 仮説と課題は**ミュータブルな状態を持たない**。現在ステータスはイベント列の
+ * 最新から、問いの立ち方は木の形と件数から、抑制は祖先を遡って導出する。
+ * 導出元のない手動ステータスは更新忘れで嘘をつく（D2）。
+ *
+ * **列が追記専用なのは仮説側だけである**——課題の見送りはトグルになり、
+ * 戻すときに最新1件を消す（D2 の反転節）。ここの導出はどちらでも変わらない
+ *——見るのは常に「最新の1件」であって、列がどう変わったかではない。
  *
  * **この導出をユーザー・ツール設定・ノード側の宣言で変えられるようにしては
  * ならない**——問いのセットが可変になった瞬間、「埋めるべき穴がいくつ
@@ -48,9 +52,11 @@ export function issueStatus(node: Pick<IssueNode, 'events'>): IssueStatus {
 /**
  * 見送りが効いている課題の ID 集合（D3）。自分自身の見送りも含む。
  *
- * **課題ノードのイベントは見送り系2種しか無い**（スキーマ）ので、1件でもあれば
- * 抑制される。見送りを解除して拾い直すときは、配下の仮説へ新しい判断イベントを
- * 追記して最新を更新する——課題側から解除イベントを打つ機構は持たない。
+ * **課題ノードのイベントは見送り（deferred）しか無い**（スキーマ）ので、1件でもあれば
+ * 抑制される。見送りを解除して拾い直すときは、**最新の見送りイベントを消す**
+ *（`commands.ts` の `toggleDeferral`）——解除を表す種別を追記する機構は持たない。
+ * 打ち消しのイベントを足す形にすると、「1件でもあれば抑制」がここで成立しなくなり、
+ * 列の中身を数えることになる。
  *
  * **循環しているファイルでも止まらないこと**が要件。循環・参照切れは整合性検証
  * （レベル2）が受け止める＝ファイルは開ける（rev 5章）ので、ここには壊れた木が
@@ -98,14 +104,16 @@ export function leafIssueIds(issues: readonly IssueNode[]): Set<string> {
 
 /** 仮説1件に立つ問い */
 export interface HypothesisQuestions {
-  /** 「検証結果は？」＝ events が0件 */
+  /** 「未決」＝ events が0件 */
   result: boolean
-  /** 「判断は？」＝ pendingNotes が空でない（レビューの締め忘れ） */
+  /** 「保留」＝最新が onHold（見たが判断できなかった。次のレビューで拾い直す） */
+  hold: boolean
+  /** 「未判断」＝ pendingNotes が空でない（レビューの締め忘れ） */
   judgement: boolean
 }
 
 export interface PosedQuestions {
-  /** issues と同じ添字。true＝「仮説は？」が立つ */
+  /** issues と同じ添字。true＝「仮説なし」が立つ */
   issueNeedsHypothesis: boolean[]
   /** hypotheses と同じ添字 */
   hypothesisQuestions: HypothesisQuestions[]
@@ -124,7 +132,7 @@ export interface PosedQuestions {
  * `duplicate-id`）がそれを促す
  */
 export function poseQuestions(
-  data: Pick<IssueTreeSchemaVersion1, 'issues' | 'hypotheses'>,
+  data: Pick<IssueTreeSchemaVersion2, 'issues' | 'hypotheses'>,
 ): PosedQuestions {
   const suppressed = suppressedIssueIds(data.issues)
   const leaves = leafIssueIds(data.issues)
@@ -140,6 +148,7 @@ export function poseQuestions(
     const off = suppressed.has(h.issueId)
     return {
       result: !off && h.events.length === 0,
+      hold: !off && latestKind(h.events) === 'onHold',
       judgement: !off && h.pendingNotes.length > 0,
     }
   })
@@ -149,6 +158,7 @@ export function poseQuestions(
 export interface IssueTreeTally {
   hypothesis: number
   result: number
+  hold: number
   judgement: number
   total: number
 }
@@ -157,36 +167,89 @@ export interface IssueTreeTally {
 export function tallyQuestions(posed: PosedQuestions): IssueTreeTally {
   let hypothesis = 0
   let result = 0
+  let hold = 0
   let judgement = 0
   for (const needs of posed.issueNeedsHypothesis) if (needs) hypothesis += 1
   for (const q of posed.hypothesisQuestions) {
     if (q.result) result += 1
+    if (q.hold) hold += 1
     if (q.judgement) judgement += 1
   }
-  return { hypothesis, result, judgement, total: hypothesis + result + judgement }
+  return { hypothesis, result, hold, judgement, total: hypothesis + result + hold + judgement }
 }
 
 /** 問いの文言。**アプリの画面と Skill の報告が同じ言葉を出すため、ここ1箇所に置く** */
 export const QUESTION_LABELS = {
-  hypothesis: '仮説は？',
-  result: '検証結果は？',
-  judgement: '判断は？',
+  hypothesis: '仮説なし',
+  result: '未決',
+  hold: '保留',
+  judgement: '未判断',
 } as const
 
-/** イベント種別の表示ラベル。**色では区別しない**（D8。役割トークンの意味論を汚さない） */
+/**
+ * イベント種別の表示ラベル（展開したときの「以前の判断」に出る文言）。
+ *
+ * **いまは `BADGE_LABELS` と同じ語しか並んでいない**——判断の種別を5語に畳んだ
+ * ため、俯瞰のバッジと展開の行が同じ言葉を出す。それでも `BADGE_LABELS` と
+ * 別に置くのは、鍵が違う（こちらは `JudgementKind`、あちらは `BadgeGroup`）
+ * からであり、俯瞰と詳細をまた別の言葉に分けたくなったとき、片方だけ動かせる
+ * ようにしておくため（`ISSUE_DEFERRED_LABEL` を別に置いているのと同じ理由）
+ */
 export const EVENT_KIND_LABELS: Record<JudgementKind, string> = {
   supported: '支持',
   rejected: '棄却',
-  supportedWithoutTest: '自明に成立',
-  rejectedWithoutTest: '検証せず棄却',
-  deferred: '今回見送り',
-  deferredToMainDev: '本開発送り',
+  onHold: '保留',
+  deferred: '見送り',
 }
 
-/** 集計の1行。エディタの帯と Skill の報告が逐語で同じ文字列を出す */
+export const TALLY_TOTAL_LABEL = '要対応'
+
+/** 集計の1行。エディタの帯と Skill の報告が逐語で同じ文字列を出す。0 の内訳は出さない */
 export function tallyLine(t: IssueTreeTally): string {
-  return `⚠ 未決 ${t.total}（${QUESTION_LABELS.hypothesis} ${t.hypothesis} ／ ${QUESTION_LABELS.result} ${t.result} ／ ${QUESTION_LABELS.judgement} ${t.judgement}）`
+  const parts = (
+    [
+      [QUESTION_LABELS.hypothesis, t.hypothesis],
+      [QUESTION_LABELS.result, t.result],
+      [QUESTION_LABELS.hold, t.hold],
+      [QUESTION_LABELS.judgement, t.judgement],
+    ] as const
+  )
+    .filter(([, n]) => n > 0)
+    .map(([label, n]) => `${label} ${n}`)
+  if (t.total === 0) return `${TALLY_TOTAL_LABEL} 0`
+  return `⚠ ${TALLY_TOTAL_LABEL} ${t.total}（${parts.join(' ／ ')}）`
 }
 
-/** 抑制された配下に添える1文（「なぜここには問いが無いのか」の説明） */
-export const SUPPRESSED_NOTE = '祖先の見送りにより問いは立たない（導出。子に値は持たない）'
+/**
+ * 俯瞰のバッジの5語。**判断を5語に畳んだいまは `JudgementKind` の4種＋未決と
+ * 一対一で、`badgeGroupOf` はほぼ名前の付け替えにすぎない。** それでも別の型に
+ * してあるのは、俯瞰の語彙（バッジ）と保存する種別（`kind`）が別の関心事だから
+ * である——`undecided` は保存されない導出値であり、この型でしか名前を持たない
+ */
+export type BadgeGroup = 'yes' | 'no' | 'hold' | 'open' | 'deferred'
+
+export function badgeGroupOf(status: HypothesisStatus): BadgeGroup {
+  switch (status) {
+    case 'supported':
+      return 'yes'
+    case 'rejected':
+      return 'no'
+    case 'onHold':
+      return 'hold'
+    case 'deferred':
+      return 'deferred'
+    case 'undecided':
+      return 'open'
+  }
+}
+
+export const BADGE_LABELS: Record<BadgeGroup, string> = {
+  yes: '支持',
+  no: '棄却',
+  hold: '保留',
+  open: '未決',
+  deferred: '見送り',
+}
+
+/** 課題側の見送りバッジ。値は `BADGE_LABELS.deferred` と同じだが、課題と仮説を独立に変えられるよう別名で持つ */
+export const ISSUE_DEFERRED_LABEL = '見送り'

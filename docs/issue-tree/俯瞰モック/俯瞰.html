@@ -1,0 +1,166 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&display=swap">
+  <style>
+    :root {
+      --canvas: oklch(0.921 0.012 96.4);
+      --surface: oklch(0.961 0.007 88.6);
+      --ink: oklch(0.205 0 89.9);
+      --ink-muted: oklch(0.381 0.007 170.1);
+      --ink-faint: oklch(0.62 0.007 170);
+      --rule: oklch(0.6 0.014 120);
+      --grid: oklch(0.87 0.014 120.3);
+      --warning: oklch(0.518 0.132 34.6);
+      --ok: oklch(0.5 0.068 126);
+    }
+    body { margin: 0; font-family: 'Geist', 'Yu Gothic UI', 'Hiragino Sans', sans-serif; color: var(--ink); }
+    a { color: var(--ink); } a:hover { color: var(--ink-muted); }
+    .badge { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 4px; font-size: 11px; font-weight: 500; line-height: 1; white-space: nowrap; box-sizing: border-box; }
+    .b-ok { background: var(--ok); color: var(--surface); }
+    .b-no { background: var(--ink); color: var(--surface); }
+    .b-hold { border: 1px solid var(--ink-muted); color: var(--ink-muted); }
+    .b-open { border: 1px dashed var(--warning); color: var(--warning); }
+    .b-wait { border: 1px solid var(--warning); color: var(--warning); }
+    .b-faint { border: 1px solid var(--ink-faint); color: var(--ink-faint); background: transparent; }
+    .issue { position: absolute; box-sizing: border-box; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); padding: 6px 10px; display: flex; flex-direction: column; gap: 5px; overflow: hidden; }
+    .title { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; line-height: 23px; font-weight: 500; }
+    .title .t { flex: 1 1 0; min-width: 0; }
+    .rows { display: flex; flex-direction: column; gap: 3px; }
+    .row { display: flex; align-items: center; gap: 8px; height: 22px; padding-left: 12px; font-size: 14px; line-height: 22px; font-weight: 400; position: relative; }
+    .row::before { content: ""; position: absolute; left: 2px; top: 9px; width: 4px; height: 4px; border-radius: 2px; background: var(--ink-muted); }
+    .row .t { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .reason { padding-left: 12px; font-size: 13px; line-height: 20px; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ph { color: var(--ink-muted); }
+    .faint { border-color: var(--ink-faint); color: var(--ink-faint); }
+    .faint .row::before { background: var(--ink-faint); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 28px; padding: 0 12px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); font-size: 14px; line-height: 1.2; color: var(--ink); }
+    .chip { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 4px; border: 1px dashed var(--warning); color: var(--warning); font-size: 12px; }
+    .hint { margin-left: 12px; }
+    .hint b { font-weight: 400; color: var(--ink); }
+  </style>
+</helmet>
+<div style="position: relative; width: 1460px; height: 700px; background: var(--canvas); overflow: hidden;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 40px; padding: 0 12px; border-bottom: 1px solid var(--rule); box-sizing: border-box; background: var(--canvas);">
+    <div style="font-size: 16px; font-weight: 700; line-height: 1.2;">課題ツリー-2</div>
+    <div style="font-size: 14px; color: var(--ink-muted);">課題ツリー-2.json</div>
+  </div>
+
+  <div style="position: absolute; left: 0; top: 40px; right: 0; bottom: 0; background-image: linear-gradient(to right, var(--grid) 0 1px, transparent 1px), linear-gradient(to bottom, var(--grid) 0 1px, transparent 1px); background-size: 24px 24px;"></div>
+
+  <div style="position: absolute; left: 0; right: 0; top: 40px; display: flex; align-items: center; gap: 12px; padding: 8px; box-sizing: border-box;">
+    <div class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>課題を追加</div>
+    <div class="btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>仮説を追加</div>
+    <div style="display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink-muted); white-space: nowrap;">
+      <span>要対応 4</span>
+      <span class="chip">仮説なし 2</span>
+      <span class="chip">未決 1</span>
+      <span class="chip" style="border-style: solid;">保留 1</span>
+    </div>
+    <div style="margin-left: auto; padding: 4px 8px; background: color-mix(in oklch, var(--surface) 80%, transparent); font-size: 12px; color: var(--ink-muted); white-space: nowrap;">
+      <span class="hint" style="margin-left: 0;"><b>Enter</b>: 兄弟を追加</span>
+      <span class="hint"><b>Tab</b>: 子課題を追加</span>
+      <span class="hint"><b>Ctrl+Enter</b>: 仮説／判断を追加</span>
+      <span class="hint"><b>←→</b>: 親子移動</span>
+      <span class="hint"><b>Alt+↑↓</b>: 並び替え</span>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 0; top: 40px; width: 1460px; height: 660px;">
+    <svg width="1460" height="660" viewBox="0 0 1460 660" fill="none" stroke="var(--rule)" stroke-width="1" style="position: absolute; left: 0; top: 0; overflow: visible;" aria-hidden="true">
+      <path d="M324 320 C348 320 348 185.5 372 185.5"></path>
+      <path d="M324 320 C348 320 348 454.5 372 454.5"></path>
+      <path d="M692 185.5 C716 185.5 716 104 740 104"></path>
+      <path d="M692 185.5 C716 185.5 716 180 740 180"></path>
+      <path d="M692 185.5 C716 185.5 716 267 740 267"></path>
+      <path d="M1060 267 C1084 267 1084 242.5 1108 242.5"></path>
+      <path d="M1060 267 C1084 267 1084 291.5 1108 291.5"></path>
+      <path d="M596 454.5 C668 454.5 668 366.5 740 366.5"></path>
+      <path d="M596 454.5 C668 454.5 668 467.5 740 467.5"></path>
+      <path d="M596 454.5 C668 454.5 668 555 740 555"></path>
+      <path d="M1060 555 C1084 555 1084 555.5 1108 555.5" stroke-dasharray="4 3"></path>
+    </svg>
+
+    <div class="issue" style="left: 24px; top: 290px; width: 300px; height: 60px;">
+      <div class="title"><span class="t">★外部求人サイトの応募者自動連携機能が使われていない</span></div>
+    </div>
+
+    <div class="issue" style="left: 372px; top: 141px; width: 320px; height: 89px;">
+      <div class="title"><span class="t">連携設定がめんどくさい</span></div>
+      <div class="rows">
+        <div class="row"><span class="t">連携を楽にする</span><span class="badge b-wait">保留</span></div>
+        <div class="row"><span class="t ph">仮説</span><span class="badge b-open">未決</span></div>
+      </div>
+    </div>
+
+    <div class="issue" style="left: 372px; top: 436px; width: 224px; height: 37px;">
+      <div class="title"><span class="t">連携するメリットがあまりない</span></div>
+    </div>
+
+    <div class="issue" style="left: 740px; top: 72px; width: 320px; height: 64px;">
+      <div class="title"><span class="t">設定手順が複雑</span></div>
+      <div class="rows">
+        <div class="row"><span class="t">設定項目を減らす</span><span class="badge b-ok">支持</span></div>
+      </div>
+    </div>
+
+    <div class="issue" style="left: 740px; top: 148px; width: 320px; height: 64px;">
+      <div class="title"><span class="t">各項目に設定する値がわかりにくい</span></div>
+      <div class="rows">
+        <div class="row"><span class="t">AIに入力を支援してもらう</span><span class="badge b-no">棄却</span></div>
+      </div>
+    </div>
+
+    <div class="issue" style="left: 740px; top: 235px; width: 320px; height: 64px;">
+      <div class="title"><span class="t">サポートサイトの説明が不十分</span></div>
+      <div class="rows">
+        <div class="row"><span class="t">求人媒体ごとにページを作る</span><span class="badge b-no">棄却</span></div>
+      </div>
+    </div>
+
+    <div class="issue" style="left: 1108px; top: 224px; width: 150px; height: 37px;">
+      <div class="title"><span class="t ph">課題</span><span class="badge b-open" style="margin-top: 2px;">仮説なし</span></div>
+    </div>
+    <div class="issue" style="left: 1108px; top: 273px; width: 150px; height: 37px;">
+      <div class="title"><span class="t ph">課題</span><span class="badge b-open" style="margin-top: 2px;">仮説なし</span></div>
+    </div>
+
+    <div class="issue" style="left: 740px; top: 322px; width: 320px; height: 89px;">
+      <div class="title"><span class="t">自動化機能がすくない</span></div>
+      <div class="rows">
+        <div class="row"><span class="t">応募サンクスメール送信できるようにする</span><span class="badge b-ok">支持</span></div>
+        <div class="row"><span class="t">選考案内を連携と同時に送る</span><span class="badge b-no">棄却</span></div>
+      </div>
+    </div>
+
+    <div class="issue" style="left: 740px; top: 423px; width: 320px; height: 89px;">
+      <div class="title"><span class="t">連携タイミングが遅い</span></div>
+      <div class="rows">
+        <div class="row"><span class="t">３時間に一回連携する</span><span class="badge b-no">棄却</span></div>
+        <div class="row"><span class="t">ユーザが連携時間を複数設定できる</span><span class="badge b-ok">支持</span></div>
+      </div>
+    </div>
+
+    <div class="issue" style="left: 740px; top: 524px; width: 320px; height: 62px;">
+      <div class="title"><span class="t">連携されたことに気づけない</span><span class="badge b-hold" style="margin-top: 2px;">見送り</span></div>
+      <div class="reason">通知の設計は本開発で扱う。PoC は連携の成立に集中</div>
+    </div>
+
+    <div class="issue faint" style="left: 1108px; top: 511px; width: 320px; height: 89px;">
+      <div class="title"><span class="t">通知機能がない</span></div>
+      <div class="rows">
+        <div class="row"><span class="t">メールで通知する</span><span class="badge b-faint">支持</span></div>
+        <div class="row"><span class="t">Slack、Teamsで通知する</span><span class="badge b-faint">支持</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

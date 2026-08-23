@@ -47,6 +47,7 @@ describe('palette-fit.mjs（型ストリップ経由の import が生きてい�
     --surface: oklch(0.961 0.007 88.6);
     --ink: oklch(0.9 0 89.9);
     --ink-muted: oklch(0.381 0.007 170.1);
+    --ink-faint: oklch(0.58 0.007 170);
     --rule: oklch(0.6 0.014 120);
     --grid: oklch(0.87 0.014 120.3);
     --warning: oklch(0.518 0.132 34.6);
@@ -60,6 +61,7 @@ describe('palette-fit.mjs（型ストリップ経由の import が生きてい�
     --surface: oklch(0.205 0 89.9);
     --ink: oklch(0.85 0.007 88.6);
     --ink-muted: oklch(0.698 0.042 120);
+    --ink-faint: oklch(0.55 0.007 170);
     --rule: oklch(0.508 0.007 170.1);
     --grid: oklch(0.26 0.006 165);
     --warning: oklch(0.68 0.13 35);

@@ -97,23 +97,28 @@ export function classifyFile(text: string, registry: ModuleRegistry): LoadResult
       reason: 'schemaVersion がありません（このバージョンでは編集できません）',
     }
   }
-  if (record.schemaVersion !== module.schemaVersion) {
-    // 既知の旧版が生まれたら module.migrate による移行をここに挟む
-    // （glossary は schemaVersion 1 が初版のため、現状「異なる版」は新版しかない）
+  const version = record.schemaVersion
+  if (typeof version !== 'number' || version > module.schemaVersion) {
     return {
       status: 'listOnly',
       type,
       title,
-      reason: `このバージョンでは編集できない schemaVersion です: ${String(record.schemaVersion)}`,
+      reason: `このバージョンでは編集できない schemaVersion です: ${String(version)}`,
     }
   }
+  // 既知の旧版はメモリ上で現行版へ移してから検証する（rev 5章）。
+  // **移行は検証を飛ばさない**——移した結果がスキーマに合わなければ rejected
+  const candidate: Record<string, unknown> =
+    version < module.schemaVersion
+      ? (module.migrate(record, version) as Record<string, unknown>)
+      : record
 
   let validate = validatorCache.get(module)
   if (!validate) {
     validate = createSchemaValidator(module.schema)
     validatorCache.set(module, validate)
   }
-  const result = validate(record)
+  const result = validate(candidate)
   if (!result.ok) {
     return {
       status: 'rejected',
@@ -123,5 +128,5 @@ export function classifyFile(text: string, registry: ModuleRegistry): LoadResult
       errors: result.errors,
     }
   }
-  return { status: 'editable', type, title: titleOf(record), data: record }
+  return { status: 'editable', type, title: titleOf(candidate), data: candidate }
 }
