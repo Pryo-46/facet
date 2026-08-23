@@ -52,9 +52,11 @@ import {
   ACTOR_INSET_X,
   ACTOR_MAX_WIDTH,
   ACTOR_MIN_WIDTH,
+  ANSWER_BORDER,
   ANSWER_CONTENT_WIDTH,
   ANSWER_INSET_X,
   ANSWER_INSET_Y,
+  ANSWER_NOT_APPLICABLE_PREFIX_PAD_X,
   gutterLabelText,
   LABEL_BOX_CLASS,
   LABEL_INSET_X,
@@ -77,6 +79,7 @@ import {
   unposedAnswers,
   type AnswerPath,
 } from './questions'
+import { NOT_APPLICABLE_LABEL } from './output-labels'
 import {
   createCanvasMeasurer,
   FALLBACK_CANVAS_FONT,
@@ -188,6 +191,17 @@ const ANSWER_WRAP: WrapOptions = {
   minWidth: ANSWER_BOX_WIDTH,
   insetX: ANSWER_INSET_X,
   insetY: ANSWER_INSET_Y,
+}
+/**
+ * notApplicable の答え用（M22）。GutterSlot は「考慮不要」の接頭ぶん左だけ
+ * 広く空ける（`ANSWER_NOT_APPLICABLE_PREFIX_PAD_X`）ので、右は変わらないまま
+ * 左右非対称になる。`wrapWithin` は `insetX * 2`（左右の合計）しか見ないので、
+ * 左右それぞれの実際の inset を足して2で割った値を渡せば、合計は実物と合う
+ */
+const ANSWER_NOT_APPLICABLE_LEFT_INSET = ANSWER_NOT_APPLICABLE_PREFIX_PAD_X + ANSWER_BORDER
+const NOT_APPLICABLE_ANSWER_WRAP: WrapOptions = {
+  ...ANSWER_WRAP,
+  insetX: (ANSWER_NOT_APPLICABLE_LEFT_INSET + ANSWER_INSET_X) / 2,
 }
 
 function slotStateOf(decision: 'handled' | 'notApplicable' | undefined): SlotState {
@@ -391,12 +405,18 @@ export function SequenceEditor({
     const answers = QUESTION_ORDER.filter((path) => posed[path]).map((path) => {
       const slot = readSlot(step, path)
       const text = slot.text ?? ''
-      // 未回答の枠は placeholder の「未定義」が入る高さを確保する（空だと潰れる）
-      const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
+      const state = slotStateOf(slot.decision)
+      // 未回答の枠は placeholder の「未定義」が入る高さを確保する（空だと潰れる）。
+      // notApplicable は「考慮不要」の接頭ぶん実効幅が狭いので専用の WrapOptions で測る
+      const block = wrap(
+        'answer',
+        text === '' ? '未定義' : text,
+        state === 'notApplicable' ? NOT_APPLICABLE_ANSWER_WRAP : ANSWER_WRAP,
+      )
       return {
         path,
         question: labels[path],
-        state: slotStateOf(slot.decision),
+        state,
         text,
         // **問いラベルの方が高いことがある。** 高い方を採らないと行から食み出す
         height: Math.max(block.height, questionHeight(labels[path], path === 'ifExecuted')),
@@ -407,7 +427,7 @@ export function SequenceEditor({
       const slot = readSlot(step, path)
       const text =
         slot.decision === 'notApplicable' && (slot.text === undefined || slot.text === '')
-          ? '─ 考慮不要'
+          ? NOT_APPLICABLE_LABEL
           : (slot.text ?? '')
       const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
       // GhostSlot もラベル列を持つ（インデントは無い）

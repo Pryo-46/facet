@@ -1,5 +1,6 @@
 import { CellInput, type FieldState } from '@/components/CellInput'
 import { ANSWER_BOX_CLASS, gutterLabelText } from './measure'
+import { NOT_APPLICABLE_LABEL } from './output-labels'
 
 export type SlotState = 'unanswered' | 'handled' | 'notApplicable'
 
@@ -28,7 +29,8 @@ export interface GutterSlotProps {
  * 問いスロット1つ（design-notes 論点7）。
  * 未定義＝`missing` の淡い面＋破線の枠（rev 9章 規約2。M21 の実機確認で
  * 「破線だけではガターのスロットが方眼に埋もれて拾えない」と判断して面を足した）。
- * handled＝無地・通常文字。notApplicable＝無地・ink-muted＋「─ 考慮不要」の接頭。
+ * handled＝無地・通常文字。notApplicable＝無地・ink-muted＋「考慮不要」の接頭
+ * （M22。以前は `─` の記号だけだったが、初見に意図が伝わらないため語にした）。
  * 3状態の切替は Ctrl+Enter（toggle-item-state）で、キーの解釈は
  * エディタ側の resolveCommand が行う——ここはキーの意味を決めない
  */
@@ -54,14 +56,14 @@ export function GutterSlot(props: GutterSlotProps) {
       <div className="relative" style={{ width: props.answerWidth }}>
         {props.state === 'notApplicable' && (
           <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1 text-sm">
-            ─
+            {NOT_APPLICABLE_LABEL}
           </span>
         )}
         <CellInput
           multiline
           autoSize={false}
           className={`h-full w-full resize-none overflow-hidden whitespace-pre-wrap break-all rounded-sm ${ANSWER_BOX_CLASS} ${face} ${
-            props.state === 'notApplicable' ? 'pl-6' : ''
+            props.state === 'notApplicable' ? 'pl-16' : ''
           } text-sm outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
           aria-label={props['aria-label']}
           data-cell={props['data-cell']}

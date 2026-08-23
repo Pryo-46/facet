@@ -621,14 +621,14 @@ describe('立っていない答えのグレースロット', () => {
     expect(screen.getByText('再試行する')).toBeDefined()
   })
 
-  it('notApplicable の立っていない答えは「─ 考慮不要」で見える', () => {
+  it('notApplicable の立っていない答えは「考慮不要」で見える', () => {
     const d = ghostDoc()
     d.steps[0] = {
       ...d.steps[0],
       failures: { failed: { decision: 'notApplicable' } },
     }
     setup(d)
-    expect(screen.getByText('─ 考慮不要')).toBeDefined()
+    expect(screen.getByText('考慮不要')).toBeDefined()
   })
 
   it('reply 行でも立っていない答えがグレースロットで出る（行内表示＝ブレスト決定7）', () => {
