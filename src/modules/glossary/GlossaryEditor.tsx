@@ -270,7 +270,7 @@ export function GlossaryEditor({
                 return (
                   <th
                     key={col.field}
-                    className={`sticky top-0 z-10 relative border-b border-rule bg-surface px-2 py-1 text-xs font-medium tracking-wide text-ink-muted${i === 0 ? '' : ` ${colBorder}`}`}
+                    className={`sticky top-0 z-10 relative border-b border-rule bg-surface-muted px-2 py-1 text-xs font-medium tracking-wide text-ink-muted${i === 0 ? '' : ` ${colBorder}`}`}
                   >
                     {FIELD_LABELS[col.field]}
                     {/* 幅を持たない定義列は自分ではハンドルを出さないが、右隣に

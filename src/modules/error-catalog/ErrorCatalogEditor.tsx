@@ -382,7 +382,7 @@ export function ErrorCatalogEditor({
                   <th
                     key={col.field}
                     // sticky 自体が絶対配置の包含ブロックになるので relative は要らない
-                    className={`sticky top-0 z-10 border-b border-rule bg-surface px-2 py-1 text-xs font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
+                    className={`sticky top-0 z-10 border-b border-rule bg-surface-muted px-2 py-1 text-xs font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
                   >
                     {label}
                     {/* No 列は導出（データ配列の index+1）なのでハンドルを出さない。
