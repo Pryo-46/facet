@@ -3,7 +3,7 @@ import { createEstimateMeasurer } from '@/core/canvas/wrap'
 import type { Hypothesis, IssueNode, IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { ISSUE_DEFERRED_LABEL, poseQuestions } from './derive'
 import { DEFER_TRIGGER_LABEL, layoutIssueTree, type IssueTreeFonts } from './layout'
-import { BADGE_GAP, BOX_WIDTH, ISSUE_INSET_X, ISSUE_TITLE_MIN_WIDTH } from './measure'
+import { BADGE_GAP, BOX_TEXT_MAX_LINES, BOX_WIDTH, ISSUE_INSET_X } from './measure'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
@@ -129,41 +129,79 @@ describe('layoutIssueTree', () => {
     expect(open.text.width).toBe(pending.text.width)
   })
 
-  it('仮説を持たない課題の箱はタイトルの自然幅（ロジックツリーと同じ）', () => {
-    const out = run(make({ issues: [{ ...root, text: '短い' }] }))
-    expect(out.issues[0]!.rect.width).toBeLessThan(BOX_WIDTH)
-    // **箱の下限は定数ではない**——タイトルの下限に、右上へ常に空ける枠のぶんが乗る
-    expect(out.issues[0]!.rect.width).toBeGreaterThan(ISSUE_TITLE_MIN_WIDTH)
-  })
-
   /**
-   * **実機で踏んだ欠陥の再現。** タイトル行の右上を「常に1枠空ける」ようにしたとき、
-   * 折り返しの下限を**箱の**下限から枠のぶんを引いて作っていた。「仮説なし」バッジは
-   * 70px 前後を取るので、96 の箱では入力欄が数 px になり、新しく作った課題に
-   * 1字も打てなくなる。**枠が文章を食うのではなく、箱が枠のぶん広がる**のが正しい
+   * **M24 で反転した観点。** 以前は「仮説を持たない課題の箱はタイトルの
+   * 自然幅」だった。箱幅が内容で決まると、同じ列の中でバッジの右端が
+   * 散り、「どれが未決か」を知るのに全ノードを読む必要が出る
+   *（UI ノート D3 rev.3 ＝ スキャン性）
    */
-  it('空のタイトルでもバッジのぶん箱が広がり、入力欄は下限を割らない', () => {
-    // 葉で仮説が無い＝「仮説なし」が立つ（右上に一番広い枠を取るのがこの場合）
-    const data = make({ issues: [{ ...root, text: '' }] })
-    expect(poseQuestions(data).issueNeedsHypothesis[0]).toBe(true)
-    const box = run(data).issues[0]!
-    expect(box.title.width).toBeGreaterThanOrEqual(ISSUE_TITLE_MIN_WIDTH)
-    // 箱は「タイトル＋左右の余白」よりさらに広い（＝枠のぶんを箱が負担している）
-    expect(box.rect.width).toBeGreaterThan(box.title.width + ISSUE_INSET_X * 2)
-    // タイトルは箱からはみ出さない
-    expect(box.title.x + box.title.width).toBeLessThanOrEqual(box.rect.x + box.rect.width)
-  })
+  it('箱の幅は、仮説の有無・見送りの有無によらず BOX_WIDTH で一定', () => {
+    // (a) 葉で仮説なし（「仮説なし」バッジが立つ＝一番広い枠）
+    const warn = run(make({ issues: [{ ...root, text: '短い' }] })).issues[0]!
+    expect(warn.rect.width).toBe(BOX_WIDTH)
 
-  it('固定幅（BOX_WIDTH）の箱でも、枠を引いたタイトルは下限を割らない', () => {
-    // 仮説を持つ箱では「仮説なし」は立たないが、ホバー中に出る見送りトリガーの枠は空く
+    // (b) 仮説を持つ
     const withRows = run(make({ issues: [root], hypotheses: [h(1)] })).issues[0]!
     expect(withRows.rect.width).toBe(BOX_WIDTH)
-    expect(withRows.title.width).toBeGreaterThanOrEqual(ISSUE_TITLE_MIN_WIDTH)
+
+    // (c) 見送り済み
     const deferred = run(
       make({ issues: [{ ...root, events: [{ kind: 'deferred', note: '今回は追わない' }] }] }),
     ).issues[0]!
     expect(deferred.rect.width).toBe(BOX_WIDTH)
-    expect(deferred.title.width).toBeGreaterThanOrEqual(ISSUE_TITLE_MIN_WIDTH)
+
+    // (d) バッジもトグルも立たない（子を持つ中間の課題）
+    const middle = run(make({ issues: [root, child] })).issues[0]!
+    expect(middle.rect.width).toBe(BOX_WIDTH)
+  })
+
+  /**
+   * **D3 rev.3 の主張そのものの門番。** 右上の枠に出るものは3つ（見送りバッジ・
+   * 「仮説なし」バッジ・見送りトグル）だが、**レイアウトが矩形を組むのは
+   * 見送りバッジだけ**で、残る2つは `IssueBox` が CSS の `right: ISSUE_PADDING_X`
+   * で右寄せする。どちらも右端は「箱の右端 − `ISSUE_INSET_X`」に落ちるので、
+   * **箱幅が揃っていれば3種類とも同じ x に並ぶ**——上のテストと対で見ること
+   */
+  it('同じ深さの箱では、見送りバッジの右端が揃う', () => {
+    const a: IssueNode = { id: I(1), parentId: I(0), text: '短い', events: [{ kind: 'deferred', note: 'r' }] }
+    const b: IssueNode = {
+      id: I(2),
+      parentId: I(0),
+      text: 'とても長いほうの課題の文言でありこちらは折り返す',
+      events: [{ kind: 'deferred', note: 'r' }],
+    }
+    const out = run(make({ issues: [root, a, b] }))
+    const da = out.issues[1]!.deferral!
+    const db = out.issues[2]!.deferral!
+    expect(da.badge.x + da.badge.width).toBe(db.badge.x + db.badge.width)
+    // 箱の右端 − ISSUE_INSET_X に一致する
+    const rect = out.issues[1]!.rect
+    expect(da.badge.x + da.badge.width).toBe(rect.x + rect.width - ISSUE_INSET_X)
+  })
+
+  /**
+   * 固定幅になっても、**一番広い枠を引いたタイトルが痩せすぎない**ことは
+   * 依然として要る（M24 より前は `ISSUE_TITLE_MIN_WIDTH` が持っていた不変条件）。
+   * **下限をリテラルで書かない**——段が変われば「8字ぶん」の px は動くので、
+   * テストの測定器から導く
+   */
+  it('一番広い枠（仮説なしバッジ）を引いても、タイトルは日本語8字ぶんを残す', () => {
+    const data = make({ issues: [{ ...root, text: '' }] })
+    expect(poseQuestions(data).issueNeedsHypothesis[0]).toBe(true)
+    const box = run(data).issues[0]!
+    expect(box.title.width).toBeGreaterThanOrEqual(fonts.title.measure('あ'.repeat(8)))
+    // タイトルは箱からはみ出さない
+    expect(box.title.x + box.title.width).toBeLessThanOrEqual(box.rect.x + box.rect.width)
+  })
+
+  /** M24: 骨格を読ませるため、閉じた箱に出る文章の高さを有界にする */
+  it('タイトルと見送りの理由は BOX_TEXT_MAX_LINES で打ち切られる', () => {
+    const long = '課'.repeat(200)
+    const out = run(
+      make({ issues: [{ ...root, text: long, events: [{ kind: 'deferred', note: long }] }] }),
+    ).issues[0]!
+    expect(out.title.height).toBe(fonts.title.lineHeight * BOX_TEXT_MAX_LINES)
+    expect(out.deferral!.reason.height).toBe(fonts.small.lineHeight * BOX_TEXT_MAX_LINES)
   })
 
   it('展開した仮説だけパネルを持ち、箱はその分だけ高くなる', () => {

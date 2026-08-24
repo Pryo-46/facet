@@ -20,11 +20,10 @@ import {
   BADGE_HEIGHT,
   BADGE_PADDING_X,
   BOX_CONTENT_WIDTH,
+  BOX_TEXT_MAX_LINES,
   BOX_WIDTH,
   ISSUE_INSET_X,
   ISSUE_INSET_Y,
-  ISSUE_MAX_WIDTH,
-  ISSUE_TITLE_MIN_WIDTH,
   PANEL_CONTENT_WIDTH,
   PANEL_GAP,
   PANEL_INDENT,
@@ -141,13 +140,24 @@ export const SECTION_LABELS = {
 /** 「＋ FB」のボタンの文言 */
 export const ADD_NOTE_LABEL = '＋ FB'
 
-/** 折り返した文章の高さ（余白は箱が1度だけ持つので、ここでは 0） */
-function textHeight(text: string, font: IssueTreeFont, width: number): number {
+/**
+ * 折り返した文章の高さ（余白は箱が1度だけ持つので、ここでは 0）。
+ *
+ * `maxLines` を渡すと高さがそこで止まる。**渡すのは閉じた箱に出る文章だけ**
+ *——タイトルと見送りの理由。展開パネルの中は詳細を読む場所なので渡さない（M24）
+ */
+function textHeight(
+  text: string,
+  font: IssueTreeFont,
+  width: number,
+  maxLines?: number,
+): number {
   return wrapWithin(text, font.measure, font.lineHeight, {
     maxWidth: width,
     minWidth: 0,
     insetX: 0,
     insetY: 0,
+    maxLines,
   }).height
 }
 
@@ -451,45 +461,26 @@ export function layoutIssueTree(
       : Math.max(badgeW, badgeWidth(DEFER_TRIGGER_LABEL, fonts.small))
     const reserve = BADGE_GAP + slotW
 
-    // 仮説の行も見送りの理由も無い箱は、ロジックツリーのノードと同じ
-    // 「タイトルの自然幅」。**バッジのぶんは先に取り置く**——取り置かないと、
-    // 短いタイトルの箱でバッジが文言に重なる
-    let width: number
-    let titleWidth: number
-    if (rows.length > 0 || deferred) {
-      // 固定幅（320）から取り置く側。一番広い枠（「仮説なし」バッジ）でも
-      // 残りは `ISSUE_TITLE_MIN_WIDTH` を大きく上回る（layout.test.ts が固定している）
-      width = BOX_WIDTH
-      titleWidth = BOX_CONTENT_WIDTH - reserve
-    } else {
-      // **下限を持つのはタイトルであって箱ではない**（measure.ts の解説）。
-      // 箱の下限から枠のぶんを引くと、空けた枠が文章を食って入力欄が数 px になる。
-      // ここでは逆に、タイトルの下限＋枠のぶんまで**箱の方を広げる**
-      //
-      // **この2行は `minWidth <= maxWidth` に依存している。** `wrapWithin` は
-      // 食い違ったとき `maxWidth` の側を採るので、逆転すると**タイトルが黙って
-      // 下限を割る**（例外も赤いテストも出ない）。いまの余裕は大きい——
-      // `minWidth` は 150（`ISSUE_TITLE_MIN_WIDTH` 128 ＋ `ISSUE_INSET_X` 11 × 2）で
-      // 固定なのに対し、`maxWidth` は 242 以上（320 − 一番広い枠 78）ある。
-      // 一番広い枠は「仮説なし」バッジ（`fonts.small` 14px で4字 ≒ 56px ＋
-      // `BADGE_PADDING_X` 6 × 2 ＋ `BADGE_BORDER` 1 × 2 ＝ 70）に `BADGE_GAP` 8 を
-      // 足した 78——「見送り」のトリガー（3字 ≒ 42px ＋ 同じ `badgeWidth` の式で
-      // ＋14 ＝ 56）より広い。ただし `reserve` はバッジ文言の**実測**で決まるので、
-      // 語を長くしたりフォントを大きくしたりすれば縮む。**`ISSUE_MAX_WIDTH -
-      // reserve` が 150 を割るほどバッジの語が伸びたら、ここで下限を
-      // 切り上げるか語を短くすること**
-      const wrapped = wrapWithin(node.text, fonts.title.measure, fonts.title.lineHeight, {
-        maxWidth: ISSUE_MAX_WIDTH - reserve,
-        minWidth: ISSUE_TITLE_MIN_WIDTH + ISSUE_INSET_X * 2,
-        insetX: ISSUE_INSET_X,
-        insetY: 0,
-      })
-      width = Math.min(ISSUE_MAX_WIDTH, wrapped.width + reserve)
-      titleWidth = width - ISSUE_INSET_X * 2 - reserve
-    }
-    const titleHeight = textHeight(node.text, fonts.title, titleWidth)
+    // **箱の幅は導出しない**（`measure.ts` の `BOX_WIDTH` の解説）。
+    // M24 より前は「仮説も見送りも無い箱だけタイトルの自然幅」という分岐が
+    // あり、そこで `minWidth <= maxWidth`（逆転するとタイトルが黙って下限を
+    // 割る）に依存していた。**幅が固定になったので、その依存ごと消えている**
+    // ——枠は常に固定幅の中から取られ、枠が文章を食って下限を割る経路が無い。
+    //
+    // 残っている不変条件は「一番広い枠を引いてもタイトルが痩せすぎない」だけで、
+    // これは `layout.test.ts` が測定器から導いた下限で見ている。**`BOX_WIDTH` を
+    // 縮めるか、バッジの語を伸ばすと、そのテストが赤くなる**
+    const width = BOX_WIDTH
+    const titleWidth = BOX_CONTENT_WIDTH - reserve
+
+    const titleHeight = textHeight(node.text, fonts.title, titleWidth, BOX_TEXT_MAX_LINES)
     const reasonHeight = deferred
-      ? textHeight(node.events[node.events.length - 1].note, fonts.small, BOX_CONTENT_WIDTH - ROW_INDENT)
+      ? textHeight(
+          node.events[node.events.length - 1].note,
+          fonts.small,
+          BOX_CONTENT_WIDTH - ROW_INDENT,
+          BOX_TEXT_MAX_LINES,
+        )
       : null
 
     let height = ISSUE_INSET_Y * 2 + titleHeight
