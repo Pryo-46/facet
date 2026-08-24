@@ -13,9 +13,9 @@ const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
  *——ここで見るのは寸法どうしの関係であって実寸ではない
  */
 const fonts: IssueTreeFonts = {
-  title: { measure: createEstimateMeasurer(14), lineHeight: 23 },
-  body: { measure: createEstimateMeasurer(14), lineHeight: 23 },
-  small: { measure: createEstimateMeasurer(12), lineHeight: 18 },
+  title: { measure: createEstimateMeasurer(16), lineHeight: 24 },
+  body: { measure: createEstimateMeasurer(16), lineHeight: 24 },
+  small: { measure: createEstimateMeasurer(14), lineHeight: 18 },
 }
 
 function run(data: IssueTreeSchemaVersion2, expandedIndex = -1) {

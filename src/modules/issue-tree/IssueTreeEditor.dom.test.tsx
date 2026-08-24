@@ -249,7 +249,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
      * `layout.test.ts` が「畳まないこと」として固定している）。
      *
      * **空けた幅と描いた幅が一致することは、ここでは検査していない。**
-     * `px-1`→`px-2`・枠線の削除・`text-xs`→`text-sm`・`ACTION_INSET_X` の
+     * `px-1`→`px-2`・枠線の削除・`text-sm`→`text-base`・`ACTION_INSET_X` の
      * 変更——予約幅と描画幅を食い違わせる経路はどれも `textContent` を
      * 動かさない。**jsdom には版組が無いので原理的に測れない**ので、
      * 対は「measure.ts の定数と Tailwind クラスを対で直す」という規律

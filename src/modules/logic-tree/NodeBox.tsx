@@ -46,7 +46,7 @@ export function NodeBox(props: NodeBoxProps) {
       <CellInput
         multiline
         autoSize={false}
-        className={`h-full w-full resize-none overflow-hidden whitespace-pre-wrap break-all rounded-sm ${NODE_BOX_CLASS} ${face} text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
+        className={`h-full w-full resize-none overflow-hidden whitespace-pre-wrap break-all rounded-sm ${NODE_BOX_CLASS} ${face} text-base leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
         aria-label={props.label}
         data-cell={props.nodeKey}
         value={props.text}

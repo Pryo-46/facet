@@ -465,11 +465,15 @@ export function layoutIssueTree(
       // **この2行は `minWidth <= maxWidth` に依存している。** `wrapWithin` は
       // 食い違ったとき `maxWidth` の側を採るので、逆転すると**タイトルが黙って
       // 下限を割る**（例外も赤いテストも出ない）。いまの余裕は大きい——
-      // `minWidth` は 142（`ISSUE_TITLE_MIN_WIDTH` 120 ＋ `ISSUE_INSET_X` 11 × 2）で
-      // 固定なのに対し、`maxWidth` は 250 以上（320 − 一番広い枠 70）ある。
-      // ただし `reserve` はバッジ文言の**実測**で決まるので、語を長くしたり
-      // フォントを大きくしたりすれば縮む。**`ISSUE_MAX_WIDTH - reserve` が 142 を
-      // 割るほどバッジの語が伸びたら、ここで下限を切り上げるか語を短くすること**
+      // `minWidth` は 150（`ISSUE_TITLE_MIN_WIDTH` 128 ＋ `ISSUE_INSET_X` 11 × 2）で
+      // 固定なのに対し、`maxWidth` は 242 以上（320 − 一番広い枠 78）ある。
+      // 一番広い枠は「仮説なし」バッジ（`fonts.small` 14px で4字 ≒ 56px ＋
+      // `BADGE_PADDING_X` 6 × 2 ＋ `BADGE_BORDER` 1 × 2 ＝ 70）に `BADGE_GAP` 8 を
+      // 足した 78——「見送り」のトリガー（3字 ≒ 42px ＋ `ACTION_INSET_X` 5 × 2 ＝
+      // 52）より広い。ただし `reserve` はバッジ文言の**実測**で決まるので、
+      // 語を長くしたりフォントを大きくしたりすれば縮む。**`ISSUE_MAX_WIDTH -
+      // reserve` が 150 を割るほどバッジの語が伸びたら、ここで下限を
+      // 切り上げるか語を短くすること**
       const wrapped = wrapWithin(node.text, fonts.title.measure, fonts.title.lineHeight, {
         maxWidth: ISSUE_MAX_WIDTH - reserve,
         minWidth: ISSUE_TITLE_MIN_WIDTH + ISSUE_INSET_X * 2,

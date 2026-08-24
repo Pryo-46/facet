@@ -93,9 +93,9 @@ import { listOpenTargets, nextOpenTarget, type OpenKind } from './open-targets'
 const MEASURE_CACHE_LIMIT = 2000
 
 /** 仮説の文言・由来・根拠・FB に当たるクラスのうち、フォントを決めている部分 */
-const BODY_FONT_CLASS = 'text-sm'
+const BODY_FONT_CLASS = 'text-base leading-normal'
 /** 節の見出し・見送りの理由・バッジに当たるクラス */
-const SMALL_FONT_CLASS = 'text-xs'
+const SMALL_FONT_CLASS = 'text-sm'
 
 /** 木の操作ヒント。`$mod` / `$alt` は KeyHints が解決する */
 const ISSUE_TREE_HINTS: readonly KeyHint[] = [
@@ -181,7 +181,7 @@ const TRIGGER_BASE =
  * ここの `px-1` ＋ 枠線 1px）なので、余白のクラスは対で直すこと
  */
 const TRIGGER_FACE =
-  'rounded-sm border border-rule bg-surface px-1 text-xs text-ink-muted hover:bg-canvas'
+  'rounded-sm border border-rule bg-surface px-1 text-sm text-ink-muted hover:bg-canvas'
 
 interface KindMenuProps {
   /** アクセシブル名（トリガーのボタン） */
@@ -856,7 +856,7 @@ export function IssueTreeEditor({
               （rev 10章）ので、マウスだけの人にも構造を増やす手段が要る */}
           <button
             type="button"
-            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
             onClick={addIssueFromBanner}
           >
             <Plus aria-hidden className="size-4" />
@@ -864,7 +864,7 @@ export function IssueTreeEditor({
           </button>
           <button
             type="button"
-            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
             disabled={data.issues.length === 0}
             onClick={addHypothesisFromBanner}
           >
