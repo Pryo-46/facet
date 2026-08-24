@@ -230,4 +230,27 @@ describe('autoSize', () => {
     )
     expect((screen.getByLabelText('セル') as HTMLTextAreaElement).rows).toBe(1)
   })
+
+  /**
+   * **jsdom はレイアウトを持たないので `scrollTop` は常に 0 を返す。**
+   * そこで、書き込みを観測できるプロパティを要素に差し込んで見る
+   *（`LogicTreeEditor.font.dom.test.tsx` が `document.fonts` を差し込むのと
+   *  同じ作法。差し込んだものは describe の外へ漏らさない）
+   */
+  it('フォーカスを外したら表示が先頭行に戻る（scrollTop を 0 にする）', () => {
+    render(<CellInput multiline autoSize={false} aria-label="ノード" value="あ" onValueChange={() => {}} />)
+    const area = screen.getByLabelText('ノード') as HTMLTextAreaElement
+    let scrolled = 40
+    Object.defineProperty(area, 'scrollTop', {
+      configurable: true,
+      get: () => scrolled,
+      set: (v: number) => {
+        scrolled = v
+      },
+    })
+
+    expect(scrolled).toBe(40)
+    fireEvent.blur(area)
+    expect(scrolled).toBe(0)
+  })
 })

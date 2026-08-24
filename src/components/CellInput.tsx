@@ -227,6 +227,12 @@ export function CellInput(props: CellInputProps) {
     onBlur: () => {
       composedAt.current = null
       setDraft(null)
+      // **表示も先頭行に戻す。** 上限行数で打ち切られた箱（課題ツリーの
+      // タイトル・ロジックツリーのノード。M24）を編集すると、キャレット追従で
+      // ブラウザが内部スクロールする。戻さないとその箱だけ途中の行から
+      // 表示されたまま残り、木を俯瞰したときに文言の頭が読めない。
+      // **`autoSize` の欄（表のセル）は内容が常に収まるので影響しない**
+      if (areaRef.current !== null) areaRef.current.scrollTop = 0
     },
   }
 
