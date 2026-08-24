@@ -38,7 +38,9 @@ export function GhostSlot(props: GhostSlotProps) {
       </div>
       <button
         type="button"
-        className="shrink-0 rounded-sm border border-rule bg-surface px-1.5 py-0.5 text-sm text-ink-muted hover:bg-canvas focus:ring-2 focus:ring-inset focus:ring-ring"
+        // 入れ物（上の div）は items-start——ラベルと答えの箱の上揃えは正しい。
+        // ✕ だけスロットの全高（style.height）に対して縦中央にする
+        className="shrink-0 self-center rounded-sm border border-rule bg-surface px-1.5 py-0.5 text-sm text-ink-muted hover:bg-canvas focus:ring-2 focus:ring-inset focus:ring-ring"
         aria-label={props['aria-label']}
         onClick={props.onDelete}
       >

@@ -740,6 +740,13 @@ describe('立っていない答えのグレースロット', () => {
     expect(screen.getByText('失敗が確定したら？')).toBeDefined() // 打ち消し線付きの問いラベル
   })
 
+  it('✕ ボタンはスロットの縦中央に来る（実機所見: 上寄せになっていた）', () => {
+    // 入れ物（GhostSlot）は items-start——ラベルと答えの箱の上揃えは正しい。
+    // ✕ だけ self-center でスロットの全高に対して中央にする
+    setup(ghostDoc())
+    expect(screen.getByLabelText(/この答えを削除/).className).toContain('self-center')
+  })
+
   it('✕ を押すと確認ダイアログが出て、削除で failures から消える', () => {
     const onChange = vi.fn()
     render(<Harness initial={ghostDoc()} onChange={onChange} />)

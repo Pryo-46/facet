@@ -180,3 +180,8 @@ git status --short          # 空になること
 - **対処**: `IssueTreeEditor.tsx` に `DEFER_TRIGGER_FACE`（バッジと同じ幾何——`h-[20px]`・`px-1.5`・枠1px・`rounded`・`leading-none font-medium`）を新設し、見送りトグルの未見送り面をこれに差し替えた。**色だけが「押せる面」**（surface＋rule＋ink-muted、ホバーで canvas）で、幾何はバッジが決める。`TRIGGER_FACE` 自体は判断ドロップダウン・「＋ FB」用として変更なし。
 - **layout.ts への波及**（着手前の指示にはなく、着手後に見つけて裁定でスコープを広げた）: `layout.ts` の `slotW`（見送り前・警告なしの通常ケースで枠を空ける式）が `actionWidth(DEFER_TRIGGER_LABEL, …)`（`px-1` 前提の `ACTION_INSET_X`）のままだと、新しい `DEFER_TRIGGER_FACE`（`px-1.5`）の実描画幅より予約幅が狭くなり、ホバー時にトグルが枠からはみ出す退行を生むところだった。**「描画と測定は同じ口」**の原則に従い、`slotW` の未見送り分岐を `badgeWidth(DEFER_TRIGGER_LABEL, …)` に直し、対で直すことをコメントに残した。`actionWidth` 自体は判断トリガー用に残っている。
 - **DOM テストの門番**: `IssueTreeEditor.dom.test.tsx` の見送りトグルのテストに `expect(toggle.className).toContain(\`h-[${BADGE_BOX_HEIGHT}px]\`)` を追加（`Badge.dom.test.tsx` と同じ形）。jsdom には版組が無いので、幅の食い違い自体は検出できない——そこは `layout.test.ts` の数値アサーションが担う。
+
+### 2件目: シーケンスのグレースロットの削除ボタンが上寄せだった
+
+- **人間の言葉**: シーケンスの問いの回答削除ボタンが上寄せになってるから中央寄せに。
+- **対処**: `GhostSlot.tsx:41` の ✕ ボタンに `self-center` を追加。入れ物（`items-start`）はラベルと答えの箱の上揃えを保つために変更していない——スロットの全高（`style.height`）に対して ✕ だけを縦中央にした。
