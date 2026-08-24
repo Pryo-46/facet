@@ -3,22 +3,31 @@ import {
   createEstimateMeasurer,
   NODE_INSET_X,
   NODE_INSET_Y,
-  NODE_MAX_WIDTH,
-  NODE_MIN_WIDTH,
+  NODE_MAX_LINES,
+  NODE_WIDTH,
   wrapText,
 } from './measure'
 
 /** 半角=5px / 全角=10px の測定器。境界の計算を暗算できる値にする */
 const measure = createEstimateMeasurer(10)
 const LH = 20
-const CONTENT_MAX = NODE_MAX_WIDTH - NODE_INSET_X * 2
+const CONTENT_MAX = NODE_WIDTH - NODE_INSET_X * 2
 
 describe('wrapText', () => {
-  it('空文字は1行・最小幅になる', () => {
+  it('空文字は1行・固定幅になる', () => {
     const r = wrapText('', measure, LH)
     expect(r.lines).toEqual([''])
-    expect(r.width).toBe(NODE_MIN_WIDTH)
+    expect(r.width).toBe(NODE_WIDTH)
     expect(r.height).toBe(LH + NODE_INSET_Y * 2)
+  })
+
+  /**
+   * **M24 で反転した観点。** 以前は「幅は文言から算出し、最小幅を下回らない」
+   * だった。ノード幅を内容から導出すると長文ノードだけ幅が3倍になり、
+   * 木の骨格が読めなくなる（UI ノート D3）ので、幅は導出しない
+   */
+  it('短い文言でも幅は固定（自然幅へ縮まない）', () => {
+    expect(wrapText('あいうえお', measure, LH).width).toBe(NODE_WIDTH)
   })
 
   it('最大幅に収まる文言は折り返さない', () => {
@@ -27,24 +36,27 @@ describe('wrapText', () => {
     expect(r.height).toBe(LH + NODE_INSET_Y * 2)
   })
 
-  it('幅は文言から算出し、最小幅を下回らない', () => {
-    // 全角5文字 = 50px < NODE_MIN_WIDTH
-    expect(wrapText('あいうえお', measure, LH).width).toBe(NODE_MIN_WIDTH)
-  })
-
-  it('最大幅を超えたら折り返し、幅は最大で止まる', () => {
+  it('内容幅を超えたら折り返し、幅は固定のまま', () => {
     const perLine = Math.floor(CONTENT_MAX / 10)
     const r = wrapText('あ'.repeat(perLine + 3), measure, LH)
     expect(r.lines.length).toBe(2)
     expect(r.lines[0].length).toBe(perLine)
     expect(r.lines[1].length).toBe(3)
-    expect(r.width).toBeLessThanOrEqual(NODE_MAX_WIDTH)
+    expect(r.width).toBe(NODE_WIDTH)
     expect(r.height).toBe(LH * 2 + NODE_INSET_Y * 2)
   })
 
   it('折り返した各行は、内容の幅の上限に収まる', () => {
     const r = wrapText('あ'.repeat(80), measure, LH)
     for (const line of r.lines) expect(measure(line)).toBeLessThanOrEqual(CONTENT_MAX)
+  })
+
+  /** M24: 骨格を読ませるため、高さも有界にする（UI ノート D3） */
+  it('NODE_MAX_LINES で行と高さが打ち切られる', () => {
+    const perLine = Math.floor(CONTENT_MAX / 10)
+    const r = wrapText('あ'.repeat(perLine * (NODE_MAX_LINES + 2)), measure, LH)
+    expect(r.lines.length).toBe(NODE_MAX_LINES)
+    expect(r.height).toBe(LH * NODE_MAX_LINES + NODE_INSET_Y * 2)
   })
 
   it('明示改行で行を分ける', () => {
@@ -58,8 +70,8 @@ describe('wrapText', () => {
     expect(wrapText('a'.repeat(perLine + 2), measure, LH).lines.length).toBe(2)
   })
 
-  it('1文字で最大幅を超えても、その1文字だけの行を作る（無限ループしない）', () => {
-    const huge = (t: string): number => t.length * (CONTENT_MAX + 50)
+  it('1文字が内容幅を超えても、その1文字で1行を作る（無限ループにしない）', () => {
+    const huge = createEstimateMeasurer(1000)
     expect(wrapText('あい', huge, LH).lines).toEqual(['あ', 'い'])
   })
 })
