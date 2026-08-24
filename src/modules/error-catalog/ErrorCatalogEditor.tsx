@@ -318,10 +318,17 @@ export function ErrorCatalogEditor({
         />
       )
     }
+    // 複数行の自由記述だけ leading-normal を足す（D11）。列定義
+    // （columns.ts の FIXED_WIDTH）で occurrence は name・resolutionLevel と
+    // 同じ「固定幅の短い列」に分類されており、causeForSupport（幅なし＝吸収列）
+    // と causeForSpec・userAction・supportAction・engineerAction・notes
+    // （PROSE_WIDTH の列）だけが長文を想定した列。デフォルト分岐に来る
+    // ErrorField のうち occurrence だけが例外なので、それだけ除く
+    const prose = field !== 'occurrence'
     return (
       <CellInput
         multiline
-        className={cellInput}
+        className={prose ? `${cellInput} leading-normal` : cellInput}
         aria-label={label}
         data-cell={cellId(rowKey, field)}
         // 空は空のまま。欠落は cellClass の面（missing-face）が示す
@@ -339,12 +346,12 @@ export function ErrorCatalogEditor({
         <input
           type="search"
           aria-label="エラーを検索"
-          className="w-64 rounded-sm border border-rule bg-canvas px-2 py-1 text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
+          className="w-64 rounded-sm border border-rule bg-canvas px-2 py-1 text-base text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
           placeholder="エラー名・原因・対応を検索"
           value={filter.query}
           onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
         />
-        <span className="text-xs text-ink-muted">表示</span>
+        <span className="text-sm text-ink-muted">表示</span>
         <div role="group" aria-label="表示プロファイル" className="flex items-center gap-1">
           {PROFILES.map((p) => {
             const active = p.id === profile.id
@@ -355,7 +362,7 @@ export function ErrorCatalogEditor({
             )
           })}
         </div>
-        <span className="text-xs text-ink-muted">絞り込み</span>
+        <span className="text-sm text-ink-muted">絞り込み</span>
         <div
           role="group"
           aria-label="解決レベルで絞り込む"
@@ -379,12 +386,12 @@ export function ErrorCatalogEditor({
             )
           })}
         </div>
-        <span className="text-xs text-ink-muted">
+        <span className="text-sm text-ink-muted">
           {visible.length} / {data.errors.length} 件
         </span>
         <MissingTally tally={tallyMissing(data.errors)} onJump={jumpToMissing} />
         {!reorderEnabled && (
-          <span className="text-xs text-ink-muted">
+          <span className="text-sm text-ink-muted">
             検索・フィルタ中は行の追加（Enter）と並び替え（{altModifierLabel(PLATFORM)}+↑↓）を使えません
           </span>
         )}
@@ -396,7 +403,7 @@ export function ErrorCatalogEditor({
           （columns.test.ts が検査）、overflow を足すと sticky の親が変わって
           見出しの固定が静かに壊れる */}
       <div ref={tableRef} className="border border-rule bg-surface">
-        <table className="w-full table-fixed border-collapse text-sm">
+        <table className="w-full table-fixed border-collapse text-base">
           <colgroup>
             {cols.columns.map((col, i) => {
               const w = cols.widthIndex[i]
@@ -413,7 +420,7 @@ export function ErrorCatalogEditor({
                   <th
                     key={col.field}
                     // sticky 自体が絶対配置の包含ブロックになるので relative は要らない
-                    className={`sticky top-0 z-10 border-b border-rule bg-surface-muted px-2 py-1 text-xs font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
+                    className={`sticky top-0 z-10 border-b border-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
                   >
                     {label}
                     {/* No 列は導出（データ配列の index+1）なのでハンドルを出さない。
@@ -468,7 +475,7 @@ export function ErrorCatalogEditor({
         </table>
       </div>
       {data.errors.length > 0 && visible.length === 0 && (
-        <p className="mt-3 text-sm text-ink-muted">該当するエラーがありません。</p>
+        <p className="mt-3 text-base text-ink-muted">該当するエラーがありません。</p>
       )}
       {!derivedView && (
         // **0件のときだけでなく常に出す。** 行の追加が Enter だけだと、
@@ -476,7 +483,7 @@ export function ErrorCatalogEditor({
         <button
           ref={rows.addButtonRef}
           type="button"
-          className={`${buttonBase} mt-3 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+          className={`${buttonBase} mt-3 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
           onClick={() => rows.insertAfter(data.errors.length - 1)}
         >
           <Plus aria-hidden className="size-4" />

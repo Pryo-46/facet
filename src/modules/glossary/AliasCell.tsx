@@ -277,7 +277,7 @@ export function AliasCell(props: AliasCellProps) {
             onFieldKeyDown={(e, s) => onAliasKeyDown(e, i, s)}
           />
         ))}
-        <p className="px-2 py-1 text-xs text-ink-muted">
+        <p className="px-2 py-1 text-sm text-ink-muted">
           Enter＝追加／空欄 Backspace＝削除／Esc＝閉じる
         </p>
       </div>
