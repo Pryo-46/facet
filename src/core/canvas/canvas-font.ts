@@ -9,25 +9,26 @@ export interface CanvasFont {
 
 /**
  * 測れない環境（jsdom はレイアウトを持たない）用の既定値。
- * text-sm（14px）・行間 1.65（rev 9章 M7 決定6）
+ * text-base + leading-normal（16px・行間 1.5。rev 9章 M23 決定1）
+ * ——キャンバスの折り返しテキストは複数行段
  */
 export const FALLBACK_CANVAS_FONT: CanvasFont = {
-  font: 'normal 400 14px sans-serif',
-  fontSize: 14,
-  lineHeight: 14 * 1.65,
+  font: 'normal 400 16px sans-serif',
+  fontSize: 16,
+  lineHeight: 16 * 1.5,
 }
 
 /**
- * 問いラベル列（text-xs）用の既定値。**FALLBACK_CANVAS_FONT を使い回さないこと**
- * ——text-xs は 12px・行間 1.5 で、text-sm（14px・1.65）とはサイズも行間も違う
- * （src/index.css の --text-xs--line-height / --text-sm--line-height）。
- * 揃えてしまうと、ラベル用の測定器が text-sm 相当の高さを返し続け、
+ * 問いラベル列（text-sm）用の既定値。**FALLBACK_CANVAS_FONT を使い回さないこと**
+ * ——text-sm は 14px・行間 1.3 で、複数行段（16px・1.5）とはサイズも行間も違う
+ * （src/index.css の --text-sm--line-height）。
+ * 揃えてしまうと、ラベル用の測定器が本文相当の高さを返し続け、
  * jsdom のテストでは両者の違いを検出できなくなる
  */
 export const FALLBACK_SMALL_FONT: CanvasFont = {
-  font: 'normal 400 12px sans-serif',
-  fontSize: 12,
-  lineHeight: 12 * 1.5,
+  font: 'normal 400 14px sans-serif',
+  fontSize: 14,
+  lineHeight: 14 * 1.3,
 }
 
 export function sameFont(a: CanvasFont, b: CanvasFont): boolean {
@@ -42,7 +43,7 @@ export function sameFont(a: CanvasFont, b: CanvasFont): boolean {
  * ノードと同じクラスを当てた見本要素から読むことで、その口を1つに保つ
  *
  * **`el === null` のとき（および fontSize が読めないとき）返るのは常に
- * `FALLBACK_CANVAS_FONT`（14px）である。小さい方の見本要素（text-xs）に
+ * `FALLBACK_CANVAS_FONT`（16px）である。小さい方の見本要素（text-sm）に
  * 対して呼んでも `FALLBACK_SMALL_FONT` にはならない。** これは logic-tree
  * M1 以来の既存の挙動で、据え置いている——変えると sequence の行高が静かに
  * ずれる
@@ -53,7 +54,7 @@ export function readCanvasFont(el: HTMLElement | null): CanvasFont {
   const fontSize = Number.parseFloat(style.fontSize)
   if (!Number.isFinite(fontSize) || fontSize <= 0) return FALLBACK_CANVAS_FONT
   const parsed = Number.parseFloat(style.lineHeight)
-  const lineHeight = Number.isFinite(parsed) && parsed > 0 ? parsed : fontSize * 1.65
+  const lineHeight = Number.isFinite(parsed) && parsed > 0 ? parsed : fontSize * 1.5
   const family = style.fontFamily === '' ? 'sans-serif' : style.fontFamily
   const weight = style.fontWeight === '' ? '400' : style.fontWeight
   const fontStyle = style.fontStyle === '' ? 'normal' : style.fontStyle
