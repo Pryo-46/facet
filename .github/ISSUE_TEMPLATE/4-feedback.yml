@@ -1,0 +1,42 @@
+name: 使ってみた感想・相談
+description: 直してほしいわけではない話も、質問も、雑談もここへ
+title: "[感想] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **「バグかどうか分からない」「これで合っているのか聞きたい」「良かった／しんどかった」——全部ここで構いません。**
+
+        まとまっていなくていいので、そのまま書いてください。
+
+  - type: textarea
+    id: what-did
+    attributes:
+      label: 何をしてみたか
+      placeholder: 先週の要件定義の会議で、その場でシーケンスを2本書いてみた
+    validations:
+      required: true
+
+  - type: textarea
+    id: thoughts
+    attributes:
+      label: どう思ったか
+      placeholder: 打ち込むのは会議に追いつけた。ただ、会議のあとで見返したときに、どこが未決なのか一目では分からなかった
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tool
+    attributes:
+      label: どのあたりの話か（あれば）
+      options:
+        - 用語集
+        - エラーカタログ
+        - シーケンス
+        - ロジックツリー
+        - 課題ツリー
+        - ファイル一覧・アプリ全体
+        - Claude Code ペイン
+        - Markdown 出力
+        - facet 全体の話

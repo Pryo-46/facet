@@ -1,0 +1,54 @@
+name: 改善
+description: いま在るものが使いにくい・分かりにくい（「新機能提案」と迷ったら、どちらでも構いません）
+title: "[改善] "
+labels: ["improvement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **「今は無いものを足したい」なら「新機能提案」のほうが近い**ですが、迷ったらどちらでも構いません。こちらで振り直します。
+
+        直し方が思いつかなくても大丈夫です。**何が面倒だったか**だけ書いてもらえれば十分です。
+
+  - type: dropdown
+    id: tool
+    attributes:
+      label: どのあたりの話か
+      options:
+        - 用語集
+        - エラーカタログ
+        - シーケンス
+        - ロジックツリー
+        - 課題ツリー
+        - ファイル一覧・アプリ全体
+        - Claude Code ペイン
+        - Markdown 出力
+        - 更新まわり（アプリ内アップデート）
+        - わからない / 複数にまたがる
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: いまどうなっていて、何が面倒か
+      placeholder: シーケンスのステップを足すたびに「失敗したら？」が3つ増えるので、10ステップ書いた時点で未回答が30件になって手が止まる
+    validations:
+      required: true
+
+  - type: textarea
+    id: wish
+    attributes:
+      label: こうなるといい
+      description: ふわっとしていて構いません。「とにかくこの数が目に入らないでほしい」でも十分です。
+    validations:
+      required: true
+
+  - type: dropdown
+    id: when
+    attributes:
+      label: どういうときに困ったか（あれば）
+      options:
+        - 会議の最中に詰まった
+        - 会議のあと、一人で整理しているときに気になった
+        - 触ってみただけで、実務では使っていない
