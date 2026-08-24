@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { tallyLine as coreTallyLine } from '@/core/missing-tally'
 import type { Hypothesis, IssueNode } from '@/types/issue-tree'
 import {
   BADGE_LABELS,
@@ -12,6 +13,7 @@ import {
   suppressedIssueIds,
   tallyLine,
   tallyQuestions,
+  toMissingTally,
   type JudgementKind,
 } from './derive'
 
@@ -240,5 +242,28 @@ describe('tallyLine', () => {
   })
   it('合計 0 は内訳も ⚠ も付けない', () => {
     expect(tallyLine({ hypothesis: 0, result: 0, hold: 0, judgement: 0, total: 0 })).toBe('要対応 0')
+  })
+})
+
+describe('toMissingTally', () => {
+  // derive.ts の tallyLine は Skill のバイト一致コピーが読むため、コアの
+  // tallyLine を import できない（skill-copy.test.ts）。文字列の組み立てが
+  // 2本あることを、この一致テストで固定する（lessons: 複製は機械検査で固定）
+  it.each([
+    { hypothesis: 0, result: 0, hold: 0, judgement: 0, total: 0 },
+    { hypothesis: 1, result: 2, hold: 0, judgement: 0, total: 3 },
+    { hypothesis: 2, result: 1, hold: 1, judgement: 3, total: 7 },
+  ])('コアの tallyLine と逐語一致する（%j）', (t) => {
+    expect(coreTallyLine(toMissingTally(t))).toBe(tallyLine(t))
+  })
+
+  it('variant は open / open / hold / pending の対応（帯のチップと同じ）', () => {
+    const parts = toMissingTally({ hypothesis: 1, result: 1, hold: 1, judgement: 1, total: 4 }).parts
+    expect(parts.map((p) => [p.kind, p.variant])).toEqual([
+      ['hypothesis', 'open'],
+      ['result', 'open'],
+      ['hold', 'hold'],
+      ['judgement', 'pending'],
+    ])
   })
 })

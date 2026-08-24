@@ -1,7 +1,7 @@
 export interface GhostSlotProps {
   /** 元の問いの汎用文言（下の GHOST_QUESTION_LABEL） */
   question: string
-  /** 答えの表示テキスト。notApplicable で text 無しは '─ 考慮不要' を渡す */
+  /** 答えの表示テキスト。notApplicable で text 無しは '考慮不要' を渡す（M22） */
   text: string
   'aria-label': string
   x: number

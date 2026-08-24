@@ -170,6 +170,39 @@ describe('LogicTreeEditor（描画）', () => {
     expect(other.className).not.toContain('bg-invalid-face')
   })
 
+  it('空ノードは破線＋淡い面（missing-face）、invalid が立てば赤が勝つ', () => {
+    render(
+      <LogicTreeEditor
+        data={file([[1, null, ''], [2, 1, ''], [3, 1, 'y']])}
+        onChange={() => {}}
+        issues={[
+          {
+            rule: 'duplicate-id',
+            message: 'ID が重複しています',
+            locations: [{ entityId: ID(2), entityIndex: 1, field: 'text' }],
+          },
+        ]}
+        modalOpen={false}
+      />,
+    )
+    // 空・指摘なし → 破線＋淡い面（missing-face）
+    const missing = screen.getByLabelText('ノード1')
+    expect(missing.className).toContain('border-dashed')
+    expect(missing.className).toContain('border-missing')
+    expect(missing.className).toContain('bg-missing-face')
+    expect(missing.className).not.toContain('bg-invalid-face')
+
+    // 空・指摘あり → invalid が勝つ（missing-face は出ない）
+    const invalidAndMissing = screen.getByLabelText('ノード2')
+    expect(invalidAndMissing.className).toContain('bg-invalid-face')
+    expect(invalidAndMissing.className).not.toContain('bg-missing-face')
+
+    // 非空・指摘なし → どちらの面も無い
+    const filled = screen.getByLabelText('ノード3')
+    expect(filled.className).not.toContain('bg-missing-face')
+    expect(filled.className).not.toContain('bg-invalid-face')
+  })
+
   it('ノードのレイヤは操作を通し、ノードの矩形だけが受ける', () => {
     // レイヤはツリー順で帯のボタンより上に来る透明な面なので、
     // pointer-events を切らないと中央のヒットテストを奪って

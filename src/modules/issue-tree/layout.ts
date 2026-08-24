@@ -91,6 +91,11 @@ export interface HypothesisPlacement {
   text: Rect
   /** 状態のバッジ（行末。高さ `BADGE_HEIGHT`） */
   badge: Rect
+  /**
+   * 「未判断」（`pendingNotes` あり）のバッジ。立っていなければ null。
+   * 状態のバッジの左に `BADGE_GAP` 空けて並ぶ
+   */
+  judgementBadge: Rect | null
   /** 展開パネル。畳まれていれば null */
   expanded: HypothesisPanel | null
 }
@@ -197,7 +202,27 @@ export function layoutIssueTree(
     const open = hi === expandedIndex
     const group = badgeGroupOf(hypothesisStatus(h))
     const badgeW = badgeWidth(BADGE_LABELS[group], fonts.small)
-    const textW = BOX_CONTENT_WIDTH - ROW_INDENT - BADGE_GAP - badgeW
+    /**
+     * 「未判断」の行バッジ（M22）。帯の集計（`tallyQuestions`）と行の表示を
+     * 一対一にする——数だけが増えて、どの行かが図から読めないのを防ぐ。
+     *
+     * **ここで `suppressed` を見る必要は無い**——抑制された仮説には
+     * `poseQuestions` が `judgement` を立てない（`derive.ts`）
+     */
+    const q = posed.hypothesisQuestions[hi]
+    const judgeW =
+      q !== undefined && q.judgement ? badgeWidth(QUESTION_LABELS.judgement, fonts.small) : 0
+    /** 行末に並ぶバッジ全体の幅（2つ並ぶときは間の `BADGE_GAP` も含む） */
+    const badgesW = judgeW === 0 ? badgeW : badgeW + BADGE_GAP + judgeW
+    const textW = BOX_CONTENT_WIDTH - ROW_INDENT - BADGE_GAP - badgesW
+    /**
+     * 未判断バッジは**状態のバッジから逆算する**（閉じた行と展開頭部で
+     * バッジの `y` の作り方が違うので、同じ位置に置くには受け取るしかない）
+     */
+    const judgementBadgeLeftOf = (badge: Rect): Rect | null =>
+      judgeW === 0
+        ? null
+        : { x: badge.x - BADGE_GAP - judgeW, y: badge.y, width: judgeW, height: BADGE_HEIGHT }
     // 畳まれた行は**必ず1行**（溢れは CSS の truncate が省略記号にする）。
     // 展開している行だけが折り返して縦に伸びる
     const textH = open ? textHeight(h.text, fonts.body, textW) : fonts.body.lineHeight
@@ -207,17 +232,26 @@ export function layoutIssueTree(
     if (!open) {
       return {
         height: headH,
-        build: (x, y) => ({
-          rect: { x, y, width: BOX_CONTENT_WIDTH, height: headH },
-          text: { x: x + ROW_INDENT, y: y + Math.floor((headH - textH) / 2), width: textW, height: textH },
-          badge: {
+        build: (x, y) => {
+          const badge: Rect = {
             x: x + BOX_CONTENT_WIDTH - badgeW,
             y: y + Math.floor((headH - BADGE_HEIGHT) / 2),
             width: badgeW,
             height: BADGE_HEIGHT,
-          },
-          expanded: null,
-        }),
+          }
+          return {
+            rect: { x, y, width: BOX_CONTENT_WIDTH, height: headH },
+            text: {
+              x: x + ROW_INDENT,
+              y: y + Math.floor((headH - textH) / 2),
+              width: textW,
+              height: textH,
+            },
+            badge,
+            judgementBadge: judgementBadgeLeftOf(badge),
+            expanded: null,
+          }
+        },
       }
     }
 
@@ -334,15 +368,18 @@ export function layoutIssueTree(
         })
         const addRect: Rect = { x: cx, y: cursor, width: PANEL_CONTENT_WIDTH, height: ACTION_HEIGHT }
 
+        const badge: Rect = {
+          x: x + BOX_CONTENT_WIDTH - badgeW,
+          y: y + Math.floor((fonts.body.lineHeight - BADGE_HEIGHT) / 2),
+          width: badgeW,
+          height: BADGE_HEIGHT,
+        }
+
         return {
           rect: { x, y, width: BOX_CONTENT_WIDTH, height },
           text: { x: x + ROW_INDENT, y, width: textW, height: textH },
-          badge: {
-            x: x + BOX_CONTENT_WIDTH - badgeW,
-            y: y + Math.floor((fonts.body.lineHeight - BADGE_HEIGHT) / 2),
-            width: badgeW,
-            height: BADGE_HEIGHT,
-          },
+          badge,
+          judgementBadge: judgementBadgeLeftOf(badge),
           expanded: {
             panel,
             judgement: {

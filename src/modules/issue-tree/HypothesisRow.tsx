@@ -5,7 +5,13 @@ import type { Rect } from '@/core/canvas/viewport'
 import type { JudgementEvent } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
 import { hypothesisCellKey, type HypothesisCell } from './cell-keys'
-import { badgeGroupOf, BADGE_LABELS, EVENT_KIND_LABELS, latestKind } from './derive'
+import {
+  badgeGroupOf,
+  BADGE_LABELS,
+  EVENT_KIND_LABELS,
+  latestKind,
+  QUESTION_LABELS,
+} from './derive'
 import type { HypothesisPlacement } from './layout'
 import { ADD_NOTE_LABEL, NO_JUDGEMENT_TEXT, SECTION_LABELS } from './layout'
 import {
@@ -172,6 +178,17 @@ export function HypothesisRow(props: HypothesisRowProps) {
         <span className="absolute flex items-center justify-end" style={inRow(placement.badge)}>
           <Badge variant={badgeVariantOf(group, props.suppressed)}>{BADGE_LABELS[group]}</Badge>
         </span>
+        {/* 「未判断」（M22）。**状態のバッジの後に描く**——先に置くと、
+            行の先頭の `inline-flex` を状態のバッジとして引いている検査が
+            黙って別の要素を掴む。抑制された行には立たない（`derive.ts`） */}
+        {placement.judgementBadge !== null && (
+          <span
+            className="absolute flex items-center justify-end"
+            style={inRow(placement.judgementBadge)}
+          >
+            <Badge variant="pending">{QUESTION_LABELS.judgement}</Badge>
+          </span>
+        )}
       </button>
     )
   }
@@ -211,6 +228,15 @@ export function HypothesisRow(props: HypothesisRowProps) {
       <span className="absolute flex items-center justify-end" style={inBox(placement.badge)}>
         <Badge variant={badgeVariantOf(group, props.suppressed)}>{BADGE_LABELS[group]}</Badge>
       </span>
+      {/* 展開した頭部にも同じ形で出す（レイアウトは閉じた行と同じ幅を通る） */}
+      {placement.judgementBadge !== null && (
+        <span
+          className="absolute flex items-center justify-end"
+          style={inBox(placement.judgementBadge)}
+        >
+          <Badge variant="pending">{QUESTION_LABELS.judgement}</Badge>
+        </span>
+      )}
 
       {/* パネルは面だけを描き、中身は同じ座標系（箱の中）に置く。
           後に描かれる要素が上に乗る＝面が中身を覆うことはない */}

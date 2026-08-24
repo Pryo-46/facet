@@ -95,13 +95,13 @@ describe('sequenceToMarkdown: 表のセル', () => {
     expect(rows.map((r) => r.split(' | ')[0])).toEqual(['| 1', '| 2', '| 3', '| 4'])
   })
 
-  it('handled は本文、notApplicable（理由あり）は ─ 考慮不要（理由）', () => {
+  it('handled は本文、notApplicable（理由あり）は 考慮不要（理由）', () => {
     const rows = bodyRows(sequenceToMarkdown(doc()))
     expect(rows[0]).toContain('画面にエラー表示して中断')
-    expect(rows[3]).toContain('─ 考慮不要（在庫は事前確保済み）')
+    expect(rows[3]).toContain('考慮不要（在庫は事前確保済み）')
   })
 
-  it('notApplicable（理由なし）は ─ 考慮不要 だけ', () => {
+  it('notApplicable（理由なし）は 考慮不要 だけ', () => {
     const out = sequenceToMarkdown(
       doc({
         steps: [
@@ -109,7 +109,7 @@ describe('sequenceToMarkdown: 表のセル', () => {
         ],
       }),
     )
-    expect(bodyRows(out)[0]).toContain('─ 考慮不要 |')
+    expect(bodyRows(out)[0]).toContain('考慮不要 |')
     expect(bodyRows(out)[0]).not.toContain('考慮不要（')
   })
 
@@ -132,7 +132,7 @@ describe('sequenceToMarkdown: 表のセル', () => {
 
   it('self は from → to 列を「名前（内部処理）」にし、結果不明と実行済みならは空', () => {
     const rows = bodyRows(sequenceToMarkdown(doc()))
-    expect(rows[3]).toBe('| 4 | API（内部処理） | 在庫引当 | ─ 考慮不要（在庫は事前確保済み） |  |  |')
+    expect(rows[3]).toBe('| 4 | API（内部処理） | 在庫引当 | 考慮不要（在庫は事前確保済み） |  |  |')
   })
 
   it('文言が空のステップは（未定義）', () => {

@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { KeyHints } from '@/components/KeyHints'
+import { MissingTally } from '@/components/MissingTally'
 import { buttonBase } from '@/components/button-styles'
 import type { KeyHint } from '@/core/keyboard/hint-text'
 import {
@@ -35,6 +36,7 @@ import { cssTransform } from '@/core/canvas/viewport'
 import { useViewport } from '@/core/canvas/use-viewport'
 import { layoutTree, type Size } from '@/core/canvas/tree-layout'
 import { wrapText, type MeasureWidth, type WrappedText } from './measure'
+import { isMissingNode, tallyMissing } from './missing'
 import { NodeBox } from './NodeBox'
 import { TreeEdges } from './TreeEdges'
 
@@ -69,6 +71,9 @@ export function LogicTreeEditor({
 
   // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
   const [pendingFocus, setPendingFocus] = useState<string | null>(null)
+
+  /** 帯のチップ（欠落の種類）ごとに巡る位置。GlossaryEditor の jumpAt と同じ形 */
+  const jumpAt = useRef<Record<string, number>>({})
 
   // Web フォントの読み込みで canvas の measureText の結果は変わるが、
   // getComputedStyle が返す値は変わらない（宣言されたファミリ列を返すだけで、
@@ -159,6 +164,20 @@ export function LogicTreeEditor({
     for (const location of issue.locations) {
       if (location.entityIndex !== null) invalid.add(location.entityIndex)
     }
+  }
+
+  /**
+   * 欠落セルへのジャンプ（M22）。ロジックツリーの欠落は「text が空」の1種類
+   * だけなので、GlossaryEditor と違い kind で場合分けしない
+   */
+  const jumpToMissing = (): void => {
+    const targets = data.nodes
+      .map((_, index) => index)
+      .filter((index) => isMissingNode(data.nodes[index]))
+    if (targets.length === 0) return
+    const next = ((jumpAt.current.text ?? -1) + 1) % targets.length
+    jumpAt.current.text = next
+    setPendingFocus(nodeKeys[targets[next]])
   }
 
   const createRoot = (): void => {
@@ -307,6 +326,10 @@ export function LogicTreeEditor({
               ノードを追加
             </button>
           )}
+          {/* 欠落（未記入）の集計。**共通部品 `MissingTally`（M22）**——合計・
+              0件チップ非表示・`whitespace-nowrap` は部品側が担う。ここは
+              欠落が1種類しかないので `onJump` は kind を見ずに巡回するだけ */}
+          <MissingTally tally={tallyMissing(data.nodes)} onJump={jumpToMissing} />
           <KeyHints hints={TREE_HINTS} className="ml-auto shrink-0 bg-surface px-2 py-1" />
         </div>
       </div>
@@ -349,6 +372,7 @@ export function LogicTreeEditor({
               width={size.width}
               height={size.height}
               invalid={invalid.has(index)}
+              missing={isMissingNode(node)}
               onTextChange={(next) => onChange(setText(data, index, next), `${key}:text`)}
               onFieldKeyDown={(e, state) => onNodeKeyDown(e, index, state)}
             />

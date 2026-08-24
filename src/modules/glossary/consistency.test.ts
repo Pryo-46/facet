@@ -142,4 +142,45 @@ describe('checkGlossaryConsistency', () => {
       { entityId: 'term_bbbbbbbbbb', entityIndex: 2, field: 'name' },
     ])
   })
+
+  it('重複は件数と行番号で指す（D4）', () => {
+    // name 重複2件（位置 0, 2）。表記ゆれ（末尾の全角スペース）で正規化上は
+    // 同一視されても、表示はグループ先頭（位置 0）の行の表記を使う
+    const nameData = glossary([
+      term({ id: 'term_aaaaaaaaaa', name: '受注' }),
+      term({ id: 'term_bbbbbbbbbb', name: '見積' }),
+      term({ id: 'term_cccccccccc', name: '受注　' }),
+    ])
+    const nameIssue = checkGlossaryConsistency(nameData).find((i) => i.rule === 'duplicate-name')
+    expect(nameIssue?.message).toBe('名称「受注」が2件重複しています（#1 ／ #3）')
+
+    // ID 重複2件（位置 0, 1）
+    const idData = glossary([
+      term({ id: 'term_dddddddddd', name: '受注' }),
+      term({ id: 'term_dddddddddd', name: '発注' }),
+    ])
+    const idIssue = checkGlossaryConsistency(idData).find((i) => i.rule === 'duplicate-id')
+    expect(idIssue?.message).toBe('ID が重複しています（2件。#1 ／ #2）: term_dddddddddd')
+
+    // alias 重複（位置 0, 1）
+    const aliasData = glossary([
+      term({ id: 'term_eeeeeeeeee', name: '案件', aliases: ['じゅちゅう'] }),
+      term({ id: 'term_ffffffffff', name: '商談', aliases: ['じゅちゅう'] }),
+    ])
+    const aliasIssue = checkGlossaryConsistency(aliasData).find(
+      (i) => i.rule === 'duplicate-alias',
+    )
+    expect(aliasIssue?.message).toBe('別名「じゅちゅう」が2件重複しています（#1 ／ #2）')
+
+    // alias-name 衝突（位置 0 の別名 × 位置 2 の名称）
+    const collisionData = glossary([
+      term({ id: 'term_gggggggggg', name: '受注', aliases: ['発注'] }),
+      term({ id: 'term_hhhhhhhhhh', name: '見積' }),
+      term({ id: 'term_iiiiiiiiii', name: '発注' }),
+    ])
+    const collisionIssue = checkGlossaryConsistency(collisionData).find(
+      (i) => i.rule === 'alias-name-collision',
+    )
+    expect(collisionIssue?.message).toBe('#1「受注」の別名「発注」が#3「発注」の名称と衝突しています')
+  })
 })

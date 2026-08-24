@@ -1,5 +1,6 @@
 import type { ConsistencyIssue, ConsistencyLocation } from '@/core/consistency'
 import type { SequenceSchemaVersion1, SequenceStep } from '@/types/sequence'
+import { rowRef } from '@/core/row-ref'
 import { poseQuestions, presentAnswers, type AnswerPath } from './questions'
 
 const KIND_LABEL: Record<SequenceStep['kind'], string> = {
@@ -16,7 +17,7 @@ const PATH_LABEL: Record<AnswerPath, string> = {
 
 /** ステップを人が特定できる呼び名（#位置 ＋ 文言があれば文言） */
 function stepName(step: SequenceStep, index: number): string {
-  return step.label === '' ? `#${index + 1}` : `#${index + 1}（${step.label}）`
+  return step.label === '' ? rowRef(index) : `${rowRef(index)}（${step.label}）`
 }
 
 function dupLocations(items: readonly { id: string }[], field: string): Map<string, ConsistencyLocation[]> {

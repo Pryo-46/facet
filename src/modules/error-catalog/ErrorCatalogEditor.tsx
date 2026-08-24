@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react'
 import { CellInput, type FieldState } from '@/components/CellInput'
 import { buttonBase } from '@/components/button-styles'
 import { Chip } from '@/components/Chip'
+import { MissingTally } from '@/components/MissingTally'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -26,10 +27,10 @@ import {
 } from './column-widths'
 import { NO_COLUMN_LABEL, PROFILE_COLUMNS } from './columns'
 import { FIELD_LABELS, type ErrorField, type ProseField } from './fields'
+import { isMissingCell, TALLIED_FIELDS, tallyMissing } from './missing'
 import { PROFILES, SUPPORT_PROFILE, type ErrorProfile } from './profiles'
 import { resolutionLabel } from './resolution-labels'
 import { EMPTY_FILTER, filterErrorIndices, isDerivedView, type ErrorFilter } from './search'
-import { isWarnCell } from './warnings'
 
 // 解決レベルの選択肢はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂時に静かにずれる）
 const LEVEL_OPTIONS = errorCatalogSchema.$defs.errorEntry.properties.resolutionLevel.enum
@@ -132,6 +133,36 @@ export function ErrorCatalogEditor({
     const index = visible[visiblePos]
     if (index === undefined) return false
     return rows.focusCell(rowKeys[index], field)
+  }
+
+  /** 帯のチップ（欠落の種類）ごとに巡る位置。kind → 直前に飛んだ表示中の順番 */
+  const jumpAt = useRef<Record<string, number>>({})
+
+  /**
+   * 欠落セルへのジャンプ（M22）。**集計は全行、ジャンプは表示中**——絞り込み中は
+   * 集計と巡回先がずれうる（用語集 GlossaryEditor と同じ理由・同じ形）。
+   * `'undecided'` は resolutionLevel セルへ、`'blank'` はその行の
+   * TALLIED_FIELDS 順で最初に isMissingCell が真になるフィールドへ飛ぶ
+   */
+  const jumpToMissing = (kind: string): void => {
+    if (kind === 'undecided') {
+      const targets = visible.filter((i) => isMissingCell(data.errors[i], 'resolutionLevel'))
+      if (targets.length === 0) return
+      const next = ((jumpAt.current[kind] ?? -1) + 1) % targets.length
+      jumpAt.current[kind] = next
+      rows.focusCell(rowKeys[targets[next]], 'resolutionLevel')
+      return
+    }
+    const targets = visible.filter((i) =>
+      TALLIED_FIELDS.some((f) => isMissingCell(data.errors[i], f)),
+    )
+    if (targets.length === 0) return
+    const next = ((jumpAt.current[kind] ?? -1) + 1) % targets.length
+    jumpAt.current[kind] = next
+    const index = targets[next]
+    const field = TALLIED_FIELDS.find((f) => isMissingCell(data.errors[index], f))
+    if (field === undefined) return
+    rows.focusCell(rowKeys[index], field)
   }
 
   /** コマンドをエラーカタログの構造へ写像する。戻り値 true＝消費した */
@@ -290,12 +321,11 @@ export function ErrorCatalogEditor({
     return (
       <CellInput
         multiline
-        className={`${cellInput} placeholder:text-ink-muted`}
+        className={cellInput}
         aria-label={label}
         data-cell={cellId(rowKey, field)}
-        // 空欄は「未定義」と明示する（Markdown 出力が （未定義） と書く仕様と揃える）。
-        // 備考だけは検知対象外の自由メモなので置かない
-        placeholder={field === 'notes' ? undefined : '未定義'}
+        // 空は空のまま。欠落は cellClass の面（missing-face）が示す
+        // （D1。placeholder に欠落の語を使わない——IssueBox と同じ判断）
         value={entry[field]}
         onValueChange={(v) => updateProse(at.index, field, v, `${rowKey}:${field}`)}
         onFieldKeyDown={(e, s) => onCellKeyDown(e, at, textFieldContext(s, false))}
@@ -352,6 +382,7 @@ export function ErrorCatalogEditor({
         <span className="text-xs text-ink-muted">
           {visible.length} / {data.errors.length} 件
         </span>
+        <MissingTally tally={tallyMissing(data.errors)} onJump={jumpToMissing} />
         {!reorderEnabled && (
           <span className="text-xs text-ink-muted">
             検索・フィルタ中は行の追加（Enter）と並び替え（{altModifierLabel(PLATFORM)}+↑↓）を使えません
@@ -425,7 +456,7 @@ export function ErrorCatalogEditor({
                   {profile.fields.map((field) => (
                     <td
                       key={field}
-                      className={`${colBorder}${field === 'resolutionLevel' ? ' relative' : ''} ${cellClass(index, field, isWarnCell(entry, field))}`}
+                      className={`${colBorder}${field === 'resolutionLevel' ? ' relative' : ''} ${cellClass(index, field, isMissingCell(entry, field))}`}
                     >
                       {cellNode({ index, visiblePos, field }, entry, rowKey)}
                     </td>

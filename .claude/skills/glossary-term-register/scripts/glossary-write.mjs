@@ -120,21 +120,29 @@ const terms = normalized.terms ?? [];
 // アプリの normalizeForMatch（src/core/normalize.ts）と同じ規則。
 // **trim を落とさないこと**——末尾に空白を足すだけで重複判定をすり抜けられる
 const fold = (s) => String(s).normalize("NFKC").trim().toLowerCase();
+// アプリの rowRef（src/core/row-ref.ts）と同じ規則。行を指すメッセージは
+// 配列位置＋1（No 列の値）で呼ぶ
+const rowRef = (i) => `#${i + 1}`;
 
 // ID重複（IDは機械的識別子なので正規化しない完全一致）。
 // 文言・計上規則ともアプリ（src/modules/glossary/consistency.ts）と
-// 同一であること——グループごとに1件・件数付き。出現ごとに数えない
+// 同一であること——グループごとに1件・件数＋行番号付き
 const byId = new Map();
 terms.forEach((t, i) => {
   if (!byId.has(t.id)) byId.set(t.id, []);
   byId.get(t.id).push(i);
 });
 for (const [id, indices] of byId) {
-  if (indices.length > 1) warnings.push(`ID が重複しています（${indices.length}件）: ${id}`);
+  if (indices.length > 1) {
+    warnings.push(
+      `ID が重複しています（${indices.length}件。${indices.map(rowRef).join(" ／ ")}）: ${id}`,
+    );
+  }
 }
 
 // name の重複（用語集は「この語を正式名とする」宣言なので、同名2件は宣言としての矛盾。
-// IDが違うためスキーマの uniqueItems では防げず、追記のたびに発生確率が上がる）
+// IDが違うためスキーマの uniqueItems では防げず、追記のたびに発生確率が上がる）。
+// 「X」はグループ先頭の行の表記——正規化で同一視された行は表記が違いうる
 const byName = new Map();
 terms.forEach((t, i) => {
   const k = fold(t.name);
@@ -143,13 +151,16 @@ terms.forEach((t, i) => {
 });
 for (const indices of byName.values()) {
   if (indices.length > 1) {
-    warnings.push(`名称が重複しています: ${indices.map((i) => `「${terms[i].name}」`).join(" と ")}`);
+    warnings.push(
+      `名称「${terms[indices[0]].name}」が${indices.length}件重複しています（${indices.map(rowRef).join(" ／ ")}）`,
+    );
   }
 }
 
 // alias 重複（同一用語内・用語間の両方を1つのルールで扱う）。
 // アプリ（src/modules/glossary/consistency.ts）と同じく、いったん
-// 「持ち主の位置つき」に平らへ潰してからグループごとに1件で数える
+// 「持ち主の位置つき」に平らへ潰してからグループごとに1件で数える。
+// 行は locations と同じ dedup 済み集合で数える。件数は出現数のまま
 const owned = terms.flatMap((t, index) => t.aliases.map((alias) => ({ index, alias })));
 const byAlias = new Map();
 owned.forEach((o, flat) => {
@@ -159,7 +170,17 @@ owned.forEach((o, flat) => {
 });
 for (const group of byAlias.values()) {
   if (group.length > 1) {
-    warnings.push(`別名「${owned[group[0]].alias}」が重複しています（${group.length}件）`);
+    const seen = new Set();
+    const locations = [];
+    for (const flat of group) {
+      const { index } = owned[flat];
+      if (seen.has(index)) continue;
+      seen.add(index);
+      locations.push(index);
+    }
+    warnings.push(
+      `別名「${owned[group[0]].alias}」が${group.length}件重複しています（${locations.map(rowRef).join(" ／ ")}）`,
+    );
   }
 }
 
@@ -174,7 +195,9 @@ terms.forEach((t, index) => {
   for (const alias of t.aliases) {
     for (const other of byTermName.get(fold(alias)) ?? []) {
       if (other === index) continue;
-      warnings.push(`「${t.name}」の別名「${alias}」が用語「${terms[other].name}」の名称と衝突しています`);
+      warnings.push(
+        `${rowRef(index)}「${t.name}」の別名「${alias}」が${rowRef(other)}「${terms[other].name}」の名称と衝突しています`,
+      );
     }
   }
 });

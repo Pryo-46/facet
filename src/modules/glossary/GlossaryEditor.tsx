@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react'
 import { CellInput, type FieldState } from '@/components/CellInput'
 import { buttonBase } from '@/components/button-styles'
 import { Chip } from '@/components/Chip'
+import { MissingTally } from '@/components/MissingTally'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -24,9 +25,10 @@ import {
   MIN_COLUMN_WIDTH,
   RESIZE_STEP,
 } from './column-widths'
-import { COLUMNS, nextWidthIndex, WIDTH_INDEX } from './columns'
+import { COLUMNS, NO_COLUMN_LABEL, nextWidthIndex, WIDTH_INDEX } from './columns'
 import { FIELD_LABELS, stepField, type GlossaryField } from './fields'
 import { kindLabel } from './kind-labels'
+import { isMissingCell, tallyMissing } from './missing'
 import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } from './search'
 
 // 種別の選択肢はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂時に静かにずれる）
@@ -41,7 +43,7 @@ const KIND_OPTIONS = glossarySchema.$defs.term.properties.kind.enum
 const cellInput =
   'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
 
-/** 列の境界の縦罫。先頭列には引かない（M8 決定2） */
+/** 列の境界の縦罫。先頭列（No）には引かない（M8 決定2） */
 const colBorder = 'border-l border-grid'
 
 const PLATFORM = currentPlatform()
@@ -110,6 +112,24 @@ export function GlossaryEditor({
     const index = visible[visiblePos]
     if (index === undefined) return false
     return rows.focusCell(rowKeys[index], field)
+  }
+
+  /** 帯のチップ（欠落の種類）ごとに巡る位置。kind → 直前に飛んだ表示中の順番 */
+  const jumpAt = useRef<Record<string, number>>({})
+
+  /**
+   * 欠落セルへのジャンプ（M22）。**集計は全行、ジャンプは表示中**——
+   * 絞り込み中は集計と巡回先がずれうる（テーブル側はフォーカス位置追跡を
+   * 持たないので、課題ツリーの nextOpenTarget とは違い巡回 ref で数える。
+   * 物足りなければ open-issues 行き）
+   */
+  const jumpToMissing = (kind: string): void => {
+    const field: GlossaryField = kind === 'kind' ? 'kind' : 'definition'
+    const targets = visible.filter((i) => isMissingCell(data.terms[i], field))
+    if (targets.length === 0) return
+    const next = ((jumpAt.current[kind] ?? -1) + 1) % targets.length
+    jumpAt.current[kind] = next
+    rows.focusCell(rowKeys[targets[next]], field)
   }
 
   /** コマンドを用語集の構造へ写像する。戻り値 true＝消費した（既定動作を止める） */
@@ -194,9 +214,11 @@ export function GlossaryEditor({
   const marks = buildErrorMarks(issues)
 
   /** セルの輪郭のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ。
-      行全体の指摘は先頭列（名称）の輪郭で示す（UI ノート D5） */
+      行全体の指摘は No セルの輪郭で示す（M22。UI ノート D5）。No は GlossaryField
+      ではないので、ここでは rowAnchor は常に false——No セル自身は tbody の中で
+      cellFace を直接呼んで別に組み立てる */
   const cellClass = (index: number, field: GlossaryField, warn = false): string =>
-    CELL_FACE_CLASS[cellFace(marks, index, field, warn, field === COLUMNS[0].field)]
+    CELL_FACE_CLASS[cellFace(marks, index, field, warn, false)]
 
   return (
     <div ref={rows.containerRef} className="p-4">
@@ -229,6 +251,7 @@ export function GlossaryEditor({
         <span className="text-xs text-ink-muted">
           {visible.length} / {data.terms.length} 件
         </span>
+        <MissingTally tally={tallyMissing(data.terms)} onJump={jumpToMissing} />
         {!reorderEnabled && (
           // データ順と表示順が食い違う状態での並び替えは結果が予測不能になる
           // （session-notes 論点4）。無効であることを画面でも示す
@@ -267,28 +290,32 @@ export function GlossaryEditor({
             <tr className="text-left">
               {COLUMNS.map((col, i) => {
                 const w = WIDTH_INDEX[i]
+                // 'no' は GlossaryField ではないので FIELD_LABELS が引けない
+                // （エラーカタログ columns.ts の NO_COLUMN_LABEL と同じ形）
+                const label = col.field === 'no' ? NO_COLUMN_LABEL : FIELD_LABELS[col.field]
                 return (
                   <th
                     key={col.field}
-                    className={`sticky top-0 z-10 relative border-b border-rule bg-surface-muted px-2 py-1 text-xs font-medium tracking-wide text-ink-muted${i === 0 ? '' : ` ${colBorder}`}`}
+                    className={`sticky top-0 z-10 relative border-b border-rule bg-surface-muted px-2 py-1 text-xs font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
                   >
-                    {FIELD_LABELS[col.field]}
-                    {/* 幅を持たない定義列は自分ではハンドルを出さないが、右隣に
+                    {label}
+                    {/* No 列は導出（データ配列の index+1）なのでハンドルを出さない。
+                        幅を持たない定義列は自分ではハンドルを出さないが、右隣に
                         固定幅の列があればそこにハンドルを出す。掴めるのは
                         右隣（別名）の幅なので反転して渡す（見た目どおり、
                         右へ引くと定義が広がる＝別名が狭まる）。掴み代が見えるように
                         列の境界へ grid の縦罫を引いてある（M8 決定2） */}
-                    {w !== null ? (
+                    {col.field === 'no' ? null : w !== null ? (
                       <span
                         {...getHandleProps(w)}
-                        aria-label={`${FIELD_LABELS[col.field]}の列幅を変更`}
+                        aria-label={`${label}の列幅を変更`}
                         className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-rule"
                       />
                     ) : (
                       nextWidthIndex(i) !== null && (
                         <span
                           {...getHandleProps(nextWidthIndex(i) as number, { invert: true })}
-                          aria-label={`${FIELD_LABELS[col.field]}の列幅を変更`}
+                          aria-label={`${label}の列幅を変更`}
                           className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-rule"
                         />
                       )
@@ -305,7 +332,17 @@ export function GlossaryEditor({
               const row = visiblePos + 1
               return (
                 <tr key={rowKey} className="border-b border-grid align-middle">
-                  <td className={cellClass(index, 'name')}>
+                  {/* No は編集対象ではない。データ配列の位置なので絞り込んでも動かない
+                      （表示中の行番号 `row` とは役割が違う——row は表示位置、
+                      No はデータ位置。エラーカタログ :416-422 の写し）。
+                      行全体の指摘（field: 'id'。ID 重複など欄を特定できない指摘）は
+                      ここへ出す（cellFace の rowAnchor 引数） */}
+                  <td
+                    className={`px-2 py-1 text-right text-ink-muted ${CELL_FACE_CLASS[cellFace(marks, index, 'no', false, true)]}`}
+                  >
+                    {index + 1}
+                  </td>
+                  <td className={`${colBorder} ${cellClass(index, 'name')}`}>
                     <CellInput
                       className={cellInput}
                       aria-label={`${FIELD_LABELS.name}（${row}行目）`}
@@ -326,7 +363,7 @@ export function GlossaryEditor({
                       }
                     />
                   </td>
-                  <td className={`relative ${colBorder} ${cellClass(index, 'kind', term.kind === 'undecided')}`}>
+                  <td className={`relative ${colBorder} ${cellClass(index, 'kind', isMissingCell(term, 'kind'))}`}>
                     <select
                       className={`${cellInput} appearance-none pr-6`}
                       aria-label={`${FIELD_LABELS.kind}（${row}行目）`}
@@ -368,15 +405,14 @@ export function GlossaryEditor({
                       <path d="M3 4.5 L6 7.5 L9 4.5" />
                     </svg>
                   </td>
-                  <td className={`${colBorder} ${cellClass(index, 'definition', term.definition === '')}`}>
+                  <td className={`${colBorder} ${cellClass(index, 'definition', isMissingCell(term, 'definition'))}`}>
                     <CellInput
                       multiline
-                      className={`${cellInput} placeholder:text-ink-muted`}
+                      className={cellInput}
                       aria-label={`${FIELD_LABELS.definition}（${row}行目）`}
                       data-cell={cellId(rowKey, 'definition')}
-                      // 空欄は「未定義」と明示する（負債を消えなくして見せる。
-                      // M6 の Markdown 出力が空定義を「（未定義）」と書く仕様と揃える）
-                      placeholder="未定義"
+                      // 空は空のまま。欠落は cellClass の面（missing-face）が示す
+                      // （D1。placeholder に欠落の語を使わない——IssueBox と同じ判断）
                       value={term.definition}
                       onValueChange={(v) =>
                         updateTerm(index, { definition: v }, `${rowKey}:definition`)

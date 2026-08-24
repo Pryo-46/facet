@@ -43,12 +43,13 @@ function routeCell(data: SequenceSchemaVersion1, step: SequenceStep): string {
 
 /**
  * 答えの1セル。**4状態を書き分ける**:
- * 問いが立っていない＝空セル／未回答＝（未定義）／notApplicable＝─ 考慮不要／
+ * 問いが立っていない＝空セル／未回答＝（未定義）／notApplicable＝考慮不要／
  * handled＝本文。
  *
  * 空セルにするのは、人が判断したセルには必ず何かが入るからで、空白が自動的に
- * 「ここは問われていない」の意になる。`─` だけにすると `─ 考慮不要` と接頭が
- * 同じになり、**人が決めた**と**ツールが問わない**の境が潰れる
+ * 「ここは問われていない」の意になる。**人が決めた**（`考慮不要`）と
+ * **ツールが問わない**（空セル）の境は、語そのものが分ける（M22。以前は
+ * `─` の記号を接頭に使っていたが、記号1つでは境が伝わらないので語に変えた）
  */
 function answerCell(step: SequenceStep, path: AnswerPath): string {
   if (!poseQuestions(step)[path]) return ''

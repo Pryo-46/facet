@@ -6,7 +6,7 @@
 //   2. 正規化（キー順をスキーマの properties 記載順から実行時に導出し、LF・2スペース・
 //      非ASCIIそのまま・末尾改行あり・BOMなしで書き出す）
 //   3. 整合性検証（参照切れ / ID重複 / to の過不足 / from==to / 立っていない問いへの答え）と
-//      未定義の集計を報告する。アプリ側のレベル2と同じ性質なので書き込みは止めない。
+//      欠落（未回答・未記入）の集計を報告する。アプリ側のレベル2と同じ性質なので書き込みは止めない。
 //
 // **問いの導出は手で複製しない。** ./questions.ts は src/modules/sequence/questions.ts の
 // バイト一致コピーで、ズレは src/modules/sequence/skill-copy.test.ts が検知する。
@@ -201,11 +201,15 @@ if (targetPath) {
   }
 }
 
-// ---------- 未定義の集計（アプリのガターと同一規則） ----------
+// ---------- 欠落の集計（アプリの帯と同一規則。docs/missing-semantics.md） ----------
 //
-// 数えるのは**立っている問いだけ**。立っていない問いへの答えは上の
-// unposed-answer が別に指摘するので、ここには混ぜない（SequenceEditor.tsx の
-// tally と同じ扱い）
+// 未回答＝**立っている問い**に decision が無い。立っていない問いへの答えは上の
+// unposed-answer が別に指摘するので、ここには混ぜない（src/modules/sequence/missing.ts
+// と同じ扱い）。未記入＝参加者の name ／ ステップの label が空。
+//
+// **文言は手書きである。** Skill は src/ を import できない（利用者のプロジェクトへ
+// コピーされる）ので、アプリ側の tallyLine との逐語一致は
+// src/modules/sequence/skill-write.smoke.test.ts が固定している——ここを直すなら向こうも
 
 const tally = { unanswered: 0, handled: 0, notApplicable: 0 };
 const unansweredAt = [];
@@ -222,6 +226,8 @@ for (const [index, step] of steps.entries()) {
     }
   }
 }
+const blank =
+  actors.filter((a) => a.name === "").length + steps.filter((s) => s.label === "").length;
 
 // ---------- 書き出し ----------
 
@@ -236,8 +242,13 @@ if (targetPath) {
 }
 console.log(`  スキーマ: ${schemaPath}`);
 console.log(`  参加者: ${actors.length}人 ／ ステップ: ${steps.length}件`);
-console.log(`  ⚠ 未定義 ${tally.unanswered} ／ ✓ 回答済 ${tally.handled} ／ ─ 考慮不要 ${tally.notApplicable}`);
-if (unansweredAt.length) console.log(`  未定義の内訳: ${unansweredAt.join("、")}`);
+const parts = [];
+if (tally.unanswered > 0) parts.push(`未回答 ${tally.unanswered}`);
+if (blank > 0) parts.push(`未記入 ${blank}`);
+const total = tally.unanswered + blank;
+console.log(`  ${total === 0 ? "要対応 0" : `⚠ 要対応 ${total}（${parts.join(" ／ ")}）`}`);
+console.log(`  回答済 ${tally.handled} ／ 考慮不要 ${tally.notApplicable}`);
+if (unansweredAt.length) console.log(`  未回答の内訳: ${unansweredAt.join("、")}`);
 
 if (warnings.length) {
   console.log(`\n⚠ 整合性の警告（アプリでは赤表示。ファイルは開けます）`);

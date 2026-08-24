@@ -4,7 +4,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { UNDEFINED_VALUE, UNRESOLVED_ACTOR_LABEL } from './output-labels'
+import { UNRESOLVED_ACTOR_LABEL } from './output-labels'
 
 export interface ActorRefCellProps {
   value: string | undefined
@@ -33,9 +33,15 @@ export interface ActorRefCellProps {
  * 参加者の追加は、ヘッダの `Enter` とツールバーの「参加者を追加」の2本になった。
  *
  * 参照切れを空表示にしない——ボタンなので、空だと押す場所が見えなくなる。
- * 出力と同じ「（未解決）」の語を使う。**参照は引けているが名前が空**の場合も
- * 同じ理由（空文字のボタン／空白のメニュー項目は押す場所が見えない）で空表示を
- * 避け、出力と同じ「（未定義）」を使う（（未解決）とは区別する——参照は引けている）
+ * 出力と同じ「（未解決）」の語を使う（無効軸の表示であって、無いデータの
+ * 捏造ではない）。
+ *
+ * **参照は引けているが名前が空**の場合は、本文を空のままにして
+ * 欠落の面（破線＋淡い `missing` の面）で示す（M22 決定1）。かつては
+ * 「（未定義）」と書いていたが、それはデータに無い文字列を画面が作り出す
+ * ことであり、コピーすれば仕様のように読めてしまう。押す場所が見えない
+ * 問題は語ではなく面が引き受ける——メニュー項目も同じ理由で、空白の行では
+ * なく欠落のマークを出す
  */
 export function ActorRefCell(props: ActorRefCellProps) {
   const resolved = props.actors.find((a) => a.id === props.value)
@@ -45,13 +51,26 @@ export function ActorRefCell(props: ActorRefCellProps) {
     const next = (at + delta + props.actors.length) % props.actors.length
     props.onSelect(props.actors[next].id)
   }
-  // 無効は `invalid` の枠＋淡い面（rev 9章 規約2）
-  const face = props.invalid ? 'border-invalid bg-invalid-face' : 'border-rule bg-surface'
+  // 名前が空の参加者を指している＝欠落（M22）。プロップでは受けない——
+  // 判定に要る材料（actors と value）がすでに手元にあり、渡す側が
+  // 間違える余地を作らないため
+  const missing = resolved !== undefined && resolved.name === ''
+  // 無効は `invalid` の枠＋淡い面、欠落は破線＋淡い面（rev 9章 規約2）。
+  // **面と枠のクラスは片方だけ出す**（SequenceEditor の参加者ヘッダと同じ理由）
+  const face = props.invalid
+    ? 'border-invalid bg-invalid-face'
+    : missing
+      ? 'border-dashed border-missing bg-missing-face'
+      : 'border-rule bg-surface'
   return (
     <DropdownMenu open={props.open} onOpenChange={props.onOpenChange}>
       <DropdownMenuTrigger
         type="button"
-        className={`w-full truncate rounded-sm border px-1.5 py-0.5 text-left text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring ${face}`}
+        // **`min-h-6` を外さないこと。** 名前が空の参加者を指しているときは
+        // 本文が空になり、子が無いボタンは行ボックスを作らないので内容高 0＋
+        // 余白だけの帯に潰れる（親は height を渡さない）。押す面積が消え、
+        // 同じ railTop に並ぶ種別セルとも段が揃わなくなる
+        className={`min-h-6 w-full truncate rounded-sm border px-1.5 py-0.5 text-left text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring ${face}`}
         aria-label={props['aria-label']}
         data-cell={props['data-cell']}
         onKeyDown={(e) => {
@@ -69,16 +88,27 @@ export function ActorRefCell(props: ActorRefCellProps) {
           props.onFieldKeyDown?.(e)
         }}
       >
-        {resolved === undefined
-          ? UNRESOLVED_ACTOR_LABEL
-          : resolved.name === ''
-            ? UNDEFINED_VALUE
-            : resolved.name}
+        {resolved === undefined ? UNRESOLVED_ACTOR_LABEL : resolved.name}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         {props.actors.map((actor) => (
-          <DropdownMenuItem key={actor.id} onSelect={() => props.onSelect(actor.id)}>
-            {actor.name === '' ? UNDEFINED_VALUE : actor.name}
+          <DropdownMenuItem
+            key={actor.id}
+            onSelect={() => props.onSelect(actor.id)}
+            // **名前は項目そのものに付ける。** 素の span（generic ロール）への
+            // aria-label は accname 仕様で無視されうる命名禁止ロールで、
+            // 実ブラウザでは「空白の項目」として支援技術に届く。menuitem は
+            // 命名できるロールなので、名前はこちら、面は aria-hidden の飾りにする
+            aria-label={actor.name === '' ? '名前が空の参加者' : undefined}
+          >
+            {actor.name === '' ? (
+              <span
+                aria-hidden="true"
+                className="inline-block h-4 w-16 rounded-sm border border-dashed border-missing bg-missing-face"
+              />
+            ) : (
+              actor.name
+            )}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

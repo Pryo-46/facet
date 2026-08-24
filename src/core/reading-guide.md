@@ -30,6 +30,7 @@ facet の核心は「決めていないことを消せなくする」ことで�
 
 - `definition` が空文字の用語は「未定義」（未決）。`kind: undecided` は「種別を後で決める」（未決）
 - `aliases` は表記ゆれの照合キー。会話や文書に `aliases` の語が出てきたら、その用語を指していると解釈する
+- `aliases` が空配列、`notes` が空文字であることは「未決」ではない。前者は単に別名が無いという事実、後者は自由メモの欄が使われていないだけで、埋めるよう促さない
 
 ### エラーカタログ（type: errorCatalog）
 
@@ -41,6 +42,7 @@ facet の核心は「決めていないことを消せなくする」ことで�
 - **異常系は矢印では描かれていない。** 各ステップの `failures`（「失敗したら？」の問い）が異常系の仕様である。`failed`＝失敗が確定したら／`unknown`＝結果が不明（タイムアウト等）だったら／`unknown.ifExecuted`＝不明だが実は実行済みだったら（冪等性）
 - どの問いが立つかは `kind` と `awaitsReply` から決まる: `self`→`failed` のみ／`call` で `awaitsReply: true`→`failed` と `unknown`／`call` で `awaitsReply: false`→`unknown` のみ／`reply`→問い無し（応答の失敗は、対になる呼出側の `unknown` が扱う）
 - `failures` にキーが無い問いは「未回答」（未決）。`decision: "notApplicable"` は「考慮不要と**決めた**」（確定）であり、未回答とは別物
+- 参加者の `name` が空文字、ステップの `label` が空文字は「未記入」（未決）。出力はどちらも（未定義）と書く
 - 参加者の `domain` は責任ドメイン。隣り合う参加者の双方に `domain` が指定されていて、かつ異なる位置に責任境界がある（片方が未指定なら境界は無い）
 
 ### ロジックツリー（type: logicTree）

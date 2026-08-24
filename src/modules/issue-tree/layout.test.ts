@@ -3,7 +3,7 @@ import { createEstimateMeasurer } from '@/core/canvas/wrap'
 import type { Hypothesis, IssueNode, IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { ISSUE_DEFERRED_LABEL, poseQuestions } from './derive'
 import { DEFER_TRIGGER_LABEL, layoutIssueTree, type IssueTreeFonts } from './layout'
-import { BOX_WIDTH, ISSUE_INSET_X, ISSUE_TITLE_MIN_WIDTH } from './measure'
+import { BADGE_GAP, BOX_WIDTH, ISSUE_INSET_X, ISSUE_TITLE_MIN_WIDTH } from './measure'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
@@ -75,6 +75,58 @@ describe('layoutIssueTree', () => {
     const first = out.hypotheses[0]!
     expect(first.badge.x).toBeGreaterThanOrEqual(first.text.x + first.text.width)
     expect(first.badge.x + first.badge.width).toBeLessThanOrEqual(box.x + box.width)
+  })
+
+  /**
+   * 帯の「未判断」と行の表示を一対一にする（M22）。**同じテストで有り／無しの
+   * 両方を見る**——片方だけだと「常に null」「常に Rect」でも緑になる。
+   * 2件は現在ステータスを揃えてある（どちらも支持）ので、判断バッジの幅は同じ。
+   * 差は未判断バッジのぶんだけである
+   */
+  it('未判断の仮説行は、判断バッジの左に未判断バッジの幅を確保する', () => {
+    const data = make({
+      issues: [root],
+      hypotheses: [
+        h(1, {
+          events: [{ kind: 'supported', note: '実測で確認' }],
+          pendingNotes: ['レビューで出た指摘'],
+        }),
+        h(2, { events: [{ kind: 'supported', note: '実測で確認' }] }),
+      ],
+    })
+    const posed = poseQuestions(data)
+    expect(posed.hypothesisQuestions[0].judgement).toBe(true)
+    expect(posed.hypothesisQuestions[1].judgement).toBe(false)
+
+    const out = run(data)
+    const pending = out.hypotheses[0]!
+    const plain = out.hypotheses[1]!
+
+    // 立っていない行は従来どおり（バッジは1つ）
+    expect(plain.judgementBadge).toBeNull()
+
+    // 立っている行は、判断バッジの左に BADGE_GAP を空けて並ぶ（同じ高さ・同じ y）
+    const jb = pending.judgementBadge!
+    expect(jb.width).toBeGreaterThan(0)
+    expect(jb.height).toBe(pending.badge.height)
+    expect(jb.y).toBe(pending.badge.y)
+    expect(jb.x + jb.width + BADGE_GAP).toBe(pending.badge.x)
+    // 判断バッジ自身の場所は動かない（右端のまま）
+    expect(pending.badge.x).toBe(plain.badge.x)
+    expect(pending.badge.x + pending.badge.width).toBeLessThanOrEqual(
+      out.issues[0]!.rect.x + out.issues[0]!.rect.width,
+    )
+    // 文言はそのぶんだけ狭く、未判断バッジに被らない
+    expect(pending.text.width).toBe(plain.text.width - BADGE_GAP - jb.width)
+    expect(pending.text.x + pending.text.width).toBeLessThanOrEqual(jb.x)
+
+    // **展開した行の頭部も同じ**（頭部の組み立ては閉じた行と同じ幅を通る）
+    const open = run(data, 0).hypotheses[0]!
+    const ojb = open.judgementBadge!
+    expect(ojb.width).toBe(jb.width)
+    expect(ojb.y).toBe(open.badge.y)
+    expect(ojb.x + ojb.width + BADGE_GAP).toBe(open.badge.x)
+    expect(open.text.width).toBe(pending.text.width)
   })
 
   it('仮説を持たない課題の箱はタイトルの自然幅（ロジックツリーと同じ）', () => {
