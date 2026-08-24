@@ -370,8 +370,9 @@ describe('問いスロット（ガター）', () => {
     // notApplicable は handled より多くの行に折り返り、スロットが高くなるはず。
     // NOT_APPLICABLE_ANSWER_WRAP が無い、または wrap のキャッシュ鍵が箱名を
     // 分けていないと、notApplicable 側が handled 側と同じ（狭すぎない）高さを
-    // 返し、この差が消える
-    const reason = '在'.repeat(16)
+    // 返し、この差が消える。入力長はフォント段に依存する。handled と notApplicable
+    // の行数が割れる長さを選ぶこと（M23 で 16px 段に合わせて 16→24 に変更）
+    const reason = '在'.repeat(24)
     const d = doc()
     d.steps[0] = { ...d.steps[0], failures: { failed: { decision: 'handled', text: reason } } }
     d.steps[2] = { ...d.steps[2], failures: { failed: { decision: 'notApplicable', text: reason } } }
