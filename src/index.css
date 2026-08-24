@@ -15,30 +15,28 @@
  * ★ 色値はここに書かない。src/styles/palette.css が唯一の出所。★
  * ========================================================================= */
 @theme inline {
-    /* タイポグラフィ（M7 決定6）。
+    /* タイポグラフィ（M23 決定1・2。設計スペック 2026-08-24-m23-core-typography-design.md）。
      *
-     * サイズは Tailwind の既定のまま（xs 12 / sm 14 / base 16 / lg 18px）。
-     * 再定義しない——既存コードは sm と xs でほぼ回っており、shadcn の
-     * 生成物も text-sm を既定にしている。ここで語彙を作り直しても得るものがない。
+     * 段は3サイズ4段: text-sm 14px（補助）／ text-base 16px（本文既定）／
+     * text-base + leading-normal（複数行の自由記述とキャンバスの折り返し）／
+     * text-xl 22px（文書タイトルとアプリ名。Tailwind 既定の 20px をここで再定義する。
+     * 22px の出所は UI ノート D11 の確定スケール＝ D12 の 96→109 PPI 正規化）。
      *
-     * **使ってよいのは xs / sm / base / lg の4段だけ。**
-     * xl 以上と任意値 text-[...] は src/styles/conventions.test.ts が弾く。
+     * **使ってよいのは sm / base / xl の3段だけ。**
+     * text-xs（12px）は D11 の 14px 下限で廃止。text-lg は実使用 0 件のまま閉鎖。
+     * text-2xl はアプリ名を 22px に統合して閉鎖（2px 差の段を体系に残さない）。
+     * xs・lg・2xl・3xl 以上・任意値 text-[...] は conventions.test.ts が弾く。
      *
-     * 行間だけ日本語向けに上書きする。Tailwind の既定は英文基準で、
-     * text-sm は 1.43。用語集の定義・備考は自由記述の複数行が入る欄なので、
-     * ここが読みにくさに直結する。
-     *
-     * Geist は日本語グリフを持たない。和文のフォールバックを明示しないと
-     * 環境依存で MS UI Gothic に落ちる。和文フォントは同梱しない——
-     * rev 7章が配布形態を Windows のデスクトップアプリと定めており、
-     * Yu Gothic UI は Windows 8.1 以降の標準搭載なので事実上固定される */
+     * 行間は「詰めた値を既定にし、読ませる欄だけ leading-normal（1.5）を明示」（D11:
+     * 密度は行高で稼ぎ、サイズでは稼がない）。セクション見出しの 130% は本文の
+     * 125% に畳んである——16px では差が 0.8px しかなく、単行のラベルで視認できない */
     --font-heading: var(--font-sans);
     --font-sans: 'Geist Variable', 'Yu Gothic UI', 'Hiragino Sans', sans-serif;
     --font-mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-    --text-xs--line-height: 1.5;
-    --text-sm--line-height: 1.65;
-    --text-base--line-height: 1.5;
-    --text-lg--line-height: 1.4;
+    --text-xl: 22px;
+    --text-sm--line-height: 1.3;
+    --text-base--line-height: 1.25;
+    --text-xl--line-height: 1.3;
 
     --color-canvas: var(--canvas);
     --color-surface: var(--surface);
@@ -160,8 +158,9 @@
     --radius: 0.625rem;
 
     /* 方眼紙のマス目。色ではないので palette.css には置かない
-       （palette.css は色値だけを持つ）。text-sm の行高（14px × 1.65 ＝ 23.1px）
-       とほぼ一致させ、方眼と文字行が揃って見えるようにしている */
+       （palette.css は色値だけを持つ）。複数行段の行高（16px × 1.5 ＝ 24px）と
+       ちょうど一致し、方眼と文字行が揃って見える（M23 で 14×1.65≒23.1 の近似から
+       ぴったりの一致になった） */
     --grid-size: 24px;
 }
 

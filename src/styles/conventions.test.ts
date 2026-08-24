@@ -114,7 +114,7 @@ describe('フォントサイズの段階（M7 決定6、M14 で1段追加）', (
     //
     // 任意値側は末尾に \b を付けない——`]` の直後は語構成文字ではないため
     // \b が成立せず、`text-[13px]` のような検出が一度も発火しなかった
-    const offenders = offendingLines(/\btext-(xl|[3-9]xl)\b|\btext-\[[^\]]*\]/)
+    const offenders = offendingLines(/\btext-[3-9]xl\b|\btext-\[[^\]]*\]/)
     expect(
       offenders,
       `使ってよいのは text-xs / text-sm / text-base / text-lg / text-2xl の5段:\n${offenders.join('\n')}`,
