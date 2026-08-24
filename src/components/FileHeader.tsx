@@ -30,7 +30,7 @@ export function FileHeader(props: FileHeaderProps) {
         value={props.title}
         readOnly={!props.editable}
         placeholder="(無題)"
-        className={`min-w-0 flex-1 border-b bg-transparent text-base font-bold outline-none ${
+        className={`min-w-0 flex-1 border-b bg-transparent text-xl font-medium outline-none ${
           props.editable
             ? 'border-transparent text-ink focus:border-ink'
             : 'border-transparent text-ink-muted'
@@ -50,7 +50,7 @@ export function FileHeader(props: FileHeaderProps) {
 
           ファイル名は副表示なので `ink-muted`。**透過は掛けない**——
           トークンのコントラスト保証の外に出る（M21 で全面禁止） */}
-      <span className="truncate text-xs text-ink-muted">{props.fileName}</span>
+      <span className="truncate text-sm text-ink-muted">{props.fileName}</span>
     </div>
   )
 }

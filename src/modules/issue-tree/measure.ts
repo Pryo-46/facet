@@ -29,10 +29,10 @@ export const ISSUE_MAX_WIDTH = 320
  * 結果として箱の下限は定数ではなくなる——空ける枠の幅はバッジの文言の実測で
  * 決まるので、フォント次第で動く。
  *
- * 値は text-sm（14px）で日本語 8 字ぶん。新しく作った空の課題がまず打ち始められる
+ * 値は text-base（16px）で日本語 8 字ぶん。新しく作った空の課題がまず打ち始められる
  * 長さであり、仮説を持つ箱の `BOX_WIDTH`（320）へ跳ねる前の段としても落ち着く
  */
-export const ISSUE_TITLE_MIN_WIDTH = 120
+export const ISSUE_TITLE_MIN_WIDTH = 128
 export const ISSUE_PADDING_X = 10
 export const ISSUE_PADDING_Y = 6
 export const ISSUE_BORDER = 1
@@ -52,7 +52,7 @@ export const ISSUE_BOX_CLASS = 'border px-2.5 py-1.5'
  * 課題のタイトルのフォント。**測る側（エディタの見本）と描く側（`IssueBox`）が
  * 同じ定数を読む**——太字は細字より広いので、片方だけ変えると測定と描画がずれる
  */
-export const TITLE_FONT_CLASS = 'text-sm font-semibold'
+export const TITLE_FONT_CLASS = 'text-base leading-normal font-semibold'
 
 /**
  * 仮説の行を持つ箱・見送りの理由を持つ箱の幅（**固定。導出しない**）。

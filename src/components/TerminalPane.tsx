@@ -48,7 +48,7 @@ export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
             <button
               type="button"
               aria-pressed={state.activeId === session.id}
-              className={`${buttonBase} px-2 py-1 text-xs ${
+              className={`${buttonBase} px-2 py-1 text-sm ${
                 state.activeId === session.id ? 'bg-surface-muted text-ink' : 'text-ink-muted'
               }`}
               onClick={() => onActivate(session.id)}
@@ -81,7 +81,7 @@ export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
         <div className="flex min-h-0 flex-1 items-center justify-center p-4">
           <button
             type="button"
-            className={`${buttonBase} border border-rule px-3 py-1 text-sm text-ink`}
+            className={`${buttonBase} border border-rule px-3 py-1 text-base text-ink`}
             onClick={onOpen}
           >
             Claude Code を開く

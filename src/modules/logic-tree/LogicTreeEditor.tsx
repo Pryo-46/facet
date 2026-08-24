@@ -44,7 +44,7 @@ import { TreeEdges } from './TreeEdges'
 const MEASURE_CACHE_LIMIT = 2000
 
 /** ノードの文言に当たるクラスのうち、フォントを決めている部分。見本要素と共有する */
-const NODE_FONT_CLASS = 'text-sm'
+const NODE_FONT_CLASS = 'text-base leading-normal'
 
 /** 木の操作ヒント。`$alt` は KeyHints が解決する */
 const TREE_HINTS: readonly KeyHint[] = [
@@ -319,7 +319,7 @@ export function LogicTreeEditor({
           {data.nodes.length === 0 && (
             <button
               type="button"
-              className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+              className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
               onClick={createRoot}
             >
               <Plus aria-hidden className="size-4" />

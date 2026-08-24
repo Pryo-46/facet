@@ -226,7 +226,7 @@ export function GlossaryEditor({
         <input
           type="search"
           aria-label="用語を検索"
-          className="w-64 rounded-sm border border-rule bg-canvas px-2 py-1 text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
+          className="w-64 rounded-sm border border-rule bg-canvas px-2 py-1 text-base text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
           placeholder="名称・別名・定義を検索"
           value={filter.query}
           onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
@@ -248,14 +248,14 @@ export function GlossaryEditor({
             </Chip>
           )
         })}
-        <span className="text-xs text-ink-muted">
+        <span className="text-sm text-ink-muted">
           {visible.length} / {data.terms.length} 件
         </span>
         <MissingTally tally={tallyMissing(data.terms)} onJump={jumpToMissing} />
         {!reorderEnabled && (
           // データ順と表示順が食い違う状態での並び替えは結果が予測不能になる
           // （session-notes 論点4）。無効であることを画面でも示す
-          <span className="text-xs text-ink-muted">
+          <span className="text-sm text-ink-muted">
             検索・フィルタ中は行の追加（Enter）と並び替え（{altModifierLabel(PLATFORM)}+↑↓）を使えません
           </span>
         )}
@@ -274,7 +274,7 @@ export function GlossaryEditor({
           機能なので、角丸をあきらめて直角にする。外枠と面（border-rule /
           bg-surface）はそのまま残す */}
       <div ref={tableRef} className="border border-rule bg-surface">
-        <table className="w-full table-fixed border-collapse text-sm">
+        <table className="w-full table-fixed border-collapse text-base">
           <colgroup>
             {COLUMNS.map((col, i) => {
               const w = WIDTH_INDEX[i]
@@ -296,7 +296,7 @@ export function GlossaryEditor({
                 return (
                   <th
                     key={col.field}
-                    className={`sticky top-0 z-10 relative border-b border-rule bg-surface-muted px-2 py-1 text-xs font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
+                    className={`sticky top-0 z-10 relative border-b border-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
                   >
                     {label}
                     {/* No 列は導出（データ配列の index+1）なのでハンドルを出さない。
@@ -408,7 +408,7 @@ export function GlossaryEditor({
                   <td className={`${colBorder} ${cellClass(index, 'definition', isMissingCell(term, 'definition'))}`}>
                     <CellInput
                       multiline
-                      className={cellInput}
+                      className={`${cellInput} leading-normal`}
                       aria-label={`${FIELD_LABELS.definition}（${row}行目）`}
                       data-cell={cellId(rowKey, 'definition')}
                       // 空は空のまま。欠落は cellClass の面（missing-face）が示す
@@ -456,7 +456,7 @@ export function GlossaryEditor({
                   <td className={`${colBorder} ${cellClass(index, 'notes')}`}>
                     <CellInput
                       multiline
-                      className={cellInput}
+                      className={`${cellInput} leading-normal`}
                       aria-label={`${FIELD_LABELS.notes}（${row}行目）`}
                       data-cell={cellId(rowKey, 'notes')}
                       value={term.notes}
@@ -473,7 +473,7 @@ export function GlossaryEditor({
         </table>
       </div>
       {data.terms.length > 0 && visible.length === 0 && (
-        <p className="mt-3 text-sm text-ink-muted">該当する用語がありません。</p>
+        <p className="mt-3 text-base text-ink-muted">該当する用語がありません。</p>
       )}
       {!derivedView && (
         // **0件のときだけでなく常に出す。** 行の追加が Enter だけだと、
@@ -483,7 +483,7 @@ export function GlossaryEditor({
         <button
           ref={rows.addButtonRef}
           type="button"
-          className={`${buttonBase} mt-3 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+          className={`${buttonBase} mt-3 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
           onClick={() => rows.insertAfter(data.terms.length - 1)}
         >
           <Plus aria-hidden className="size-4" />

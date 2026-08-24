@@ -43,11 +43,11 @@ export interface IssueTreeFont {
 }
 
 export interface IssueTreeFonts {
-  /** 課題のタイトル（text-sm font-semibold）。太字は幅が変わるので独立に測る */
+  /** 課題のタイトル（text-base leading-normal font-semibold）。太字は幅が変わるので独立に測る */
   title: IssueTreeFont
-  /** 仮説の文言・根拠・由来・FB（text-sm） */
+  /** 仮説の文言・根拠・由来・FB（text-base leading-normal） */
   body: IssueTreeFont
-  /** 節の見出し・見送りの理由・バッジ（text-xs） */
+  /** 節の見出し・見送りの理由・バッジ（text-sm） */
   small: IssueTreeFont
 }
 
@@ -442,9 +442,13 @@ export function layoutIssueTree(
      * **ホバー中はバッジを隠してトグルと入れ替える**（IssueBox）。
      * 見送り済みの箱では2つが同じ要素なので、広い方＝バッジの幅でよい
      */
+    // まだ見送っていない箱のトリガーは `IssueTreeEditor` の `DEFER_TRIGGER_FACE`
+    // ＝バッジと同じ幾何（`px-1.5` ＋ 枠 1px）を描くので、幅も `actionWidth`
+    // （`px-1` 前提）ではなく `badgeWidth` で測る。**描く面が変わったら測る式も
+    // 対で直すこと**——片方だけ変えると、予約した枠より描画が広くなってはみ出す
     const slotW = deferred
       ? badgeW
-      : Math.max(badgeW, actionWidth(DEFER_TRIGGER_LABEL, fonts.small))
+      : Math.max(badgeW, badgeWidth(DEFER_TRIGGER_LABEL, fonts.small))
     const reserve = BADGE_GAP + slotW
 
     // 仮説の行も見送りの理由も無い箱は、ロジックツリーのノードと同じ
@@ -465,11 +469,15 @@ export function layoutIssueTree(
       // **この2行は `minWidth <= maxWidth` に依存している。** `wrapWithin` は
       // 食い違ったとき `maxWidth` の側を採るので、逆転すると**タイトルが黙って
       // 下限を割る**（例外も赤いテストも出ない）。いまの余裕は大きい——
-      // `minWidth` は 142（`ISSUE_TITLE_MIN_WIDTH` 120 ＋ `ISSUE_INSET_X` 11 × 2）で
-      // 固定なのに対し、`maxWidth` は 250 以上（320 − 一番広い枠 70）ある。
-      // ただし `reserve` はバッジ文言の**実測**で決まるので、語を長くしたり
-      // フォントを大きくしたりすれば縮む。**`ISSUE_MAX_WIDTH - reserve` が 142 を
-      // 割るほどバッジの語が伸びたら、ここで下限を切り上げるか語を短くすること**
+      // `minWidth` は 150（`ISSUE_TITLE_MIN_WIDTH` 128 ＋ `ISSUE_INSET_X` 11 × 2）で
+      // 固定なのに対し、`maxWidth` は 242 以上（320 − 一番広い枠 78）ある。
+      // 一番広い枠は「仮説なし」バッジ（`fonts.small` 14px で4字 ≒ 56px ＋
+      // `BADGE_PADDING_X` 6 × 2 ＋ `BADGE_BORDER` 1 × 2 ＝ 70）に `BADGE_GAP` 8 を
+      // 足した 78——「見送り」のトリガー（3字 ≒ 42px ＋ 同じ `badgeWidth` の式で
+      // ＋14 ＝ 56）より広い。ただし `reserve` はバッジ文言の**実測**で決まるので、
+      // 語を長くしたりフォントを大きくしたりすれば縮む。**`ISSUE_MAX_WIDTH -
+      // reserve` が 150 を割るほどバッジの語が伸びたら、ここで下限を
+      // 切り上げるか語を短くすること**
       const wrapped = wrapWithin(node.text, fonts.title.measure, fonts.title.lineHeight, {
         maxWidth: ISSUE_MAX_WIDTH - reserve,
         minWidth: ISSUE_TITLE_MIN_WIDTH + ISSUE_INSET_X * 2,

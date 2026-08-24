@@ -318,10 +318,14 @@ export function ErrorCatalogEditor({
         />
       )
     }
+    // 選定基準は列幅ではなく描画機構（D11「textarea で複数行が入る列」）。
+    // ここに来る ErrorField（name・resolutionLevel を除く全部）は
+    // 例外なく `multiline`＝本物の textarea（CellInput.tsx の分岐）を
+    // 通るので、leading-normal は分岐なしで全部に足す
     return (
       <CellInput
         multiline
-        className={cellInput}
+        className={`${cellInput} leading-normal`}
         aria-label={label}
         data-cell={cellId(rowKey, field)}
         // 空は空のまま。欠落は cellClass の面（missing-face）が示す
@@ -339,12 +343,12 @@ export function ErrorCatalogEditor({
         <input
           type="search"
           aria-label="エラーを検索"
-          className="w-64 rounded-sm border border-rule bg-canvas px-2 py-1 text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
+          className="w-64 rounded-sm border border-rule bg-canvas px-2 py-1 text-base text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
           placeholder="エラー名・原因・対応を検索"
           value={filter.query}
           onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
         />
-        <span className="text-xs text-ink-muted">表示</span>
+        <span className="text-sm text-ink-muted">表示</span>
         <div role="group" aria-label="表示プロファイル" className="flex items-center gap-1">
           {PROFILES.map((p) => {
             const active = p.id === profile.id
@@ -355,7 +359,7 @@ export function ErrorCatalogEditor({
             )
           })}
         </div>
-        <span className="text-xs text-ink-muted">絞り込み</span>
+        <span className="text-sm text-ink-muted">絞り込み</span>
         <div
           role="group"
           aria-label="解決レベルで絞り込む"
@@ -379,12 +383,12 @@ export function ErrorCatalogEditor({
             )
           })}
         </div>
-        <span className="text-xs text-ink-muted">
+        <span className="text-sm text-ink-muted">
           {visible.length} / {data.errors.length} 件
         </span>
         <MissingTally tally={tallyMissing(data.errors)} onJump={jumpToMissing} />
         {!reorderEnabled && (
-          <span className="text-xs text-ink-muted">
+          <span className="text-sm text-ink-muted">
             検索・フィルタ中は行の追加（Enter）と並び替え（{altModifierLabel(PLATFORM)}+↑↓）を使えません
           </span>
         )}
@@ -396,7 +400,7 @@ export function ErrorCatalogEditor({
           （columns.test.ts が検査）、overflow を足すと sticky の親が変わって
           見出しの固定が静かに壊れる */}
       <div ref={tableRef} className="border border-rule bg-surface">
-        <table className="w-full table-fixed border-collapse text-sm">
+        <table className="w-full table-fixed border-collapse text-base">
           <colgroup>
             {cols.columns.map((col, i) => {
               const w = cols.widthIndex[i]
@@ -413,7 +417,7 @@ export function ErrorCatalogEditor({
                   <th
                     key={col.field}
                     // sticky 自体が絶対配置の包含ブロックになるので relative は要らない
-                    className={`sticky top-0 z-10 border-b border-rule bg-surface-muted px-2 py-1 text-xs font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
+                    className={`sticky top-0 z-10 border-b border-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
                   >
                     {label}
                     {/* No 列は導出（データ配列の index+1）なのでハンドルを出さない。
@@ -468,7 +472,7 @@ export function ErrorCatalogEditor({
         </table>
       </div>
       {data.errors.length > 0 && visible.length === 0 && (
-        <p className="mt-3 text-sm text-ink-muted">該当するエラーがありません。</p>
+        <p className="mt-3 text-base text-ink-muted">該当するエラーがありません。</p>
       )}
       {!derivedView && (
         // **0件のときだけでなく常に出す。** 行の追加が Enter だけだと、
@@ -476,7 +480,7 @@ export function ErrorCatalogEditor({
         <button
           ref={rows.addButtonRef}
           type="button"
-          className={`${buttonBase} mt-3 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+          className={`${buttonBase} mt-3 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
           onClick={() => rows.insertAfter(data.errors.length - 1)}
         >
           <Plus aria-hidden className="size-4" />

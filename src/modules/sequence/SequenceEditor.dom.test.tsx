@@ -365,13 +365,14 @@ describe('問いスロット（ガター）', () => {
   })
 
   it('notApplicable は「考慮不要」の接頭ぶん実効幅が狭く、同じ理由文言でも handled よりスロットの高さが大きくなる（M22 レビュー: ANSWER_WRAP の追随漏れと wrap キャッシュの鍵衝突を捕まえる）', () => {
-    // GutterSlot は notApplicable のとき CellInput に pl-16 を足して左を空ける
+    // GutterSlot は notApplicable のとき CellInput に pl-18 を足して左を空ける
     // （考慮不要の接頭と重ならないため）。実効幅が狭くなるぶん、同じ文言でも
     // notApplicable は handled より多くの行に折り返り、スロットが高くなるはず。
     // NOT_APPLICABLE_ANSWER_WRAP が無い、または wrap のキャッシュ鍵が箱名を
     // 分けていないと、notApplicable 側が handled 側と同じ（狭すぎない）高さを
-    // 返し、この差が消える
-    const reason = '在'.repeat(16)
+    // 返し、この差が消える。入力長はフォント段に依存する。handled と notApplicable
+    // の行数が割れる長さを選ぶこと（M23 で 16px 段に合わせて 16→24 に変更）
+    const reason = '在'.repeat(24)
     const d = doc()
     d.steps[0] = { ...d.steps[0], failures: { failed: { decision: 'handled', text: reason } } }
     d.steps[2] = { ...d.steps[2], failures: { failed: { decision: 'notApplicable', text: reason } } }
@@ -737,6 +738,13 @@ describe('立っていない答えのグレースロット', () => {
     setup(ghostDoc())
     expect(screen.getByText('再試行する')).toBeDefined()
     expect(screen.getByText('失敗が確定したら？')).toBeDefined() // 打ち消し線付きの問いラベル
+  })
+
+  it('✕ ボタンはスロットの縦中央に来る（実機所見: 上寄せになっていた）', () => {
+    // 入れ物（GhostSlot）は items-start——ラベルと答えの箱の上揃えは正しい。
+    // ✕ だけ self-center でスロットの全高に対して中央にする
+    setup(ghostDoc())
+    expect(screen.getByLabelText(/この答えを削除/).className).toContain('self-center')
   })
 
   it('✕ を押すと確認ダイアログが出て、削除で failures から消える', () => {

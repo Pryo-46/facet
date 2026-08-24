@@ -281,7 +281,7 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   return (
     <div className={`flex min-h-0 flex-1 flex-col ${hidden ? 'hidden' : ''}`}>
       {session.message !== null && (
-        <p className="border-b border-rule px-3 py-2 text-sm text-invalid">{session.message}</p>
+        <p className="border-b border-rule px-3 py-2 text-base text-invalid">{session.message}</p>
       )}
       <div ref={hostRef} className="min-h-0 flex-1" />
     </div>

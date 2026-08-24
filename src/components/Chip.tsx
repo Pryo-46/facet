@@ -11,7 +11,7 @@ export function Chip(props: { selected: boolean; onClick: () => void; children: 
     <button
       type="button"
       aria-pressed={props.selected}
-      className={`${buttonBase} border px-2 py-1 text-xs ${
+      className={`${buttonBase} border px-2 py-1 text-sm ${
         props.selected
           ? 'border-ink bg-surface-muted text-ink'
           : 'border-rule bg-canvas text-ink hover:bg-surface'

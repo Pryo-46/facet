@@ -23,9 +23,9 @@ const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
 
 /** 測定は決定的な概算器で行う（jsdom はレイアウトを持たない） */
 const fonts: IssueTreeFonts = {
-  title: { measure: createEstimateMeasurer(14), lineHeight: 23 },
-  body: { measure: createEstimateMeasurer(14), lineHeight: 23 },
-  small: { measure: createEstimateMeasurer(12), lineHeight: 18 },
+  title: { measure: createEstimateMeasurer(16), lineHeight: 24 },
+  body: { measure: createEstimateMeasurer(16), lineHeight: 24 },
+  small: { measure: createEstimateMeasurer(14), lineHeight: 18 },
 }
 
 /**

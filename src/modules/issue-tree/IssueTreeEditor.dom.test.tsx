@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { badgeClass } from '@/components/badge-styles'
+import { badgeClass, BADGE_BOX_HEIGHT } from '@/components/badge-styles'
 import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
@@ -249,13 +249,16 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
      * `layout.test.ts` が「畳まないこと」として固定している）。
      *
      * **空けた幅と描いた幅が一致することは、ここでは検査していない。**
-     * `px-1`→`px-2`・枠線の削除・`text-xs`→`text-sm`・`ACTION_INSET_X` の
+     * `px-1`→`px-2`・枠線の削除・`text-sm`→`text-base`・`ACTION_INSET_X` の
      * 変更——予約幅と描画幅を食い違わせる経路はどれも `textContent` を
      * 動かさない。**jsdom には版組が無いので原理的に測れない**ので、
      * 対は「measure.ts の定数と Tailwind クラスを対で直す」という規律
      *（`measure.ts` の註）と実機確認が守っている
      */
     expect(toggle.textContent).toBe(DEFER_TRIGGER_LABEL)
+    // **切りの面もバッジと同じ幾何を持つ**（実機所見: 周囲のバッジとサイズが
+    // 揃っていなかった）。色は「押せる面」だが、箱の高さはバッジと揃える
+    expect(toggle.className).toContain(`h-[${BADGE_BOX_HEIGHT}px]`)
     // **切りの面はバッジの面ではない。** ここが入りの面になっていたら、
     // 見送っていない箱に見送りバッジが出ている
     expect(toggle.className).not.toContain(badgeClass(badgeVariantOf('deferred', false)))

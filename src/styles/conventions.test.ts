@@ -10,7 +10,10 @@ const SRC_DIR = fileURLToPath(new URL('../', import.meta.url))
  * 除外が理由なく増えると、検査は残っているのに何も守らなくなる
  */
 const EXCLUDED = [
-  // shadcn の生成物。rev 7章「手で整形しない」
+  // shadcn の生成物。改造は自由（rev 7章のソースコピー方式）だが、
+  // 段・行間の規約は自作コードの側に課す——生成物の字面まで検査に合わせて
+  // 書き換え続ける保守を負わないため（M23。button.tsx の text-base / h-9 は
+  // 決定5 による意図した改造）
   'components/ui/',
 ]
 
@@ -102,22 +105,36 @@ describe('色値の直書き禁止（rev 9章）', () => {
   })
 })
 
-describe('フォントサイズの段階（M7 決定6、M14 で1段追加）', () => {
-  it('text-xs / text-sm / text-base / text-lg / text-2xl 以外を使っていない', () => {
+describe('フォントサイズの段階（M7 決定6 → M23 決定1 で3サイズ4段に再定義）', () => {
+  it('text-sm / text-base / text-xl 以外を使っていない', () => {
     // 「許可外」を直接探す。text-ink のような色のユーティリティと区別する
     // 必要があるので、許可リストとの照合ではなく許可外の段と任意値を弾く。
     //
-    // **`text-xl` は飛ばして `text-2xl` だけを開けてある。** 段は「使う役割が
-    // あるぶんだけ」持つ約束で（M7 決定6）、M14 で足したのはアプリ名
-    // （額縁の看板）1つだけ。text-lg（画面タイトル）との差が 2px しかない
-    // text-xl は、足しても「どちらを使うのか」を決められない
+    // **xs は D11 の 14px 下限で廃止、lg は実使用 0 件のまま閉鎖、2xl は
+    // アプリ名を text-xl（22px 再定義）へ統合して閉鎖した（M23）。**
+    // 2px 差の段（22 と 24）を体系に残さないため、xl と 2xl は同時に開けない。
     //
     // 任意値側は末尾に \b を付けない——`]` の直後は語構成文字ではないため
     // \b が成立せず、`text-[13px]` のような検出が一度も発火しなかった
-    const offenders = offendingLines(/\btext-(xl|[3-9]xl)\b|\btext-\[[^\]]*\]/)
+    const offenders = offendingLines(/\btext-(xs|lg|[2-9]xl)\b|\btext-\[[^\]]*\]/)
     expect(
       offenders,
-      `使ってよいのは text-xs / text-sm / text-base / text-lg / text-2xl の5段:\n${offenders.join('\n')}`,
+      `使ってよいのは text-sm / text-base / text-xl の3段（複数行は text-base + leading-normal）:\n${offenders.join('\n')}`,
+    ).toEqual([])
+  })
+})
+
+describe('行間の明示（M23 決定2）', () => {
+  it('leading-* は leading-none（バッジと課題ツリーの節見出し）と leading-normal（複数行の欄）だけ', () => {
+    // 行間の既定は @theme が持つ（sm 1.3 / base 1.25）。明示してよいのは
+    // 「読ませる欄」の leading-normal（1.5）と、バッジ・課題ツリーの節見出しの leading-none だけ。
+    // leading-5 のような数値指定は「行の高さをクラスで固定する書き方」で、
+    // 段の再定義から静かに取り残される（open-issues で管理していた形）。
+    // 任意値 leading-[...] も同じ理由で弾く
+    const offenders = offendingLines(/\bleading-(?!none\b|normal\b)[\w[\].%-]+/)
+    expect(
+      offenders,
+      `leading-* の明示は none / normal だけ（既定は @theme の行間トークン）:\n${offenders.join('\n')}`,
     ).toEqual([])
   })
 })

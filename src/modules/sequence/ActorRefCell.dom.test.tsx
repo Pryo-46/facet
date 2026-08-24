@@ -52,7 +52,7 @@ describe('ActorRefCell: 表示', () => {
     expect(cell.className).not.toContain('border-rule')
     // **本文が空でも押す面積を残す。** 子が無いボタンは行ボックスを作らず
     // 内容高 0 に潰れる（jsdom はレイアウトを持たないのでクラスの字面で固定する）
-    expect(cell.className).toContain('min-h-6')
+    expect(cell.className).toContain('min-h-6.5')
   })
 
   it('名前が埋まっているセルは欠落の面を持たない', () => {

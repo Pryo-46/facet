@@ -7,7 +7,7 @@
  * 「押せるものの見た目が場所ごとに違う」が積み上がる。
  * ラベルの縦位置は src/index.css の `@layer base` の `button { --tw-leading: 1.2; }`
  * が要素セレクタで揃えているので、ここには書かない（二重に持たない）。
- * `line-height` を直接指定していないのは意図的——Tailwind の text-sm / text-xs は
+ * `line-height` を直接指定していないのは意図的——Tailwind の text-* は
  * utilities レイヤーで `line-height: var(--tw-leading, ...)` を生成する。cascade
  * layers では異なるレイヤー間は特異性より先にレイヤー順序で決まり、後に宣言される
  * utilities が base に勝つため、base レイヤーで line-height を直接書いても届かない。

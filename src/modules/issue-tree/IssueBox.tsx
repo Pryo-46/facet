@@ -173,7 +173,7 @@ export function IssueBox(props: IssueBoxProps) {
             autoSize={false}
             // 理由は `text-ink-muted`（モックの `.reason`）。見送りを掲げている
             // 箱は通常の面で描くので、継承では本文と同じ濃さになってしまう
-            className="h-full w-full resize-none overflow-hidden bg-transparent text-xs whitespace-pre-wrap break-all text-ink-muted outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-inset focus:ring-ring"
+            className="h-full w-full resize-none overflow-hidden bg-transparent text-sm whitespace-pre-wrap break-all text-ink-muted outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-inset focus:ring-ring"
             aria-label={`${label} の見送りの理由`}
             placeholder="理由"
             data-cell={props.deferralCellKey}

@@ -14,19 +14,20 @@
  * **クラス名は完全な字面で書くこと。** Tailwind の走査は静的なので、
  * `text-${色}` のように組み立てると生成 CSS に載らず画面だけが無色になる。
  *
- * `h-[18px]` は任意値だが、conventions.test.ts が弾く任意値は `text-[...]` だけ。
- * 文字は `text-xs`（段は B で変わる。ここでは触らない）
+ * `h-[20px]` は任意値だが、conventions.test.ts が弾く任意値は `text-[...]` だけ。
+ * 文字は `text-sm`（M23 決定1。14px の補助段）。`leading-none` の行箱 14px ＋枠 2px＝16px を
+ * `items-center` が箱 20px の中で上下 2px ずつの余白で挟む
  */
 export type BadgeVariant = 'open' | 'hold' | 'invalid' | 'pending' | 'yes' | 'no' | 'deferred' | 'faint'
 
 /** バッジ自身の高さ（px）。課題ツリーの measure.ts が行の高さをここから導く */
-export const BADGE_BOX_HEIGHT = 18
+export const BADGE_BOX_HEIGHT = 20
 /** 横の余白（px-1.5 = 6px）と枠線（1px）。幅の算出（layout.ts）が使う */
 export const BADGE_PADDING_X = 6
 export const BADGE_BORDER = 1
 
 const base =
-  'inline-flex h-[18px] items-center rounded border px-1.5 text-xs leading-none font-medium whitespace-nowrap'
+  'inline-flex h-[20px] items-center rounded border px-1.5 text-sm leading-none font-medium whitespace-nowrap'
 
 // yes / no は面なので枠を透明にする（border を base に持たせ、全語で高さと幅の計算を揃えるため）
 const faces: Record<BadgeVariant, string> = {

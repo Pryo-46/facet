@@ -67,7 +67,7 @@ function FileRow(props: {
         // accessible name に含まれない（WCAG 2.5.3 Label in Name）
         aria-label={`${fullName} を開く`}
         aria-describedby={descId}
-        className={`min-w-0 flex-1 border-l-2 px-4 py-2 text-left text-sm ${
+        className={`min-w-0 flex-1 border-l-2 px-4 py-2 text-left text-base ${
           props.selected ? 'border-ink bg-canvas' : 'border-transparent hover:bg-canvas'
         }`}
         onClick={props.onSelect}
@@ -77,7 +77,7 @@ function FileRow(props: {
         <span className={`block truncate ${label === UNTITLED ? 'text-ink-muted' : 'text-ink'}`}>
           {label}
         </span>
-        <span id={descId} className="block truncate text-xs text-ink-muted">
+        <span id={descId} className="block truncate text-sm text-ink-muted">
           {showFileName && file.name}
           {file.result.status === 'rejected' && <span className="ml-1 text-invalid">開けない</span>}
           {file.result.status === 'listOnly' && <span className="ml-1">編集不可</span>}
@@ -111,7 +111,7 @@ function FileRow(props: {
 export function FileList(props: FileListProps) {
   if (!props.projectOpen) {
     return (
-      <p className="p-4 text-sm text-ink-muted">
+      <p className="p-4 text-base text-ink-muted">
         プロジェクトフォルダを開くと JSON ファイルの一覧が出ます。
       </p>
     )
@@ -132,7 +132,7 @@ export function FileList(props: FileListProps) {
               type="button"
               disabled={!creatable}
               title={creatable ? undefined : `${module.displayName}はプロジェクトに1つまでです`}
-              className={`${buttonBase} w-full justify-start gap-2 border border-rule px-2 py-1 text-xs text-ink hover:bg-canvas disabled:hover:bg-transparent`}
+              className={`${buttonBase} w-full justify-start gap-2 border border-rule px-2 py-1 text-sm text-ink hover:bg-canvas disabled:hover:bg-transparent`}
               onClick={() => props.onCreate(module)}
             >
               <Plus aria-hidden className="size-3.5 shrink-0" />
@@ -146,7 +146,7 @@ export function FileList(props: FileListProps) {
           帯なので `shrink-0`（スクロールを持つのは下の一覧だけ） */}
       {props.projectDir !== null && (
         <div
-          className="flex shrink-0 items-center gap-1.5 border-b border-rule px-2 py-1.5 text-xs text-ink-muted"
+          className="flex shrink-0 items-center gap-1.5 border-b border-rule px-2 py-1.5 text-sm text-ink-muted"
           title={props.projectDir}
         >
           <Folder aria-hidden className="size-3.5 shrink-0" />
@@ -169,7 +169,7 @@ export function FileList(props: FileListProps) {
           戻さないこと**——aside 側で overflow を持つと帯ごと流れる */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {props.groups.length === 0 ? (
-          <p className="p-4 text-sm text-ink-muted">
+          <p className="p-4 text-base text-ink-muted">
             このフォルダに JSON ファイルがありません。上のボタンで作成できます。
           </p>
         ) : (
@@ -187,7 +187,7 @@ export function FileList(props: FileListProps) {
                   先頭だけ線を外すのは、真上の新規作成ボタンの帯が既に
                   `border-b border-rule` を持っており、二重線になるため */}
               <h2
-                className={`bg-surface-muted px-4 py-1 text-xs font-medium tracking-wide text-ink-muted ${
+                className={`bg-surface-muted px-4 py-1 text-base font-medium tracking-wide text-ink-muted ${
                   i === 0 ? '' : 'border-t border-rule'
                 }`}
               >

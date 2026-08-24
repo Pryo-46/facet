@@ -5,8 +5,8 @@ import { createEstimateMeasurer, wrapWithin, type WrapOptions } from './wrap'
 // LABEL_MAX_WIDTH（320）／LABEL_INSET_X（6）は元のツール定数の値をそのまま
 // リテラルに写している（この定数自体は sequence 側に残るため、コア側では
 // 値だけ引き継ぐ）
-const seqMeasure = createEstimateMeasurer(14)
-const SEQ_LH = 23.1
+const seqMeasure = createEstimateMeasurer(16)
+const SEQ_LH = 24 // 16×1.5
 const SEQ_OPTS: WrapOptions = { maxWidth: 320, minWidth: 64, insetX: 6, insetY: 4 }
 
 describe('wrapWithin', () => {
@@ -93,8 +93,8 @@ describe('wrapWithin（logic-tree 由来の観点）', () => {
 
 describe('createEstimateMeasurer', () => {
   it('半角は全角の半分の幅にする', () => {
-    const m = createEstimateMeasurer(14)
-    expect(m('ab')).toBe(14)
-    expect(m('あい')).toBe(28)
+    const m = createEstimateMeasurer(16)
+    expect(m('ab')).toBe(16)
+    expect(m('あい')).toBe(32)
   })
 })
