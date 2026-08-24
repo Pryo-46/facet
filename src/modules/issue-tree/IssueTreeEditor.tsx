@@ -258,7 +258,7 @@ function KindMenu(props: KindMenuProps) {
  *
  * 土台は `src/modules/logic-tree/LogicTreeEditor.tsx`——フォントの世代管理・
  * 測定器のキャッシュ・`pendingFocus` の予約・3レイヤの transform は写しで、
- * **測定するフォントが2種類（`text-sm` / `text-xs`）に増えた**ぶんだけ広げてある。
+ * **測定するフォントが2種類（`text-base leading-normal` / `text-sm`）に増えた**ぶんだけ広げてある。
  * ドロップダウンの制御は `src/modules/sequence/SequenceEditor.tsx` の
  * `openCell` / `menuPropsFor` の写し。
  */
@@ -818,10 +818,10 @@ export function IssueTreeEditor({
       {/* 測定用の見本。**描画されるセルと同じフォントのクラスを持たせる**ことで、
           測定と描画が同一の情報源を見る（rev 9章）。opacity-0 で見せないだけに
           するのは、display:none だと getComputedStyle がフォントを返さない環境が
-          あるため。見本が2本あるのは、課題ノード・仮説の文言（text-sm）と
-          由来・根拠・FB（text-xs）でフォント階級が違うため——1本を両方に
+          あるため。見本が2本あるのは、課題ノード・仮説の文言（text-base leading-normal）と
+          由来・根拠・FB（text-sm）でフォント階級が違うため——1本を両方に
           使い回すと、片方の高さを見誤る。**課題のタイトル（太字）も別に測る**
-          ——同じ 14px でも太字は幅が違い、細字で測るとタイトルが切れる */}
+          ——同じ 16px でも太字は幅が違い、細字で測るとタイトルが切れる */}
       <span
         ref={titleProbeRef}
         aria-hidden="true"

@@ -43,11 +43,11 @@ export interface IssueTreeFont {
 }
 
 export interface IssueTreeFonts {
-  /** 課題のタイトル（text-sm font-semibold）。太字は幅が変わるので独立に測る */
+  /** 課題のタイトル（text-base leading-normal font-semibold）。太字は幅が変わるので独立に測る */
   title: IssueTreeFont
-  /** 仮説の文言・根拠・由来・FB（text-sm） */
+  /** 仮説の文言・根拠・由来・FB（text-base leading-normal） */
   body: IssueTreeFont
-  /** 節の見出し・見送りの理由・バッジ（text-xs） */
+  /** 節の見出し・見送りの理由・バッジ（text-sm） */
   small: IssueTreeFont
 }
 

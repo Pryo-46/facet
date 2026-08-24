@@ -77,7 +77,7 @@ const inputClass =
   'h-full w-full resize-none overflow-hidden bg-transparent whitespace-pre-wrap break-all outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-inset focus:ring-ring'
 
 /**
- * 節の見出し（text-xs）。レイアウトは `fonts.small` の1行で場所を空けている。
+ * 節の見出し（text-sm）。レイアウトは `fonts.small` の1行で場所を空けている。
  * **文字色は持たない**——下の `mutedInk` が抑制に応じて足す
  */
 const sectionLabelClass = 'absolute overflow-hidden text-sm leading-none font-medium select-none'
@@ -211,7 +211,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
           multiline
           autoSize={false}
           // **`font-medium` を付けないこと。** 測っているのは `fonts.body`
-          //（`BODY_FONT_CLASS = 'text-sm'`＝weight 400）の見本であり、中字で
+          //（`BODY_FONT_CLASS = 'text-base leading-normal'`＝weight 400）の見本であり、中字で
           // 描くと同じ字数がより広くなって測定より1行多く折り返す。高さ固定＋
           // overflow-hidden の textarea なので、**打っている最後の行が黙って
           // 見えなくなる**（`fonts.title` を別に持っている理由と同じ）。
