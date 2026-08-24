@@ -318,17 +318,14 @@ export function ErrorCatalogEditor({
         />
       )
     }
-    // 複数行の自由記述だけ leading-normal を足す（D11）。列定義
-    // （columns.ts の FIXED_WIDTH）で occurrence は name・resolutionLevel と
-    // 同じ「固定幅の短い列」に分類されており、causeForSupport（幅なし＝吸収列）
-    // と causeForSpec・userAction・supportAction・engineerAction・notes
-    // （PROSE_WIDTH の列）だけが長文を想定した列。デフォルト分岐に来る
-    // ErrorField のうち occurrence だけが例外なので、それだけ除く
-    const prose = field !== 'occurrence'
+    // 選定基準は列幅ではなく描画機構（D11「textarea で複数行が入る列」）。
+    // ここに来る ErrorField（name・resolutionLevel を除く全部）は
+    // 例外なく `multiline`＝本物の textarea（CellInput.tsx の分岐）を
+    // 通るので、leading-normal は分岐なしで全部に足す
     return (
       <CellInput
         multiline
-        className={prose ? `${cellInput} leading-normal` : cellInput}
+        className={`${cellInput} leading-normal`}
         aria-label={label}
         data-cell={cellId(rowKey, field)}
         // 空は空のまま。欠落は cellClass の面（missing-face）が示す
