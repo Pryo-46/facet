@@ -91,6 +91,66 @@ describe('wrapWithin（logic-tree 由来の観点）', () => {
   })
 })
 
+describe('wrapWithin（固定幅——minWidth === maxWidth）', () => {
+  const measure = createEstimateMeasurer(10)
+  const LH = 20
+  /** 幅を導出しない箱。シーケンスの答えセル（ANSWER_WRAP）と同じ形 */
+  const FIXED: WrapOptions = { maxWidth: 320, minWidth: 320, insetX: 11, insetY: 7 }
+
+  it('空文字でも幅は固定値のまま', () => {
+    expect(wrapWithin('', measure, LH, FIXED).width).toBe(320)
+  })
+
+  it('短い文言でも幅は固定値のまま（自然幅へ縮まない）', () => {
+    expect(wrapWithin('あい', measure, LH, FIXED).width).toBe(320)
+  })
+
+  it('折り返すほど長くても幅は固定値のまま', () => {
+    expect(wrapWithin('あ'.repeat(80), measure, LH, FIXED).width).toBe(320)
+  })
+})
+
+describe('wrapWithin（maxLines——3行で打ち切る）', () => {
+  const measure = createEstimateMeasurer(10)
+  const LH = 20
+  const BASE: WrapOptions = { maxWidth: 320, minWidth: 320, insetX: 11, insetY: 7 }
+  const CAPPED: WrapOptions = { ...BASE, maxLines: 3 }
+  // 内容幅 298px ÷ 全角10px ＝ 1行 29 文字
+  const PER_LINE = 29
+
+  it('省略すれば無制限のまま（既存の呼び出しの振る舞いを変えない）', () => {
+    const r = wrapWithin('あ'.repeat(PER_LINE * 5), measure, LH, BASE)
+    expect(r.lines.length).toBe(5)
+    expect(r.height).toBe(LH * 5 + 14)
+  })
+
+  it('上限を超えた行は落とし、高さも上限で止まる', () => {
+    const r = wrapWithin('あ'.repeat(PER_LINE * 5), measure, LH, CAPPED)
+    expect(r.lines.length).toBe(3)
+    expect(r.height).toBe(LH * 3 + 14)
+  })
+
+  it('上限に満たない文言はそのまま（打ち切りが常時効いてしまわない）', () => {
+    const r = wrapWithin('あ'.repeat(PER_LINE + 1), measure, LH, CAPPED)
+    expect(r.lines.length).toBe(2)
+    expect(r.height).toBe(LH * 2 + 14)
+  })
+
+  it('明示改行にも効く（折り返しだけでなく段落も数える）', () => {
+    const r = wrapWithin('あ\nい\nう\nえ\nお', measure, LH, CAPPED)
+    expect(r.lines).toEqual(['あ', 'い', 'う'])
+    expect(r.height).toBe(LH * 3 + 14)
+  })
+
+  it('落とした行は幅の算出にも入らない', () => {
+    // 1行目は短く、4行目だけが長い。可変幅なら4行目が幅を決めるところ
+    const opts: WrapOptions = { maxWidth: 320, minWidth: 0, insetX: 11, insetY: 7, maxLines: 3 }
+    const r = wrapWithin('あ\nい\nう\n' + 'か'.repeat(20), measure, LH, opts)
+    expect(r.lines).toEqual(['あ', 'い', 'う'])
+    expect(r.width).toBe(10 + 22)
+  })
+})
+
 describe('createEstimateMeasurer', () => {
   it('半角は全角の半分の幅にする', () => {
     const m = createEstimateMeasurer(16)

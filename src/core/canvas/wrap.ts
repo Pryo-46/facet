@@ -17,6 +17,16 @@ export interface WrapOptions {
   minWidth: number
   insetX: number
   insetY: number
+  /**
+   * 折り返しの上限行数。**省略＝無制限。**
+   *
+   * 超えた行は落とし、高さも上限行数で止まる。**落とした行は幅の算出にも
+   * 入らない**——見えない行が箱の幅を決めるのは筋が通らないため。
+   *
+   * 使うのは「閉じた箱に出る文章」だけ（UI ノート D3。M24）。詳細を読む
+   * 場所——課題ツリーの展開パネル、シーケンスの答えセル——には当てない
+   */
+  maxLines?: number
 }
 
 export interface WrappedBlock {
@@ -38,6 +48,11 @@ export interface WrappedBlock {
  * 幅は各行の実測の最大値を切り上げて使う。**切り上げているので、描画側に
  * 渡る内容幅は測定時の前提以上になり、ブラウザが測定より早く折り返すことはない**
  *（遅く折り返して行数が減る方向は、余白が1行分増えるだけで文字は切れない）。
+ *
+ * **`maxLines` を渡すと、超えた行は落ちる。** 落ちた文字はブラウザ側にも
+ * 描かれない（`overflow-hidden` の箱に収まらないため）が、`textarea` の
+ * 値としては生きており、キャレット移動で編集できる。省略記号は出さない
+ *（`text-overflow: ellipsis` も `line-clamp` も textarea には効かない。M24）
  */
 export function wrapWithin(
   text: string,
@@ -63,6 +78,10 @@ export function wrapWithin(
       }
     }
     lines.push(line)
+  }
+  // **幅を出す前に落とす。** 見えない行が箱の幅を決めるのは筋が通らない
+  if (opts.maxLines !== undefined && lines.length > opts.maxLines) {
+    lines.length = opts.maxLines
   }
   const contentWidth = lines.reduce((w, line) => Math.max(w, measure(line)), 0)
   const width = Math.min(
