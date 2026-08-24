@@ -253,4 +253,29 @@ describe('autoSize', () => {
     fireEvent.blur(area)
     expect(scrolled).toBe(0)
   })
+
+  /**
+   * `autoSize` 既定（表のセル）では戻さない。上のテストと対で読むと
+   * 「幅ロックの箱（`autoSize={false}`）だけに効き、表のセルには効かない」
+   * が分かる——除く理由は「内容が常に収まるから」ではなく、M24 がテーブルの
+   * 行高・`MAX_ROWS` に触らないと裁定したから（`CellInput.tsx` の `onBlur`
+   * のコメント参照）。`MAX_ROWS` を超えるセルは実際に内部スクロールするので、
+   * ここで戻さないのは意図的な現状維持である
+   */
+  it('autoSize 既定（表のセル）では、抜けても表示を先頭行に戻さない', () => {
+    render(<CellInput multiline aria-label="定義" value="あ" onValueChange={() => {}} />)
+    const area = screen.getByLabelText('定義') as HTMLTextAreaElement
+    let scrolled = 40
+    Object.defineProperty(area, 'scrollTop', {
+      configurable: true,
+      get: () => scrolled,
+      set: (v: number) => {
+        scrolled = v
+      },
+    })
+
+    expect(scrolled).toBe(40)
+    fireEvent.blur(area)
+    expect(scrolled).toBe(40)
+  })
 })

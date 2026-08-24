@@ -170,13 +170,27 @@ describe('layoutIssueTree', () => {
       text: 'とても長いほうの課題の文言でありこちらは折り返す',
       events: [{ kind: 'deferred', note: 'r' }],
     }
-    const out = run(make({ issues: [root, a, b] }))
+    // 見送っていない葉（仮説を持たないので「仮説なし」バッジが立つ）。
+    // **a・b だけでは幅ロックそのものを弁別しない**——両方とも見送り済みで、
+    // 旧コード（幅を内容から導出していた版）でも見送りバッジの幅を含めて
+    // BOX_WIDTH に落ちていたため、幅を固定する前後でこのテストの結論が
+    // 変わらなかった。c は旧コードで「仮説も見送りも無い箱はタイトルの
+    // 自然幅」の分岐に入り、短いタイトルぶんだけ箱が狭くなっていた側
+    // （M24 で削った分岐。history 参照）。旧コードに戻すと c.rect の幅が
+    // BOX_WIDTH を割り、下のアサーションが赤くなる
+    const c: IssueNode = { id: I(3), parentId: I(0), text: '短い葉', events: [] }
+    const out = run(make({ issues: [root, a, b, c] }))
     const da = out.issues[1]!.deferral!
     const db = out.issues[2]!.deferral!
     expect(da.badge.x + da.badge.width).toBe(db.badge.x + db.badge.width)
     // 箱の右端 − ISSUE_INSET_X に一致する
     const rect = out.issues[1]!.rect
     expect(da.badge.x + da.badge.width).toBe(rect.x + rect.width - ISSUE_INSET_X)
+    // 同じ深さの兄弟は x を共有する。c の箱の右端からも同じ式が成り立つ
+    // ことを見ることで、「仮説なし」側の箱幅も BOX_WIDTH に固定されている
+    // ことを直接押さえる
+    const rectC = out.issues[3]!.rect
+    expect(da.badge.x + da.badge.width).toBe(rectC.x + rectC.width - ISSUE_INSET_X)
   })
 
   /**
