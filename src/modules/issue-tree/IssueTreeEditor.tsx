@@ -176,12 +176,26 @@ const TRIGGER_BASE =
 
 /**
  * 小さなボタンの面。**呼び出し側が必ず渡す**（足すのではなく差し替える）
- *——見送り済みの課題では、この面の代わりに見送りバッジの面が渡る。
+ *——判断ドロップダウンと「＋ FB」が使う。見送りトグルは `DEFER_TRIGGER_FACE` を使う
+ *（見送り済みの課題ではトグル自身が見送りバッジを兼ねるため、幾何をバッジに揃えてある）。
  * **幅を測っているのは `layout.ts` の `actionWidth`**（`ACTION_INSET_X` は
  * ここの `px-1` ＋ 枠線 1px）なので、余白のクラスは対で直すこと
  */
 const TRIGGER_FACE =
   'rounded-sm border border-rule bg-surface px-1 text-sm text-ink-muted hover:bg-canvas'
+
+/**
+ * 見送りトグルの未見送り面。**バッジの箱と同じ幾何**（`src/components/badge-styles.ts`
+ * の base と対——`h-[20px]`・`px-1.5`・枠 1px・`rounded`・`leading-none font-medium`。
+ * `BADGE_BOX_HEIGHT` を変えるときは片方だけ変えないこと。DOM テストが対を見る）。
+ * このトグルは押すと同じ要素が見送りバッジ（`badgeClass('deferred')`）になるので、
+ * 2つの面で箱の形が揃っていないと押した瞬間に跳ねる。色だけが「押せる面」
+ * （surface＋rule＋ink-muted、ホバーで canvas）で、幾何はバッジが決める。
+ * 幅も同じ理由で `layout.ts` の `slotW` が `badgeWidth(DEFER_TRIGGER_LABEL, …)`
+ * （`actionWidth` ではない）で測っている——片方だけ変えないこと（対で直す）
+ */
+const DEFER_TRIGGER_FACE =
+  'h-[20px] rounded border border-rule bg-surface px-1.5 text-sm leading-none font-medium whitespace-nowrap text-ink-muted hover:bg-canvas'
 
 interface KindMenuProps {
   /** アクセシブル名（トリガーのボタン） */
@@ -968,10 +982,11 @@ export function IssueTreeEditor({
                     // focus-within のときだけ出す小さなボタンにする。
                     // **どちらの面もレイアウトが枠を空けている**——`layout.ts` の
                     // `slotW` が、見送り済みならバッジ幅（`ISSUE_DEFERRED_LABEL`）、
-                    // まだならボタン幅（`DEFER_TRIGGER_LABEL`）で測る
+                    // まだならボタン幅（`DEFER_TRIGGER_LABEL`）で測る（幾何がバッジと
+                    // 同じになったので、いまはどちらの状態も `badgeWidth` の式で測っている）
                     className={`${TRIGGER_BASE} ${
                       deferral === null
-                        ? `${TRIGGER_FACE} invisible group-hover/issue:visible group-focus-within/issue:visible`
+                        ? `${DEFER_TRIGGER_FACE} invisible group-hover/issue:visible group-focus-within/issue:visible`
                         : badgeClass(badgeVariantOf('deferred', suppressed))
                     }`}
                     onClick={() => apply(toggleDeferral(data, index))}

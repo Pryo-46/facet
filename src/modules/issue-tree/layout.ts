@@ -442,9 +442,13 @@ export function layoutIssueTree(
      * **ホバー中はバッジを隠してトグルと入れ替える**（IssueBox）。
      * 見送り済みの箱では2つが同じ要素なので、広い方＝バッジの幅でよい
      */
+    // まだ見送っていない箱のトリガーは `IssueTreeEditor` の `DEFER_TRIGGER_FACE`
+    // ＝バッジと同じ幾何（`px-1.5` ＋ 枠 1px）を描くので、幅も `actionWidth`
+    // （`px-1` 前提）ではなく `badgeWidth` で測る。**描く面が変わったら測る式も
+    // 対で直すこと**——片方だけ変えると、予約した枠より描画が広くなってはみ出す
     const slotW = deferred
       ? badgeW
-      : Math.max(badgeW, actionWidth(DEFER_TRIGGER_LABEL, fonts.small))
+      : Math.max(badgeW, badgeWidth(DEFER_TRIGGER_LABEL, fonts.small))
     const reserve = BADGE_GAP + slotW
 
     // 仮説の行も見送りの理由も無い箱は、ロジックツリーのノードと同じ
@@ -469,8 +473,8 @@ export function layoutIssueTree(
       // 固定なのに対し、`maxWidth` は 242 以上（320 − 一番広い枠 78）ある。
       // 一番広い枠は「仮説なし」バッジ（`fonts.small` 14px で4字 ≒ 56px ＋
       // `BADGE_PADDING_X` 6 × 2 ＋ `BADGE_BORDER` 1 × 2 ＝ 70）に `BADGE_GAP` 8 を
-      // 足した 78——「見送り」のトリガー（3字 ≒ 42px ＋ `ACTION_INSET_X` 5 × 2 ＝
-      // 52）より広い。ただし `reserve` はバッジ文言の**実測**で決まるので、
+      // 足した 78——「見送り」のトリガー（3字 ≒ 42px ＋ 同じ `badgeWidth` の式で
+      // ＋14 ＝ 56）より広い。ただし `reserve` はバッジ文言の**実測**で決まるので、
       // 語を長くしたりフォントを大きくしたりすれば縮む。**`ISSUE_MAX_WIDTH -
       // reserve` が 150 を割るほどバッジの語が伸びたら、ここで下限を
       // 切り上げるか語を短くすること**
