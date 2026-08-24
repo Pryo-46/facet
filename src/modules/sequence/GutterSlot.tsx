@@ -50,14 +50,14 @@ export function GutterSlot(props: GutterSlotProps) {
       style={{ left: props.x + indentPad, top: props.y, height: props.height }}
     >
       <div
-        className="shrink-0 py-1 text-xs text-ink-muted"
+        className="shrink-0 py-1 text-sm text-ink-muted"
         style={{ width: props.labelWidth - indentPad }}
       >
         {gutterLabelText(props.question, props.indent)}
       </div>
       <div className="relative" style={{ width: props.answerWidth }}>
         {props.state === 'notApplicable' && (
-          <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1 text-sm">
+          <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1 text-base leading-normal">
             {NOT_APPLICABLE_LABEL}
           </span>
         )}
@@ -65,8 +65,8 @@ export function GutterSlot(props: GutterSlotProps) {
           multiline
           autoSize={false}
           className={`h-full w-full resize-none overflow-hidden whitespace-pre-wrap break-all rounded-sm ${ANSWER_BOX_CLASS} ${face} ${
-            props.state === 'notApplicable' ? 'pl-16' : ''
-          } text-sm outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
+            props.state === 'notApplicable' ? 'pl-18' : ''
+          } text-base leading-normal outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
           aria-label={props['aria-label']}
           data-cell={props['data-cell']}
           value={props.text}

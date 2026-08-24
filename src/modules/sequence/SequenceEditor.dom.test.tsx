@@ -365,7 +365,7 @@ describe('問いスロット（ガター）', () => {
   })
 
   it('notApplicable は「考慮不要」の接頭ぶん実効幅が狭く、同じ理由文言でも handled よりスロットの高さが大きくなる（M22 レビュー: ANSWER_WRAP の追随漏れと wrap キャッシュの鍵衝突を捕まえる）', () => {
-    // GutterSlot は notApplicable のとき CellInput に pl-16 を足して左を空ける
+    // GutterSlot は notApplicable のとき CellInput に pl-18 を足して左を空ける
     // （考慮不要の接頭と重ならないため）。実効幅が狭くなるぶん、同じ文言でも
     // notApplicable は handled より多くの行に折り返り、スロットが高くなるはず。
     // NOT_APPLICABLE_ANSWER_WRAP が無い、または wrap のキャッシュ鍵が箱名を

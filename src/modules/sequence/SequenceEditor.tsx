@@ -99,14 +99,14 @@ import { StepShapeCell } from './StepShapeCell'
 const MEASURE_CACHE_LIMIT = 2000
 
 /** 図の文字に当たるクラスのうち、フォントを決めている部分。見本要素と共有する */
-const SEQ_FONT_CLASS = 'text-sm'
+const SEQ_FONT_CLASS = 'text-base leading-normal'
 
 /**
  * 問いラベルのフォント階級（GutterSlot のラベル列と同じ）。
- * **`SEQ_FONT_CLASS` で代用しないこと**——text-sm で text-xs を測ると
- * 高さを4割ほど過大に見積もり、行が無駄に伸びる
+ * **`SEQ_FONT_CLASS` で代用しないこと**——本文（16px）でラベル（14px）を測ると
+ * 高さを過大に見積もり、行が無駄に伸びる
  */
-const LABEL_FONT_CLASS = 'text-xs'
+const LABEL_FONT_CLASS = 'text-sm'
 
 /** ガターと図の操作ヒント。`$mod` / `$alt` は KeyHints が解決する */
 const SEQ_HINTS: readonly KeyHint[] = [
@@ -351,7 +351,7 @@ export function SequenceEditor({
     return block
   }
 
-  // 問いラベル用（text-xs）。**同じ入れ物に混ぜないこと**——キャッシュの鍵は
+  // 問いラベル用（text-sm）。**同じ入れ物に混ぜないこと**——キャッシュの鍵は
   // 文字列と箱の種別だけで、どのフォントで測ったかを持っていない
   const labelMeasurerKey = `${labelFont.font}|${labelFont.lineHeight}|${fontGeneration}`
   const labelMeasurerRef = useRef<{
@@ -800,7 +800,7 @@ export function SequenceEditor({
       {/* 測定用の見本。**描画される文字と同じフォントのクラスを持たせる**ことで、
           測定と描画が同一の情報源を見る（rev 9章）。opacity-0 で見せないだけに
           するのは、display:none だと getComputedStyle がフォントを返さない環境があるため。
-          見本が2本あるのは、答えセル（text-sm）と問いラベル列（text-xs）で
+          見本が2本あるのは、答えセル（text-base）と問いラベル列（text-sm）で
           フォント階級が違うため——1本を両方に使い回すと、片方の高さを見誤る */}
       <span
         ref={probeRef}
@@ -830,7 +830,7 @@ export function SequenceEditor({
               指摘の一覧を額縁へ寄せたのと同じ理由） */}
           <button
             type="button"
-            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
             onClick={() => apply(addStepLast(data), 'from')}
           >
             <Plus aria-hidden className="size-4" />
@@ -839,7 +839,7 @@ export function SequenceEditor({
           {/* マウスだけの人の唯一の参加者追加手段（sequence M3 で from/to のインライン作成を外したため） */}
           <button
             type="button"
-            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
             onClick={() =>
               apply(
                 data.actors.length === 0
@@ -919,7 +919,7 @@ export function SequenceEditor({
               }}
             >
               <CellInput
-                className={`h-full w-full rounded-sm text-center ${ACTOR_BOX_CLASS} ${face} text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
+                className={`h-full w-full rounded-sm text-center ${ACTOR_BOX_CLASS} ${face} text-base leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
                 aria-label={`参加者${index + 1}の名前`}
                 data-cell={`${key}:name`}
                 value={actor.name}
@@ -937,7 +937,7 @@ export function SequenceEditor({
             `gutterX` が大きい）だと右の余白が尽きて2行になり、行の高さ
             （`headerHeight`）を超えて最初のステップに重なる */}
         <div
-          className="absolute flex items-center gap-2 whitespace-nowrap text-sm text-ink-muted"
+          className="absolute flex items-center gap-2 whitespace-nowrap text-base text-ink-muted"
           style={{ left: layout.gutterX, top: layout.headerTop, height: layout.headerHeight }}
         >
           {/* 回答済・考慮不要は欠落ではないのでチップにしない（押す先が無い）。
@@ -980,7 +980,7 @@ export function SequenceEditor({
                   ここに出す**——行を帯で染めると問題箇所が特定できない（UI ノート D5） */}
               <div
                 aria-hidden="true"
-                className={`absolute select-none rounded-sm text-center text-xs ${
+                className={`absolute select-none rounded-sm text-center text-sm ${
                   stepHas(index, 'row')
                     ? 'text-invalid bg-invalid-face outline-1 -outline-offset-1 outline-invalid'
                     : 'text-ink-muted'
@@ -1012,7 +1012,7 @@ export function SequenceEditor({
                 <>
                   <div
                     aria-hidden="true"
-                    className="absolute select-none text-center text-xs text-ink-muted"
+                    className="absolute select-none text-center text-sm text-ink-muted"
                     style={{ left: RAIL_ARROW_X, top: railTop + 4, width: RAIL_ARROW_WIDTH }}
                   >
                     →
@@ -1068,7 +1068,7 @@ export function SequenceEditor({
                     isSelf
                       ? `${SELF_BOX_CLASS}${labelMissing ? '' : ' border-rule'}`
                       : LABEL_BOX_CLASS
-                  } ${labelFace} text-center text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
+                  } ${labelFace} text-center text-base leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
                   aria-label={`ステップ${index + 1}の文言`}
                   data-cell={`${key}:label`}
                   value={step.label}
@@ -1091,7 +1091,9 @@ export function SequenceEditor({
                       : 0
                 const slotsBottom =
                   lastIndex < 0
-                    ? row.top + GUTTER_HEADING_HEIGHT + 18
+                    ? // 答え・ghost が無い行は「問いは立たない」の1行ぶんを見積もる。
+                      // 小さい字のもう1行ぶん——GUTTER_HEADING_HEIGHT と同じもの
+                      row.top + GUTTER_HEADING_HEIGHT + GUTTER_HEADING_HEIGHT
                     : row.slotTops[lastIndex] + lastHeight
                 return (
                   <>
@@ -1102,7 +1104,7 @@ export function SequenceEditor({
                     />
                     <div
                       aria-hidden="true"
-                      className="absolute truncate text-xs text-ink-muted"
+                      className="absolute truncate text-sm text-ink-muted"
                       style={{ left: layout.gutterX, top: row.top, width: layout.gutterWidth }}
                     >
                       {step.label === '' ? `#${index + 1}` : `#${index + 1} ${step.label}`}
@@ -1120,7 +1122,7 @@ export function SequenceEditor({
                   残骸そのものを見せる情報量が上位なので、一般文言側を省く */}
               {view.answers.length === 0 && view.ghosts.length === 0 ? (
                 <div
-                  className="absolute text-xs text-ink-muted"
+                  className="absolute text-sm text-ink-muted"
                   style={{ left: layout.gutterX, top: row.top + GUTTER_HEADING_HEIGHT, width: layout.gutterWidth }}
                 >
                   {view.shape === 'reply'
@@ -1185,7 +1187,7 @@ export function SequenceEditor({
           <button
             type="button"
             aria-label="末尾にステップを追加"
-            className={`${buttonBase} gap-1 border border-dashed border-rule bg-surface px-3 py-1 text-sm text-ink-muted hover:bg-canvas hover:text-ink`}
+            className={`${buttonBase} gap-1 border border-dashed border-rule bg-surface px-3 py-1 text-base text-ink-muted hover:bg-canvas hover:text-ink`}
             onClick={() => apply(addStepLast(data), 'from')}
           >
             <Plus aria-hidden className="size-4" />
