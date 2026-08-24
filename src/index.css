@@ -178,15 +178,16 @@
     @apply font-sans;
     }
   button {
-    /* ラベルは1行なので行間を詰める。--text-sm--line-height: 1.65 は
-       本文（複数行の定義文）向けの値で、ボタンに効くと和文フォントの
-       縦メトリクスの非対称によりラベルが上へ寄る（M8 の実機確認で判明）。
+    /* ラベルは1行なので行間を詰める。本文（複数行の定義文）向けに広げた行間
+       （M8 当時は --text-sm--line-height: 1.65、M23 の段では複数行の欄に明示する
+       leading-normal = 1.5）がボタンに効くと、和文フォントの縦メトリクスの
+       非対称によりラベルが上へ寄る（M8 の実機確認で判明）。
 
        **`line-height` を直接書いてはいけない。** Tailwind の text-* は
        utilities レイヤーで `line-height: var(--tw-leading, <既定>)` を生成する。
        cascade layers では異なるレイヤー間は特異性より先にレイヤー順序で決まり、
        後に宣言される utilities が base に勝つため、base レイヤーで line-height を
-       直接書いても text-sm / text-xs を持つボタン（＝ほぼ全部）には届かない。
+       直接書いても text-base / text-sm を持つボタン（＝ほぼ全部）には届かない。
        **--tw-leading を設定すれば話が変わる**——utilities 側が普段設定しない
        変数へ逃がしているので、そもそも衝突が起きない。
        leading-* を明示したボタンは utilities 側が同じ変数を上書きするので、
