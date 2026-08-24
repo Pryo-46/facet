@@ -60,7 +60,7 @@ function ToastRow(props: {
   return (
     <div
       role="status"
-      className={`rounded-sm border border-rule bg-surface px-3 py-2 text-sm text-ink shadow-sm ${
+      className={`rounded-sm border border-rule bg-surface px-3 py-2 text-base leading-normal text-ink shadow-sm ${
         inert ? '' : 'pointer-events-auto'
       }`}
     >
@@ -70,7 +70,7 @@ function ToastRow(props: {
           <button
             type="button"
             disabled={inert}
-            className={`${buttonBase} text-xs text-ink underline`}
+            className={`${buttonBase} text-sm text-ink underline`}
             onClick={() => void action.run()}
           >
             {action.label}
@@ -80,7 +80,7 @@ function ToastRow(props: {
           type="button"
           aria-label="通知を閉じる"
           disabled={inert}
-          className={`${buttonBase} ml-auto text-xs text-ink-muted hover:text-ink`}
+          className={`${buttonBase} ml-auto text-sm text-ink-muted hover:text-ink`}
           onClick={() => onDismiss(toast.id)}
         >
           閉じる

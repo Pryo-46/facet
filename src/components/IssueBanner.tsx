@@ -30,7 +30,7 @@ export function IssueBanner({ issues, className = '' }: IssueBannerProps) {
   const shown = expanded || hidden <= 0 ? issues : issues.slice(0, ISSUE_PREVIEW_COUNT)
   return (
     <div className={`border-b border-rule bg-surface px-6 py-2 ${className}`}>
-      <ul className="list-disc pl-4 text-sm text-invalid">
+      <ul className="list-disc pl-4 text-base leading-normal text-invalid">
         {shown.map((issue, i) => (
           <li key={`${issue.rule}-${i}`}>{issue.message}</li>
         ))}
@@ -40,7 +40,7 @@ export function IssueBanner({ issues, className = '' }: IssueBannerProps) {
       {hidden > 0 && (
         <button
           type="button"
-          className={`${buttonBase} mt-1 text-xs text-ink-muted underline`}
+          className={`${buttonBase} mt-1 text-sm text-ink-muted underline`}
           onClick={() => setExpanded((v) => !v)}
         >
           {expanded ? '折りたたむ' : `他 ${hidden} 件を表示`}

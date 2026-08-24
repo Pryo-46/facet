@@ -10,10 +10,10 @@ import { currentPlatform } from '@/core/keyboard/platform'
 export function KeyHints(props: { hints: readonly KeyHint[]; className?: string }) {
   const platform = currentPlatform()
   return (
-    <div className={`text-xs text-ink-muted ${props.className ?? ''}`}>
+    <div className={`text-sm text-ink ${props.className ?? ''}`}>
       {props.hints.map((hint) => (
         <span key={hint.keys} className="ml-3 first:ml-0">
-          <span className="text-ink">{formatHintKeys(hint.keys, platform)}</span>: {hint.label}
+          <span>{formatHintKeys(hint.keys, platform)}</span>: {hint.label}
         </span>
       ))}
     </div>

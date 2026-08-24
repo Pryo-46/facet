@@ -20,7 +20,7 @@ export function MissingTally(props: {
   const { tally, onJump } = props
   return (
     <div
-      className={`pointer-events-none flex items-center gap-2 whitespace-nowrap text-sm text-ink-muted${
+      className={`pointer-events-none flex items-center gap-2 whitespace-nowrap text-base text-ink-muted${
         props.className === undefined ? '' : ` ${props.className}`
       }`}
     >
