@@ -125,9 +125,9 @@ describe('フォントサイズの段階（M7 決定6 → M23 決定1 で3サイ
 })
 
 describe('行間の明示（M23 決定2）', () => {
-  it('leading-* は leading-none（バッジ）と leading-normal（複数行の欄）だけ', () => {
+  it('leading-* は leading-none（バッジと課題ツリーの節見出し）と leading-normal（複数行の欄）だけ', () => {
     // 行間の既定は @theme が持つ（sm 1.3 / base 1.25）。明示してよいのは
-    // 「読ませる欄」の leading-normal（1.5）と、バッジの leading-none だけ。
+    // 「読ませる欄」の leading-normal（1.5）と、バッジ・課題ツリーの節見出しの leading-none だけ。
     // leading-5 のような数値指定は「行の高さをクラスで固定する書き方」で、
     // 段の再定義から静かに取り残される（open-issues で管理していた形）。
     // 任意値 leading-[...] も同じ理由で弾く

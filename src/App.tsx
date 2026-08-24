@@ -1055,7 +1055,7 @@ function App() {
                   <h2 className="mb-2 font-bold text-invalid">
                     このファイルは開けません（{selected.result.reason}）
                   </h2>
-                  <ul className="list-disc pl-5 text-base text-ink">
+                  <ul className="list-disc pl-5 text-base leading-normal text-ink">
                     {selected.result.errors.map((err) => (
                       <li key={err}>{err}</li>
                     ))}

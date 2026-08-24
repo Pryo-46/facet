@@ -70,8 +70,11 @@ export function ActorRefCell(props: ActorRefCellProps) {
         // 本文が空になり、子が無いボタンは行ボックスを作らないので内容高 0＋
         // 余白だけの帯に潰れる（親は height を渡さない）。押す面積が消え、
         // 同じ railTop に並ぶ種別セルとも段が揃わなくなる。
-        // 26px の内訳: 行 16×1.25=20 ＋ `py-0.5` 4 ＋ 枠 2。空名トリガーと
-        // 文字入りの実高が同値になり、open-issues の「2px 残差」が解消する
+        // 26px の内訳: `<button>` には index.css の @layer base が
+        // `--tw-leading: 1.2` を当てるため行箱は 16×1.2=19.2 ＋ `py-0.5` 4 ＋
+        // 枠 2 ＝ 25.2 を切り上げた値。空名トリガーと文字入りの実高が同値に
+        // なり、M22 の申し送りに記録された空名トリガーと文字入りの約2pxの
+        // 段差が解消する
         className={`min-h-6.5 w-full truncate rounded-sm border px-1.5 py-0.5 text-left text-base text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring ${face}`}
         aria-label={props['aria-label']}
         data-cell={props['data-cell']}
