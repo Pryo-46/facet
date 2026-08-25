@@ -1,3 +1,4 @@
+import { CircleAlert } from 'lucide-react'
 import type { MissingTally as Tally } from '@/core/missing-tally'
 import { TALLY_TOTAL_LABEL } from '@/core/missing-tally'
 import { badgeClass } from './badge-styles'
@@ -24,8 +25,17 @@ export function MissingTally(props: {
         props.className === undefined ? '' : ` ${props.className}`
       }`}
     >
-      <span>
-        {tally.total === 0 ? `${TALLY_TOTAL_LABEL} 0` : `⚠ ${TALLY_TOTAL_LABEL} ${tally.total}`}
+      <span className="flex items-center gap-1">
+        {/* `⚠` の絵文字は使わない（M25 決定8）。OS のカラー絵文字は色が
+            rev 9章「色を持つのは意味だけ」の管理の外にあり、SVG なら欠落軸の
+            `text-missing` を明示できる。**`tallyLine`（Skill が端末に出す
+            文字列）は `⚠` のまま**——端末に SVG は出せない。0 件はアイコンも
+            出さない（`⚠` を付けない流儀と同じ）。大きさは帯の文字（text-base
+            16px）に合わせて size-4 */}
+        {tally.total > 0 && (
+          <CircleAlert aria-hidden="true" className="size-4 shrink-0 text-missing" />
+        )}
+        {`${TALLY_TOTAL_LABEL} ${tally.total}`}
       </span>
       {tally.parts.map((p) =>
         p.count === 0 ? null : onJump === undefined ? (

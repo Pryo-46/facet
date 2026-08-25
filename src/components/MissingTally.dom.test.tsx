@@ -15,16 +15,20 @@ const TALLY: Tally = {
 }
 
 describe('MissingTally', () => {
-  it('合計と内訳を出す', () => {
-    render(<MissingTally tally={TALLY} />)
-    expect(screen.getByText('⚠ 要対応 3')).toBeDefined()
+  it('合計と内訳を出す（警告はアイコンで、絵文字は出さない）', () => {
+    const { container } = render(<MissingTally tally={TALLY} />)
+    expect(screen.getByText('要対応 3')).toBeDefined()
+    // ⚠ の絵文字は画面に出さない（M25 決定8。端末に出す tallyLine 側は ⚠ のまま）
+    expect(container.textContent).not.toContain('⚠')
+    expect(container.querySelector('svg')).not.toBeNull()
     expect(screen.getByText('未定義 2')).toBeDefined()
     expect(screen.getByText('未分類 1')).toBeDefined()
   })
 
-  it('0 件なら ⚠ 無しの合計だけ', () => {
-    render(<MissingTally tally={{ total: 0, parts: [] }} />)
+  it('0 件ならアイコン無しの合計だけ', () => {
+    const { container } = render(<MissingTally tally={{ total: 0, parts: [] }} />)
     expect(screen.getByText('要対応 0')).toBeDefined()
+    expect(container.querySelector('svg')).toBeNull()
     expect(screen.queryByRole('button')).toBeNull()
   })
 

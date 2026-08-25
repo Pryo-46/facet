@@ -613,13 +613,13 @@ describe('IssueTreeEditor（帯）', () => {
     const t = tallyQuestions(poseQuestions(data))
     expect(t).toMatchObject({ hypothesis: 1, result: 2, hold: 0, judgement: 0, total: 3 })
     render(<Harness initial={data} />)
-    // **`⚠` を打ち直さない。** 帯（`IssueTreeEditor`）と `tallyLine`（Skill の
-    // 報告）はそれぞれの側で同じ接頭辞を組み立てており、片方だけ変えても
-    // 合計0のケース以外は誰も気付かない。帯は内訳をチップへ移したので
-    // **1行まるごとは一致しない**——一致するのは括弧の前、合計までの頭である
+    // **語を打ち直さない。** 帯と `tallyLine`（Skill の報告）は同じ語
+    //（`TALLY_TOTAL_LABEL` / `QUESTION_LABELS`）を出すが、接頭辞は M25 決定8 で
+    // **意図的に分岐した**——画面は CircleAlert のアイコン、端末は `⚠`
+    //（SVG は端末に出せない）。ここでは両側をそれぞれ縛る
     const [head] = tallyLine(t).split('（')
-    expect(head.endsWith(`${TALLY_TOTAL_LABEL} ${t.total}`)).toBe(true)
-    expect(screen.getByText(head)).toBeTruthy()
+    expect(head).toBe(`⚠ ${TALLY_TOTAL_LABEL} ${t.total}`) // 端末側の字面（据え置き）
+    expect(screen.getByText(`${TALLY_TOTAL_LABEL} ${t.total}`)).toBeTruthy() // 画面側は語と数だけ
     expect(chip('hypothesis')?.textContent).toBe(`${QUESTION_LABELS.hypothesis} ${t.hypothesis}`)
     expect(chip('result')?.textContent).toBe(`${QUESTION_LABELS.result} ${t.result}`)
   })
