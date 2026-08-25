@@ -75,7 +75,7 @@ export function ActorRefCell(props: ActorRefCellProps) {
         // 枠 2 ＝ 25.2 を切り上げた値。空名トリガーと文字入りの実高が同値に
         // なり、M22 の申し送りに記録された空名トリガーと文字入りの約2pxの
         // 段差が解消する
-        className={`min-h-6.5 w-full truncate rounded-sm border px-1.5 py-0.5 text-left text-base text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring ${face}`}
+        className={`min-h-6.5 w-full truncate rounded-sm border px-1.5 py-0.5 text-left text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring ${face}`}
         aria-label={props['aria-label']}
         data-cell={props['data-cell']}
         onKeyDown={(e) => {

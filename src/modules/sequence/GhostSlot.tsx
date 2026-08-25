@@ -31,7 +31,7 @@ export function GhostSlot(props: GhostSlotProps) {
         {props.question}
       </div>
       <div
-        className="whitespace-pre-wrap break-all rounded-sm border border-dashed border-rule bg-surface px-2 py-1 text-base leading-normal text-ink-muted"
+        className="whitespace-pre-wrap break-all rounded-sm border border-dashed border-rule bg-surface px-2 py-1 text-sm leading-normal text-ink-muted"
         style={{ width: props.answerWidth, minHeight: props.height }}
       >
         {props.text}

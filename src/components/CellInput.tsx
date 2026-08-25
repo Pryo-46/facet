@@ -104,7 +104,8 @@ export function CellInput(props: CellInputProps) {
 
   /**
    * 内容に合わせて行数を決める。**ピクセルの max-height を書かない**ので、
-   * フォントサイズや行間（M23 の段では複数行の欄が 16px・1.5）を変えても自動で追従する。
+   * フォントサイズや行間（複数行の欄は M23 で 16px・1.5、M26 で 14px・1.5）を
+   * 変えても自動で追従する。
    *
    * **jsdom はレイアウトを持たない**（scrollHeight が常に 0、lineHeight は
    * 空文字）。そこで抜けないと rows={NaN} を React へ渡すことになるため、

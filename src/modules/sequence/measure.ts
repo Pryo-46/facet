@@ -44,6 +44,9 @@ export const ANSWER_BOX_CLASS = 'border px-2 py-1'
  * notApplicable の答えは GutterSlot が「考慮不要」の接頭ぶん左を空ける
  * （`pl-18` = 4.5rem = 72px。M23 で本文 16px 化に伴い `pl-16` から広げた
  * （接頭「考慮不要」4字×16px＝64px が `left-2`(8px) から始まるため 8+64=72）。
+ * **M26 で入力値が 14px へ下がり、接頭の実幅は 4字×14px＝56px になった**が、
+ * 72px は動かさない——余る 8px は接頭と本文の間の空きになるだけで、狭すぎて
+ * 重なる向きの誤りではない（実機確認で問題なしと判断した）。
  * 実効幅が狭くなるのは差分の 64px（72−8）。SequenceEditor の折り返し測定は
  * この狭さを見積もりに反映しないと、reason 付きの notApplicable で行数を
  * 過小に見積もり、CellInput の `overflow-hidden` で下端が欠ける。

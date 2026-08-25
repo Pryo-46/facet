@@ -45,7 +45,7 @@ import { TreeEdges } from './TreeEdges'
 const MEASURE_CACHE_LIMIT = 2000
 
 /** ノードの文言に当たるクラスのうち、フォントを決めている部分。見本要素と共有する */
-const NODE_FONT_CLASS = 'text-base leading-normal'
+const NODE_FONT_CLASS = 'text-sm leading-normal'
 
 /** 木の操作ヒント。`$alt` は KeyHints が解決する */
 const TREE_HINTS: readonly KeyHint[] = [

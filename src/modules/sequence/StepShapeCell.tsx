@@ -42,7 +42,7 @@ export function StepShapeCell(props: StepShapeCellProps) {
     <DropdownMenu open={props.open} onOpenChange={props.onOpenChange}>
       <DropdownMenuTrigger
         type="button"
-        className="w-full rounded-sm border border-rule bg-surface px-1.5 py-0.5 text-left text-base text-ink-muted outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
+        className="w-full rounded-sm border border-rule bg-surface px-1.5 py-0.5 text-left text-sm text-ink-muted outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
         aria-label={props['aria-label']}
         data-cell={props['data-cell']}
         onKeyDown={(e) => {

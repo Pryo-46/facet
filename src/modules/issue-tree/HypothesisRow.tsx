@@ -83,7 +83,7 @@ const inputClass =
 const sectionLabelClass = 'absolute overflow-hidden text-sm leading-none font-medium select-none'
 
 /** 読み取り専用の文章（以前の判断の根拠・「判断はまだ無い」）。文字色は同上 */
-const staticTextClass = 'absolute overflow-hidden text-base leading-normal break-all whitespace-pre-wrap'
+const staticTextClass = 'absolute overflow-hidden text-sm leading-normal break-all whitespace-pre-wrap'
 
 /**
  * 仮説1件＝**課題の箱の中の1行**（M3 の文法）。
@@ -170,7 +170,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
         {/* 畳まれた行は**必ず1行**。レイアウトも1行で測っているので、
             改行は空白に潰してから省略記号に任せる */}
         <span
-          className={`absolute truncate text-base leading-normal ${props.text === '' ? mutedInk : ink}`}
+          className={`absolute truncate text-sm leading-normal ${props.text === '' ? mutedInk : ink}`}
           style={inRow(placement.text)}
         >
           {props.text === '' ? '仮説' : props.text.replace(/\n/g, ' ')}
@@ -211,12 +211,12 @@ export function HypothesisRow(props: HypothesisRowProps) {
           multiline
           autoSize={false}
           // **`font-medium` を付けないこと。** 測っているのは `fonts.body`
-          //（`BODY_FONT_CLASS = 'text-base leading-normal'`＝weight 400）の見本であり、中字で
+          //（`BODY_FONT_CLASS = 'text-sm leading-normal'`＝weight 400）の見本であり、中字で
           // 描くと同じ字数がより広くなって測定より1行多く折り返す。高さ固定＋
           // overflow-hidden の textarea なので、**打っている最後の行が黙って
           // 見えなくなる**（`fonts.title` を別に持っている理由と同じ）。
           // 整合性検証の無効は外側の箱に `invalid` の輪郭＋淡い面（rev 9章 規約2）
-          className={`${inputClass} text-base leading-normal ${ink}`}
+          className={`${inputClass} text-sm leading-normal ${ink}`}
           aria-label={label}
           placeholder="仮説"
           data-cell={cellOf({ cell: 'hypothesis' })}
@@ -263,7 +263,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
           <CellInput
             multiline
             autoSize={false}
-            className={`${inputClass} text-base leading-normal ${ink}`}
+            className={`${inputClass} text-sm leading-normal ${ink}`}
             aria-label={`${label} の${EVENT_KIND_LABELS[latest.kind]}の根拠`}
             data-cell={cellOf({ cell: 'event', eventIndex: latestIndex })}
             value={latest.note}
@@ -309,7 +309,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
         <CellInput
           multiline
           autoSize={false}
-          className={`${inputClass} text-base leading-normal ${ink}`}
+          className={`${inputClass} text-sm leading-normal ${ink}`}
           aria-label={`${label} の由来`}
           placeholder="由来（任意）"
           data-cell={cellOf({ cell: 'rationale' })}
@@ -327,7 +327,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
           <CellInput
             multiline
             autoSize={false}
-            className={`${inputClass} text-base leading-normal ${ink}`}
+            className={`${inputClass} text-sm leading-normal ${ink}`}
             aria-label={`${label} のFB${i + 1}`}
             data-cell={cellOf({ cell: 'note', noteIndex: i })}
             value={notes[i] ?? ''}

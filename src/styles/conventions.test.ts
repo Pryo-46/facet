@@ -119,7 +119,7 @@ describe('フォントサイズの段階（M7 決定6 → M23 決定1 で3サイ
     const offenders = offendingLines(/\btext-(xs|lg|[2-9]xl)\b|\btext-\[[^\]]*\]/)
     expect(
       offenders,
-      `使ってよいのは text-sm / text-base / text-xl の3段（複数行は text-base + leading-normal）:\n${offenders.join('\n')}`,
+      `使ってよいのは text-sm / text-base / text-xl の3段（複数行は text-sm + leading-normal。M26 で 16px から下げた）:\n${offenders.join('\n')}`,
     ).toEqual([])
   })
 })

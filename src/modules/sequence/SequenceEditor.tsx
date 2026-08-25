@@ -100,12 +100,15 @@ import { StepShapeCell } from './StepShapeCell'
 const MEASURE_CACHE_LIMIT = 2000
 
 /** 図の文字に当たるクラスのうち、フォントを決めている部分。見本要素と共有する */
-const SEQ_FONT_CLASS = 'text-base leading-normal'
+const SEQ_FONT_CLASS = 'text-sm leading-normal'
 
 /**
  * 問いラベルのフォント階級（GutterSlot のラベル列と同じ）。
- * **`SEQ_FONT_CLASS` で代用しないこと**——本文（16px）でラベル（14px）を測ると
- * 高さを過大に見積もり、行が無駄に伸びる
+ * **`SEQ_FONT_CLASS` で代用しないこと**——M26 で入力値が 14px へ下がって
+ * サイズは並んだが、**行間が違う**（答えセルは `leading-normal` = 1.5、
+ * ラベルは text-sm 既定の 1.3。src/index.css の --text-sm--line-height）。
+ * 代用すると 21px の行高でラベルを測ることになり、高さを過大に見積もって
+ * 行が無駄に伸びる
  */
 const LABEL_FONT_CLASS = 'text-sm'
 
@@ -788,8 +791,10 @@ export function SequenceEditor({
       {/* 測定用の見本。**描画される文字と同じフォントのクラスを持たせる**ことで、
           測定と描画が同一の情報源を見る（rev 9章）。opacity-0 で見せないだけに
           するのは、display:none だと getComputedStyle がフォントを返さない環境があるため。
-          見本が2本あるのは、答えセル（text-base）と問いラベル列（text-sm）で
-          フォント階級が違うため——1本を両方に使い回すと、片方の高さを見誤る */}
+          見本が2本あるのは、答えセル（`SEQ_FONT_CLASS` = text-sm + leading-normal）と
+          問いラベル列（`LABEL_FONT_CLASS` = text-sm）でフォント階級が違うため
+          ——M26 でサイズは 14px に並んだが行間が違う（1.5 と 1.3）ので、
+          1本を両方に使い回すと片方の高さを見誤る */}
       <span
         ref={probeRef}
         aria-hidden="true"
@@ -918,7 +923,7 @@ export function SequenceEditor({
               }}
             >
               <CellInput
-                className={`h-full w-full rounded-sm text-center ${ACTOR_BOX_CLASS} ${face} text-base leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
+                className={`h-full w-full rounded-sm text-center ${ACTOR_BOX_CLASS} ${face} text-sm leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
                 aria-label={`参加者${index + 1}の名前`}
                 data-cell={`${key}:name`}
                 value={actor.name}
@@ -1051,7 +1056,7 @@ export function SequenceEditor({
                     isSelf
                       ? `${SELF_BOX_CLASS}${labelMissing ? '' : ' border-rule'}`
                       : LABEL_BOX_CLASS
-                  } ${labelFace} text-center text-base leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
+                  } ${labelFace} text-center text-sm leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
                   aria-label={`ステップ${index + 1}の文言`}
                   data-cell={`${key}:label`}
                   value={step.label}
