@@ -6,7 +6,9 @@ M26 は「**UI ノート（[`../facet-UI設計ノート.md`](../facet-UI設計�
 
 実装計画は [`../superpowers/plans/2026-08-26-m26-core-font-bundle.md`](../superpowers/plans/2026-08-26-m26-core-font-bundle.md)（`344b0fe`。このブランチ最初のコミット。着手後の訂正 `d4b076b` を含む）。**設計スペックは無い**——U1 の決着そのものが設計の役割を果たしており、計画が直接その上に立っている。
 
-コミット範囲: `344b0fe`（計画）〜本コミット。実装は6コミット——`6a285d4`（Task 1。fontsource 3書体と生成 CSS の土台）・`04c7654`（Task 2。トークン差し替えと端末の配線）＋`b806ae7`（Task 2 のレビュー fix。隠れたタブでの `fit()` 遅延）・`c72e463`（Task 3。実験ページ `font-probe.html`）・`537665f`（Task 5。`useFontGeneration` への一本化）＋`3cf1a4a`（Task 5 のレビュー fix。`CellInput` の行数の番人）・`c2edd89`（Task 6。Geist の除去と `font-bold` → 600）。**Task 4 はコミットを産んでいない**（実験の結果、`src/index.css` の追加修正が不要だったため）。
+コミット範囲: `344b0fe`（計画）〜本コミット。うち `d4b076b` は着手後に入った**計画の訂正**（123分割の数え違い。下の「実装で確定した事項 (3)」）で、実装ではない。
+
+実装は**7コミット**——`6a285d4`（Task 1。fontsource 3書体と生成 CSS の土台）・`04c7654`（Task 2。トークン差し替えと端末の配線）・`b806ae7`（Task 2 のレビュー fix。隠れたタブでの `fit()` 遅延）・`c72e463`（Task 3。実験ページ `font-probe.html`）・`537665f`（Task 5。`useFontGeneration` への一本化）・`3cf1a4a`（Task 5 のレビュー fix。`CellInput` の行数の番人）・`c2edd89`（Task 6。Geist の除去と `font-bold` → 600）。**うち2本（`b806ae7` / `3cf1a4a`）はレビューが計画の誤りを検出して入った fix である。** **Task 4 はコミットを産んでいない**（実験の結果、`src/index.css` の追加修正が不要だったため）。
 
 テストは **1792 → 1801 件**（全件緑）。`npm test` を実行し確認済み。
 
