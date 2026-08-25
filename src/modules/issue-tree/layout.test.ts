@@ -3,7 +3,7 @@ import { createEstimateMeasurer } from '@/core/canvas/wrap'
 import type { Hypothesis, IssueNode, IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { ISSUE_DEFERRED_LABEL, poseQuestions } from './derive'
 import { DEFER_TRIGGER_LABEL, layoutIssueTree, type IssueTreeFonts } from './layout'
-import { BADGE_GAP, BOX_TEXT_MAX_LINES, BOX_WIDTH, ISSUE_INSET_X } from './measure'
+import { BADGE_GAP, BOX_WIDTH, ISSUE_INSET_X } from './measure'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
@@ -206,16 +206,6 @@ describe('layoutIssueTree', () => {
     expect(box.title.width).toBeGreaterThanOrEqual(fonts.title.measure('あ'.repeat(8)))
     // タイトルは箱からはみ出さない
     expect(box.title.x + box.title.width).toBeLessThanOrEqual(box.rect.x + box.rect.width)
-  })
-
-  /** M24: 骨格を読ませるため、閉じた箱に出る文章の高さを有界にする */
-  it('タイトルと見送りの理由は BOX_TEXT_MAX_LINES で打ち切られる', () => {
-    const long = '課'.repeat(200)
-    const out = run(
-      make({ issues: [{ ...root, text: long, events: [{ kind: 'deferred', note: long }] }] }),
-    ).issues[0]!
-    expect(out.title.height).toBe(fonts.title.lineHeight * BOX_TEXT_MAX_LINES)
-    expect(out.deferral!.reason.height).toBe(fonts.small.lineHeight * BOX_TEXT_MAX_LINES)
   })
 
   it('展開した仮説だけパネルを持ち、箱はその分だけ高くなる', () => {

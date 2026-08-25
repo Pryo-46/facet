@@ -14,21 +14,6 @@ import { BADGE_BORDER, BADGE_BOX_HEIGHT, BADGE_PADDING_X } from '@/components/ba
  * `padding: 10px 12px` / `gap: 12px`、`.sec` の `gap: 4px`
  */
 
-/**
- * 折り返しの上限行数。**閉じた箱に出る文章だけに当てる**——課題のタイトルと
- * 見送りの理由の2つで、**展開パネルの中（由来・根拠・FB・以前の判断）には
- * 当てない**（そこが「詳細を読む場所」であり、UI ノート D3 の
- * 「詳細は別パネルで表示」が指しているのはこのパネルである）。
- *
- * 超えた行は落ち、`overflow-hidden` の箱に収まらない。**省略記号は出さない**
- *（`text-overflow: ellipsis` も `line-clamp` も textarea には効かない）。
- * 編集中はキャレット移動でブラウザが内部スクロールするので全文には届き、
- * 抜けたときは `CellInput` が `scrollTop` を 0 に戻す。
- *
- * ロジックツリーの `NODE_MAX_LINES` と同じ 3。**別々に持っているのは、
- * 2つの木が互いの寸法に縛られないため**
- */
-export const BOX_TEXT_MAX_LINES = 3
 export const ISSUE_PADDING_X = 10
 export const ISSUE_PADDING_Y = 6
 export const ISSUE_BORDER = 1

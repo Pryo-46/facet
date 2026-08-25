@@ -3,7 +3,6 @@ import {
   createEstimateMeasurer,
   NODE_INSET_X,
   NODE_INSET_Y,
-  NODE_MAX_LINES,
   NODE_WIDTH,
   wrapText,
 } from './measure'
@@ -49,14 +48,6 @@ describe('wrapText', () => {
   it('折り返した各行は、内容の幅の上限に収まる', () => {
     const r = wrapText('あ'.repeat(80), measure, LH)
     for (const line of r.lines) expect(measure(line)).toBeLessThanOrEqual(CONTENT_MAX)
-  })
-
-  /** M24: 骨格を読ませるため、高さも有界にする（UI ノート D3） */
-  it('NODE_MAX_LINES で行と高さが打ち切られる', () => {
-    const perLine = Math.floor(CONTENT_MAX / 10)
-    const r = wrapText('あ'.repeat(perLine * (NODE_MAX_LINES + 2)), measure, LH)
-    expect(r.lines.length).toBe(NODE_MAX_LINES)
-    expect(r.height).toBe(LH * NODE_MAX_LINES + NODE_INSET_Y * 2)
   })
 
   it('明示改行で行を分ける', () => {

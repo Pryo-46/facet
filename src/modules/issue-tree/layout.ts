@@ -20,7 +20,6 @@ import {
   BADGE_HEIGHT,
   BADGE_PADDING_X,
   BOX_CONTENT_WIDTH,
-  BOX_TEXT_MAX_LINES,
   BOX_WIDTH,
   ISSUE_INSET_X,
   ISSUE_INSET_Y,
@@ -142,22 +141,13 @@ export const ADD_NOTE_LABEL = '＋ FB'
 
 /**
  * 折り返した文章の高さ（余白は箱が1度だけ持つので、ここでは 0）。
- *
- * `maxLines` を渡すと高さがそこで止まる。**渡すのは閉じた箱に出る文章だけ**
- *——タイトルと見送りの理由。展開パネルの中は詳細を読む場所なので渡さない（M24）
  */
-function textHeight(
-  text: string,
-  font: IssueTreeFont,
-  width: number,
-  maxLines?: number,
-): number {
+function textHeight(text: string, font: IssueTreeFont, width: number): number {
   return wrapWithin(text, font.measure, font.lineHeight, {
     maxWidth: width,
     minWidth: 0,
     insetX: 0,
     insetY: 0,
-    maxLines,
   }).height
 }
 
@@ -473,13 +463,12 @@ export function layoutIssueTree(
     const width = BOX_WIDTH
     const titleWidth = BOX_CONTENT_WIDTH - reserve
 
-    const titleHeight = textHeight(node.text, fonts.title, titleWidth, BOX_TEXT_MAX_LINES)
+    const titleHeight = textHeight(node.text, fonts.title, titleWidth)
     const reasonHeight = deferred
       ? textHeight(
           node.events[node.events.length - 1].note,
           fonts.small,
           BOX_CONTENT_WIDTH - ROW_INDENT,
-          BOX_TEXT_MAX_LINES,
         )
       : null
 

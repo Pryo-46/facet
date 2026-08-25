@@ -227,16 +227,6 @@ export function CellInput(props: CellInputProps) {
     onBlur: () => {
       composedAt.current = null
       setDraft(null)
-      // **表示も先頭行に戻す。** 上限行数で打ち切られた箱（課題ツリーの
-      // タイトル・ロジックツリーのノード。M24）を編集すると、キャレット追従で
-      // ブラウザが内部スクロールする。戻さないとその箱だけ途中の行から
-      // 表示されたまま残り、木を俯瞰したときに文言の頭が読めない。
-      // **`autoSize` の欄（表のセル）を除くのは、内容が常に収まるからではない**
-      // ——`MAX_ROWS`（8行）を超える定義・備考・対応文は実際にセル内スクロール
-      // に切り替わる（上の JSDoc）。除くのは M24 が「テーブルの行高・
-      // `MAX_ROWS` には触らない」と裁定した（設計スペック 決定1）ためであり、
-      // テーブル側でも戻す方が望ましいかどうかは実機の確認で別途判断する
-      if (!autoSize && areaRef.current !== null) areaRef.current.scrollTop = 0
     },
   }
 

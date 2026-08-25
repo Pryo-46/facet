@@ -14,16 +14,6 @@ export type WrappedText = WrappedBlock
  * ——値が同じだけで意味が違うので、3つを共有定数に束ねていない
  */
 export const NODE_WIDTH = 320
-/**
- * 折り返しの上限行数。超えた行は落ち、`overflow-hidden` の箱に収まらない
- * ——**省略記号は出さない**（`text-overflow: ellipsis` も `line-clamp` も
- * textarea には効かない。M24 の設計スペック 決定3）。編集中はキャレット
- * 移動でブラウザが内部スクロールするので、全文には届く。
- *
- * 課題ツリーの `BOX_TEXT_MAX_LINES` と同じ 3。**別々に持っているのは、
- * 2つの木が互いの寸法に縛られないため**（`NODE_WIDTH` と `BOX_WIDTH` と同じ扱い）
- */
-export const NODE_MAX_LINES = 3
 export const NODE_PADDING_X = 10
 export const NODE_PADDING_Y = 6
 export const NODE_BORDER = 1
@@ -51,6 +41,5 @@ export function wrapText(text: string, measure: MeasureWidth, lineHeight: number
     minWidth: NODE_WIDTH,
     insetX: NODE_INSET_X,
     insetY: NODE_INSET_Y,
-    maxLines: NODE_MAX_LINES,
   })
 }
