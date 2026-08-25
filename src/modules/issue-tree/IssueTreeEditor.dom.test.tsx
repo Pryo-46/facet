@@ -8,6 +8,8 @@ import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
 import {
   BADGE_LABELS,
+  DEFERRAL_NOTE,
+  deferralLine,
   EVENT_KIND_LABELS,
   ISSUE_DEFERRED_LABEL,
   poseQuestions,
@@ -745,6 +747,53 @@ describe('IssueTreeEditor（帯）', () => {
     const next: IssueTreeSchemaVersion2 = onChange.mock.calls.at(-1)?.[0]
     expect(next.hypotheses).toHaveLength(3)
     expect(next.hypotheses.filter((h) => h.issueId === I(2))).toHaveLength(3)
+  })
+})
+
+/** 見送りを掲げた課題が2件（うち1件は入れ子）あるファイル */
+const deferredFile = (): IssueTreeSchemaVersion2 => ({
+  schemaVersion: 2,
+  type: 'issueTree',
+  title: '見送りの帯',
+  issues: [
+    { id: I(1), parentId: null, text: '決済', events: [] },
+    {
+      id: I(2),
+      parentId: I(1),
+      text: '需要',
+      events: [{ kind: 'deferred', note: '今回は追わない' }],
+    },
+    {
+      id: I(3),
+      parentId: I(1),
+      text: '性能',
+      events: [{ kind: 'deferred', note: '機材が無い' }],
+    },
+  ],
+  hypotheses: [],
+})
+
+describe('IssueTreeEditor（見送りの別枠チップ。M25 D17）', () => {
+  it('見送りを掲げた課題の数を出し、押すとその課題の欄へ視点が飛んで巡回する', () => {
+    render(<Harness initial={deferredFile()} />)
+    const chip = screen.getByRole('button', { name: '次の見送りへ' })
+    expect(chip.textContent).toBe(deferralLine(2))
+    expect(chip.title).toBe(DEFERRAL_NOTE)
+    // 行き先の検証は「帯のチップを押すと、その種類の次の要対応へフォーカスが
+    // 移る」と同じ書き方（`document.activeElement` と `issueCell` を突き合わせる）
+    // に合わせる。1回目は issues[1]（需要＝課題2）、もう1回押すと issues[2]
+    // （性能＝課題3）、さらに押すと issues[1]（課題2）へ戻る
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(issueCell(2))
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(issueCell(3))
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(issueCell(2))
+  })
+
+  it('見送りを掲げた課題が無ければチップは出ない', () => {
+    render(<Harness initial={openFile()} />)
+    expect(screen.queryByRole('button', { name: '次の見送りへ' })).toBeNull()
   })
 })
 
