@@ -7,7 +7,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | 知りたいこと | 読むもの |
 | --- | --- |
 | なぜこの設計なのか | [`overview-rev.md`](overview-rev.md) — **全体方針の「正」**。3〜10章が設計制約の本体。他の文書はここを `rev N章` の形で参照する |
-| UI の見た目がなぜそう決まったか（色は意味だけ・欠落は線・判断は面） | [`facet-UI設計ノート.md`](facet-UI設計ノート.md) — **UI の設計ノート**（診断と決定 D1〜D19。**A〜F への分割は設計スペック [`superpowers/plans/2026-08-23-m21-design-tokens-v2-design.md`](superpowers/plans/2026-08-23-m21-design-tokens-v2-design.md) の末尾にある**。A（色の規約）は M21、C（未定義表現の本体）は M22、B（タイポグラフィ）は M23 で実装した。**D（レイアウト固定）は M24 で幅だけ決着した**——ノード幅の固定は実装し、**テーブルの行高固定＋2行省略は「変えない」と決め**、**ツリーの高さの打ち切りは実装したあと実機で撤回した**（`textarea` がキャレットに追従しない。D3 の「M24 での実施結果」の追記節）。**F（見送り集計の別枠・select 置換・角丸統一）は M25 で決着した**（U4「破線エッジの意味」も同時に決着）。**残るのは D の高さ（省略。M24 で撤回済み）・E（フォント同梱。U1 未決）**で、[`open-issues.md`](open-issues.md) の「デザイン」節に1項ずつある） |
+| UI の見た目がなぜそう決まったか（色は意味だけ・欠落は線・判断は面） | [`facet-UI設計ノート.md`](facet-UI設計ノート.md) — **UI の設計ノート**（診断と決定 D1〜D19。**A〜F への分割は設計スペック [`superpowers/plans/2026-08-23-m21-design-tokens-v2-design.md`](superpowers/plans/2026-08-23-m21-design-tokens-v2-design.md) の末尾にある**。A（色の規約）は M21、C（未定義表現の本体）は M22、B（タイポグラフィ）は M23 で実装した。**D（レイアウト固定）は M24 で幅だけ決着した**——ノード幅の固定は実装し、**テーブルの行高固定＋2行省略は「変えない」と決め**、**ツリーの高さの打ち切りは実装したあと実機で撤回した**（`textarea` がキャレットに追従しない。D3 の「M24 での実施結果」の追記節）。**F（見送り集計の別枠・select 置換・角丸統一）は M25 で決着した**（U4「破線エッジの意味」も同時に決着）。**E（フォント同梱）は M26 で実装した**——IBM Plex 3書体を woff2 のみの生成 CSS で同梱し、D8 は「カラム名の階層をウェイトに移さない」という形で決着した（U2・U3 も同時に、実装からの言語化として書き起こした）。**残るのは D の高さ（省略。M24 で撤回済み）のみ**で、[`open-issues.md`](open-issues.md) の「デザイン」節に1項ある。**その決着は M26 の中で人間に諮る**） |
 | どのデータが欠落か・欠落の集計と行番号での指し方 | [`missing-semantics.md`](missing-semantics.md) — **欠落の規約**（判定源は `src/core/reading-guide.md` と一対一。M22） |
 | 何をどの順で作るか（用語集） | [`glossary/scope.md`](glossary/scope.md) |
 | 用語集の仕様がなぜそう決まったか | [`glossary/session-notes.md`](glossary/session-notes.md) |
@@ -69,6 +69,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [M23](history/m23-core-typography.md) | タイポグラフィスケール v2——3サイズ4段、密度は行高で稼ぐ | コア・デザイン |
 | [M24](history/m24-core-node-width-lock.md) | ツリーのノード幅固定——幅を導出しない、高さは3行で止める | コア・ロジックツリー・課題ツリー・デザイン |
 | [M25](history/m25-core-ui-note-f.md) | UI ノート F の決着——見送りの別枠集計・⚠ のアイコン化・select 置換・角丸統一 | コア・用語集・エラーカタログ・課題ツリー・デザイン |
+| [M26](history/m26-core-font-bundle.md) | フォント同梱——IBM Plex 3書体を woff2 で同梱し、OS 依存の導出をやめる | コア・デザイン |
 | [logic-tree-m1](history/logic-tree-m1-keyboard-editor.md) | キーボードで打ち切れるキャンバスエディタ | ロジックツリー |
 | [sequence-m1](history/sequence-m1-keyboard-editor.md) | ステップ入力＋全ステップに立つ「失敗したら？」の問い | シーケンス |
 | [sequence-m2](history/sequence-m2-usability.md) | 会議で使ってみて出た使い勝手9点 | シーケンス |
