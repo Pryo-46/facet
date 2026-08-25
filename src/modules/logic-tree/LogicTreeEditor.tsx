@@ -118,7 +118,7 @@ export function LogicTreeEditor({
   // 鍵に lineHeight と世代を混ぜる。**`font.font` の文字列には行間が
   // 入っていない**のに `wrapText` の height は lineHeight に依存するので、
   // 書体が同じまま行間だけ変わるとキャッシュが古い高さを返し続ける。
-  // 世代は上の document.fonts.ready が進めるカウンタで、
+  // 世代は useFontGeneration（ready＋loadingdone）が進めるカウンタで、
   // 「読み込み後に測り直す」を成立させるのはこちらである
   const measurerKey = `${font.font}|${font.lineHeight}|${fontGeneration}`
   const measurerRef = useRef<{

@@ -373,8 +373,9 @@ export function IssueTreeEditor({
   //
   // 鍵に lineHeight と世代を混ぜる。**`font.font` の文字列には行間が入っていない**
   // のに折り返しの高さは lineHeight に依存するので、書体が同じまま行間だけ
-  // 変わるとキャッシュが古い高さを返し続ける。世代は上の document.fonts.ready が
-  // 進めるカウンタで、「読み込み後に測り直す」を成立させるのはこちらである。
+  // 変わるとキャッシュが古い高さを返し続ける。世代は useFontGeneration
+  // （ready＋loadingdone）が進めるカウンタで、「読み込み後に測り直す」を
+  // 成立させるのはこちらである。
   // **2種類のフォントを1つの入れ物に持つ**——鍵は文字列だけで、どちらの
   // フォントで測ったかを持っていないので、混ぜると片方が他方の幅を返す
   const measurerKey = `${titleFont.font}|${titleFont.lineHeight}|${font.font}|${font.lineHeight}|${smallFont.font}|${smallFont.lineHeight}|${fontGeneration}`
