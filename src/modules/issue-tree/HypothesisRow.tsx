@@ -242,7 +242,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
           後に描かれる要素が上に乗る＝面が中身を覆うことはない */}
       <div
         aria-hidden="true"
-        className={`absolute rounded border-rule bg-canvas ${PANEL_BOX_CLASS}`}
+        className={`absolute rounded-sm border-rule bg-canvas ${PANEL_BOX_CLASS}`}
         style={inBox(panel.panel)}
       />
 

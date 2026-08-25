@@ -175,7 +175,7 @@ function cachedMeasurer(font: CanvasFont): { measure: MeasureWidth; lineHeight: 
  * ドロップダウンのトリガーと**見送りのトグル**に共通の土台。
  * **`buttonBase` を敷かないのは角丸のため。**
  * `buttonBase` は `rounded-sm` を持つが、見送り済みの課題ではトグル自身が
- * 見送りバッジ（`rounded`）を兼ねる——**角丸を2つ並べると勝つのは生成 CSS の
+ * 見送りバッジ（`rounded-sm`）を兼ねる——**角丸を2つ並べると勝つのは生成 CSS の
  * 順序であってクラス名の順序**であり、`TRIGGER_FACE` を切り出した理由（M8）が
  * 角丸について残ってしまう。**角丸は面が決める**ことにして口を1つにする。
  * 失うのは `justify-center` と `disabled:*` だけで、このトリガーは無効化しない
@@ -195,7 +195,7 @@ const TRIGGER_FACE =
 
 /**
  * 見送りトグルの未見送り面。**バッジの箱と同じ幾何**（`src/components/badge-styles.ts`
- * の base と対——`h-[20px]`・`px-1.5`・枠 1px・`rounded`・`leading-none font-medium`。
+ * の base と対——`h-[20px]`・`px-1.5`・枠 1px・`rounded-sm`・`leading-none font-medium`。
  * `BADGE_BOX_HEIGHT` を変えるときは片方だけ変えないこと。DOM テストが対を見る）。
  * このトグルは押すと同じ要素が見送りバッジ（`badgeClass('deferred')`）になるので、
  * 2つの面で箱の形が揃っていないと押した瞬間に跳ねる。色だけが「押せる面」
@@ -204,7 +204,7 @@ const TRIGGER_FACE =
  * （`actionWidth` ではない）で測っている——片方だけ変えないこと（対で直す）
  */
 const DEFER_TRIGGER_FACE =
-  'h-[20px] rounded border border-rule bg-surface px-1.5 text-sm leading-none font-medium whitespace-nowrap text-ink-muted hover:bg-canvas'
+  'h-[20px] rounded-sm border border-rule bg-surface px-1.5 text-sm leading-none font-medium whitespace-nowrap text-ink-muted hover:bg-canvas'
 
 interface KindMenuProps {
   /** アクセシブル名（トリガーのボタン） */

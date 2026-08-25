@@ -27,7 +27,7 @@ export const BADGE_PADDING_X = 6
 export const BADGE_BORDER = 1
 
 const base =
-  'inline-flex h-[20px] items-center rounded border px-1.5 text-sm leading-none font-medium whitespace-nowrap'
+  'inline-flex h-[20px] items-center rounded-sm border px-1.5 text-sm leading-none font-medium whitespace-nowrap'
 
 // yes / no は面なので枠を透明にする（border を base に持たせ、全語で高さと幅の計算を揃えるため）
 const faces: Record<BadgeVariant, string> = {
