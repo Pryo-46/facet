@@ -434,7 +434,13 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
    * が真）ので、`toContain('bg-surface')` は `bg-surface-muted` の箱でも
    * 通ってしまい、「非塗りの箱だけが `bg-surface` を持つ」を検査できない
    */
-  it('bg-surface-muted は見送りを掲げた当人の箱だけ（通常・入れ子で抑制された配下は持たない）', () => {
+  // M25 で主張が反転した——それまでは「塗るのは掲げた当人だけ（配下は
+  // bg-surface のまま）」を固定していたが、実機で「白い配下がまだ生きている
+  // 枝に見える」と出て、配下も塗ることになった（設計ノート D8 の M25 追記）。
+  // いま面が運ぶのは「凍結の範囲」で、当人と配下の区別は文字の濃さ
+  // （ink-faint か否か）が運ぶ——それはこのテストと「入れ子でも配下は
+  // 薄いまま」のテストが両側から見ている
+  it('見送りの枝（当人と配下）だけが bg-surface-muted を持ち、通常の箱は持たない', () => {
     const nested: IssueTreeSchemaVersion2 = {
       schemaVersion: 2,
       type: 'issueTree',
@@ -463,15 +469,19 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     // A：通常の箱は塗らない
     expect(classesOf(1)).not.toContain('bg-surface-muted')
     expect(classesOf(1)).toContain('bg-surface')
-    // B：見送りを掲げた当人だけが塗る
+    // B：見送りを掲げた当人は塗り、文字は濃いまま
     expect(classesOf(2)).toContain('bg-surface-muted')
     expect(classesOf(2)).not.toContain('bg-surface')
-    // C：自分も見送っているが、祖先（B）由来の抑制が勝つので塗らない
-    expect(classesOf(3)).not.toContain('bg-surface-muted')
-    expect(classesOf(3)).toContain('bg-surface')
-    // D：ただの抑制された配下も塗らない
-    expect(classesOf(4)).not.toContain('bg-surface-muted')
-    expect(classesOf(4)).toContain('bg-surface')
+    expect(classesOf(2)).not.toContain('text-ink-faint')
+    // C：自分も見送っているが、祖先（B）由来の抑制が勝つ——面は同じグレーでも
+    // 文字は faint（濃く戻らない）
+    expect(classesOf(3)).toContain('bg-surface-muted')
+    expect(classesOf(3)).not.toContain('bg-surface')
+    expect(classesOf(3)).toContain('text-ink-faint')
+    // D：ただの抑制された配下も同じ（枝全体がひとかたまりのグレー）
+    expect(classesOf(4)).toContain('bg-surface-muted')
+    expect(classesOf(4)).not.toContain('bg-surface')
+    expect(classesOf(4)).toContain('text-ink-faint')
   })
 
   it('見送った課題はバッジと理由の欄を持ち、打つと最新の見送りの note が変わる', () => {
