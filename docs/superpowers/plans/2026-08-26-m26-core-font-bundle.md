@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **U1 は決着済み（8fc3f6d。人間の合意取得済み）。構成・書体の選定を蒸し返さない。** 正は UI ノート §7 U1 の「2026-08-26 の決着」の節。
-- **字数サブセット化は禁止**（UI ノート §4.2）。unicode-range の 124 分割は fontsource のまま使う。
+- **字数サブセット化は禁止**（UI ノート §4.2）。unicode-range の分割は fontsource のまま使う。**分割数は 1 ウェイトあたり 123**（U1 決着と本計画の初版が書いた「124」は `files/` のファイル数で、CSS から参照されない一体型 `japanese-*-normal.woff2` を 1 本余計に数えていた——Task 1 の実装者が実物で検出した訂正）。
 - **fontsource static 版の CSS は素の import 禁物**——woff2 と woff を両方参照する（着手前スキャンで実物確認済み）。woff2 だけ参照する CSS を自前で持つ。
 - **CSP は変えない**（`font-src 'self'`。data: を足さない）。vite の 4KB 未満インライン化（data URI）は**フォントに対して止める**（下記スキャン(3)）。
 - worktree: `worktree-m26-core-font-bundle`（`.claude/worktrees/m26-core-font-bundle`）。**基底 8fc3f6d は worktree 作成直後に `git log --oneline -1` で確認済み**（origin/issue-tree/main に到達済みなので push 不要も確認済み）。
@@ -28,7 +28,7 @@
 
 1. **現行の構成**: `src/index.css:4` が `@fontsource-variable/geist` を素 import、`--font-sans: 'Geist Variable', 'Yu Gothic UI', 'Hiragino Sans', sans-serif`（`:34`）、`--font-mono: ui-monospace, 'Cascadia Mono', Consolas, monospace`（`:35`）。**`font-mono` クラスの使用は src で 0 件**（トークン定義のみ。D10 の等幅割り当ては §8 の優先表に無く、M26 のスコープ外）。**端末（`src/components/TerminalTab.tsx:77`）は `fontFamily` 未指定**＝xterm 既定（courier 系）で、`--font-mono` を読んでいない。
 2. **fontsource 5.3.0 の実物**（tarball を展開して確認）:
-   - `@fontsource/ibm-plex-sans-jp` の `400.css` 等は `src: url(...woff2) format('woff2'), url(...woff) format('woff')` の**両参照**。分割は **1ウェイトあたり 124**。woff2 は 400/500/600 合計 **6.8MB**。`files/` には 7 ウェイト分 868 本ずつ（woff2/woff）入っているが、**vite は CSS が参照したアセットしか emit しない**ので、参照を 3 ウェイトに絞れば同梱もそれだけになる。
+   - `@fontsource/ibm-plex-sans-jp` の `400.css` 等は `src: url(...woff2) format('woff2'), url(...woff) format('woff')` の**両参照**。分割は **1ウェイトあたり 123 ブロック**（`files/` には加えて CSS から参照されない一体型 `japanese-*-normal.woff2` が 1 本ある——ファイル数 124 と数え違えないこと）。woff2 は 400/500/600 合計 **6.8MB**。`files/` には 7 ウェイト分 868 本ずつ（woff2/woff）入っているが、**vite は CSS が参照したアセットしか emit しない**ので、参照を 3 ウェイトに絞れば同梱もそれだけになる。
    - `@fontsource-variable/ibm-plex-sans` の `index.css` は wght 軸 normal のみ・**woff2 のみ**（`format('woff2-variations')`）・6 分割で合計 **約 159KB**。**U1 決着の「約1.3MB」はパッケージ全体（italic・wdth 軸込み）の値**であり、実同梱はこの 159KB。決定は変わらない（軽くなる方向の訂正）——history に実測を記録する。
    - `@fontsource/ibm-plex-mono` の 400＋700（normal）woff2 合計 **約 97KB**。static なので woff 両参照（JP と同じ）。
    - ファミリ名は `'IBM Plex Sans Variable'` / `'IBM Plex Sans JP'` / `'IBM Plex Mono'`。3 パッケージとも `LICENSE`（OFL）を同梱。
@@ -100,9 +100,11 @@ describe('同梱フォントの生成 CSS（M26）', () => {
 
   it('3書体と必要ウェイトが揃っている', () => {
     expect(facesOf('IBM Plex Sans Variable', '100 700').length).toBeGreaterThan(0)
-    // JP は unicode-range 124 分割（§4.2: 字数サブセット禁止。全字収録のまま分割だけ使う）
+    // JP は unicode-range 123 分割（§4.2: 字数サブセット禁止。全字収録のまま分割だけ使う。
+    // files/ にはこの他に CSS から参照されない一体型 japanese-*.woff2 が 1 本あるが、
+    // 参照しないので同梱もされない——分割数をファイル数 124 と数え違えないこと）
     for (const w of ['400', '500', '600']) {
-      expect(facesOf('IBM Plex Sans JP', w).length, `JP ${w}`).toBe(124)
+      expect(facesOf('IBM Plex Sans JP', w).length, `JP ${w}`).toBe(123)
     }
     for (const w of ['400', '700']) {
       expect(facesOf('IBM Plex Mono', w).length, `Mono ${w}`).toBeGreaterThan(0)
@@ -357,7 +359,7 @@ npx vite build
 
 の後（`npm run build` でなくてよい——tsc は Task 2 Step 3 で済んでいる）:
 
-1. `dist/assets/` に `.woff` が **0 本**、`.woff2` が **380 本以上**（JP 372＋Sans 6＋Mono）あること: `ls dist/assets/*.woff` が空・`(ls dist/assets/*.woff2).Count`
+1. `dist/assets/` に `.woff` が **0 本**、`.woff2` が **375 本以上**（JP 123×3＝369＋Sans 6＋Mono）あること: `ls dist/assets/*.woff` が空・`(ls dist/assets/*.woff2).Count`
 2. dist の CSS に `data:font` / `data:application/octet-stream` で始まる url が**無い**こと（インライン化が止まっている）
 3. dist の CSS に `--font-mono` が現れること（Step 2-3 の裏取り。**現れなければ Task 2 Step 2 の注記どおり `:root` 宣言を足して直し、このタスクからやり直す**）
 4. `dist/assets` の woff2 合計サイズを記録する（実測 ≒ 7.0MB の見込み。U1 記載の 8.2MB との差は history に書く）
