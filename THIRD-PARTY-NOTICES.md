@@ -9,7 +9,9 @@ facet 本体は MIT ライセンス（[`LICENSE`](LICENSE)）で配布してい�
 
 | 名称 | ライセンス | 備考 |
 | --- | --- | --- |
-| Geist Variable（`@fontsource-variable/geist`） | **OFL-1.1** | アプリへの埋め込みは許諾されている。**フォントファイル単体の販売は禁止**。改変して再配布する場合は予約名（Reserved Font Name）を使えない |
+| IBM Plex Sans Variable（`@fontsource-variable/ibm-plex-sans`） | **OFL-1.1** | アプリへの埋め込みは許諾されている。**フォントファイル単体の販売は禁止**。改変して再配布する場合は予約名（Reserved Font Name）を使えない。ライセンス全文は各パッケージ同梱の `LICENSE` |
+| IBM Plex Sans JP（`@fontsource/ibm-plex-sans-jp`） | **OFL-1.1** | 同上。static 400/500/600 のみ同梱 |
+| IBM Plex Mono（`@fontsource/ibm-plex-mono`） | **OFL-1.1** | 同上。static 400/700 のみ同梱（700 は端末の ANSI 太字用） |
 
 ## npm（実行時依存）
 

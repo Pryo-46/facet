@@ -1052,7 +1052,7 @@ function App() {
               )}
               {selected?.result.status === 'rejected' && (
                 <div className="p-6">
-                  <h2 className="mb-2 font-bold text-invalid">
+                  <h2 className="mb-2 font-semibold text-invalid">
                     このファイルは開けません（{selected.result.reason}）
                   </h2>
                   <ul className="list-disc pl-5 text-base leading-normal text-ink">

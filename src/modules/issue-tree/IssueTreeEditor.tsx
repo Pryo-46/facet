@@ -20,6 +20,7 @@ import {
   type CanvasFont,
 } from '@/core/canvas/canvas-font'
 import { buildTree, siblingsOf } from '@/core/canvas/flat-tree'
+import { useFontGeneration } from '@/core/canvas/use-font-generation'
 import { useViewport } from '@/core/canvas/use-viewport'
 import { cssTransform, type Rect } from '@/core/canvas/viewport'
 import type { MeasureWidth } from '@/core/canvas/wrap'
@@ -102,7 +103,7 @@ import {
 const MEASURE_CACHE_LIMIT = 2000
 
 /** 仮説の文言・由来・根拠・FB に当たるクラスのうち、フォントを決めている部分 */
-const BODY_FONT_CLASS = 'text-base leading-normal'
+const BODY_FONT_CLASS = 'text-sm leading-normal'
 /** 節の見出し・見送りの理由・バッジに当たるクラス */
 const SMALL_FONT_CLASS = 'text-sm'
 
@@ -281,7 +282,7 @@ function KindMenu(props: KindMenuProps) {
  *
  * 土台は `src/modules/logic-tree/LogicTreeEditor.tsx`——フォントの世代管理・
  * 測定器のキャッシュ・`pendingFocus` の予約・3レイヤの transform は写しで、
- * **測定するフォントが2種類（`text-base leading-normal` / `text-sm`）に増えた**ぶんだけ広げてある。
+ * **測定するフォントが2種類（`BODY_FONT_CLASS` / `SMALL_FONT_CLASS`）に増えた**ぶんだけ広げてある。
  * ドロップダウンの制御は `src/modules/sequence/SequenceEditor.tsx` の
  * `openCell` / `menuPropsFor` の写し。
  */
@@ -341,12 +342,6 @@ export function IssueTreeEditor({
   // 配列位置ではなく鍵で持つのも `lastCell` と同じ理由
   const [expandedKey, setExpandedKey] = useState<string | null>(null)
 
-  // Web フォントの読み込みで canvas の measureText の結果は変わるが、
-  // getComputedStyle が返す値は変わらない（宣言されたファミリ列を返すだけで、
-  // どのフェイスに解決されたかは映らない）。だからフォントの同一性では
-  // 判定できず、読み込み完了を世代として数えて測り直す
-  const [fontGeneration, setFontGeneration] = useState(0)
-
   const readFont = (): void => {
     setTitleFont((prev) => {
       const next = readCanvasFont(titleProbeRef.current)
@@ -364,29 +359,23 @@ export function IssueTreeEditor({
 
   useLayoutEffect(readFont, [])
 
-  // **Web フォントの読み込み前に測るとフォールバック書体の幅になる。**
-  // Geist は日本語グリフを持たず和文はフォールバックに落ちるが、
-  // 欧文の幅は読み込みの前後で変わる。読み込み完了で測り直す
+  // 読み込みの世代。進んだら実効フォントも読み直す。
+  // **最初の1フレームはフォールバック書体のメトリクスで測っている**し、
+  // 同梱フォントは unicode-range 分割なので、珍しい字のスライスは
+  // 初入力のとき後から届く（M26）——どちらも世代が進んだ時点で測り直す
+  const fontGeneration = useFontGeneration()
   useEffect(() => {
-    if (typeof document === 'undefined' || !('fonts' in document)) return
-    let alive = true
-    void document.fonts.ready.then(() => {
-      if (!alive) return
-      readFont()
-      setFontGeneration((n) => n + 1)
-    })
-    return () => {
-      alive = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFont は毎レンダー再生成される安定した処理。購読はマウント時の1回でよい
-  }, [])
+    readFont()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFont は毎レンダー再生成される安定した処理。世代が進んだときだけ走らせる
+  }, [fontGeneration])
 
   // 測定器はフォントが変わったときだけ作り直す。
   //
   // 鍵に lineHeight と世代を混ぜる。**`font.font` の文字列には行間が入っていない**
   // のに折り返しの高さは lineHeight に依存するので、書体が同じまま行間だけ
-  // 変わるとキャッシュが古い高さを返し続ける。世代は上の document.fonts.ready が
-  // 進めるカウンタで、「読み込み後に測り直す」を成立させるのはこちらである。
+  // 変わるとキャッシュが古い高さを返し続ける。世代は useFontGeneration
+  // （ready＋loadingdone）が進めるカウンタで、「読み込み後に測り直す」を
+  // 成立させるのはこちらである。
   // **2種類のフォントを1つの入れ物に持つ**——鍵は文字列だけで、どちらの
   // フォントで測ったかを持っていないので、混ぜると片方が他方の幅を返す
   const measurerKey = `${titleFont.font}|${titleFont.lineHeight}|${font.font}|${font.lineHeight}|${smallFont.font}|${smallFont.lineHeight}|${fontGeneration}`
@@ -849,10 +838,12 @@ export function IssueTreeEditor({
       {/* 測定用の見本。**描画されるセルと同じフォントのクラスを持たせる**ことで、
           測定と描画が同一の情報源を見る（rev 9章）。opacity-0 で見せないだけに
           するのは、display:none だと getComputedStyle がフォントを返さない環境が
-          あるため。見本が2本あるのは、課題ノード・仮説の文言（text-base leading-normal）と
-          由来・根拠・FB（text-sm）でフォント階級が違うため——1本を両方に
-          使い回すと、片方の高さを見誤る。**課題のタイトル（太字）も別に測る**
-          ——同じ 16px でも太字は幅が違い、細字で測るとタイトルが切れる */}
+          あるため。見本が2本あるのは、課題ノード・仮説の文言（`BODY_FONT_CLASS`
+          = text-sm + leading-normal）と節見出し・バッジ（`SMALL_FONT_CLASS` = text-sm）で
+          フォント階級が違うため——M26 でサイズは 14px に並んだが行間が違う（1.5 と 1.3）
+          ので、1本を両方に使い回すと片方の高さを見誤る。
+          **課題のタイトル（太字）も別に測る**——同じ 14px でも太字は幅が違い、
+          細字で測るとタイトルが切れる */}
       <span
         ref={titleProbeRef}
         aria-hidden="true"

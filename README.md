@@ -235,6 +235,6 @@ npm run tauri build
 
 MIT（[`LICENSE`](LICENSE)）。自由に使って構わないが、**無保証**である。
 
-配布物に含まれる第三者ソフトウェアの表示は [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) にある。特に同梱フォント **Geist は OFL-1.1** で、アプリへの埋め込みは許諾されているがフォントファイル単体の販売は禁止されている。
+配布物に含まれる第三者ソフトウェアの表示は [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) にある。特に同梱フォントの **IBM Plex 3書体（Sans / Sans JP / Mono）は OFL-1.1** で、アプリへの埋め込みは許諾されているがフォントファイル単体の販売は禁止されている。
 
 **配布物には署名していない。** Windows では SmartScreen の警告が、macOS では Gatekeeper の警告が必ず出る。気になる場合は自分でビルドしてほしい（[開発者向け](#開発者向け)）。

@@ -57,7 +57,7 @@ export function GutterSlot(props: GutterSlotProps) {
       </div>
       <div className="relative" style={{ width: props.answerWidth }}>
         {props.state === 'notApplicable' && (
-          <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1 text-base leading-normal">
+          <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1 text-sm leading-normal">
             {NOT_APPLICABLE_LABEL}
           </span>
         )}
@@ -66,7 +66,7 @@ export function GutterSlot(props: GutterSlotProps) {
           autoSize={false}
           className={`h-full w-full resize-none overflow-hidden whitespace-pre-wrap break-all rounded-sm ${ANSWER_BOX_CLASS} ${face} ${
             props.state === 'notApplicable' ? 'pl-18' : ''
-          } text-base leading-normal outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
+          } text-sm leading-normal outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
           aria-label={props['aria-label']}
           data-cell={props['data-cell']}
           value={props.text}

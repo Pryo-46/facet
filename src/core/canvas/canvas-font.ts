@@ -8,9 +8,13 @@ export interface CanvasFont {
 }
 
 /**
- * 測れない環境（jsdom はレイアウトを持たない）用の既定値。
- * text-base + leading-normal（16px・行間 1.5。rev 9章 M23 決定1）
- * ——キャンバスの折り返しテキストは複数行段
+ * 測れない環境（jsdom はレイアウトを持たない）用の既定値（16px・行間 1.5）。
+ *
+ * **実画面のキャンバスの折り返しテキスト（入力値）は M26 で 14px へ下がったが、
+ * この既定は 16px のまま据え置く。** jsdom での導出値の安定のためで、動かすと
+ * 既存テストが固定している高さ・行数がまとめてずれる。実ブラウザでは
+ * `readCanvasFont` が見本要素から実効値（14px・行間 1.5）を読むので、
+ * 実描画には影響しない
  */
 export const FALLBACK_CANVAS_FONT: CanvasFont = {
   font: 'normal 400 16px sans-serif',
@@ -20,8 +24,9 @@ export const FALLBACK_CANVAS_FONT: CanvasFont = {
 
 /**
  * 問いラベル列（text-sm）用の既定値。**FALLBACK_CANVAS_FONT を使い回さないこと**
- * ——text-sm は 14px・行間 1.3 で、複数行段（16px・1.5）とはサイズも行間も違う
- * （src/index.css の --text-sm--line-height）。
+ * ——text-sm は行間 1.3 で、複数行の欄（leading-normal = 1.5）とは行間が違う
+ * （src/index.css の --text-sm--line-height）。M26 で入力値が 14px へ下がって
+ * サイズは並んだが、行間の差は残っている。
  * 揃えてしまうと、ラベル用の測定器が本文相当の高さを返し続け、
  * jsdom のテストでは両者の違いを検出できなくなる
  */
