@@ -34,7 +34,7 @@
  *
  * 結果は src/styles/palette.test.ts が検証する（palette-requirements.ts が契約）。
  * ライトとダークは独立に置く。反転による自動生成はしない（rev 9章）。
- * ダークは M21 では設計対象外——要件を満たす値を置いただけで、吟味していない。
+ * ダークは M27 で吟味した（動かしたのは2値。経緯は UI設計ノート D20）。
  * ========================================================================= */
 
 :root {
@@ -67,27 +67,35 @@
 }
 
 .dark {
-    /* ダーク。独立に置いた値。M21 では吟味していない */
+    /* ダーク。独立に置いた値（反転による自動生成はしない。rev 9章）。
+     * M21 は「要件を満たす値を置いただけ」だったが、M27 で吟味した——
+     * 契約の33検査すべてを MARGIN（1.03）込みで満たすことを実測し、
+     * 動かしたのは invalid-face と judge-yes の2つだけ。根拠は各行と
+     * UI設計ノート D20。実機確認の観点は docs/history/m27-core-dark-palette.md */
     --canvas: oklch(0.17 0 0);
     --surface: oklch(0.205 0 0);
     --surface-muted: oklch(0.27 0 0);
-    --ink: oklch(0.88 0 0);
+    --ink: oklch(0.88 0 0);                 /* surface 上 12.5:1。GitHub Dark（≈14:1）と VSCode Dark+（≈11.5:1）の間 */
     --ink-muted: oklch(0.70 0 0);
     --ink-faint: oklch(0.55 0 0);
-    --rule: oklch(0.56 0 0);
-    --grid: oklch(0.25 0 0);
+    --rule: oklch(0.56 0 0);                /* surface 上 3.85:1。canvas だけ見て決めると surface 上で 3:1 を割る（M21） */
+    --grid: oklch(0.25 0 0);                /* canvas 上 1.195:1。ライト（1.202:1）と同水準の薄さ */
 
-    --missing: oklch(0.82 0.13 85);
-    --invalid: oklch(0.68 0.15 30);
+    --missing: oklch(0.82 0.13 85);         /* 明るい黄土。3面とも 8.5:1 以上 */
+    --invalid: oklch(0.68 0.15 30);         /* missing と D型で分ける ΔL 0.14（ΔE 0.145）。ライトの「invalid を一段暗く」と同じ役目 */
     --pending: oklch(0.75 0.12 250);
 
-    /* 淡い面のダーク側。線色より十分暗い面として置いた
-       （invalid は invalid-face の上で 4.52:1 と、要件 4.5 への余裕が薄い） */
+    /* 淡い面のダーク側。H は同じ軸の線色と揃える（ライトと同じ規約）。
+       invalid-face だけ一段暗い L 0.28——3軸で最も暗い線色 invalid が
+       上で 4.5×MARGIN を満たすため。ライトの構図（invalid-face だけ
+       canvas から一段遠い）の翻訳でもある */
     --missing-face: oklch(0.30 0.05 85);
-    --invalid-face: oklch(0.30 0.05 30);
+    --invalid-face: oklch(0.28 0.05 30);    /* invalid が上で 4.83:1。M21 の L 0.30 は 4.52:1 と MARGIN 割れだった */
     --pending-face: oklch(0.30 0.05 250);
 
-    --judge-yes: oklch(0.80 0.10 165);
+    --judge-yes: oklch(0.80 0.08 165);      /* C は 0.10 から下げた——P型で missing との ΔE が 0.101 と閾値ちょうどだった（0.08 で 0.107）。
+                                               L 0.80 は動かせない：ダークは4軸が全部明るい側に集まり、missing 0.82 と
+                                               pending 0.75 に挟まれて他に居場所が無い（下げると識別が割れる） */
     --judge-yes-fg: oklch(0.17 0 0);
     --judge-no: oklch(0.36 0 0);
     --judge-no-fg: oklch(0.95 0 0);
