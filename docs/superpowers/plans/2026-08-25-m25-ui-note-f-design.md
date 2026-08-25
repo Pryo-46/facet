@@ -26,7 +26,7 @@ M24 の教訓（「false なら設計をやり直す」と書ける前提は着�
 §1.1 側の実態も確定している:
 
 - **ネイティブ `<select>` は2箇所**——用語集の種別列（`GlossaryEditor.tsx:367`）とエラーカタログの対応レベル列（`ErrorCatalogEditor.tsx:267`）。どちらも `appearance-none`＋自前の矢印 SVG で**閉じた状態の見た目は既にカスタム**であり、ネイティブのまま残っているのは**開いたときの選択肢リスト**（OS 描画）だけ。どちらも `arrowsOwnedByField: true` で**素の ↑↓ が閉じたまま値を切り替える**——この打鍵は操作言語の一部である。
-- **角丸は実質2系統に割れている。** アプリ側のコードは `rounded-sm`（Tailwind v4 で 4px）が基調で、同値の裸の `rounded`（4px）が5箇所前後、意図した円の `rounded-full` が数箇所。一方 shadcn 由来の `src/components/ui/` は `rounded-lg`（8px。`button.tsx`・`dropdown-menu.tsx` の面）・`rounded-md`（6px。メニュー項目）・`rounded-xl`（12px。`alert-dialog.tsx`）・任意値 `rounded-[min(var(--radius-md),10px)]` が混在する。**UI ノート §1.1 の「角丸半径が全て異なる」の実体はこの ui/ とアプリ側の割れである。**
+- **角丸は実質2系統に割れている。実効値は生成 CSS（`npx vite build`）で実測した**——`src/index.css` の `@theme inline` が radius を `--radius: 0.625rem`（10px。`:root`）×倍率で再定義しているため、Tailwind 既定の px 表とは**全部ずれている**。実効値: `rounded-sm`＝**6px**（×0.6）／`rounded-md`＝**8px**（×0.8）／`rounded-lg`＝**10px**／`rounded-xl`＝**14px**（×1.4）。**裸の `rounded` だけは倍率制の外**で、Tailwind 既定の固定値 **4px**（生成 CSS に `.rounded{border-radius:.25rem}`）——つまり**裸の `rounded` と `rounded-sm` は同値ではない**（`IssueTreeEditor.tsx` の `TRIGGER_BASE` の JSDoc が「角丸を2つ並べると勝つのは生成 CSS の順序」と警告しているのは、この実差があるからである）。アプリ側のコードは `rounded-sm`（6px）が基調で、裸の `rounded`（4px。バッジ・見送りトグル・展開パネルの面）が数箇所、意図した円の `rounded-full` が数箇所。shadcn 由来の `src/components/ui/` は `rounded-lg`（10px。`button.tsx`・`dropdown-menu.tsx` の面）・`rounded-md`（8px。メニュー項目）・`rounded-xl`（14px。`alert-dialog.tsx`）・任意値 `rounded-[min(var(--radius-md),10px)]` が混在する。**UI ノート §1.1 の「角丸半径が全て異なる」の実体はこの割れである。**
 
 ---
 
@@ -97,7 +97,7 @@ D18 の「未確認事項」の段落（破線の意味が判別できない）�
 
 ### 見た目
 
-トリガーは現在の閉じた select と同じ（`cellInput` のクラス＋自前の矢印 SVG——**セルに見えること**が要件で、ボタンに見えてはいけない）。開いたリストは `DropdownMenuContent` で、現在値の項目に印を付ける（判断ピッカーの流儀に合わせる）。
+トリガーは現在の閉じた select と同じ（`cellInput` のクラス＋自前の矢印 SVG——**セルに見えること**が要件で、ボタンに見えてはいけない）。開いたリストは `DropdownMenuContent` で、現在値の項目には `DropdownMenuRadioGroup` / `DropdownMenuRadioItem` の印（`ItemIndicator` のチェック）を出す——値を選び直す部品なので、判断ピッカー（印なし。イベントの追記であって値の選択ではない）とはここだけ流儀が違う。開閉・フォーカスの流儀（制御・`onCloseAutoFocus` の抑止）は判断ピッカーに合わせる。
 
 ### テスト
 
@@ -109,11 +109,13 @@ DOM テストで押さえる: 閉じたまま ↑↓ で値が変わり `updateT
 
 ### 規約
 
-| 段 | 値 | 対象 |
+| 段 | 実効値 | 対象 |
 | --- | --- | --- |
-| `rounded-sm` | 4px | **部品・セル・チップ・バッジ・ボタン**——面の中に置かれるもの全部 |
-| `rounded-md` | 6px | **浮遊面**——ポップアップ層に浮かぶ面（メニューの面・ダイアログ） |
+| `rounded-sm` | 6px | **部品・セル・チップ・バッジ・ボタン**——面の中に置かれるもの全部 |
+| `rounded-md` | 8px | **浮遊面**——ポップアップ層に浮かぶ面（メニューの面・ダイアログ） |
 | `rounded-full` | 円 | **意図して円のもの**だけ（トグルのつまみ・ドット） |
+
+**基準値そのもの（`--radius: 0.625rem` と倍率 0.6／0.8）は動かさない。** アプリの基調 `rounded-sm`＝6px は M21〜M24 の実機確認をくぐって違和感の報告が無い値であり、M25 の仕事は「揃える」であって「基準の吟味」ではない（吟味はダークの吟味と同じ持ち越し。実機で違和感が出てから）。
 
 方向付き（`rounded-b-*` 等）は値サフィックス必須（`rounded-b-md` は可、裸の `rounded-b` は不可）。**裸の `rounded`（4px）は禁止**——`rounded-sm` と同値だが、同じ半径に2つの綴りがあると「揃っているか」が字面から読めない。任意値 `rounded-[...]` も禁止。
 
@@ -121,8 +123,8 @@ DOM テストで押さえる: 閉じたまま ↑↓ で値が変わり `updateT
 
 ### 変更点の仕分け
 
-- **見た目が変わらない正規化**（4px→4px の綴り替え）: 裸の `rounded` → `rounded-sm`（`badge-styles.ts:30`・`HypothesisRow.tsx:245`・`IssueTreeEditor.tsx:169,189,198`）
-- **見た目が変わるもの**: `ui/button.tsx` の `rounded-lg`（8px）と任意値 → `rounded-sm`（4px）／`ui/dropdown-menu.tsx` の面 `rounded-lg` → `rounded-md`（6px）・項目 `rounded-md` → `rounded-sm`／`ui/alert-dialog.tsx` の `rounded-xl`（12px） → `rounded-md`・`rounded-b` → 方向付きの値ありへ
+- **裸の `rounded` → `rounded-sm` は 4px→6px の見た目の変更である**（本書の初版は「同値の綴り替え」と書いていたが、生成 CSS の実測で誤りと分かった）: `badge-styles.ts:30`（バッジ全部）・`HypothesisRow.tsx:245`（展開パネルの面）・`IssueTreeEditor.tsx` の `DEFER_TRIGGER_FACE`（見送りトグル。バッジと幾何の対なので**バッジと同時に変えれば対は崩れない**——`TRIGGER_BASE` の JSDoc にある「角丸は面が決める」の注記も併せて直す）
+- **ui/ の変更**: `ui/button.tsx` の `rounded-lg`（10px）と任意値 → `rounded-sm`（6px）／`ui/dropdown-menu.tsx` の面 `rounded-lg`（10px） → `rounded-md`（8px）・項目 `rounded-md`（8px） → `rounded-sm`（6px）／`ui/alert-dialog.tsx` の `rounded-xl`（14px） → `rounded-md`・`rounded-b-xl` → `rounded-b-md`
 - `Toast`（現在 `rounded-sm`）は**触らない**——fixed 配置だが実機で違和感の報告が無く、規約上も許可リスト内。sm→md へ動かすかは実機で見てから
 
 全出現の確定は計画の着手前スキャンで行う（決定6。`.tsx` だけでなく `.ts` も——`badge-styles.ts` が現に `.ts` である）。
@@ -183,7 +185,7 @@ DOM テストで押さえる: 閉じたまま ↑↓ で値が変わり `updateT
 5. 用語集の種別・エラーカタログの対応レベルで、**開いたリストが styled**（OS ネイティブのリストが出ない）
 6. **閉じたまま ↑↓ で値が切り替わる**（従来どおり。開かずに切り替わること）
 7. select 置換後も **Tab・Alt+↑↓ のセル移動が変わらない**（操作言語の据え置き）
-8. ダイアログ・メニュー・ボタンの**角丸が2段に揃って見える**。とくにダイアログ（12px→6px）とボタン（8px→4px）が硬く見えすぎないか
+8. ダイアログ・メニュー・ボタンの**角丸が2段に揃って見える**。とくにダイアログ（14px→8px）とボタン（10px→6px）が硬く見えすぎないか。バッジ（4px→6px）が丸くなりすぎていないか
 9. ライト・ダークの両方で `見送り N` チップの文字が読める（`ink-muted` on `surface-muted`）
 10. **帯の警告が絵文字でなくアイコン**（`CircleAlert`）で出ており、`text-missing` の色が5モジュールすべての帯でうるさく見えないか（うるさければ `ink-muted` へ落とす）
 11. **見送りチップの `StickyNoteOff` が 14px の文字と揃って見え、何のアイコンか読み取れるか**（読み取れなければ `Archive` へ差し替える）
