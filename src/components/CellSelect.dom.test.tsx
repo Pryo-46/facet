@@ -43,9 +43,16 @@ describe('CellSelect', () => {
   })
 
   it('端で止まる（ネイティブ select と同じ。循環しない）', () => {
-    const { onPick, trigger } = renderSelect('screen')
-    fireEvent.keyDown(trigger, { key: 'ArrowUp' })
-    expect(onPick).not.toHaveBeenCalled()
+    const first = renderSelect('screen')
+    fireEvent.keyDown(first.trigger, { key: 'ArrowUp' })
+    expect(first.onPick).not.toHaveBeenCalled()
+    expect(first.trigger.textContent).toBe('画面')
+
+    cleanup()
+    const last = renderSelect('undecided')
+    fireEvent.keyDown(last.trigger, { key: 'ArrowDown' })
+    expect(last.onPick).not.toHaveBeenCalled()
+    expect(last.trigger.textContent).toBe('未分類')
   })
 
   it('Space で開いて項目を選ぶと onPick が走り、現在値に印が付いている', () => {
