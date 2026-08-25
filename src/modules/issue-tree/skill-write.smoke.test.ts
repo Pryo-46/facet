@@ -5,7 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { checkIssueTreeConsistency } from './consistency'
-import { poseQuestions, tallyLine, tallyQuestions } from './derive'
+import { deferralLine, deferredIssueCount, ISSUE_DEFERRED_LABEL, poseQuestions, tallyLine, tallyQuestions } from './derive'
 
 /**
  * `issue-tree-write.mjs --check` を実際に spawn し、整合性警告の文言が
@@ -113,5 +113,33 @@ describe('issue-tree-write.mjs（実行 smoke ＋ 警告文言のアプリ一致
     expect(status).toBe(0)
     expect(stdout).not.toContain('整合性の警告')
     expect(stdout).toContain(tallyLine({ hypothesis: 0, result: 0, hold: 0, judgement: 0, total: 0 }))
+  }, 20000)
+
+  it('見送りを掲げた課題があると「見送り N」の行が出て、無ければ出ない', () => {
+    const deferred = {
+      schemaVersion: 2,
+      type: 'issueTree',
+      title: '検証用',
+      issues: [
+        {
+          id: 'issue_AAAAAAAAAA',
+          parentId: null,
+          text: '需要検証',
+          events: [{ kind: 'deferred', note: '今回は追わない' }],
+        },
+        { id: 'issue_BBBBBBBBBB', parentId: 'issue_AAAAAAAAAA', text: '認知', events: [] },
+      ],
+      hypotheses: [],
+    }
+    const withDeferral = check(deferred)
+    expect(withDeferral.status).toBe(0)
+    // アプリの導出と逐語で同じ行（「集計行がアプリと一致する」の見送り版）
+    expect(withDeferral.stdout).toContain(deferralLine(deferredIssueCount(deferred.issues as never)))
+
+    const none = {
+      ...deferred,
+      issues: deferred.issues.map((i) => ({ ...i, events: [] })),
+    }
+    expect(check(none).stdout).not.toContain(ISSUE_DEFERRED_LABEL)
   }, 20000)
 })

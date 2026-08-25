@@ -1,6 +1,6 @@
 import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import type { FocusTarget } from './commands'
-import type { PosedQuestions } from './derive'
+import { latestKind, type PosedQuestions } from './derive'
 
 /**
  * 「次の要対応へ」の巡回列（帯のチップが押されたときの行き先）。
@@ -96,4 +96,32 @@ export function nextOpenTarget(
   //（(-1 + 1) % n === 0）。末尾の次が先頭へ戻るのも同じ剰余ひとつで済む
   const at = current === null ? -1 : ofKind.findIndex((t) => sameFocus(t.focus, current))
   return ofKind[(at + 1) % ofKind.length]
+}
+
+/**
+ * 「次の見送りへ」の巡回列（帯のグレーのチップの行き先。M25 D17）。
+ *
+ * **見送りを掲げた課題**だけが行き先で、配下（抑制）は入らない。条件は
+ * `deferredIssueCount`（derive.ts）と同じ `latestKind` から引く——チップの
+ * 数と列の長さが同じ条件から出るので、「見送り 2」と言いながら1件にしか
+ * 飛べない、が起きない（`listOpenTargets` と `tallyQuestions` の関係と同じ）
+ */
+export function listDeferredTargets(
+  data: Pick<IssueTreeSchemaVersion2, 'issues'>,
+): FocusTarget[] {
+  const out: FocusTarget[] = []
+  data.issues.forEach((node, index) => {
+    if (latestKind(node.events) !== null) out.push({ cell: 'issue', index })
+  })
+  return out
+}
+
+/** `nextOpenTarget` と同じ剰余の巡回。kind の絞り込みが無いだけ */
+export function nextDeferredTarget(
+  targets: readonly FocusTarget[],
+  current: FocusTarget | null,
+): FocusTarget | null {
+  if (targets.length === 0) return null
+  const at = current === null ? -1 : targets.findIndex((t) => sameFocus(t, current))
+  return targets[(at + 1) % targets.length]
 }

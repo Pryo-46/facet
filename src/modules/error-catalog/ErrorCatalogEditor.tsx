@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { CellInput, type FieldState } from '@/components/CellInput'
+import { CellSelect } from '@/components/CellSelect'
 import { buttonBase } from '@/components/button-styles'
 import { Chip } from '@/components/Chip'
 import { MissingTally } from '@/components/MissingTally'
@@ -264,14 +265,14 @@ export function ErrorCatalogEditor({
     if (field === 'resolutionLevel') {
       return (
         <>
-          <select
+          <CellSelect
             className={`${cellInput} appearance-none pr-6`}
             aria-label={label}
             data-cell={cellId(rowKey, field)}
             value={entry.resolutionLevel}
-            onChange={(e) =>
-              updateLevel(at.index, e.target.value as ErrorEntry['resolutionLevel'])
-            }
+            options={LEVEL_OPTIONS}
+            labelOf={resolutionLabel}
+            onPick={(level) => updateLevel(at.index, level as ErrorEntry['resolutionLevel'])}
             onKeyDown={(e) =>
               onCellKeyDown(e, at, {
                 editing: false,
@@ -279,17 +280,11 @@ export function ErrorCatalogEditor({
                 deletableField: false,
                 caretAtStart: true,
                 caretAtEnd: true,
-                // 素の↑↓は select の選択肢切り替えに使う（Alt+↑↓ は有効）
+                // 素の↑↓は CellSelect が値切り替えに消費する（ここへ届かない）
                 arrowsOwnedByField: true,
               })
             }
-          >
-            {LEVEL_OPTIONS.map((level) => (
-              <option key={level} value={level}>
-                {resolutionLabel(level)}
-              </option>
-            ))}
-          </select>
+          />
           {/* appearance-none で消えた矢印を描き直す。背景画像の data URI は
               使わない——色値を書くことになり conventions.test.ts が弾く */}
           <svg

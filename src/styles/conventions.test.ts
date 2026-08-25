@@ -20,13 +20,13 @@ const EXCLUDED = [
 /** テストファイルは対象外。期待値として色値を持つことがある（contrast.test.ts） */
 const isTest = (name: string): boolean => /\.(test|spec)\.tsx?$/.test(name)
 
-function sourceFiles(): string[] {
+function sourceFiles(excluded: readonly string[] = EXCLUDED): string[] {
   const found: string[] = []
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name)
       const rel = path.relative(SRC_DIR, full).split(path.sep).join('/')
-      if (EXCLUDED.some((prefix) => rel.startsWith(prefix))) continue
+      if (excluded.some((prefix) => rel.startsWith(prefix))) continue
       if (entry.isDirectory()) {
         walk(full)
       } else if (/\.tsx?$/.test(entry.name) && !isTest(entry.name)) {
@@ -193,5 +193,36 @@ describe('役割トークンの使い方（rev 9章 M21）', () => {
       }
     }
     expect(out, `facet は塗りボタンを置かない（UI ノート D19）。variant="outline" か "ghost" を書く:\n${out.join('\n')}`).toEqual([])
+  })
+})
+
+describe('角丸の段（M25 決定5）', () => {
+  // 部品・セル・チップ＝rounded-sm（6px）／浮遊面（メニュー・ダイアログ）＝
+  // rounded-md（8px）／意図した円＝rounded-full。裸の `rounded`（radius 倍率制の
+  // 外にある固定 4px）・任意値・他の段は弾く。**sm と md の使い分けの当否は
+  // 機械では判定できない**——この検査が守るのは「3語（＋方向付き）以外が
+  // 現れない」ことだけで、使い分けはレビューと実機が守る
+  const ALLOWED = /^rounded-(?:sm|md|full)$|^rounded-(?:t|b|l|r|tl|tr|bl|br)-(?:sm|md)$/
+
+  it('rounded 系は rounded-sm / rounded-md / rounded-full（と方向付きの -sm/-md）だけ', () => {
+    const offenders: string[] = []
+    // **ui/ を除外しない。** EXCLUDED の理由（段・行間の規約は自作コードに課す）は
+    // タイポグラフィの話で、角丸は M25 で ui/ を意図して改造した（M23 が button.tsx の
+    // text-base / h-9 を改造したのと同じ扱い）。shadcn を将来更新したときに
+    // rounded-lg が黙って戻るのを、この検査が捕まえる
+    for (const file of sourceFiles([])) {
+      const stripped = stripComments(readFileSync(file, 'utf8'))
+      stripped.split('\n').forEach((line, index) => {
+        for (const m of line.matchAll(/\brounded(?:-[\w[\]().,%*-]+)?/g)) {
+          if (!ALLOWED.test(m[0])) {
+            offenders.push(`src/${relative(file)}:${index + 1}  ${m[0]}`)
+          }
+        }
+      })
+    }
+    expect(
+      offenders,
+      `角丸は rounded-sm（部品）/ rounded-md（浮遊面）/ rounded-full（円）だけ（M25 決定5）:\n${offenders.join('\n')}`,
+    ).toEqual([])
   })
 })

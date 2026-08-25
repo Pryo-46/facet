@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { Plus, StickyNoteOff } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { KeyHints } from '@/components/KeyHints'
@@ -69,6 +69,9 @@ import {
   type FocusTarget,
 } from './commands'
 import {
+  DEFERRAL_NOTE,
+  deferralLine,
+  deferredIssueCount,
   EVENT_KIND_LABELS,
   ISSUE_DEFERRED_LABEL,
   poseQuestions,
@@ -87,7 +90,13 @@ import {
   type IssueTreeFonts,
 } from './layout'
 import { ACTION_HEIGHT_CLASS, TITLE_FONT_CLASS } from './measure'
-import { listOpenTargets, nextOpenTarget, type OpenKind } from './open-targets'
+import {
+  listDeferredTargets,
+  listOpenTargets,
+  nextDeferredTarget,
+  nextOpenTarget,
+  type OpenKind,
+} from './open-targets'
 
 /** 測定結果のキャッシュ。会議1回分の打鍵で無限に増えないよう頭を押さえる */
 const MEASURE_CACHE_LIMIT = 2000
@@ -166,7 +175,7 @@ function cachedMeasurer(font: CanvasFont): { measure: MeasureWidth; lineHeight: 
  * ドロップダウンのトリガーと**見送りのトグル**に共通の土台。
  * **`buttonBase` を敷かないのは角丸のため。**
  * `buttonBase` は `rounded-sm` を持つが、見送り済みの課題ではトグル自身が
- * 見送りバッジ（`rounded`）を兼ねる——**角丸を2つ並べると勝つのは生成 CSS の
+ * 見送りバッジ（`rounded-sm`）を兼ねる——**角丸を2つ並べると勝つのは生成 CSS の
  * 順序であってクラス名の順序**であり、`TRIGGER_FACE` を切り出した理由（M8）が
  * 角丸について残ってしまう。**角丸は面が決める**ことにして口を1つにする。
  * 失うのは `justify-center` と `disabled:*` だけで、このトリガーは無効化しない
@@ -186,7 +195,7 @@ const TRIGGER_FACE =
 
 /**
  * 見送りトグルの未見送り面。**バッジの箱と同じ幾何**（`src/components/badge-styles.ts`
- * の base と対——`h-[20px]`・`px-1.5`・枠 1px・`rounded`・`leading-none font-medium`。
+ * の base と対——`h-[20px]`・`px-1.5`・枠 1px・`rounded-sm`・`leading-none font-medium`。
  * `BADGE_BOX_HEIGHT` を変えるときは片方だけ変えないこと。DOM テストが対を見る）。
  * このトグルは押すと同じ要素が見送りバッジ（`badgeClass('deferred')`）になるので、
  * 2つの面で箱の形が揃っていないと押した瞬間に跳ねる。色だけが「押せる面」
@@ -195,7 +204,7 @@ const TRIGGER_FACE =
  * （`actionWidth` ではない）で測っている——片方だけ変えないこと（対で直す）
  */
 const DEFER_TRIGGER_FACE =
-  'h-[20px] rounded border border-rule bg-surface px-1.5 text-sm leading-none font-medium whitespace-nowrap text-ink-muted hover:bg-canvas'
+  'h-[20px] rounded-sm border border-rule bg-surface px-1.5 text-sm leading-none font-medium whitespace-nowrap text-ink-muted hover:bg-canvas'
 
 interface KindMenuProps {
   /** アクセシブル名（トリガーのボタン） */
@@ -822,6 +831,14 @@ export function IssueTreeEditor({
     if (next !== null) goTo(next.focus)
   }
 
+  const deferredCount = deferredIssueCount(data.issues)
+
+  /** 帯のグレーのチップ。押すと次の「見送りを掲げた課題」へ視点が飛ぶ（末尾なら先頭へ） */
+  const goToNextDeferred = (): void => {
+    const next = nextDeferredTarget(listDeferredTargets(data), lastFocus)
+    if (next !== null) goTo(next)
+  }
+
   return (
     <div
       ref={containerRef}
@@ -900,6 +917,24 @@ export function IssueTreeEditor({
             tally={toMissingTally(tally)}
             onJump={(kind) => goToNextOpen(kind as OpenKind)}
           />
+          {/* 見送りの別枠（UI ノート D17）。**要対応の外**——`MissingTally` の
+              parts は「total の内訳」という契約なので、そこへ混ぜると合計と
+              内訳が合わない帯になる。見送りを**掲げた課題の数**だけを出し
+              （配下の凍結中の問いは数えない。人間の裁定）、0件なら描かない。
+              面は rev 9章の見送りの描き方そのもの（badgeClass('deferred')＝
+              surface-muted の面・rule の枠・ink-muted の文字） */}
+          {deferredCount > 0 && (
+            <button
+              type="button"
+              className={`shrink-0 transition-colors ${badgeClass('deferred')}`}
+              aria-label="次の見送りへ"
+              title={DEFERRAL_NOTE}
+              onClick={goToNextDeferred}
+            >
+              <StickyNoteOff aria-hidden="true" className="mr-1 size-3.5 shrink-0" />
+              {deferralLine(deferredCount)}
+            </button>
+          )}
           <KeyHints hints={ISSUE_TREE_HINTS} className="ml-auto shrink-0 bg-surface px-2 py-1" />
         </div>
       </div>

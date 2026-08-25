@@ -8,6 +8,8 @@ import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
 import {
   BADGE_LABELS,
+  DEFERRAL_NOTE,
+  deferralLine,
   EVENT_KIND_LABELS,
   ISSUE_DEFERRED_LABEL,
   poseQuestions,
@@ -280,10 +282,12 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     // ない」ことを面の濃さで見せる（`opacity-*` では検算した比を割る）
     expect(badgeOf(1).className).toBe(badgeClass(badgeVariantOf('open', true)))
     expect(badgeOf(1).className).toContain('ink-faint')
-    // 箱も同じ段に落ちる（地の色には落とさない＝木の形は読めたまま）
+    // 箱も同じ段に落ち、面は見送りの面ごとグレー（M25 で bg-surface →
+    // bg-surface-muted へ反転。地の色には落とさない＝木の形は読めたまま）
     const box = issueCell(2).closest('[class*="pointer-events-auto"]')
     expect(box?.className).toContain('border-ink-faint')
     expect(box?.className).toContain('text-ink-faint')
+    expect(box?.className).toContain('bg-surface-muted')
     // 未決の集計も0になる（抑制された配下は勘定に入らない）
     expect(
       screen.getByText(tallyLine({ hypothesis: 0, result: 0, hold: 0, judgement: 0, total: 0 })),
@@ -330,15 +334,17 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     }
     // 見送りを掲げている当人（課題2）は薄くならず、見送りの塗り
     // （`border-rule bg-surface-muted`。`rule` はこの面の上でも 3:1 を満たす）を持つ。
-    // 枠は通常の箱と揃えたので、見送りを識別するのは面だけ
+    // M25 からは配下も同じ面を持つので、**当人を識別するのは面ではなく
+    // 文字の濃さ（ink-faint でない）と実線のバッジ**である
     expect(boxOf(2).className).toContain('bg-surface-muted')
     expect(boxOf(2).className).not.toContain('ink-faint')
     expect(screen.getByRole('button', { name: '課題2の見送り' }).className).toContain(
       badgeClass(badgeVariantOf('deferred', false)),
     )
-    // 配下（課題3）は薄い枠と薄い文字に落ちる
+    // 配下（課題3）は薄い枠と薄い文字に落ち、面は見送りの面ごとグレー（M25）
     expect(boxOf(3).className).toContain('border-ink-faint')
     expect(boxOf(3).className).toContain('text-ink-faint')
+    expect(boxOf(3).className).toContain('bg-surface-muted')
     // **箱の中の仮説行は薄いまま**（「その課題はもう追わない」は配下の仮説にも及ぶ）。
     // 箱の面は通常に戻したので、行が箱から色を継承していると薄くならない
     const rowBadgeClass = (n: number): string => {
@@ -428,7 +434,13 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
    * が真）ので、`toContain('bg-surface')` は `bg-surface-muted` の箱でも
    * 通ってしまい、「非塗りの箱だけが `bg-surface` を持つ」を検査できない
    */
-  it('bg-surface-muted は見送りを掲げた当人の箱だけ（通常・入れ子で抑制された配下は持たない）', () => {
+  // M25 で主張が反転した——それまでは「塗るのは掲げた当人だけ（配下は
+  // bg-surface のまま）」を固定していたが、実機で「白い配下がまだ生きている
+  // 枝に見える」と出て、配下も塗ることになった（設計ノート D8 の M25 追記）。
+  // いま面が運ぶのは「凍結の範囲」で、当人と配下の区別は文字の濃さ
+  // （ink-faint か否か）が運ぶ——それはこのテストと「入れ子でも配下は
+  // 薄いまま」のテストが両側から見ている
+  it('見送りの枝（当人と配下）だけが bg-surface-muted を持ち、通常の箱は持たない', () => {
     const nested: IssueTreeSchemaVersion2 = {
       schemaVersion: 2,
       type: 'issueTree',
@@ -457,15 +469,19 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     // A：通常の箱は塗らない
     expect(classesOf(1)).not.toContain('bg-surface-muted')
     expect(classesOf(1)).toContain('bg-surface')
-    // B：見送りを掲げた当人だけが塗る
+    // B：見送りを掲げた当人は塗り、文字は濃いまま
     expect(classesOf(2)).toContain('bg-surface-muted')
     expect(classesOf(2)).not.toContain('bg-surface')
-    // C：自分も見送っているが、祖先（B）由来の抑制が勝つので塗らない
-    expect(classesOf(3)).not.toContain('bg-surface-muted')
-    expect(classesOf(3)).toContain('bg-surface')
-    // D：ただの抑制された配下も塗らない
-    expect(classesOf(4)).not.toContain('bg-surface-muted')
-    expect(classesOf(4)).toContain('bg-surface')
+    expect(classesOf(2)).not.toContain('text-ink-faint')
+    // C：自分も見送っているが、祖先（B）由来の抑制が勝つ——面は同じグレーでも
+    // 文字は faint（濃く戻らない）
+    expect(classesOf(3)).toContain('bg-surface-muted')
+    expect(classesOf(3)).not.toContain('bg-surface')
+    expect(classesOf(3)).toContain('text-ink-faint')
+    // D：ただの抑制された配下も同じ（枝全体がひとかたまりのグレー）
+    expect(classesOf(4)).toContain('bg-surface-muted')
+    expect(classesOf(4)).not.toContain('bg-surface')
+    expect(classesOf(4)).toContain('text-ink-faint')
   })
 
   it('見送った課題はバッジと理由の欄を持ち、打つと最新の見送りの note が変わる', () => {
@@ -613,13 +629,13 @@ describe('IssueTreeEditor（帯）', () => {
     const t = tallyQuestions(poseQuestions(data))
     expect(t).toMatchObject({ hypothesis: 1, result: 2, hold: 0, judgement: 0, total: 3 })
     render(<Harness initial={data} />)
-    // **`⚠` を打ち直さない。** 帯（`IssueTreeEditor`）と `tallyLine`（Skill の
-    // 報告）はそれぞれの側で同じ接頭辞を組み立てており、片方だけ変えても
-    // 合計0のケース以外は誰も気付かない。帯は内訳をチップへ移したので
-    // **1行まるごとは一致しない**——一致するのは括弧の前、合計までの頭である
+    // **語を打ち直さない。** 帯と `tallyLine`（Skill の報告）は同じ語
+    //（`TALLY_TOTAL_LABEL` / `QUESTION_LABELS`）を出すが、接頭辞は M25 決定8 で
+    // **意図的に分岐した**——画面は CircleAlert のアイコン、端末は `⚠`
+    //（SVG は端末に出せない）。ここでは両側をそれぞれ縛る
     const [head] = tallyLine(t).split('（')
-    expect(head.endsWith(`${TALLY_TOTAL_LABEL} ${t.total}`)).toBe(true)
-    expect(screen.getByText(head)).toBeTruthy()
+    expect(head).toBe(`⚠ ${TALLY_TOTAL_LABEL} ${t.total}`) // 端末側の字面（据え置き）
+    expect(screen.getByText(`${TALLY_TOTAL_LABEL} ${t.total}`)).toBeTruthy() // 画面側は語と数だけ
     expect(chip('hypothesis')?.textContent).toBe(`${QUESTION_LABELS.hypothesis} ${t.hypothesis}`)
     expect(chip('result')?.textContent).toBe(`${QUESTION_LABELS.result} ${t.result}`)
   })
@@ -745,6 +761,53 @@ describe('IssueTreeEditor（帯）', () => {
     const next: IssueTreeSchemaVersion2 = onChange.mock.calls.at(-1)?.[0]
     expect(next.hypotheses).toHaveLength(3)
     expect(next.hypotheses.filter((h) => h.issueId === I(2))).toHaveLength(3)
+  })
+})
+
+/** 見送りを掲げた課題が2件（うち1件は入れ子）あるファイル */
+const deferredFile = (): IssueTreeSchemaVersion2 => ({
+  schemaVersion: 2,
+  type: 'issueTree',
+  title: '見送りの帯',
+  issues: [
+    { id: I(1), parentId: null, text: '決済', events: [] },
+    {
+      id: I(2),
+      parentId: I(1),
+      text: '需要',
+      events: [{ kind: 'deferred', note: '今回は追わない' }],
+    },
+    {
+      id: I(3),
+      parentId: I(1),
+      text: '性能',
+      events: [{ kind: 'deferred', note: '機材が無い' }],
+    },
+  ],
+  hypotheses: [],
+})
+
+describe('IssueTreeEditor（見送りの別枠チップ。M25 D17）', () => {
+  it('見送りを掲げた課題の数を出し、押すとその課題の欄へ視点が飛んで巡回する', () => {
+    render(<Harness initial={deferredFile()} />)
+    const chip = screen.getByRole('button', { name: '次の見送りへ' })
+    expect(chip.textContent).toBe(deferralLine(2))
+    expect(chip.title).toBe(DEFERRAL_NOTE)
+    // 行き先の検証は「帯のチップを押すと、その種類の次の要対応へフォーカスが
+    // 移る」と同じ書き方（`document.activeElement` と `issueCell` を突き合わせる）
+    // に合わせる。1回目は issues[1]（需要＝課題2）、もう1回押すと issues[2]
+    // （性能＝課題3）、さらに押すと issues[1]（課題2）へ戻る
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(issueCell(2))
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(issueCell(3))
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(issueCell(2))
+  })
+
+  it('見送りを掲げた課題が無ければチップは出ない', () => {
+    render(<Harness initial={openFile()} />)
+    expect(screen.queryByRole('button', { name: '次の見送りへ' })).toBeNull()
   })
 })
 

@@ -851,6 +851,17 @@ export function SequenceEditor({
             <Plus aria-hidden className="size-4" />
             参加者を追加
           </button>
+          {/* 要対応の集計。**ガター上部（キャンバスの transform 層）からこの帯へ
+              移した**（M25 の計画外修正）——実機で「破線チップが参加者ボックスと
+              同じ高さ・同じ角丸・同じ破線黄で並び、図の要素に見える」と出たため。
+              論点7 の「ガター上部に集計」はこの点だけ反転した（ガターのスロット列
+              そのものはキャンバス内のまま。design-notes 論点7 の追記を見よ）。
+              回答済・考慮不要は欠落ではないのでチップにしない（押す先が無い）。
+              チップの pointer-events-auto は MissingTally 部品が持つ */}
+          <MissingTally tally={seq.missing} onJump={jumpToMissing} className="shrink-0" />
+          <span className="shrink-0 whitespace-nowrap text-base text-ink-muted">
+            {`回答済 ${seq.handled} ／ 考慮不要 ${seq.notApplicable}`}
+          </span>
           <KeyHints hints={SEQ_HINTS} className="ml-auto shrink-0 bg-surface px-2 py-1" />
         </div>
       </div>
@@ -929,22 +940,6 @@ export function SequenceEditor({
             </div>
           )
         })}
-
-        {/* ガターの集計（design-notes 論点7）。数え方の正は missing.ts。
-            **`whitespace-nowrap` を外さないこと。** この div は幅を持たない
-            absolute なので、折り返しの上限は「包含ブロックの右端まで」＝
-            キャンバスの見えている幅になる。ガターが右へ寄る図（文言が長く
-            `gutterX` が大きい）だと右の余白が尽きて2行になり、行の高さ
-            （`headerHeight`）を超えて最初のステップに重なる */}
-        <div
-          className="absolute flex items-center gap-2 whitespace-nowrap text-base text-ink-muted"
-          style={{ left: layout.gutterX, top: layout.headerTop, height: layout.headerHeight }}
-        >
-          {/* 回答済・考慮不要は欠落ではないのでチップにしない（押す先が無い）。
-              チップの pointer-events-auto は MissingTally 部品が持つ */}
-          <MissingTally tally={seq.missing} onJump={jumpToMissing} />
-          <span>{`回答済 ${seq.handled} ／ 考慮不要 ${seq.notApplicable}`}</span>
-        </div>
 
         {/* ステップ行 */}
         {data.steps.map((step, index) => {

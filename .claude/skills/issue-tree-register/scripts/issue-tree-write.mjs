@@ -277,6 +277,7 @@ if (targetPath) {
 
 const posed = D.poseQuestions(normalized);
 const tally = D.tallyQuestions(posed);
+const deferredCount = D.deferredIssueCount(normalized.issues);
 const openAt = [];
 posed.issueNeedsHypothesis.forEach((needs, i) => {
   if (needs) openAt.push(`課題${label(issues[i].text, i)}「${D.QUESTION_LABELS.hypothesis}」`);
@@ -301,6 +302,7 @@ if (targetPath) {
 console.log(`  スキーマ: ${schemaPath}`);
 console.log(`  課題: ${issues.length}件 ／ 仮説: ${hypotheses.length}件`);
 console.log(`  ${D.tallyLine(tally)}`);
+if (deferredCount > 0) console.log(`  ${D.deferralLine(deferredCount)}（${D.DEFERRAL_NOTE}）`);
 if (openAt.length) console.log(`  ${D.TALLY_TOTAL_LABEL}の内訳: ${openAt.join("、")}`);
 
 if (warnings.length) {
