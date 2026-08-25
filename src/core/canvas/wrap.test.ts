@@ -40,9 +40,14 @@ describe('wrapWithin', () => {
 })
 
 // 移設元: src/modules/logic-tree/measure.ts の wrapText テストのうち、
-// 上の sequence 由来のテストにない観点を補う。NODE_MAX_WIDTH（320）／
+// 上の sequence 由来のテストにない観点を補う。**当時の** NODE_MAX_WIDTH（320）／
 // NODE_INSET_X（11）／NODE_MIN_WIDTH（96）／NODE_INSET_Y（7）の値をそのまま
-// リテラルに写している
+// リテラルに写している。
+//
+// **M24 で logic-tree 側は固定幅になった**（NODE_MAX_WIDTH は NODE_WIDTH へ
+// 改名、NODE_MIN_WIDTH は削除）。この群が見ているのは `minWidth < maxWidth`
+// ——**シーケンスがまだ使っている一般契約**——なので、ここは移設当時の値の
+// まま残してある。固定幅（minWidth === maxWidth）の契約は下の別の群が見る
 describe('wrapWithin（logic-tree 由来の観点）', () => {
   const measure = createEstimateMeasurer(10)
   const LH = 20
@@ -88,6 +93,25 @@ describe('wrapWithin（logic-tree 由来の観点）', () => {
     expect(wrapWithin('あ'.repeat(50), measure, LH, OPTS)).toEqual(
       wrapWithin('あ'.repeat(50), measure, LH, OPTS),
     )
+  })
+})
+
+describe('wrapWithin（固定幅——minWidth === maxWidth）', () => {
+  const measure = createEstimateMeasurer(10)
+  const LH = 20
+  /** 幅を導出しない箱。シーケンスの答えセル（ANSWER_WRAP）と同じ形 */
+  const FIXED: WrapOptions = { maxWidth: 320, minWidth: 320, insetX: 11, insetY: 7 }
+
+  it('空文字でも幅は固定値のまま', () => {
+    expect(wrapWithin('', measure, LH, FIXED).width).toBe(320)
+  })
+
+  it('短い文言でも幅は固定値のまま（自然幅へ縮まない）', () => {
+    expect(wrapWithin('あい', measure, LH, FIXED).width).toBe(320)
+  })
+
+  it('折り返すほど長くても幅は固定値のまま', () => {
+    expect(wrapWithin('あ'.repeat(80), measure, LH, FIXED).width).toBe(320)
   })
 })
 
