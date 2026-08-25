@@ -273,3 +273,28 @@ export const BADGE_LABELS: Record<BadgeGroup, string> = {
 
 /** 課題側の見送りバッジ。値は `BADGE_LABELS.deferred` と同じだが、課題と仮説を独立に変えられるよう別名で持つ */
 export const ISSUE_DEFERRED_LABEL = '見送り'
+
+/**
+ * 見送りを掲げた課題の数（UI ノート D17 の別枠「見送り N」）。
+ *
+ * 数えるのは**自分自身が見送りを掲げている課題**だけ——配下の抑制
+ * （`suppressedIssueIds`）は数えない。別枠は「誰が何を落としたか」の台帳
+ * なので、入れ子の見送りもそれぞれ1と数える。課題のイベントは見送りしか
+ * 無い（スキーマ）ので、判定は「events が空でない」と同値である。
+ *
+ * **配下に眠る凍結中の問いの数は導出しない**——出す画面が無い（人間の裁定。
+ * 別枠は件数だけ）。必要が出たら poseQuestions を抑制なしで回す形で足せる
+ */
+export function deferredIssueCount(issues: readonly Pick<IssueNode, 'events'>[]): number {
+  let count = 0
+  for (const node of issues) if (latestKind(node.events) !== null) count += 1
+  return count
+}
+
+/** 別枠の1行。アプリのチップと Skill の報告が逐語で同じ文字列を出す。0件のときは呼び出し側が行ごと出さない（チップも描かない） */
+export function deferralLine(count: number): string {
+  return `${ISSUE_DEFERRED_LABEL} ${count}`
+}
+
+/** 別枠の注意書き。チップの title と Skill の報告の補足が同じ文を出す */
+export const DEFERRAL_NOTE = `見送り配下の問いは${TALLY_TOTAL_LABEL}に数えません`

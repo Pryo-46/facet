@@ -4,6 +4,9 @@ import type { Hypothesis, IssueNode } from '@/types/issue-tree'
 import {
   BADGE_LABELS,
   badgeGroupOf,
+  DEFERRAL_NOTE,
+  deferralLine,
+  deferredIssueCount,
   EVENT_KIND_LABELS,
   hypothesisStatus,
   ISSUE_DEFERRED_LABEL,
@@ -265,5 +268,35 @@ describe('toMissingTally', () => {
       ['hold', 'hold'],
       ['judgement', 'pending'],
     ])
+  })
+})
+
+describe('deferredIssueCount / deferralLine（D17 の別枠）', () => {
+  const issue = (
+    id: string,
+    parentId: string | null,
+    events: { kind: 'deferred'; note: string }[] = [],
+  ) => ({ id, parentId, text: '課題', events })
+
+  it('見送りを掲げた課題だけを数える（配下の抑制は数えない）', () => {
+    const issues = [
+      issue('issue_AAAAAAAAAA', null, [{ kind: 'deferred', note: '今回は追わない' }]),
+      issue('issue_BBBBBBBBBB', 'issue_AAAAAAAAAA'), // 抑制されるが、自分は掲げていない
+      issue('issue_CCCCCCCCCC', null),
+    ]
+    expect(deferredIssueCount(issues)).toBe(1)
+  })
+
+  it('入れ子の見送りはそれぞれ1と数える', () => {
+    const issues = [
+      issue('issue_AAAAAAAAAA', null, [{ kind: 'deferred', note: '枝ごと' }]),
+      issue('issue_BBBBBBBBBB', 'issue_AAAAAAAAAA', [{ kind: 'deferred', note: '個別にも' }]),
+    ]
+    expect(deferredIssueCount(issues)).toBe(2)
+  })
+
+  it('deferralLine はチップと Skill の報告が共有する字面', () => {
+    expect(deferralLine(2)).toBe('見送り 2')
+    expect(DEFERRAL_NOTE).toBe('見送り配下の問いは要対応に数えません')
   })
 })
