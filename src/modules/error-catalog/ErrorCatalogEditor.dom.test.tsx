@@ -209,9 +209,8 @@ describe('ErrorCatalogEditor: プロファイル', () => {
 describe('ErrorCatalogEditor: 表示とフィルタ', () => {
   it('解決レベルは日本語ラベルで表示する', () => {
     renderEditor(twoErrors)
-    const select = screen.getByLabelText('解決レベル（No.1）') as HTMLSelectElement
-    expect(select.value).toBe('user')
-    expect(screen.getAllByRole('option', { name: 'ユーザー対応' }).length).toBeGreaterThan(0)
+    const trigger = screen.getByLabelText('解決レベル（No.1）')
+    expect(trigger.textContent).toBe('ユーザー対応')
   })
 
   it('解決レベルのボタンで絞り込める', () => {

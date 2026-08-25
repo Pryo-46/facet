@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { CellInput, type FieldState } from '@/components/CellInput'
+import { CellSelect } from '@/components/CellSelect'
 import { buttonBase } from '@/components/button-styles'
 import { Chip } from '@/components/Chip'
 import { MissingTally } from '@/components/MissingTally'
@@ -364,14 +365,14 @@ export function GlossaryEditor({
                     />
                   </td>
                   <td className={`relative ${colBorder} ${cellClass(index, 'kind', isMissingCell(term, 'kind'))}`}>
-                    <select
+                    <CellSelect
                       className={`${cellInput} appearance-none pr-6`}
                       aria-label={`${FIELD_LABELS.kind}（${row}行目）`}
                       data-cell={cellId(rowKey, 'kind')}
                       value={term.kind}
-                      onChange={(e) =>
-                        updateTerm(index, { kind: e.target.value as Term['kind'] }, null)
-                      }
+                      options={KIND_OPTIONS}
+                      labelOf={kindLabel}
+                      onPick={(kind) => updateTerm(index, { kind: kind as Term['kind'] }, null)}
                       onKeyDown={(e) =>
                         onCellKeyDown(
                           e,
@@ -382,18 +383,12 @@ export function GlossaryEditor({
                             deletableField: false,
                             caretAtStart: true,
                             caretAtEnd: true,
-                            // 素の↑↓は select の選択肢切り替えに使う（Alt+↑↓ は有効）
+                            // 素の↑↓は CellSelect が値切り替えに消費する（ここへ届かない）
                             arrowsOwnedByField: true,
                           },
                         )
                       }
-                    >
-                      {KIND_OPTIONS.map((kind) => (
-                        <option key={kind} value={kind}>
-                          {kindLabel(kind)}
-                        </option>
-                      ))}
-                    </select>
+                    />
                     {/* appearance-none で消えた矢印を描き直す。**背景画像の
                         data URI は使わない**——色値を書くことになり
                         conventions.test.ts が弾く（M8 決定14） */}

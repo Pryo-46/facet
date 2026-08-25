@@ -197,8 +197,8 @@ describe('GlossaryEditor: 行の操作言語', () => {
 describe('GlossaryEditor: 表示', () => {
   it('種別セルは日本語ラベルで表示する', () => {
     renderEditor(glossary([term({ id: 'term_aaaaaaaaaa', name: '受注', kind: 'undecided' })]))
-    const select = screen.getByLabelText('種別（1行目）') as HTMLSelectElement
-    expect(select.selectedOptions[0].textContent).toBe('未分類')
+    const trigger = screen.getByLabelText('種別（1行目）')
+    expect(trigger.textContent).toBe('未分類')
   })
 
   it('検索は別名も横断する', () => {
