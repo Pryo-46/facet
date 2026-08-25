@@ -45,14 +45,20 @@ export interface IssueBoxProps {
  * 1. 面が4種類ある（整合性エラー／抑制／見送り／通常）。**未決を面で見せない**
  *    ——立っている問いはタイトル行の右端のバッジが運ぶ。面で塗ると、
  *    「まだ埋めていない」箱が図の大半を占めて地の色が意味を失う
- * 2. 抑制された配下も**地の色に落とさない**。`bg-surface` のまま枠と文字を
- *    `ink-faint` にする——`bg-canvas` にすると箱が背景に溶けて木の形が読めない。
- *    **`opacity-*` で薄くしない**（検算したコントラストを割る）
+ * 2. 抑制された配下は**見送りの面ごとグレー**（`bg-surface-muted`）で、枠と文字を
+ *    `ink-faint` に落とす（M25 の実機確認で反転——それまで配下は `bg-surface` の
+ *    白い面だった。白いままだと見送りの枝が「まだ生きている枝」に見える、という
+ *    人間の観察）。**`bg-canvas`（地の色）には落とさない**——箱が背景に溶けて
+ *    木の形が読めない。**`opacity-*` で薄くしない**（検算したコントラストを割る。
+ *    `ink-faint` は `BACKGROUNDS` 3面——`surface-muted` を含む——への 3:1 が
+ *    `palette.test.ts` で機械検査済み）
  * 3. **自分自身が見送りの箱は `bg-surface-muted` で塗る**（実機確認後に追加。
  *    `docs/issue-tree/仮説検証モジュール-設計ノート.md` D8）。未決とは違って
  *    見送りは稀で意図的な判断なので、1の理由（未決を面で塗ると図が警告で
- *    埋まる）はここには効かない。塗るのは掲げた当人の箱だけ——抑制（2）が
- *    勝つ。祖先由来で既に薄い箱は、自分も見送っていても濃い塗りには戻さない。
+ *    埋まる）はここには効かない。**M25 からは配下も同じ面を持つ**ので、
+ *    面が運ぶのは「表明の所在」ではなく**凍結の範囲**になった——誰が掲げたかは
+ *    文字の濃さ（当人＝`text-ink`／配下＝`ink-faint`）とバッジ（当人＝実線／
+ *    配下＝faint）が運ぶ（D8 の M25 追記）。
  *    枠は他の面と揃えて `border-rule`（`rule` は `surface-muted` の上でも
  *    3:1 を満たす。理由は `face` 計算のコメントを見よ）
  * 4. 見送りのトグルを置く枠がある。**押されているかどうかはデータの導出**
@@ -71,8 +77,9 @@ export function IssueBox(props: IssueBoxProps) {
   // （`deferred = node.events.length > 0`。祖先は見ない）ので、自分自身の
   // 見送りを判定するのに新しい prop は要らない。**`suppressed` を上に置くのが
   // 要**——見送りが入れ子になったとき（祖先 B が見送り、配下 C も自分で見送りを
-  // 掲げている）、C は `suppressed`（祖先由来）が立つので塗りには進まない。
-  // ここを逆にすると、薄い配下の中に濃い塗りの C が挟まる退行になる
+  // 掲げている）、C は `suppressed`（祖先由来）が立つので faint の側に進む。
+  // M25 で面はどちらも `surface-muted` になったが、ここを逆にすると C だけ
+  // 文字が濃く戻り、薄い配下の中に濃い C が挟まる退行になる
   // （`IssueTreeEditor.tsx` の `inheritedSuppressed` のコメントが指す退行と
   // 同じ形。実際にそのテストが「見送りが入れ子でも、配下は薄いまま」で見ている）。
   //
@@ -82,7 +89,7 @@ export function IssueBox(props: IssueBoxProps) {
   const face = props.invalid
     ? 'border-invalid bg-invalid-face text-ink'
     : props.suppressed
-      ? 'border-ink-faint bg-surface text-ink-faint'
+      ? 'border-ink-faint bg-surface-muted text-ink-faint'
       : placement.deferral !== null
         ? 'border-rule bg-surface-muted text-ink'
         : 'border-rule bg-surface text-ink'

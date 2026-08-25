@@ -282,10 +282,12 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     // ない」ことを面の濃さで見せる（`opacity-*` では検算した比を割る）
     expect(badgeOf(1).className).toBe(badgeClass(badgeVariantOf('open', true)))
     expect(badgeOf(1).className).toContain('ink-faint')
-    // 箱も同じ段に落ちる（地の色には落とさない＝木の形は読めたまま）
+    // 箱も同じ段に落ち、面は見送りの面ごとグレー（M25 で bg-surface →
+    // bg-surface-muted へ反転。地の色には落とさない＝木の形は読めたまま）
     const box = issueCell(2).closest('[class*="pointer-events-auto"]')
     expect(box?.className).toContain('border-ink-faint')
     expect(box?.className).toContain('text-ink-faint')
+    expect(box?.className).toContain('bg-surface-muted')
     // 未決の集計も0になる（抑制された配下は勘定に入らない）
     expect(
       screen.getByText(tallyLine({ hypothesis: 0, result: 0, hold: 0, judgement: 0, total: 0 })),
@@ -332,15 +334,17 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     }
     // 見送りを掲げている当人（課題2）は薄くならず、見送りの塗り
     // （`border-rule bg-surface-muted`。`rule` はこの面の上でも 3:1 を満たす）を持つ。
-    // 枠は通常の箱と揃えたので、見送りを識別するのは面だけ
+    // M25 からは配下も同じ面を持つので、**当人を識別するのは面ではなく
+    // 文字の濃さ（ink-faint でない）と実線のバッジ**である
     expect(boxOf(2).className).toContain('bg-surface-muted')
     expect(boxOf(2).className).not.toContain('ink-faint')
     expect(screen.getByRole('button', { name: '課題2の見送り' }).className).toContain(
       badgeClass(badgeVariantOf('deferred', false)),
     )
-    // 配下（課題3）は薄い枠と薄い文字に落ちる
+    // 配下（課題3）は薄い枠と薄い文字に落ち、面は見送りの面ごとグレー（M25）
     expect(boxOf(3).className).toContain('border-ink-faint')
     expect(boxOf(3).className).toContain('text-ink-faint')
+    expect(boxOf(3).className).toContain('bg-surface-muted')
     // **箱の中の仮説行は薄いまま**（「その課題はもう追わない」は配下の仮説にも及ぶ）。
     // 箱の面は通常に戻したので、行が箱から色を継承していると薄くならない
     const rowBadgeClass = (n: number): string => {
