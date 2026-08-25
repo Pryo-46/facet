@@ -8,10 +8,10 @@
  *
  * 値は `oklch(L C H)` の形で書く。L は 0..1 の小数（% 不可）、アルファ不可。
  *
- * 役割（rev 9章。18個）:
+ * 役割（rev 9章。19個）:
  *   面（無彩色）   canvas / surface / surface-muted（一段沈んだ面）
  *   文字（無彩色） ink / ink-muted / ink-faint（3:1。本文に使わない）
- *   線（無彩色）   rule（3:1）/ grid（方眼。装飾）
+ *   線（無彩色）   rule（3:1）/ rule-muted（表の罫線・弱い境界。装飾）/ grid（方眼。装飾）
  *   欠落軸（黄）   missing / missing-face   線・文字／淡い面
  *   無効軸（赤）   invalid / invalid-face   線・文字／淡い面
  *   着信軸（青）   pending / pending-face   線・文字／淡い面
@@ -34,7 +34,7 @@
  *
  * 結果は src/styles/palette.test.ts が検証する（palette-requirements.ts が契約）。
  * ライトとダークは独立に置く。反転による自動生成はしない（rev 9章）。
- * ダークは M21 では設計対象外——要件を満たす値を置いただけで、吟味していない。
+ * ダークは M27 で吟味した（動かしたのは2値。経緯は UI設計ノート D20）。
  * ========================================================================= */
 
 :root {
@@ -46,6 +46,7 @@
     --ink-muted: oklch(0.42 0 0);
     --ink-faint: oklch(0.58 0 0);           /* 3面で 3:1 に MARGIN の余裕 */
     --rule: oklch(0.58 0 0);                /* surface-muted 上でも 3:1 */
+    --rule-muted: oklch(0.89 0 0);          /* 表の罫線・弱い境界（M27 で grid から分離）。ライトは grid と同値——分離の動機はダーク（下記） */
     --grid: oklch(0.89 0 0);                /* canvas 上 1.20:1（M8 の目安 1.17 と同程度） */
 
     --missing: oklch(0.49 0.10 85);         /* 黄土。surface-muted 上で 4.5:1。C は sRGB 内へ下げた（0.12 と書いても 0.102 にクランプされていた） */
@@ -67,27 +68,43 @@
 }
 
 .dark {
-    /* ダーク。独立に置いた値。M21 では吟味していない */
+    /* ダーク。独立に置いた値（反転による自動生成はしない。rev 9章）。
+     * M21 は「要件を満たす値を置いただけ」だったが、M27 で吟味した——
+     * 机上で契約のコントラスト33検査すべてを MARGIN（1.03）込みで検算して
+     * invalid-face と judge-yes を動かし、実機確認で無彩色の面の序列を
+     * 作り直した（surface / surface-muted / grid。rule-muted の分離も
+     * このとき）。根拠は各行と UI設計ノート D20、実機確認の記録は
+     * docs/history/m27-core-dark-palette.md */
     --canvas: oklch(0.17 0 0);
-    --surface: oklch(0.205 0 0);
-    --surface-muted: oklch(0.27 0 0);
-    --ink: oklch(0.88 0 0);
+    --surface: oklch(0.24 0 0);             /* canvas 比 1.16:1。M21 の 0.205（1.07:1）はノードが地に沈んで見えた（実機）。
+                                               ライトの序列 muted < canvas < surface をダークでも輝度順で保つ。
+                                               0.28 まで上げると ink-faint が 3:1×MARGIN を割る */
+    --surface-muted: oklch(0.13 0 0);       /* 「一段沈んだ面」は地より暗く——ライトと同じ向き。M21 の 0.27 は3面で
+                                               最も明るく、見送りの箱が最も浮いて見えた（実機。序列の反転） */
+    --ink: oklch(0.88 0 0);                 /* surface 上 11.5:1。GitHub Dark（≈14:1）と VSCode Dark+（≈11.5:1）と同水準 */
     --ink-muted: oklch(0.70 0 0);
     --ink-faint: oklch(0.55 0 0);
-    --rule: oklch(0.56 0 0);
-    --grid: oklch(0.25 0 0);
+    --rule: oklch(0.56 0 0);                /* surface 上 3.53:1。canvas だけ見て決めると surface 上で 3:1 を割る（M21） */
+    --rule-muted: oklch(0.40 0 0);          /* 表の罫線・弱い境界。surface 上 1.79:1。grid と1本だったときは surface を
+                                               明るくした瞬間に罫線が同明度で消えた（実機）——canvas と surface が線を
+                                               挟むダークでは、方眼（canvas 上）と罫線（surface 上）は1値で両立しない */
+    --grid: oklch(0.20 0 0);                /* 方眼専任。canvas 上 1.06:1（実機で選んだ薄さ。ライトの 1.20 より控えめ） */
 
-    --missing: oklch(0.82 0.13 85);
-    --invalid: oklch(0.68 0.15 30);
+    --missing: oklch(0.82 0.13 85);         /* 明るい黄土。3面とも 8.5:1 以上 */
+    --invalid: oklch(0.68 0.15 30);         /* missing と D型で分ける ΔL 0.14（ΔE 0.145）。ライトの「invalid を一段暗く」と同じ役目 */
     --pending: oklch(0.75 0.12 250);
 
-    /* 淡い面のダーク側。線色より十分暗い面として置いた
-       （invalid は invalid-face の上で 4.52:1 と、要件 4.5 への余裕が薄い） */
+    /* 淡い面のダーク側。H は同じ軸の線色と揃える（ライトと同じ規約）。
+       invalid-face だけ一段暗い L 0.28——3軸で最も暗い線色 invalid が
+       上で 4.5×MARGIN を満たすため。ライトの構図（invalid-face だけ
+       canvas から一段遠い）の翻訳でもある */
     --missing-face: oklch(0.30 0.05 85);
-    --invalid-face: oklch(0.30 0.05 30);
+    --invalid-face: oklch(0.28 0.05 30);    /* invalid が上で 4.83:1。M21 の L 0.30 は 4.52:1 と MARGIN 割れだった */
     --pending-face: oklch(0.30 0.05 250);
 
-    --judge-yes: oklch(0.80 0.10 165);
+    --judge-yes: oklch(0.80 0.08 165);      /* C は 0.10 から下げた——P型で missing との ΔE が 0.101 と閾値ちょうどだった（0.08 で 0.107）。
+                                               L 0.80 は動かせない：ダークは4軸が全部明るい側に集まり、missing 0.82 と
+                                               pending 0.75 に挟まれて他に居場所が無い（下げると識別が割れる） */
     --judge-yes-fg: oklch(0.17 0 0);
     --judge-no: oklch(0.36 0 0);
     --judge-no-fg: oklch(0.95 0 0);

@@ -43,7 +43,7 @@ const cellInput =
   'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
 
 /** 列の境界の縦罫。先頭列（No）には引かない（M8 決定2） */
-const colBorder = 'border-l border-grid'
+const colBorder = 'border-l border-rule-muted'
 
 const PLATFORM = currentPlatform()
 
@@ -442,7 +442,7 @@ export function ErrorCatalogEditor({
               const entry = data.errors[index]
               const rowKey = rowKeys[index]
               return (
-                <tr key={rowKey} className="border-b border-grid align-middle">
+                <tr key={rowKey} className="border-b border-rule-muted align-middle">
                   {/* No は編集対象ではない。データ配列の位置なので絞り込んでも動かない。
                       右揃え（UI ノート D9）。'no' は ErrorField ではないが cellFace の
                       field は string なので通る。hasError(marks, index, 'no') は常に

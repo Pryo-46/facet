@@ -23,7 +23,7 @@ const SCRIPT = path.join(REPO_ROOT, '.claude/skills/palette-retheme/scripts/pale
 const PALETTE_CSS = path.join(REPO_ROOT, 'src/styles/palette.css')
 
 /**
- * 実物の `palette.css` と同じ18トークン×2モード。
+ * 実物の `palette.css` と同じ19トークン×2モード。
  * `overrides` で1つだけ書き換えて、狙った節だけを破る
  */
 function draft(overrides: { light?: Record<string, string>; dark?: Record<string, string> } = {}): string {
@@ -35,6 +35,7 @@ function draft(overrides: { light?: Record<string, string>; dark?: Record<string
     'ink-muted': 'oklch(0.42 0 0)',
     'ink-faint': 'oklch(0.58 0 0)',
     rule: 'oklch(0.58 0 0)',
+    'rule-muted': 'oklch(0.89 0 0)',
     grid: 'oklch(0.89 0 0)',
     missing: 'oklch(0.49 0.10 85)',
     invalid: 'oklch(0.38 0.15 30)',
@@ -50,20 +51,21 @@ function draft(overrides: { light?: Record<string, string>; dark?: Record<string
   }
   const dark: Record<string, string> = {
     canvas: 'oklch(0.17 0 0)',
-    surface: 'oklch(0.205 0 0)',
-    'surface-muted': 'oklch(0.27 0 0)',
+    surface: 'oklch(0.24 0 0)',
+    'surface-muted': 'oklch(0.13 0 0)',
     ink: 'oklch(0.88 0 0)',
     'ink-muted': 'oklch(0.70 0 0)',
     'ink-faint': 'oklch(0.55 0 0)',
     rule: 'oklch(0.56 0 0)',
-    grid: 'oklch(0.25 0 0)',
+    'rule-muted': 'oklch(0.40 0 0)',
+    grid: 'oklch(0.20 0 0)',
     missing: 'oklch(0.82 0.13 85)',
     invalid: 'oklch(0.68 0.15 30)',
     pending: 'oklch(0.75 0.12 250)',
     'missing-face': 'oklch(0.30 0.05 85)',
-    'invalid-face': 'oklch(0.30 0.05 30)',
+    'invalid-face': 'oklch(0.28 0.05 30)',
     'pending-face': 'oklch(0.30 0.05 250)',
-    'judge-yes': 'oklch(0.80 0.10 165)',
+    'judge-yes': 'oklch(0.80 0.08 165)',
     'judge-yes-fg': 'oklch(0.17 0 0)',
     'judge-no': 'oklch(0.36 0 0)',
     'judge-no-fg': 'oklch(0.95 0 0)',

@@ -1,11 +1,11 @@
 ---
 name: palette-retheme
-description: facet 自身の配色（src/styles/palette.css）を、渡されたテーマに差し替える。「配色を変えて」「テーマを差し替えて」「この theme.css を入れて」「palette.css を書き換えて」「もっと暗い配色にして」と言われたときに使う。外部テーマの31変数のうち facet が使うのは7つだけで、対応物がない役割（missing / pending / judge-yes / judge-yes-fg / judge-no / judge-no-fg / grid / ink-faint / missing-face / invalid-face / pending-face）は候補を出してユーザーに選ばせる。コントラストの実測と明度の調整は同梱スクリプトが行うため、色を手で見繕わない。
+description: facet 自身の配色（src/styles/palette.css）を、渡されたテーマに差し替える。「配色を変えて」「テーマを差し替えて」「この theme.css を入れて」「palette.css を書き換えて」「もっと暗い配色にして」と言われたときに使う。外部テーマの31変数のうち facet が使うのは7つだけで、対応物がない役割（missing / pending / judge-yes / judge-yes-fg / judge-no / judge-no-fg / grid / rule-muted / ink-faint / missing-face / invalid-face / pending-face）は候補を出してユーザーに選ばせる。コントラストの実測と明度の調整は同梱スクリプトが行うため、色を手で見繕わない。
 ---
 
 # 配色差し替え
 
-外部テーマ（shadcn 系の `theme.css`、色のリスト）を受け取り、`src/styles/palette.css` の18トークン×2モードを埋めて、`npm test` が緑になる状態まで持っていく。
+外部テーマ（shadcn 系の `theme.css`、色のリスト）を受け取り、`src/styles/palette.css` の19トークン×2モードを埋めて、`npm test` が緑になる状態まで持っていく。
 
 **この Skill が触るのはアプリ自身のソースである。** 同じディレクトリにある `glossary-term-register` / `error-catalog-register` は**ユーザーのデータ**（プロジェクトフォルダの JSON）を作る Skill で、アプリは AI が触ったことを知らない。こちらは**アプリのリポジトリの中身**を書き換える。既存2本の形を期待して読むと、無いものを探すことになる:
 
@@ -23,7 +23,7 @@ description: facet 自身の配色（src/styles/palette.css）を、渡された
 2. 渡されたテーマを読む
 3. facet の役割へ対応づける（**拾うのは7色だけ**）
 4. `destructive` が本当に赤（`invalid`）か疑う
-5. 対応物がない11個（`missing` / `pending` / `judge-yes` / `judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `ink-faint` / `missing-face` / `invalid-face` / `pending-face`）をユーザーと決める
+5. 対応物がない12個（`missing` / `pending` / `judge-yes` / `judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `rule-muted` / `ink-faint` / `missing-face` / `invalid-face` / `pending-face`）をユーザーと決める
 6. 下書き JSON を作り、同梱スクリプトで検算する（**終了コード 0 になるまで**）
 7. `palette.css` を `Edit` で書き換える（**由来コメントも同じ編集で書き直す**）
 8. `npm test` を走らせる
@@ -129,7 +129,7 @@ Amber Minimal から拾うのは背景・面・文字・境界・destructive の
 
 判定の道具は手順6の出力にある。トークン一覧の `oklch(L C H)` 列で `invalid` と `judge-yes` の H が近ければ怪しく、末尾の ΔE 行の `normal` が小さければ**両者はほぼ同じ色である**（現行配色でライト `invalid / judge-yes` の `normal=0.535`）。
 
-## 5. 対応物がない11個を決める
+## 5. 対応物がない12個を決める
 
 | 役割 | 扱い | 導出の規則（候補の作り方） |
 | --- | --- | --- |
@@ -139,7 +139,8 @@ Amber Minimal から拾うのは背景・面・文字・境界・destructive の
 | `judge-yes-fg` | 既定値を示して確認 | `judge-yes` の面に 4.5:1 で載る暗い無彩色（`ink` 相当） |
 | `judge-no` | 既定値を示して確認 | チャコール（L 0.33〜0.38、C 0）。`judge-yes` と 3:1 以上離す（`FACE_PAIRS`） |
 | `judge-no-fg` | 既定値を示して確認 | `judge-no` の面に 4.5:1 で載る明るい無彩色（`surface` 相当） |
-| `grid` | 既定値を示して確認 | `canvas` に寄せた薄い無彩色。**ライトは `canvas` 上 1.2:1 を目安にする** |
+| `grid` | 既定値を示して確認 | 方眼専任。`canvas` に寄せた薄い無彩色。**ライトは `canvas` 上 1.2:1、ダークは 1.06:1 を目安にする**（M27 の実機） |
+| `rule-muted` | 既定値を示して確認 | 表の罫線・弱い境界（M27 で `grid` から分離）。**ライトは `grid` と同値でよい**。ダークは `surface` の上で見える明るさに置く（M27 の実機は `surface` 上 1.8:1）——ダークでは `canvas` と `surface` が線を挟むため、方眼と罫線は1値で両立しない |
 | `ink-faint` | 既定値を示して確認 | `ink-muted` からさらに一段動かす——ライトはより明るく、ダークはより暗く。3面（`canvas` / `surface` / `surface-muted`）で 3:1 |
 | `missing-face` / `invalid-face` / `pending-face` | 既定値を示して確認 | **同じ軸の線色と同じ色相**で、L 0.93〜0.96（ダーク 0.28〜0.32）、C 0.035〜0.06 の淡い面。`ink` / `ink-muted` / その軸の線色の3つが 4.5:1 で載ること（`FACE_REQUIREMENTS`）。色相を線色から動かさない——面と線が別の色になると「同じ軸の2段」に見えなくなる |
 
@@ -148,11 +149,11 @@ Amber Minimal から拾うのは背景・面・文字・境界・destructive の
 ΔE ≥ 0.10 を要求する。満たせなければ `palette-requirements.ts` の `DISTINCT_MIN` を
 0.08 まで下げてよいが、理由と実測値をその隣に書く。
 
-`missing` / `pending` / `judge-yes` / `judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `ink-faint` / `missing-face` / `invalid-face` / `pending-face` には、shadcn 系テーマに対応物が無い。**AI が黙って決めない。**
+`missing` / `pending` / `judge-yes` / `judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `rule-muted` / `ink-faint` / `missing-face` / `invalid-face` / `pending-face` には、shadcn 系テーマに対応物が無い。**AI が黙って決めない。**
 
-ただし11個を一律に聞くと会議が止まる。**判断の重さで分ける。**
+ただし12個を一律に聞くと会議が止まる。**判断の重さで分ける。**
 
-**`missing` / `pending` / `judge-yes` を必ず聞くのは、これらが意味を持つ色だからである。** facet は「欠落・無効・着信」の3系統と「支持・棄却」の判断軸で状態を区別する（rev 9章）。`invalid` は手順3で `destructive` から拾える。残る `missing` / `pending` / `judge-yes` には対応物が無く、色を選ぶこと自体が意味の割り当てになるため、AI が黙って決めてはならない。残り8つ（`judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `ink-faint` / `missing-face` / `invalid-face` / `pending-face`）は装飾か派生であり、上の規則から導出できる——**淡い面3つは意味色ではなく、聞いて決めた線色からの派生である**（同じ色相のまま白／黒へ寄せるだけ）。
+**`missing` / `pending` / `judge-yes` を必ず聞くのは、これらが意味を持つ色だからである。** facet は「欠落・無効・着信」の3系統と「支持・棄却」の判断軸で状態を区別する（rev 9章）。`invalid` は手順3で `destructive` から拾える。残る `missing` / `pending` / `judge-yes` には対応物が無く、色を選ぶこと自体が意味の割り当てになるため、AI が黙って決めてはならない。残り9つ（`judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `rule-muted` / `ink-faint` / `missing-face` / `invalid-face` / `pending-face`）は装飾か派生であり、上の規則から導出できる——**淡い面3つは意味色ではなく、聞いて決めた線色からの派生である**（同じ色相のまま白／黒へ寄せるだけ）。
 
 **確認が取れない状況（非対話実行など）では、候補のうち最有力のものを採って進め、報告に「こちらの判断で決めた」トークンとして明示する。** 聞くのをやめてよいという意味ではない。**目的は黙って確定させないことであって、聞くこと自体ではない**——聞けないなら事後に見せて、ユーザーが却下できるようにする。`palette.css` はバージョン管理されたソースなので、気に入らなければ差し戻せる（手順1）。**逆に、ここで止まると差し替え全体が進まない。** この逃げ道が使えるのは報告で名指しした場合だけであり、名指しを落とすと「必ず聞く」を骨抜きにしたことになる（手順9）。
 
@@ -173,7 +174,7 @@ node .claude/skills/palette-retheme/scripts/palette-fit.mjs --in <path>
 
 **現行配色を基準に取りたいときは `--in src/styles/palette.css`。** 差し替え前に走らせておくと、「どこがどれだけ余裕を持っていたか」が分かる。1トークンだけ微調整するときも、下書きを起こさずこれで足りる。
 
-下書き JSON の形（**18トークン×2モードすべて**が要る。値は hex / `rgb()` / `hsl()` / `oklch()` のどれでもよい）:
+下書き JSON の形（**19トークン×2モードすべて**が要る。値は hex / `rgb()` / `hsl()` / `oklch()` のどれでもよい）:
 
 ```json
 {
@@ -185,6 +186,7 @@ node .claude/skills/palette-retheme/scripts/palette-fit.mjs --in <path>
     "ink-muted": "oklch(0.42 0 0)",
     "ink-faint": "oklch(0.58 0 0)",
     "rule": "oklch(0.58 0 0)",
+    "rule-muted": "oklch(0.89 0 0)",
     "grid": "oklch(0.89 0 0)",
     "missing": "oklch(0.49 0.10 85)",
     "invalid": "oklch(0.38 0.15 30)",
@@ -197,7 +199,7 @@ node .claude/skills/palette-retheme/scripts/palette-fit.mjs --in <path>
     "judge-no": "oklch(0.35 0 0)",
     "judge-no-fg": "oklch(0.985 0 0)"
   },
-  "dark": { "...": "同じ18キー" }
+  "dark": { "...": "同じ19キー" }
 }
 ```
 
@@ -318,7 +320,7 @@ npm test
 1. **元テーマの値 → 採用値**、および動かした量（どのトークンの L をいくつからいくつへ、なぜ）
 2. **捨てたテーマ色**（`primary` / `accent` / `secondary` / `ring` / `chart-*`）と、その帰結（手順3。「このテーマの主張色は facet に出ない」）
 3. **意味色4色（`missing` / `invalid` / `pending` / `judge-yes`）の ΔE**（標準色覚・P型・D型、ライト／ダーク、6ペアすべて）
-4. **候補から選んでもらった11個**の最終値。**ユーザーに確認せずこちらの判断で決めたものがあれば、どれをどの候補から採ったかを名指しする**（特に `missing` / `pending` / `judge-yes`。手順5の非対話の逃げ道は、この名指しとセットでしか成立しない）
+4. **候補から選んでもらった12個**の最終値。**ユーザーに確認せずこちらの判断で決めたものがあれば、どれをどの候補から採ったかを名指しする**（特に `missing` / `pending` / `judge-yes`。手順5の非対話の逃げ道は、この名指しとセットでしか成立しない）
 
 **3 を必ず出す。** M21 で ΔE は合否の対象になった（`palette-requirements.ts` の `DISTINCT_MIN`）ので、満たさなければ手順6のスクリプトも `npm test` も赤になり、勝手には先へ進めない。それでも**数字そのものは報告に書く**——全部 0.10 以上で通っていたのか、`DISTINCT_MIN` を下げて通したのかは、次にこの配色を触る人が知るべき情報である。
 

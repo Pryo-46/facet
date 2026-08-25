@@ -43,6 +43,7 @@ export const TOKENS = [
   'ink-muted',
   'ink-faint',
   'rule',
+  'rule-muted',
   'grid',
   'missing',
   'invalid',
@@ -68,7 +69,10 @@ export const MODES = [
  *
  * **`grid` がここに無いのは意図的。** 方眼紙の線は純粋な装飾であり、
  * WCAG 1.4.11（情報を伝える非テキスト UI 要素は 3:1）の対象外。
- * むしろ薄いことに意味がある（M7 設計スペック 決定2）
+ * むしろ薄いことに意味がある（M7 設計スペック 決定2）。
+ * **`rule-muted`（表の罫線・弱い境界。M27 で `grid` から分離）も同じ扱い**——
+ * 行の区切りは行間の余白と互い違いの内容が既に運んでおり、線は補助。
+ * 3:1 を課すと `rule` と同じ濃さになり、「見せる境界」と区別が付かなくなる
  */
 export const REQUIREMENTS = [
   { token: 'ink', min: 4.5, use: '本文・見出し' },
@@ -174,6 +178,7 @@ export const ACHROMATIC = [
   'ink-muted',
   'ink-faint',
   'rule',
+  'rule-muted',
   'grid',
   'judge-no',
   'judge-no-fg',
