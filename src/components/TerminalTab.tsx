@@ -70,6 +70,11 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   const hiddenRef = useRef(hidden)
   hiddenRef.current = hidden
 
+  // 隠れている間に Plex Mono の読み込みが終わったときの「適用待ち」置き場。
+  // 可視化した瞬間の hidden effect（下）がここを見て、fontFamily の代入と
+  // fit() をまとめて行う
+  const pendingFontRef = useRef<string | null>(null)
+
   useEffect(() => {
     const host = hostRef.current
     if (host === null) return
@@ -112,6 +117,16 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
             .trim()
           // トークンが読めなければ入れない（既定のまま）——theme.ts と同じ扱い
           if (mono === '') return
+          // **隠れている間は代入も fit() も遅らせる。** host は display:none で
+          // 0×0 になっており、この時点で fontFamily を入れて fit() すると
+          // 0×0 の寸法で測ってしまう（204-219 と同じ理由）。fontFamily だけ
+          // 先に代入する形にもしない——次に fit() が呼ばれるまでの間、
+          // 実際に使っているフォントと違う寸法のまま表示される隙ができる。
+          // 読めた値は ref に置いておき、可視化時の hidden effect に任せる
+          if (hiddenRef.current) {
+            pendingFontRef.current = mono
+            return
+          }
           term.options.fontFamily = mono
           fit.fit()
         })
@@ -271,6 +286,13 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     const fit = fitRef.current
     const ptyId = ptyIdRef.current
     if (term === null || fit === null) return
+    // 隠れている間に Plex Mono の読み込みが終わっていれば、ここで初めて
+    // 代入する。fontFamily を入れてから fit() で測り直す順を守る
+    // （起動 effect のフォント読み込みブロックと同じ理由）
+    if (pendingFontRef.current !== null) {
+      term.options.fontFamily = pendingFontRef.current
+      pendingFontRef.current = null
+    }
     fit.fit()
     // リサイズの失敗は握り潰してよい。失敗するのは PTY が既に無いときで、
     // その事実は onExit が先にタブへ伝えている（書き込みと違い、握り潰しても
