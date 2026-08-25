@@ -32,7 +32,7 @@ vi.mock('@/core/canvas/canvas-font', async (importOriginal) => {
     ...actual,
     createCanvasMeasurer: () => {
       state.calls += 1
-      const perChar = state.calls === 1 ? 10 : 20
+      const perChar = state.calls === 1 ? 10 : state.calls === 2 ? 20 : 30
       return (text: string) => text.length * perChar
     },
   }
@@ -57,9 +57,18 @@ const data: LogicTreeSchemaVersion1 = {
   nodes: [{ id: 'node_AAAAAAAAAA', parentId: null, text: TEXT }],
 }
 
+type Listener = (e: unknown) => void
+
 let resolveFonts: () => void
+let listeners: Map<string, Set<Listener>>
+
+// 遅延スライスの到着（loadingdone）を模す。use-font-generation.dom.test.tsx と同じ作法
+const fire = (type: string, event: unknown): void => {
+  for (const fn of listeners.get(type) ?? []) fn(event)
+}
 
 beforeEach(() => {
+  listeners = new Map()
   // jsdom は document.fonts を持たない。effect が通る形を差し込む
   Object.defineProperty(document, 'fonts', {
     configurable: true,
@@ -67,6 +76,13 @@ beforeEach(() => {
       ready: new Promise<void>((resolve) => {
         resolveFonts = resolve
       }),
+      addEventListener: (type: string, fn: Listener) => {
+        if (!listeners.has(type)) listeners.set(type, new Set())
+        listeners.get(type)!.add(fn)
+      },
+      removeEventListener: (type: string, fn: Listener) => {
+        listeners.get(type)?.delete(fn)
+      },
     },
   })
 })
@@ -98,5 +114,23 @@ describe('LogicTreeEditor（Web フォントの読み込み後の測り直し）
       expect(Number.parseFloat(box?.style.height ?? '')).toBe(inset + oneLine * 2)
     })
     expect(state.calls).toBe(2)
+  })
+
+  it('遅延スライスの到着（loadingdone）でも測り直される（2行 → 3行）', async () => {
+    render(<LogicTreeEditor data={data} onChange={() => {}} issues={[]} modalOpen={false} />)
+    const box = screen.getByLabelText('ノード1').parentElement
+    const inset = NODE_INSET_Y * 2
+    const oneLine = Number.parseFloat(box?.style.height ?? '') - inset
+    resolveFonts()
+    await waitFor(() => {
+      expect(Number.parseFloat(box?.style.height ?? '')).toBe(inset + oneLine * 2)
+    })
+    // 珍しい字のスライスが後から届いた、に相当するイベント
+    fire('loadingdone', { fontfaces: [{}] })
+    await waitFor(() => {
+      // perChar 30 → 1 行 9 文字 → 20 文字は 3 行
+      expect(Number.parseFloat(box?.style.height ?? '')).toBe(inset + oneLine * 3)
+    })
+    expect(state.calls).toBe(3)
   })
 })

@@ -395,7 +395,7 @@ export function ErrorCatalogEditor({
           （columns.test.ts が検査）、overflow を足すと sticky の親が変わって
           見出しの固定が静かに壊れる */}
       <div ref={tableRef} className="border border-rule bg-surface">
-        <table className="w-full table-fixed border-collapse text-base">
+        <table className="w-full table-fixed border-collapse text-sm">
           <colgroup>
             {cols.columns.map((col, i) => {
               const w = cols.widthIndex[i]

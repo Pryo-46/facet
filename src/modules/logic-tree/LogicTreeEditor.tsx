@@ -32,6 +32,7 @@ import {
   type CanvasFont,
 } from '@/core/canvas/canvas-font'
 import { buildTree } from '@/core/canvas/flat-tree'
+import { useFontGeneration } from '@/core/canvas/use-font-generation'
 import { cssTransform } from '@/core/canvas/viewport'
 import { useViewport } from '@/core/canvas/use-viewport'
 import { layoutTree, type Size } from '@/core/canvas/tree-layout'
@@ -44,7 +45,7 @@ import { TreeEdges } from './TreeEdges'
 const MEASURE_CACHE_LIMIT = 2000
 
 /** ノードの文言に当たるクラスのうち、フォントを決めている部分。見本要素と共有する */
-const NODE_FONT_CLASS = 'text-base leading-normal'
+const NODE_FONT_CLASS = 'text-sm leading-normal'
 
 /** 木の操作ヒント。`$alt` は KeyHints が解決する */
 const TREE_HINTS: readonly KeyHint[] = [
@@ -75,12 +76,6 @@ export function LogicTreeEditor({
   /** 帯のチップ（欠落の種類）ごとに巡る位置。GlossaryEditor の jumpAt と同じ形 */
   const jumpAt = useRef<Record<string, number>>({})
 
-  // Web フォントの読み込みで canvas の measureText の結果は変わるが、
-  // getComputedStyle が返す値は変わらない（宣言されたファミリ列を返すだけで、
-  // どのフェイスに解決されたかは映らない）。だからフォントの同一性では
-  // 判定できず、読み込み完了を世代として数えて測り直す
-  const [fontGeneration, setFontGeneration] = useState(0)
-
   const readFont = (): void => {
     setFont((prev) => {
       const next = readCanvasFont(probeRef.current)
@@ -90,22 +85,15 @@ export function LogicTreeEditor({
 
   useLayoutEffect(readFont, [])
 
-  // **Web フォントの読み込み前に測るとフォールバック書体の幅になる。**
-  // Geist は日本語グリフを持たず和文はフォールバックに落ちるが、
-  // 欧文の幅は読み込みの前後で変わる。読み込み完了で測り直す
+  // 読み込みの世代。進んだら実効フォントも読み直す。
+  // **最初の1フレームはフォールバック書体のメトリクスで測っている**し、
+  // 同梱フォントは unicode-range 分割なので、珍しい字のスライスは
+  // 初入力のとき後から届く（M26）——どちらも世代が進んだ時点で測り直す
+  const fontGeneration = useFontGeneration()
   useEffect(() => {
-    if (typeof document === 'undefined' || !('fonts' in document)) return
-    let alive = true
-    void document.fonts.ready.then(() => {
-      if (!alive) return
-      readFont()
-      setFontGeneration((n) => n + 1)
-    })
-    return () => {
-      alive = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFont は毎レンダー再生成される安定した処理。購読はマウント時の1回でよい
-  }, [])
+    readFont()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFont は毎レンダー再生成される安定した処理。世代が進んだときだけ走らせる
+  }, [fontGeneration])
 
   useEffect(() => {
     if (pendingFocus === null) return
@@ -130,7 +118,7 @@ export function LogicTreeEditor({
   // 鍵に lineHeight と世代を混ぜる。**`font.font` の文字列には行間が
   // 入っていない**のに `wrapText` の height は lineHeight に依存するので、
   // 書体が同じまま行間だけ変わるとキャッシュが古い高さを返し続ける。
-  // 世代は上の document.fonts.ready が進めるカウンタで、
+  // 世代は useFontGeneration（ready＋loadingdone）が進めるカウンタで、
   // 「読み込み後に測り直す」を成立させるのはこちらである
   const measurerKey = `${font.font}|${font.lineHeight}|${fontGeneration}`
   const measurerRef = useRef<{

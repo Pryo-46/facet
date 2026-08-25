@@ -33,7 +33,7 @@ export const ISSUE_BOX_CLASS = 'border px-2.5 py-1.5'
  * 課題のタイトルのフォント。**測る側（エディタの見本）と描く側（`IssueBox`）が
  * 同じ定数を読む**——太字は細字より広いので、片方だけ変えると測定と描画がずれる
  */
-export const TITLE_FONT_CLASS = 'text-base leading-normal font-semibold'
+export const TITLE_FONT_CLASS = 'text-sm leading-normal font-semibold'
 
 /**
  * 課題の箱の幅（**固定。導出しない**）。**M24 で全種類の箱に広がった。**

@@ -275,7 +275,7 @@ export function GlossaryEditor({
           機能なので、角丸をあきらめて直角にする。外枠と面（border-rule /
           bg-surface）はそのまま残す */}
       <div ref={tableRef} className="border border-rule bg-surface">
-        <table className="w-full table-fixed border-collapse text-base">
+        <table className="w-full table-fixed border-collapse text-sm">
           <colgroup>
             {COLUMNS.map((col, i) => {
               const w = WIDTH_INDEX[i]

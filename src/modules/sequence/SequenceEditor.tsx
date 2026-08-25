@@ -90,6 +90,7 @@ import {
   sameFont,
   type CanvasFont,
 } from '@/core/canvas/canvas-font'
+import { useFontGeneration } from '@/core/canvas/use-font-generation'
 import { cssTransform, type Rect } from '@/core/canvas/viewport'
 import { useViewport } from '@/core/canvas/use-viewport'
 import { SequenceEdges, type EdgeStep } from './SequenceEdges'
@@ -99,12 +100,15 @@ import { StepShapeCell } from './StepShapeCell'
 const MEASURE_CACHE_LIMIT = 2000
 
 /** 図の文字に当たるクラスのうち、フォントを決めている部分。見本要素と共有する */
-const SEQ_FONT_CLASS = 'text-base leading-normal'
+const SEQ_FONT_CLASS = 'text-sm leading-normal'
 
 /**
  * 問いラベルのフォント階級（GutterSlot のラベル列と同じ）。
- * **`SEQ_FONT_CLASS` で代用しないこと**——本文（16px）でラベル（14px）を測ると
- * 高さを過大に見積もり、行が無駄に伸びる
+ * **`SEQ_FONT_CLASS` で代用しないこと**——M26 で入力値が 14px へ下がって
+ * サイズは並んだが、**行間が違う**（答えセルは `leading-normal` = 1.5、
+ * ラベルは text-sm 既定の 1.3。src/index.css の --text-sm--line-height）。
+ * 代用すると 21px の行高でラベルを測ることになり、高さを過大に見積もって
+ * 行が無駄に伸びる
  */
 const LABEL_FONT_CLASS = 'text-sm'
 
@@ -268,12 +272,6 @@ export function SequenceEditor({
   // ガターのブラケット強調用。どの行のセルにフォーカスがあるか（ガター外は null）
   const [focusedRow, setFocusedRow] = useState<number | null>(null)
 
-  // Web フォントの読み込みで canvas の measureText の結果は変わるが、
-  // getComputedStyle が返す値は変わらない（宣言されたファミリ列を返すだけで、
-  // どのフェイスに解決されたかは映らない）。だからフォントの同一性では
-  // 判定できず、読み込み完了を世代として数えて測り直す
-  const [fontGeneration, setFontGeneration] = useState(0)
-
   const readFont = (): void => {
     setFont((prev) => {
       const next = readCanvasFont(probeRef.current)
@@ -287,22 +285,15 @@ export function SequenceEditor({
 
   useLayoutEffect(readFont, [])
 
-  // **Web フォントの読み込み前に測るとフォールバック書体の幅になる。**
-  // Geist は日本語グリフを持たず和文はフォールバックに落ちるが、
-  // 欧文の幅は読み込みの前後で変わる。読み込み完了で測り直す
+  // 読み込みの世代。進んだら実効フォントも読み直す。
+  // **最初の1フレームはフォールバック書体のメトリクスで測っている**し、
+  // 同梱フォントは unicode-range 分割なので、珍しい字のスライスは
+  // 初入力のとき後から届く（M26）——どちらも世代が進んだ時点で測り直す
+  const fontGeneration = useFontGeneration()
   useEffect(() => {
-    if (typeof document === 'undefined' || !('fonts' in document)) return
-    let alive = true
-    void document.fonts.ready.then(() => {
-      if (!alive) return
-      readFont()
-      setFontGeneration((n) => n + 1)
-    })
-    return () => {
-      alive = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFont は毎レンダー再生成される安定した処理。購読はマウント時の1回でよい
-  }, [])
+    readFont()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFont は毎レンダー再生成される安定した処理。世代が進んだときだけ走らせる
+  }, [fontGeneration])
 
   useEffect(() => {
     if (pendingFocus === null) return
@@ -324,7 +315,7 @@ export function SequenceEditor({
   // 鍵に lineHeight と世代を混ぜる。**`font.font` の文字列には行間が
   // 入っていない**のに wrapWithin の height は lineHeight に依存するので、
   // 書体が同じまま行間だけ変わるとキャッシュが古い高さを返し続ける。
-  // 世代は上の document.fonts.ready が進めるカウンタで、
+  // 世代は useFontGeneration（ready＋loadingdone）が進めるカウンタで、
   // 「読み込み後に測り直す」を成立させるのはこちらである
   const measurerKey = `${font.font}|${font.lineHeight}|${fontGeneration}`
   const measurerRef = useRef<{
@@ -800,8 +791,10 @@ export function SequenceEditor({
       {/* 測定用の見本。**描画される文字と同じフォントのクラスを持たせる**ことで、
           測定と描画が同一の情報源を見る（rev 9章）。opacity-0 で見せないだけに
           するのは、display:none だと getComputedStyle がフォントを返さない環境があるため。
-          見本が2本あるのは、答えセル（text-base）と問いラベル列（text-sm）で
-          フォント階級が違うため——1本を両方に使い回すと、片方の高さを見誤る */}
+          見本が2本あるのは、答えセル（`SEQ_FONT_CLASS` = text-sm + leading-normal）と
+          問いラベル列（`LABEL_FONT_CLASS` = text-sm）でフォント階級が違うため
+          ——M26 でサイズは 14px に並んだが行間が違う（1.5 と 1.3）ので、
+          1本を両方に使い回すと片方の高さを見誤る */}
       <span
         ref={probeRef}
         aria-hidden="true"
@@ -930,7 +923,7 @@ export function SequenceEditor({
               }}
             >
               <CellInput
-                className={`h-full w-full rounded-sm text-center ${ACTOR_BOX_CLASS} ${face} text-base leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
+                className={`h-full w-full rounded-sm text-center ${ACTOR_BOX_CLASS} ${face} text-sm leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
                 aria-label={`参加者${index + 1}の名前`}
                 data-cell={`${key}:name`}
                 value={actor.name}
@@ -1063,7 +1056,7 @@ export function SequenceEditor({
                     isSelf
                       ? `${SELF_BOX_CLASS}${labelMissing ? '' : ' border-rule'}`
                       : LABEL_BOX_CLASS
-                  } ${labelFace} text-center text-base leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
+                  } ${labelFace} text-center text-sm leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
                   aria-label={`ステップ${index + 1}の文言`}
                   data-cell={`${key}:label`}
                   value={step.label}
