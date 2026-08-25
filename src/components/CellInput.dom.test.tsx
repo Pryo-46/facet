@@ -231,3 +231,44 @@ describe('autoSize', () => {
     expect((screen.getByLabelText('セル') as HTMLTextAreaElement).rows).toBe(1)
   })
 })
+
+describe('CellInput: 遅延スライスの到着（loadingdone）配線', () => {
+  // jsdom は scrollHeight が常に 0 で measure() が早期 return するため、
+  // 「loadingdone で行数が実際に変わる」ことはこの環境では観測できない
+  // （↑の autoSize 節が scrollHeight を差し込んで確かめている領域）。
+  // ここで固定できるのは「購読が張られ、アンマウントで外れる」という
+  // 配線だけ——LogicTreeEditor.font.dom.test.tsx / use-font-generation.dom.test.tsx
+  // と同じ fake で addEventListener / removeEventListener の出入りを見る
+  type Listener = (e: unknown) => void
+  let listeners: Map<string, Set<Listener>>
+
+  beforeEach(() => {
+    listeners = new Map()
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: {
+        ready: new Promise<void>(() => {}),
+        addEventListener: (type: string, fn: Listener) => {
+          if (!listeners.has(type)) listeners.set(type, new Set())
+          listeners.get(type)!.add(fn)
+        },
+        removeEventListener: (type: string, fn: Listener) => {
+          listeners.get(type)?.delete(fn)
+        },
+      },
+    })
+  })
+
+  afterEach(() => {
+    Reflect.deleteProperty(document, 'fonts')
+  })
+
+  it('multiline でマウントすると loadingdone に購読し、アンマウントで外れる', () => {
+    const { unmount } = render(
+      <CellInput multiline aria-label="セル" value="" onValueChange={() => {}} />,
+    )
+    expect(listeners.get('loadingdone')?.size).toBe(1)
+    unmount()
+    expect(listeners.get('loadingdone')?.size).toBe(0)
+  })
+})

@@ -90,6 +90,7 @@ import {
   sameFont,
   type CanvasFont,
 } from '@/core/canvas/canvas-font'
+import { useFontGeneration } from '@/core/canvas/use-font-generation'
 import { cssTransform, type Rect } from '@/core/canvas/viewport'
 import { useViewport } from '@/core/canvas/use-viewport'
 import { SequenceEdges, type EdgeStep } from './SequenceEdges'
@@ -268,12 +269,6 @@ export function SequenceEditor({
   // ガターのブラケット強調用。どの行のセルにフォーカスがあるか（ガター外は null）
   const [focusedRow, setFocusedRow] = useState<number | null>(null)
 
-  // Web フォントの読み込みで canvas の measureText の結果は変わるが、
-  // getComputedStyle が返す値は変わらない（宣言されたファミリ列を返すだけで、
-  // どのフェイスに解決されたかは映らない）。だからフォントの同一性では
-  // 判定できず、読み込み完了を世代として数えて測り直す
-  const [fontGeneration, setFontGeneration] = useState(0)
-
   const readFont = (): void => {
     setFont((prev) => {
       const next = readCanvasFont(probeRef.current)
@@ -287,22 +282,15 @@ export function SequenceEditor({
 
   useLayoutEffect(readFont, [])
 
-  // **Web フォントの読み込み前に測るとフォールバック書体の幅になる。**
-  // Geist は日本語グリフを持たず和文はフォールバックに落ちるが、
-  // 欧文の幅は読み込みの前後で変わる。読み込み完了で測り直す
+  // 読み込みの世代。進んだら実効フォントも読み直す。
+  // **最初の1フレームはフォールバック書体のメトリクスで測っている**し、
+  // 同梱フォントは unicode-range 分割なので、珍しい字のスライスは
+  // 初入力のとき後から届く（M26）——どちらも世代が進んだ時点で測り直す
+  const fontGeneration = useFontGeneration()
   useEffect(() => {
-    if (typeof document === 'undefined' || !('fonts' in document)) return
-    let alive = true
-    void document.fonts.ready.then(() => {
-      if (!alive) return
-      readFont()
-      setFontGeneration((n) => n + 1)
-    })
-    return () => {
-      alive = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFont は毎レンダー再生成される安定した処理。購読はマウント時の1回でよい
-  }, [])
+    readFont()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFont は毎レンダー再生成される安定した処理。世代が進んだときだけ走らせる
+  }, [fontGeneration])
 
   useEffect(() => {
     if (pendingFocus === null) return

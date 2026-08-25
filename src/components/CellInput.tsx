@@ -167,6 +167,22 @@ export function CellInput(props: CellInputProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- measure は毎レンダー再生成される安定した処理。observer の張り替えは multiline と autoSize の変化だけで駆動する
   }, [multiline, autoSize])
 
+  /**
+   * 遅延スライスの到着（M26）。同梱フォントは unicode-range 分割なので、
+   * 珍しい字を打った直後はフォールバック書体で折り返しが決まり、
+   * スライスが届いた瞬間に必要行数が変わり得る。値も幅も変わらないので
+   * 上の 2 つの effect はどちらも拾えない——loadingdone だけが契機になる。
+   * jsdom は document.fonts を持たないので張らずに抜ける（ResizeObserver と同じ扱い）
+   */
+  useLayoutEffect(() => {
+    if (!autoSize || !multiline) return
+    if (typeof document === 'undefined' || !('fonts' in document)) return
+    const onLoadingDone = (): void => measure()
+    document.fonts.addEventListener('loadingdone', onLoadingDone)
+    return () => document.fonts.removeEventListener('loadingdone', onLoadingDone)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- measure は毎レンダー再生成される安定した処理。購読は multiline / autoSize の変化だけで張り替える
+  }, [multiline, autoSize])
+
   const shared = {
     className,
     placeholder,
