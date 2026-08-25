@@ -92,6 +92,34 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
 
     let disposed = false
 
+    // 端末のフォントは Plex Mono（U1 決着。700 は ANSI 太字用に同梱済み）。
+    // **読み込みが済んでから fontFamily を入れる**——xterm はセル寸法を
+    // fontFamily を代入した時点のフォントで測るので、届く前に入れると
+    // フォールバック書体の寸法で固まる。fonts.ready は「使われたフォント」
+    // しか待たず、この時点で Plex Mono はまだ 1 文字も描かれていないので、
+    // fonts.load で明示的に読み込む（通常・太字の両方）。
+    // 読めない環境（jsdom）では何もしない＝xterm 既定のまま（theme.ts の
+    // 「半端に流し込まない」と同じ判断）
+    if ('fonts' in document) {
+      void Promise.all([
+        document.fonts.load("13px 'IBM Plex Mono'", 'Wg1|'),
+        document.fonts.load("bold 13px 'IBM Plex Mono'", 'Wg1|'),
+      ])
+        .then(() => {
+          if (disposed) return
+          const mono = getComputedStyle(document.documentElement)
+            .getPropertyValue('--font-mono')
+            .trim()
+          // トークンが読めなければ入れない（既定のまま）——theme.ts と同じ扱い
+          if (mono === '') return
+          term.options.fontFamily = mono
+          fit.fit()
+        })
+        .catch(() => {
+          // 読み込み失敗は既定フォントのまま動かす（端末が使えないより良い）
+        })
+    }
+
     /**
      * 端末への送信口。**書き込みはすべてここを通す。** ID がまだ無い間は
      * 待ち行列へ積むだけにして、`spawn` の解決時に同じ順で流し直す

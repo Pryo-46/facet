@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "./styles/fonts.css";
 @import "./styles/palette.css";
 
 @custom-variant dark (&:is(.dark *));
@@ -31,8 +32,8 @@
      * 密度は行高で稼ぎ、サイズでは稼がない）。セクション見出しの 130% は本文の
      * 125% に畳んである——16px では差が 0.8px しかなく、単行のラベルで視認できない */
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', 'Yu Gothic UI', 'Hiragino Sans', sans-serif;
-    --font-mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans JP', 'Yu Gothic UI', 'Hiragino Sans', sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
     --text-xl: 22px;
     --text-sm--line-height: 1.3;
     --text-base--line-height: 1.25;
