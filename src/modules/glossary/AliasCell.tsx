@@ -225,7 +225,7 @@ export function AliasCell(props: AliasCellProps) {
           // したのは、bg-canvas はサイドバーの選択行（M8 決定17）で
           // 「地の色でへこんで見える＝選択中」の意味に既に使っており、
           // チップは選択状態ではなく単なる項目の区切りなので意味を借用しない
-          <span key={`${alias}-${i}`} className="rounded-sm border border-grid px-1 text-ink">
+          <span key={`${alias}-${i}`} className="rounded-sm border border-rule-muted px-1 text-ink">
             {alias}
           </span>
         ))}

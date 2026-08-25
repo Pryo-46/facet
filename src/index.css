@@ -45,6 +45,7 @@
     --color-ink-muted: var(--ink-muted);
     --color-ink-faint: var(--ink-faint);
     --color-rule: var(--rule);
+    --color-rule-muted: var(--rule-muted);
     --color-grid: var(--grid);
     --color-missing: var(--missing);
     --color-invalid: var(--invalid);

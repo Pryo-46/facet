@@ -58,7 +58,7 @@ function FileRow(props: {
   return (
     // items-stretch で削除ボタンが行の高さいっぱいになる（要望8）。
     // 行の区切りは grid（薄い装飾の罫。要望9）
-    <li className="flex items-stretch border-b border-grid">
+    <li className="flex items-stretch border-b border-rule-muted">
       <button
         type="button"
         // **title だけにしないこと。** title は空にも重複にもなりうるので、

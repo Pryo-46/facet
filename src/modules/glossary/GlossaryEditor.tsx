@@ -45,7 +45,7 @@ const cellInput =
   'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
 
 /** 列の境界の縦罫。先頭列（No）には引かない（M8 決定2） */
-const colBorder = 'border-l border-grid'
+const colBorder = 'border-l border-rule-muted'
 
 const PLATFORM = currentPlatform()
 
@@ -332,7 +332,7 @@ export function GlossaryEditor({
               const rowKey = rowKeys[index]
               const row = visiblePos + 1
               return (
-                <tr key={rowKey} className="border-b border-grid align-middle">
+                <tr key={rowKey} className="border-b border-rule-muted align-middle">
                   {/* No は編集対象ではない。データ配列の位置なので絞り込んでも動かない
                       （表示中の行番号 `row` とは役割が違う——row は表示位置、
                       No はデータ位置。エラーカタログ :416-422 の写し）。
