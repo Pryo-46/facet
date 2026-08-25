@@ -69,12 +69,26 @@ export function ActorRefCell(props: ActorRefCellProps) {
         // **`min-h-6.5` を外さないこと。** 名前が空の参加者を指しているときは
         // 本文が空になり、子が無いボタンは行ボックスを作らないので内容高 0＋
         // 余白だけの帯に潰れる（親は height を渡さない）。押す面積が消え、
-        // 同じ railTop に並ぶ種別セルとも段が揃わなくなる。
-        // 26px の内訳: `<button>` には index.css の @layer base が
-        // `--tw-leading: 1.2` を当てるため行箱は 16×1.2=19.2 ＋ `py-0.5` 4 ＋
-        // 枠 2 ＝ 25.2 を切り上げた値。空名トリガーと文字入りの実高が同値に
-        // なり、M22 の申し送りに記録された空名トリガーと文字入りの約2pxの
-        // 段差が解消する
+        // 押せるものがそこに在ることが見えなくなる。
+        //
+        // 26px という値の**出所**は M23 当時の本文 16px:
+        // `<button>` には index.css の @layer base が `--tw-leading: 1.2` を
+        // 当てるため行箱は 16×1.2=19.2 ＋ `py-0.5` 4 ＋ 枠 2 ＝ 25.2 で、
+        // これを切り上げた。
+        //
+        // **M26 で入力値が 14px へ下がったので、いまの内容高は
+        // 14×1.2=16.8 ＋ 4 ＋ 2 ＝ 22.8px である**（26px の下限がそれを
+        // 上回るので、空名でも文字入りでも実高は 26px で揃ったままになる
+        // ——M22 の申し送りに記録された「空名トリガーと文字入りの約2pxの
+        // 段差」は解消したままである）。**値は 26px のまま動かさない。**
+        //
+        // 一方 `StepShapeCell`（種別セル）は `min-h` を持たず 22.8px で描かれる
+        // ので、**箱の高さの差は M23 の 0.8px から約 3.2px に開いた**。
+        // **これは意図の範囲である**——両者は親が `top: railTop` の絶対配置で
+        // 置いており**上端が揃う**ので、下端の 3.2px 差は行の段差として読めない
+        // （M26 の実機確認の一巡でも問題は出ていない）。揃えたくなったら
+        // `StepShapeCell` にも同じ `min-h-6.5` を当てること——`min-h` を
+        // こちらから外して合わせるのは、上の潰れが戻るので誤り
         className={`min-h-6.5 w-full truncate rounded-sm border px-1.5 py-0.5 text-left text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring ${face}`}
         aria-label={props['aria-label']}
         data-cell={props['data-cell']}
