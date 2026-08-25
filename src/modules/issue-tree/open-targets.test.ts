@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Hypothesis, IssueNode } from '@/types/issue-tree'
 import type { FocusTarget } from './commands'
 import { poseQuestions } from './derive'
-import { listOpenTargets, nextOpenTarget, type OpenTarget } from './open-targets'
+import { listDeferredTargets, listOpenTargets, nextDeferredTarget, nextOpenTarget, type OpenTarget } from './open-targets'
 
 const id = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const hid = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
@@ -129,5 +129,39 @@ describe('nextOpenTarget（次の1件）', () => {
   it('列が空なら null（チップが描かれていない種類）', () => {
     expect(nextOpenTarget(targets, 'judgement', null)).toBe(null)
     expect(nextOpenTarget([], 'result', null)).toBe(null)
+  })
+})
+
+describe('listDeferredTargets / nextDeferredTarget（見送りの巡回）', () => {
+  const issue = (id: string, parentId: string | null, deferred = false) => ({
+    id,
+    parentId,
+    text: '課題',
+    events: deferred ? [{ kind: 'deferred' as const, note: '今回は追わない' }] : [],
+  })
+
+  it('見送りを掲げた課題だけが行き先（配下の抑制は入らない）', () => {
+    const data = {
+      issues: [
+        issue('issue_AAAAAAAAAA', null, true),
+        issue('issue_BBBBBBBBBB', 'issue_AAAAAAAAAA'), // 抑制されるが掲げていない
+        issue('issue_CCCCCCCCCC', 'issue_AAAAAAAAAA', true), // 入れ子でも入る
+      ],
+    }
+    expect(listDeferredTargets(data as never)).toEqual([
+      { cell: 'issue', index: 0 },
+      { cell: 'issue', index: 2 },
+    ])
+  })
+
+  it('末尾の次は先頭へ戻り、current が列に無ければ先頭、空なら null', () => {
+    const targets = [
+      { cell: 'issue' as const, index: 0 },
+      { cell: 'issue' as const, index: 2 },
+    ]
+    expect(nextDeferredTarget(targets, null)).toEqual({ cell: 'issue', index: 0 })
+    expect(nextDeferredTarget(targets, { cell: 'issue', index: 0 })).toEqual({ cell: 'issue', index: 2 })
+    expect(nextDeferredTarget(targets, { cell: 'issue', index: 2 })).toEqual({ cell: 'issue', index: 0 })
+    expect(nextDeferredTarget([], null)).toBeNull()
   })
 })
