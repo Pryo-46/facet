@@ -13,6 +13,7 @@ UI ノート（`docs/facet-UI設計ノート.md`）の実施優先順位 §8 の
 3. グレーの「見送り N」チップは**押すと飛ぶ**（既存の帯の原則「数えるだけでなく、そこへ飛べる」と揃える）
 4. **登録 Skill の報告にも「見送り N」の行を出す**（アプリと Skill は同じ言葉を出す規約）
 5. 角丸は**2段＋円**（部品・セル＝`rounded-sm`／浮遊面＝`rounded-md`／意図した円＝`rounded-full`）で固定し、機械検査で縛る
+6. **帯の `⚠` 絵文字をやめて lucide アイコン（`CircleAlert`）にする。見送りチップにはアイコン（`StickyNoteOff`）を添える**（スペックのレビュー中に追加された指示。決定8）
 
 ## 着手前スキャンで確定済みの実態——指示文の前提を3つ検証した
 
@@ -44,7 +45,7 @@ M24 の教訓（「false なら設計をやり直す」と書ける前提は着�
 
 ### 描画（グレーのチップ、帯の隣）
 
-`IssueTreeEditor` の帯で、既存の `<MissingTally>` の**隣**に `badgeClass('deferred')`（`border-rule bg-surface-muted text-ink-muted`——rev 9章の見送りの描き方そのもの）のボタンを置く。0件なら描かない（「押しても行き先が無いボタンを置かない」——`MissingTally` と同じ理由）。
+`IssueTreeEditor` の帯で、既存の `<MissingTally>` の**隣**に `badgeClass('deferred')`（`border-rule bg-surface-muted text-ink-muted`——rev 9章の見送りの描き方そのもの）のボタンを置く。文字の前に `StickyNoteOff` のアイコンを添える（決定8）。0件なら描かない（「押しても行き先が無いボタンを置かない」——`MissingTally` と同じ理由）。
 
 **`MissingTally` 部品そのものは触らない。** 部品の `parts` は「`total` の内訳」という契約であり、見送りは `total` の**外**にある別枠なので、`parts` に混ぜると「合計と内訳が合わない帯」になる。D17 の求める「別枠」は視覚的にも構造的にも帯の外に置くのが正しい。
 
@@ -148,6 +149,18 @@ DOM テストで押さえる: 閉じたまま ↑↓ で値が変わり `updateT
 - **`overview-rev.md`**: 9章は色の規約なので、**角丸（形）の規約をどこに置くかは計画時に9章の実物を読んで確定する**（9章に「形」の項を足すか、別章か）。見送りの別枠集計は「見送りは専用トークンを持たない」の項の隣に1文で足す
 - **`docs/missing-semantics.md`**: 規約として2項——「見送り配下の問いは要対応に数えない。見送りの存在は別枠（`見送り N`）で集計する」（D17）／「見送り配下は祖先から導出し、フィールドを持たない」（D18）
 
+## 決定8: 帯の `⚠` をアイコンへ——ただし端末に出る文字列は絵文字のまま
+
+**帯（`MissingTally` 部品）の `⚠` を lucide の `CircleAlert` に置き換える。** 部品は全5モジュール共通なので、一度の変更で全部の帯が揃う。**`tallyLine`（`core/missing-tally.ts` / `issue-tree/derive.ts`）の `⚠` は変えない**——これは Skill が端末に出す文字列で、SVG アイコンは出せない。端末では `⚠` がそのまま有効に働く。
+
+- **アイコンの色は役割トークンで明示する。** `⚠` 絵文字は OS のカラー絵文字で描かれ、**色が rev 9章「色を持つのは意味だけ」の管理の外にあった**——アイコン化はこの穴も塞ぐ。警告は欠落軸の合図なので **`text-missing`** を当てる（総数の文字は現状どおり `text-ink-muted` のまま。色を持つのはアイコンだけ）。実機で「うるさい」と出たら `ink-muted` へ落とす判断は残す
+- **大きさは帯の文字（`text-base` 16px）に揃える。** lucide の既定 24px をそのまま置かない
+- **0件のときはアイコンも出さない**（現状 `⚠` を付けない流儀と同じ）
+- **見送りチップ（決定1）には `StickyNoteOff` を添える**——「付箋を外す＝棚上げ」のメタファ。大きさはチップの文字（`text-sm` 14px）に揃える。lucide には `Archive`（D17 の「倉庫にしまう」のメタファ）もあり、実機で StickyNoteOff が読み取れなければ差し替える。どちらも実在は `node_modules/lucide-react` で確認済み
+- **「帯と `tallyLine` の `⚠` を同じ字面で縛る」テスト（issue-tree-m3 の fix wave）は意図的に分岐させる。** 縛りたかったのは「アプリと Skill が同じ言葉を出す」ことで、語（`要対応` ほか `QUESTION_LABELS`）の一致は `toMissingTally` 経由で保たれ続ける——`⚠` だけが「画面はアイコン・端末は絵文字」に分かれる。この分岐を新しい形で縛り直す（帯側は `CircleAlert` の存在を、行側は `⚠` を、それぞれ検査する）
+
+`⚠` の全出現は着手前スキャンで再確認するが、本書の時点の実測では**実体3箇所**（`src/components/MissingTally.tsx:28`・`src/core/missing-tally.ts:33`・`src/modules/issue-tree/derive.ts:221`）と**それを見るテスト**（`MissingTally.dom.test.tsx`・`core/missing-tally.test.ts`・`issue-tree/derive.test.ts`・`issue-tree/IssueTreeEditor.dom.test.tsx:616` 付近・`sequence/skill-write.smoke.test.ts`）である。**変えるのは `MissingTally.tsx` とその帯側テストだけ**で、`tallyLine` 系のテストは据え置く。
+
 ## スコープ外
 
 - **E（フォント同梱。U1 未決）**——引き続き E 待ち
@@ -172,3 +185,5 @@ DOM テストで押さえる: 閉じたまま ↑↓ で値が変わり `updateT
 7. select 置換後も **Tab・Alt+↑↓ のセル移動が変わらない**（操作言語の据え置き）
 8. ダイアログ・メニュー・ボタンの**角丸が2段に揃って見える**。とくにダイアログ（12px→6px）とボタン（8px→4px）が硬く見えすぎないか
 9. ライト・ダークの両方で `見送り N` チップの文字が読める（`ink-muted` on `surface-muted`）
+10. **帯の警告が絵文字でなくアイコン**（`CircleAlert`）で出ており、`text-missing` の色が5モジュールすべての帯でうるさく見えないか（うるさければ `ink-muted` へ落とす）
+11. **見送りチップの `StickyNoteOff` が 14px の文字と揃って見え、何のアイコンか読み取れるか**（読み取れなければ `Archive` へ差し替える）
