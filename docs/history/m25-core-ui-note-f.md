@@ -6,7 +6,7 @@ M25 は「**UI ノート（[`../facet-UI設計ノート.md`](../facet-UI設計�
 
 設計スペックは [`../superpowers/plans/2026-08-25-m25-ui-note-f-design.md`](../superpowers/plans/2026-08-25-m25-ui-note-f-design.md)（`a2dc99c`。このブランチ最初のコミット。決定8 の追記・角丸の実効値訂正を含む最終形は `7abb38a`・`ac89b01`）、実装計画は [`../superpowers/plans/2026-08-25-m25-ui-note-f.md`](../superpowers/plans/2026-08-25-m25-ui-note-f.md)（`1e4936e`）。**設計スペックの「着手前スキャン」節が、指示文自身が「未検証」と名指ししていた3点（D17 の集計前半・D18・U4）を実装から確定させており、以後の決定はその確定の上に立つ。**
 
-コミット範囲: `a2dc99c`（スペック）〜本コミット。実装は7コミット——`1d77dd3`（Task 2。見送りの別枠集計 `deferredIssueCount` / `deferralLine`。同梱 Skill の `derive.ts` コピー・`issue-tree-write.mjs`・`SKILL.md` も同時に反映）・`4c489e4`（Task 3。巡回 `listDeferredTargets` / `nextDeferredTarget`）・`ad0d6ed`（Task 4。帯の `⚠` 絵文字を `CircleAlert` アイコンへ）・`cd3f895`（Task 5。帯に見送りの別枠チップ）・`c9e7e8d`（Task 6。`CellSelect` 部品）＋`e8e39b8`（Task 6 の最終レビュー fix。境界テストの補強）・`b56e4e2`（Task 7。用語集・エラーカタログの2セルを `CellSelect` へ配線）・`e8deaee`（Task 8。角丸を2段＋円に統一）。**Task 1（着手前スキャン）はコミットを産んでいない。**
+コミット範囲: `a2dc99c`（スペック）〜本コミット。実装は8コミット——`1d77dd3`（Task 2。見送りの別枠集計 `deferredIssueCount` / `deferralLine`。同梱 Skill の `derive.ts` コピー・`issue-tree-write.mjs`・`SKILL.md` も同時に反映）・`4c489e4`（Task 3。巡回 `listDeferredTargets` / `nextDeferredTarget`）・`ad0d6ed`（Task 4。帯の `⚠` 絵文字を `CircleAlert` アイコンへ）・`cd3f895`（Task 5。帯に見送りの別枠チップ）・`c9e7e8d`（Task 6。`CellSelect` 部品）＋`e8e39b8`（Task 6 の最終レビュー fix。境界テストの補強）・`b56e4e2`（Task 7。用語集・エラーカタログの2セルを `CellSelect` へ配線）・`e8deaee`（Task 8。角丸を2段＋円に統一）。**Task 1（着手前スキャン）はコミットを産んでいない。**
 
 テストは **1777 → 1792 件**（全件緑）。`npx vitest run` を実行し確認済み。
 
