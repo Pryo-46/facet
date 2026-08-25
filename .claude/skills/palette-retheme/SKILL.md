@@ -1,11 +1,11 @@
 ---
 name: palette-retheme
-description: facet 自身の配色（src/styles/palette.css）を、渡されたテーマに差し替える。「配色を変えて」「テーマを差し替えて」「この theme.css を入れて」「palette.css を書き換えて」「もっと暗い配色にして」と言われたときに使う。外部テーマの31変数のうち facet が使うのは7つだけで、対応物がない役割（missing / pending / judge-yes / judge-yes-fg / judge-no / judge-no-fg / grid / ink-faint / missing-face / invalid-face / pending-face）は候補を出してユーザーに選ばせる。コントラストの実測と明度の調整は同梱スクリプトが行うため、色を手で見繕わない。
+description: facet 自身の配色（src/styles/palette.css）を、渡されたテーマに差し替える。「配色を変えて」「テーマを差し替えて」「この theme.css を入れて」「palette.css を書き換えて」「もっと暗い配色にして」と言われたときに使う。外部テーマの31変数のうち facet が使うのは7つだけで、対応物がない役割（missing / pending / judge-yes / judge-yes-fg / judge-no / judge-no-fg / grid / rule-muted / ink-faint / missing-face / invalid-face / pending-face）は候補を出してユーザーに選ばせる。コントラストの実測と明度の調整は同梱スクリプトが行うため、色を手で見繕わない。
 ---
 
 # 配色差し替え
 
-外部テーマ（shadcn 系の `theme.css`、色のリスト）を受け取り、`src/styles/palette.css` の18トークン×2モードを埋めて、`npm test` が緑になる状態まで持っていく。
+外部テーマ（shadcn 系の `theme.css`、色のリスト）を受け取り、`src/styles/palette.css` の19トークン×2モードを埋めて、`npm test` が緑になる状態まで持っていく。
 
 **この Skill が触るのはアプリ自身のソースである。** 同じディレクトリにある `glossary-term-register` / `error-catalog-register` は**ユーザーのデータ**（プロジェクトフォルダの JSON）を作る Skill で、アプリは AI が触ったことを知らない。こちらは**アプリのリポジトリの中身**を書き換える。既存2本の形を期待して読むと、無いものを探すことになる:
 
@@ -199,7 +199,7 @@ node .claude/skills/palette-retheme/scripts/palette-fit.mjs --in <path>
     "judge-no": "oklch(0.35 0 0)",
     "judge-no-fg": "oklch(0.985 0 0)"
   },
-  "dark": { "...": "同じ18キー" }
+  "dark": { "...": "同じ19キー" }
 }
 ```
 
