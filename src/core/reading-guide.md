@@ -39,7 +39,7 @@ facet の核心は「決めていないことを消せなくする」ことで�
 
 ### シーケンス（type: sequence）
 
-- **異常系は矢印では描かれていない。** 各ステップの `failures`（「失敗したら？」の問い）が異常系の仕様である。`failed`＝失敗が確定したら／`unknown`＝結果が不明（タイムアウト等）だったら／`unknown.ifExecuted`＝不明だが実は実行済みだったら（冪等性）
+- **異常系は矢印では描かれていない。** 各ステップの `failures`（「失敗したら？」の問い）が異常系の仕様である。`failed`＝呼出が失敗したら／`unknown`＝結果がわからなかったら（タイムアウト等）／`unknown.ifExecuted`＝不明だが既に実行されていたら（冪等性）
 - どの問いが立つかは `kind` と `awaitsReply` から決まる: `self`→`failed` のみ／`call` で `awaitsReply: true`→`failed` と `unknown`／`call` で `awaitsReply: false`→`unknown` のみ／`reply`→問い無し（応答の失敗は、対になる呼出側の `unknown` が扱う）
 - `failures` にキーが無い問いは「未回答」（未決）。`decision: "notApplicable"` は「考慮不要と**決めた**」（確定）であり、未回答とは別物
 - 参加者の `name` が空文字、ステップの `label` が空文字は「未記入」（未決）。出力はどちらも（未定義）と書く

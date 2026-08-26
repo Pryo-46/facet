@@ -12,7 +12,7 @@ const KIND_LABEL: Record<SequenceStep['kind'], string> = {
 const PATH_LABEL: Record<AnswerPath, string> = {
   failed: '失敗確定',
   unknown: '結果不明',
-  ifExecuted: '実行済みだったら',
+  ifExecuted: '既に実行されていたら',
 }
 
 /** ステップを人が特定できる呼び名（#位置 ＋ 文言があれば文言） */

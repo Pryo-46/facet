@@ -23,7 +23,7 @@ export const UNRESOLVED_ACTOR_LABEL = '（未解決）'
 /**
  * 表の列見出し（design-notes 論点11 の列構成）。
  *
- * **`実行済みなら` は consistency.ts の PATH_LABEL の `実行済みだったら` と
+ * **`実行済みなら` は consistency.ts の PATH_LABEL の `既に実行されていたら` と
  * 意図的に違う。** 前者は表の列名（短くする）、後者は指摘文の中の呼び名。
  * 揃えないこと——揃えると列見出しが冗長になるか、指摘文が不自然になる
  */

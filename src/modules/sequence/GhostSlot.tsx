@@ -1,6 +1,8 @@
 export interface GhostSlotProps {
   /** 元の問いの汎用文言（下の GHOST_QUESTION_LABEL） */
   question: string
+  /** 問いの具体例。ラベルの `title` に出す（GutterSlot と同じ扱い） */
+  hint: string
   /** 答えの表示テキスト。notApplicable で text 無しは '考慮不要' を渡す（M22） */
   text: string
   'aria-label': string
@@ -27,6 +29,7 @@ export function GhostSlot(props: GhostSlotProps) {
       <div
         className="shrink-0 py-1 text-sm text-ink-muted line-through"
         style={{ width: props.labelWidth }}
+        title={props.hint === '' ? undefined : props.hint}
       >
         {props.question}
       </div>

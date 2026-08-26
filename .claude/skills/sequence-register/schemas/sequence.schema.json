@@ -102,7 +102,7 @@
       "type": "object",
       "properties": {
         "failed": {
-          "description": "『失敗が確定したら？』への答え。エラー応答・接続不能・送信不能など、失敗が確定的に観測されるケースすべてをこの1問が受ける。",
+          "description": "『呼出が失敗したら？』（内部処理なら『処理が失敗したら？』）への答え。エラー応答・接続不能・送信不能など、失敗が確定的に観測されるケースすべてをこの1問が受ける。",
           "$ref": "#/$defs/answerSlot"
         },
         "unknown": { "$ref": "#/$defs/unknownSlot" }
@@ -133,7 +133,7 @@
       ]
     },
     "unknownSlot": {
-      "description": "『結果が不明だったら？』への答え。下位の ifExecuted（『実行済みだったら？』＝冪等性の問い）を内包する。decision 無しで ifExecuted だけ持つ部分回答を許す。",
+      "description": "『結果がわからなかったら？』への答え。下位の ifExecuted（『既に実行されていたら？』＝冪等性の問い）を内包する。decision 無しで ifExecuted だけ持つ部分回答を許す。",
       "type": "object",
       "properties": {
         "decision": { "enum": ["handled", "notApplicable"] },

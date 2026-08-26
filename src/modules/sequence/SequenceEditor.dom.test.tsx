@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SequenceSchemaVersion1 } from '@/types/sequence'
 import { DIAGRAM_MARGIN, RAIL_WIDTH } from './layout'
+import { questionHints } from './questions'
 import { SequenceEditor } from './SequenceEditor'
 
 afterEach(cleanup)
@@ -241,7 +242,7 @@ describe('ステップ行', () => {
     // doc() のステップ2は reply で答えスロットが無い（0件）ので、
     // 答えスロットを持つステップ1のスロットで検査する
     const { onChange } = setup()
-    fireEvent.keyDown(screen.getByLabelText('ステップ1の答え: 失敗が確定したら？'), {
+    fireEvent.keyDown(screen.getByLabelText('ステップ1の答え: 呼出が失敗したら？'), {
       key: 'ArrowDown',
       altKey: true,
     })
@@ -357,11 +358,11 @@ describe('問いスロット（ガター）', () => {
     setup()
     // このリポジトリは jest-dom を入れていないので、存在の確認は getBy* が
     // 投げること＋toBeDefined で行う（logic-tree / 用語集の DOM テストと同じ作法）
-    expect(screen.getByLabelText('ステップ1の答え: 失敗が確定したら？')).toBeDefined()
-    expect(screen.getByLabelText('ステップ1の答え: 結果不明だったら？')).toBeDefined()
-    expect(screen.getByLabelText('ステップ1の答え: 実行済みだったら？')).toBeDefined()
+    expect(screen.getByLabelText('ステップ1の答え: 呼出が失敗したら？')).toBeDefined()
+    expect(screen.getByLabelText('ステップ1の答え: 結果がわからなかったら？')).toBeDefined()
+    expect(screen.getByLabelText('ステップ1の答え: 既に実行されていたら？')).toBeDefined()
     expect(screen.queryByLabelText(/ステップ2の答え/)).toBeNull()
-    expect(screen.getByLabelText('ステップ3の答え: 処理失敗したら？')).toBeDefined()
+    expect(screen.getByLabelText('ステップ3の答え: 処理が失敗したら？')).toBeDefined()
   })
 
   it('notApplicable は「考慮不要」の接頭ぶん実効幅が狭く、同じ理由文言でも handled よりスロットの高さが大きくなる（M22 レビュー: ANSWER_WRAP の追随漏れと wrap キャッシュの鍵衝突を捕まえる）', () => {
@@ -382,14 +383,14 @@ describe('問いスロット（ガター）', () => {
         (screen.getByLabelText(labelText).parentElement!.parentElement as HTMLElement).style
           .height,
       )
-    const handledHeight = slotHeight('ステップ1の答え: 失敗が確定したら？')
-    const notApplicableHeight = slotHeight('ステップ3の答え: 処理失敗したら？')
+    const handledHeight = slotHeight('ステップ1の答え: 呼出が失敗したら？')
+    const notApplicableHeight = slotHeight('ステップ3の答え: 処理が失敗したら？')
     expect(notApplicableHeight).toBeGreaterThan(handledHeight)
   })
 
   it('未回答のスロットに placeholder の語を出さない（面が「未回答」を示す。M22 決定1）', () => {
     setup()
-    const cell = screen.getByLabelText('ステップ1の答え: 失敗が確定したら？') as HTMLTextAreaElement
+    const cell = screen.getByLabelText('ステップ1の答え: 呼出が失敗したら？') as HTMLTextAreaElement
     expect(cell.getAttribute('placeholder')).toBeNull()
     expect(cell.className).toContain('bg-missing-face')
   })
@@ -406,21 +407,33 @@ describe('問いスロット（ガター）', () => {
       Number.parseFloat(
         (screen.getByLabelText(labelText).parentElement!.parentElement as HTMLElement).style.height,
       )
-    expect(slotHeight('ステップ1の答え: 失敗が確定したら？')).toBe(
-      slotHeight('ステップ3の答え: 処理失敗したら？'),
+    expect(slotHeight('ステップ1の答え: 呼出が失敗したら？')).toBe(
+      slotHeight('ステップ3の答え: 処理が失敗したら？'),
     )
+  })
+
+  it('問いラベルにツールチップ（title）が付き、種別で文面が変わる', () => {
+    setup()
+    // ラベル列は aria-label を持たないので、文言そのもので引く。
+    // getByText は要素を返すので、その title を見る（M28）
+    const titleOf = (question: string): string | null =>
+      screen.getByText(question).getAttribute('title')
+    expect(titleOf('呼出が失敗したら？')).toBe(questionHints({ kind: 'call', awaitsReply: true }).failed)
+    expect(titleOf('処理が失敗したら？')).toBe(questionHints({ kind: 'self' }).failed)
+    // 同じ path でも種別が違えば別の場面を説明している
+    expect(titleOf('呼出が失敗したら？')).not.toBe(titleOf('処理が失敗したら？'))
   })
 
   it('reply の行には「問いは呼出側」の説明が出る（空白にしない）', () => {
     setup()
     expect(
-      screen.getByText('─ 応答が返らないケースは、呼び出した側の「結果不明だったら？」に書く'),
+      screen.getByText('─ 応答が返らないときは呼出側の「結果がわからなかったら？」に書く'),
     ).toBeDefined()
   })
 
   it('答えを打つと handled で書かれる', () => {
     const { onChange } = setup()
-    fireEvent.change(screen.getByLabelText('ステップ1の答え: 失敗が確定したら？'), {
+    fireEvent.change(screen.getByLabelText('ステップ1の答え: 呼出が失敗したら？'), {
       target: { value: 'エラー表示' },
     })
     expect(last(onChange).steps[0].failures?.failed).toEqual({
@@ -431,7 +444,7 @@ describe('問いスロット（ガター）', () => {
 
   it('Ctrl+Enter で考慮不要トグル', () => {
     const { onChange } = setup()
-    fireEvent.keyDown(screen.getByLabelText('ステップ1の答え: 失敗が確定したら？'), {
+    fireEvent.keyDown(screen.getByLabelText('ステップ1の答え: 呼出が失敗したら？'), {
       key: 'Enter',
       ctrlKey: true,
     })
@@ -472,14 +485,14 @@ describe('問いスロット（ガター）', () => {
     setup(d)
     const chip = screen.getByRole('button', { name: '次の未回答へ' })
     fireEvent.click(chip)
-    expect(document.activeElement).toBe(screen.getByLabelText('ステップ1の答え: 結果不明だったら？'))
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ1の答え: 結果がわからなかったら？'))
     fireEvent.click(chip)
-    expect(document.activeElement).toBe(screen.getByLabelText('ステップ1の答え: 実行済みだったら？'))
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ1の答え: 既に実行されていたら？'))
     fireEvent.click(chip)
-    expect(document.activeElement).toBe(screen.getByLabelText('ステップ3の答え: 処理失敗したら？'))
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ3の答え: 処理が失敗したら？'))
     // 一周して先頭へ戻る（回答済みの failed には止まらない）
     fireEvent.click(chip)
-    expect(document.activeElement).toBe(screen.getByLabelText('ステップ1の答え: 結果不明だったら？'))
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ1の答え: 結果がわからなかったら？'))
   })
 
   it('未記入のチップは空の参加者名 → 空のステップ文言の順に巡る', () => {
@@ -601,7 +614,7 @@ describe('レール（行の左端の編集セル列）', () => {
     // レールの最後のセル（種別）まで含めてレールの中で終わる
     expect(shape.right).toBeLessThanOrEqual(DIAGRAM_MARGIN + RAIL_WIDTH)
     // ガター: 問いラベル列の左端より手前で終わる（ここが崩れると重なる）
-    expect(shape.right).toBeLessThanOrEqual(gutterLeft('ステップ1の答え: 失敗が確定したら？'))
+    expect(shape.right).toBeLessThanOrEqual(gutterLeft('ステップ1の答え: 呼出が失敗したら？'))
     // 図: 先頭のライフラインより手前で終わる
     const life = container.querySelector<HTMLElement>('[data-layer="background"] .border-l')
     expect(shape.right).toBeLessThanOrEqual(Number.parseFloat(life!.style.left))
@@ -623,7 +636,7 @@ describe('レール（行の左端の編集セル列）', () => {
       ],
     })
     const shape = cellBox('ステップ1の形')
-    expect(shape.right).toBeLessThanOrEqual(gutterLeft('ステップ1の答え: 処理失敗したら？'))
+    expect(shape.right).toBeLessThanOrEqual(gutterLeft('ステップ1の答え: 処理が失敗したら？'))
   })
 
   it('DOM 順（＝Tab 順）はレールの視覚順: from → to → 種別 → ラベル → 答え', () => {
@@ -737,7 +750,7 @@ describe('立っていない答えのグレースロット', () => {
   it('立っていない答えがグレースロットとして描画される', () => {
     setup(ghostDoc())
     expect(screen.getByText('再試行する')).toBeDefined()
-    expect(screen.getByText('失敗が確定したら？')).toBeDefined() // 打ち消し線付きの問いラベル
+    expect(screen.getByText('呼出が失敗したら？')).toBeDefined() // 打ち消し線付きの問いラベル
   })
 
   it('✕ ボタンはスロットの縦中央に来る（実機所見: 上寄せになっていた）', () => {
@@ -798,7 +811,7 @@ describe('立っていない答えのグレースロット', () => {
     // STEP_SHAPE_ORDER は [call-sync, call-async, reply, self]。
     // 投げっぱなし（call-async）から ArrowUp 1回で call-sync に戻る
     fireEvent.keyDown(screen.getByLabelText('ステップ1の形'), { key: 'ArrowUp' })
-    const slot = screen.getByLabelText('ステップ1の答え: 失敗が確定したら？') as HTMLInputElement
+    const slot = screen.getByLabelText('ステップ1の答え: 呼出が失敗したら？') as HTMLInputElement
     expect(slot.value).toBe('再試行する')
     expect(screen.queryByLabelText(/この答えを削除/)).toBeNull()
   })

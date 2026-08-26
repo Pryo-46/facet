@@ -76,6 +76,7 @@ import {
 import { tallySequenceMissing } from './missing'
 import {
   poseQuestions,
+  questionHints,
   questionLabels,
   readSlot,
   unposedAnswers,
@@ -134,11 +135,10 @@ const QUESTION_ORDER: readonly AnswerPath[] = ['failed', 'unknown', 'ifExecuted'
  * 立っていた問いかは失われている）ので、call-sync（応答待ちの呼出）の
  * 文言を汎用として使う。GhostSlot は文字列を受け取るだけで意味を知らない
  */
-const GHOST_QUESTION_LABEL: Record<AnswerPath, string> = {
-  failed: '失敗が確定したら？',
-  unknown: '結果不明だったら？',
-  ifExecuted: '実行済みだったら？',
-}
+const GHOST_SHAPE = { kind: 'call', awaitsReply: true } as const
+const GHOST_QUESTION_LABEL: Record<AnswerPath, string> = questionLabels(GHOST_SHAPE)
+/** 同上のツールチップ。ラベルと同じ理由で call-sync のものを汎用に使う */
+const GHOST_QUESTION_HINT: Record<AnswerPath, string> = questionHints(GHOST_SHAPE)
 
 /** 答えセルの外形幅（内容幅＋左右の inset）。ガターの幅も layout がこれで導出する */
 const ANSWER_BOX_WIDTH = ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2
@@ -148,7 +148,7 @@ const ANSWER_BOX_WIDTH = ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2
  *
  * **編集セルは矢印の脇に置かない。** 脇に置くと、図が細いとき（参加者1人など）に
  * ガターの問いラベル列と横方向で衝突する（実機確認の第一報。「呼出」チップが
- * 「結果不明だったら？」に重なった）。行の左端に固定幅の列を切り、
+ * 「結果がわからなかったら？」に重なった）。行の左端に固定幅の列を切り、
  * 横の帯域を [レール][図][ガター] に分けることで衝突を構造ごと無くす。
  *
  * x は行に依らず固定なので、モジュールの定数として1回だけ積む。
@@ -394,6 +394,7 @@ export function SequenceEditor({
     const shape = stepShapeOf(step)
     const posed = poseQuestions(step)
     const labels = questionLabels(step)
+    const hints = questionHints(step)
     const label = wrap(shape === 'self' ? 'self' : 'label', step.label, shape === 'self' ? SELF_WRAP : LABEL_WRAP)
     const answers = QUESTION_ORDER.filter((path) => posed[path]).map((path) => {
       const slot = readSlot(step, path)
@@ -415,6 +416,7 @@ export function SequenceEditor({
       return {
         path,
         question: labels[path],
+        hint: hints[path],
         state,
         text,
         // **問いラベルの方が高いことがある。** 高い方を採らないと行から食み出す
@@ -1106,7 +1108,7 @@ export function SequenceEditor({
                   style={{ left: layout.gutterX, top: row.top + GUTTER_HEADING_HEIGHT, width: layout.gutterWidth }}
                 >
                   {view.shape === 'reply'
-                    ? '─ 応答が返らないケースは、呼び出した側の「結果不明だったら？」に書く'
+                    ? '─ 応答が返らないときは呼出側の「結果がわからなかったら？」に書く'
                     : '─ 問いは立たない'}
                 </div>
               ) : (
@@ -1114,6 +1116,7 @@ export function SequenceEditor({
                   <GutterSlot
                     key={`${key}:${answer.path}`}
                     question={answer.question}
+                    hint={answer.hint}
                     indent={answer.path === 'ifExecuted'}
                     state={answer.state}
                     text={answer.text}
@@ -1141,6 +1144,7 @@ export function SequenceEditor({
                 <GhostSlot
                   key={`${key}:ghost:${ghost.path}`}
                   question={GHOST_QUESTION_LABEL[ghost.path]}
+                  hint={GHOST_QUESTION_HINT[ghost.path]}
                   text={ghost.text}
                   aria-label={`ステップ${index + 1}の立っていない答え「${GHOST_QUESTION_LABEL[ghost.path]}」: この答えを削除`}
                   x={layout.gutterX}

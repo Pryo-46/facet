@@ -134,7 +134,7 @@ const actors = normalized.actors ?? [];
 const steps = normalized.steps ?? [];
 
 const KIND_LABEL = { call: "呼出", reply: "応答", self: "内部処理" };
-const PATH_LABEL = { failed: "失敗確定", unknown: "結果不明", ifExecuted: "実行済みだったら" };
+const PATH_LABEL = { failed: "失敗確定", unknown: "結果不明", ifExecuted: "既に実行されていたら" };
 
 /** ステップを人が特定できる呼び名（アプリの stepName と同じ形） */
 const stepName = (step, index) =>

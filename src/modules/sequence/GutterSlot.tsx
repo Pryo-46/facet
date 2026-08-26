@@ -10,6 +10,12 @@ export const GUTTER_INDENT = 16
 export interface GutterSlotProps {
   /** 問いの文言（questionLabels の値）。ラベル列に出す */
   question: string
+  /**
+   * 問いの具体例（questionHints の値）。ラベルの `title` に出す。
+   * **ラベル本体は抽象のまま保つ**——問いは知識状態に立てるので、原因の例示は
+   * ここだけで行う（questions.ts の questionHints の注記）。空文字なら出さない
+   */
+  hint: string
   /** ifExecuted はインデントして下位問いであることを見せる */
   indent: boolean
   state: SlotState
@@ -52,6 +58,10 @@ export function GutterSlot(props: GutterSlotProps) {
       <div
         className="shrink-0 py-1 text-sm text-ink-muted"
         style={{ width: props.labelWidth - indentPad }}
+        // ブラウザ既定のツールチップを使う。Radix の Tooltip にしないのは、
+        // ラベル列がキャンバスの transform 層にあり portal の座標合わせが要るのに対し、
+        // これは「初めての人が一度確認する」用途で、確実に出ることが見た目に優先するため
+        title={props.hint === '' ? undefined : props.hint}
       >
         {gutterLabelText(props.question, props.indent)}
       </div>

@@ -186,9 +186,9 @@ node scripts/sequence-write.mjs --in <下書き.json> --out <プロジェクト>
 
    | ステップ | 立つ問い |
    | --- | --- |
-   | `self` | 処理失敗したら？ |
-   | `call` + `awaitsReply: true` | 失敗が確定したら？ ／ 結果不明だったら？ ／ 実行済みだったら？ |
-   | `call` + `awaitsReply: false` | 届かなくてよいか？ |
+   | `self` | 処理が失敗したら？ |
+   | `call` + `awaitsReply: true` | 呼出が失敗したら？ ／ 結果がわからなかったら？ ／ 既に実行されていたら？ |
+   | `call` + `awaitsReply: false` | 応答が届かなくてもよいか？ |
    | `reply` | （立たない。応答の失敗は対の呼出側の「結果不明」が扱う） |
 
 2. **まとめて聞く。** ステップ順ではなく「同じ答えになりそうなもの」で束ねる
