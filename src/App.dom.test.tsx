@@ -633,7 +633,7 @@ describe('額縁の帯', () => {
  */
 describe('指摘バナーと額縁の配線（M14）', () => {
   const GLOSSARY_PATH = '/proj/用語集.json'
-  const DUP_MESSAGE = '名称が重複しています: 「受注」 と 「受注」'
+  const DUP_MESSAGE = '名称「受注」が2件重複しています（#1 ／ #2）'
   const term = (id: string, name: string) => ({
     id,
     name,

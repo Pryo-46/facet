@@ -1,7 +1,9 @@
-import { Plus } from 'lucide-react'
+import { Plus, StickyNoteOff } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { KeyHints } from '@/components/KeyHints'
+import { MissingTally } from '@/components/MissingTally'
+import { badgeClass } from '@/components/badge-styles'
 import { buttonBase } from '@/components/button-styles'
 import {
   DropdownMenu,
@@ -18,6 +20,7 @@ import {
   type CanvasFont,
 } from '@/core/canvas/canvas-font'
 import { buildTree, siblingsOf } from '@/core/canvas/flat-tree'
+import { useFontGeneration } from '@/core/canvas/use-font-generation'
 import { useViewport } from '@/core/canvas/use-viewport'
 import { cssTransform, type Rect } from '@/core/canvas/viewport'
 import type { MeasureWidth } from '@/core/canvas/wrap'
@@ -31,8 +34,15 @@ import {
 import { currentPlatform } from '@/core/keyboard/platform'
 import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
-import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
-import { cellKey, hypothesisCellKey, issueCellKey, type HypothesisCell } from './cell-keys'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
+import { badgeVariantOf } from './badge-variant'
+import {
+  cellKey,
+  hypothesisCellKey,
+  issueCellKey,
+  issueDeferralCellKey,
+  type HypothesisCell,
+} from './cell-keys'
 import {
   addChildIssue,
   addHypothesis,
@@ -41,7 +51,6 @@ import {
   addPendingNoteAfter,
   addRootIssue,
   addSiblingIssueAfter,
-  appendDeferral,
   appendJudgement,
   deleteHypothesis,
   deleteIssueSubtree,
@@ -50,37 +59,53 @@ import {
   movePendingNote,
   promoteNote,
   removePendingNote,
+  setDeferralNote,
   setEventNote,
   setHypothesisText,
   setIssueText,
   setPendingNote,
   setRationale,
+  toggleDeferral,
   type EditResult,
   type FocusTarget,
 } from './commands'
 import {
+  DEFERRAL_NOTE,
+  deferralLine,
+  deferredIssueCount,
   EVENT_KIND_LABELS,
+  ISSUE_DEFERRED_LABEL,
   poseQuestions,
-  SUPPRESSED_NOTE,
   suppressedIssueIds,
-  tallyLine,
   tallyQuestions,
-  type DeferralKind,
+  toMissingTally,
   type JudgementKind,
 } from './derive'
-import { HypothesisCard } from './HypothesisCard'
+import { HypothesisRow } from './HypothesisRow'
 import { IssueBox } from './IssueBox'
 import { IssueTreeEdges } from './IssueTreeEdges'
-import { layoutIssueTree, type IssueTreeFonts } from './layout'
-import { BADGE_HEIGHT, ROW_GAP } from './measure'
+import {
+  DEFER_TRIGGER_LABEL,
+  JUDGEMENT_TRIGGER_LABELS,
+  layoutIssueTree,
+  type IssueTreeFonts,
+} from './layout'
+import { ACTION_HEIGHT_CLASS, TITLE_FONT_CLASS } from './measure'
+import {
+  listDeferredTargets,
+  listOpenTargets,
+  nextDeferredTarget,
+  nextOpenTarget,
+  type OpenKind,
+} from './open-targets'
 
 /** 測定結果のキャッシュ。会議1回分の打鍵で無限に増えないよう頭を押さえる */
 const MEASURE_CACHE_LIMIT = 2000
 
-/** カード・ノードの文言に当たるクラスのうち、フォントを決めている部分 */
-const BODY_FONT_CLASS = 'text-sm'
-/** 由来・メモ・イベントの根拠に当たるクラス */
-const SMALL_FONT_CLASS = 'text-xs'
+/** 仮説の文言・由来・根拠・FB に当たるクラスのうち、フォントを決めている部分 */
+const BODY_FONT_CLASS = 'text-sm leading-normal'
+/** 節の見出し・見送りの理由・バッジに当たるクラス */
+const SMALL_FONT_CLASS = 'text-sm'
 
 /** 木の操作ヒント。`$mod` / `$alt` は KeyHints が解決する */
 const ISSUE_TREE_HINTS: readonly KeyHint[] = [
@@ -94,20 +119,36 @@ const ISSUE_TREE_HINTS: readonly KeyHint[] = [
 /**
  * ドロップダウンに出す種別の並び。**文言は `EVENT_KIND_LABELS` から引く**
  *（打ち直すと、アプリの画面と Skill の報告が食い違う）。
- * 並びは意味の近いものを隣に置く——検証した2つ、検証せず決めた2つ、見送り2つ
+ * 並びは決着の強い順——支持・棄却（決めた）、保留（決められなかった）、
+ * 見送り（今回は決めない）。
+ *
+ * **並びの表を `Record<JudgementKind, number>` にしてあるのは、種別が増えたときに
+ * tsc をここで落とすためである。** 以前は `readonly JudgementKind[]` の手書きで、
+ * `onHold` をスキーマへ足しても配列は6件のまま何も言わずに通った——
+ * **スキーマが受け入れる判断を、アプリからは選べない**状態が静かに残る。
+ * `EVENT_KIND_LABELS` が `Record<JudgementKind, string>` だから落ちたのと同じ形にする
  */
-const JUDGEMENT_KINDS: readonly JudgementKind[] = [
-  'supported',
-  'rejected',
-  'supportedWithoutTest',
-  'rejectedWithoutTest',
-  'deferred',
-  'deferredToMainDev',
-]
-/** 課題ノードに付けられるのは見送り系2種だけ（スキーマの制約） */
-const DEFERRAL_KINDS: readonly DeferralKind[] = ['deferred', 'deferredToMainDev']
+const JUDGEMENT_MENU_ORDER: Record<JudgementKind, number> = {
+  supported: 1,
+  rejected: 2,
+  onHold: 3,
+  deferred: 4,
+}
+const JUDGEMENT_KINDS: readonly JudgementKind[] = (
+  Object.keys(JUDGEMENT_MENU_ORDER) as JudgementKind[]
+).sort((a, b) => JUDGEMENT_MENU_ORDER[a] - JUDGEMENT_MENU_ORDER[b])
 
 const PLATFORM = currentPlatform()
+
+/**
+ * 最後にフォーカスがあったセル。**行の鍵で持つ**（配列位置ではない）
+ *——構造操作や取り消しで位置は動くが鍵は動かない。
+ *
+ * 粒度は「課題の箱」か「仮説の行」までで、行の中のどの欄かは持たない
+ *（帯が要るのは行き先の起点だけで、`listOpenTargets` が出す行き先も
+ * この2種しかない）
+ */
+type LastCell = { cell: 'issue' | 'hypothesis'; key: string }
 
 /**
  * 幅の測定器（キャッシュ付き）。**キャッシュはフォントに紐づく**ので、
@@ -131,26 +172,67 @@ function cachedMeasurer(font: CanvasFont): { measure: MeasureWidth; lineHeight: 
   }
 }
 
-interface KindMenuProps<K extends JudgementKind> {
+/**
+ * ドロップダウンのトリガーと**見送りのトグル**に共通の土台。
+ * **`buttonBase` を敷かないのは角丸のため。**
+ * `buttonBase` は `rounded-sm` を持つが、見送り済みの課題ではトグル自身が
+ * 見送りバッジ（`rounded-sm`）を兼ねる——**角丸を2つ並べると勝つのは生成 CSS の
+ * 順序であってクラス名の順序**であり、`TRIGGER_FACE` を切り出した理由（M8）が
+ * 角丸について残ってしまう。**角丸は面が決める**ことにして口を1つにする。
+ * 失うのは `justify-center` と `disabled:*` だけで、このトリガーは無効化しない
+ */
+const TRIGGER_BASE =
+  'pointer-events-auto inline-flex items-center justify-center transition-colors outline-none focus:ring-2 focus:ring-inset focus:ring-ring'
+
+/**
+ * 小さなボタンの面。**呼び出し側が必ず渡す**（足すのではなく差し替える）
+ *——判断ドロップダウンと「＋ FB」が使う。見送りトグルは `DEFER_TRIGGER_FACE` を使う
+ *（見送り済みの課題ではトグル自身が見送りバッジを兼ねるため、幾何をバッジに揃えてある）。
+ * **幅を測っているのは `layout.ts` の `actionWidth`**（`ACTION_INSET_X` は
+ * ここの `px-1` ＋ 枠線 1px）なので、余白のクラスは対で直すこと
+ */
+const TRIGGER_FACE =
+  'rounded-sm border border-rule bg-surface px-1 text-sm text-ink-muted hover:bg-canvas'
+
+/**
+ * 見送りトグルの未見送り面。**バッジの箱と同じ幾何**（`src/components/badge-styles.ts`
+ * の base と対——`h-[20px]`・`px-1.5`・枠 1px・`rounded-sm`・`leading-none font-medium`。
+ * `BADGE_BOX_HEIGHT` を変えるときは片方だけ変えないこと。DOM テストが対を見る）。
+ * このトグルは押すと同じ要素が見送りバッジ（`badgeClass('deferred')`）になるので、
+ * 2つの面で箱の形が揃っていないと押した瞬間に跳ねる。色だけが「押せる面」
+ * （surface＋rule＋ink-muted、ホバーで canvas）で、幾何はバッジが決める。
+ * 幅も同じ理由で `layout.ts` の `slotW` が `badgeWidth(DEFER_TRIGGER_LABEL, …)`
+ * （`actionWidth` ではない）で測っている——片方だけ変えないこと（対で直す）
+ */
+const DEFER_TRIGGER_FACE =
+  'h-[20px] rounded-sm border border-rule bg-surface px-1.5 text-sm leading-none font-medium whitespace-nowrap text-ink-muted hover:bg-canvas'
+
+interface KindMenuProps {
   /** アクセシブル名（トリガーのボタン） */
   label: string
   /** ボタンに出す短い文言 */
   triggerText: string
-  kinds: readonly K[]
-  onPick: (kind: K) => void
+  /** トリガーの面。**足すのではなく差し替える** */
+  triggerClassName: string
+  kinds: readonly JudgementKind[]
+  onPick: (kind: JudgementKind) => void
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
 /**
- * 種別を1つ選ぶドロップダウン（見送り／判断）。**開閉は親が持つ制御コンポーネント**
+ * 判断の種別を1つ選ぶドロップダウン。**開閉は親が持つ制御コンポーネント**
  *——同時に1つしか開かないことを、開いているセルの鍵1つで構造的に保証する
  *（`SequenceEditor` の `openCell` / `menuPropsFor` と同じ形）。
  *
  * ネイティブの `select` にしないのは、ブラウザ既定のドロップダウンがキャンバスの
- * transform を無視して出るため（`StepShapeCell` と同じ理由）
+ * transform を無視して出るため（`StepShapeCell` と同じ理由）。
+ *
+ * **かつては課題の見送りも同じ部品で出していた**（`K extends JudgementKind` の
+ * 型引数はそのためにあった）。見送りが `deferred` の1語に畳まれてトグルに
+ * なったので、いま使うのは仮説の判断だけである
  */
-function KindMenu<K extends JudgementKind>(props: KindMenuProps<K>) {
+function KindMenu(props: KindMenuProps) {
   // 選んだときだけ Radix の「トリガーへフォーカスを戻す」を降ろす。
   // 追記した直後は根拠の欄へフォーカスを予約してあり、取り合うと打てなくなる
   const picked = useRef(false)
@@ -159,7 +241,7 @@ function KindMenu<K extends JudgementKind>(props: KindMenuProps<K>) {
       <DropdownMenuTrigger
         type="button"
         aria-label={props.label}
-        className={`${buttonBase} pointer-events-auto border border-rule bg-surface px-1 text-xs text-ink-muted outline-none hover:bg-canvas focus:ring-2 focus:ring-inset focus:ring-ring`}
+        className={`${TRIGGER_BASE} ${props.triggerClassName}`}
       >
         {props.triggerText}
       </DropdownMenuTrigger>
@@ -200,7 +282,7 @@ function KindMenu<K extends JudgementKind>(props: KindMenuProps<K>) {
  *
  * 土台は `src/modules/logic-tree/LogicTreeEditor.tsx`——フォントの世代管理・
  * 測定器のキャッシュ・`pendingFocus` の予約・3レイヤの transform は写しで、
- * **測定するフォントが2種類（`text-sm` / `text-xs`）に増えた**ぶんだけ広げてある。
+ * **測定するフォントが2種類（`BODY_FONT_CLASS` / `SMALL_FONT_CLASS`）に増えた**ぶんだけ広げてある。
  * ドロップダウンの制御は `src/modules/sequence/SequenceEditor.tsx` の
  * `openCell` / `menuPropsFor` の写し。
  */
@@ -209,15 +291,22 @@ export function IssueTreeEditor({
   onChange,
   issues,
   modalOpen,
-}: EditorProps<IssueTreeSchemaVersion1>) {
+}: EditorProps<IssueTreeSchemaVersion2>) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const titleProbeRef = useRef<HTMLSpanElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const smallProbeRef = useRef<HTMLSpanElement>(null)
+  // **課題のタイトルは太字**（`TITLE_FONT_CLASS`）で、同じ 14px でも細字より
+  // 広い。1本の測定器を使い回すと、タイトルが測定より早く折り返して字が切れる
+  const [titleFont, setTitleFont] = useState<CanvasFont>(FALLBACK_CANVAS_FONT)
   const [font, setFont] = useState<CanvasFont>(FALLBACK_CANVAS_FONT)
   const [smallFont, setSmallFont] = useState<CanvasFont>(FALLBACK_SMALL_FONT)
 
-  // 見送り／判断のドロップダウンは同時に1つだけ開く。**開いているセルの鍵を
+  // 判断のドロップダウンは同時に1つだけ開く。**開いているセルの鍵を
   // 1つだけ持つ**ことで構造的に複数オープンを禁止する（sequence M3 Task 11b）。
+  // **見送りはここに載らない**——1択のドロップダウンをやめてトグルにしたので、
+  // 開閉という状態そのものが無くなった。
+
   // **キャンバスのズーム・パンは止めない**——止めると「複数開いたまま1つ閉じると
   // キャンバスが復活する」に戻る。Radix の FocusScope（modal 既定）が
   // メニュー内にキーを閉じ込めるので、操作言語への漏れは起きない
@@ -235,17 +324,29 @@ export function IssueTreeEditor({
   // 構造操作の後、新しい DOM が出てからフォーカスを移すための予約
   const [pendingFocus, setPendingFocus] = useState<string | null>(null)
 
-  // 帯の「仮説を追加」がどの課題に足すか。最後にフォーカスがあった課題の鍵
-  //（配列位置ではなく鍵で持つ——構造操作で位置は動くが鍵は動かない）
-  const [lastIssueKey, setLastIssueKey] = useState<string | null>(null)
+  /**
+   * 最後にフォーカスがあったセル。**帯の2つの動線がここ1つから出る**
+   *——「仮説を追加」がどの課題に足すか（＝下の `lastIssueFocus`）と、
+   * チップが「次の要対応」をどこから数えるか（＝下の `lastFocus`）。
+   *
+   * **課題の鍵と行き先を別々に持たないこと。** 2つ持つと片方だけが古くなり、
+   * 帯の「仮説を追加」が、直前に触った課題とは別の課題へ足す——画面には
+   * 何も出ないので、気づくのは足した仮説が思わぬ場所に現れたときになる。
+   * 鍵で持つ理由は上の `LastCell` の解説
+   */
+  const [lastCell, setLastCell] = useState<LastCell | null>(null)
 
-  // Web フォントの読み込みで canvas の measureText の結果は変わるが、
-  // getComputedStyle が返す値は変わらない（宣言されたファミリ列を返すだけで、
-  // どのフェイスに解決されたかは映らない）。だからフォントの同一性では
-  // 判定できず、読み込み完了を世代として数えて測り直す
-  const [fontGeneration, setFontGeneration] = useState(0)
+  // 詳細（由来・根拠・FB・以前の判断）を出している仮説の行鍵。**同時に1本だけ。**
+  // **これはビュー状態であり、データには書かない**——座標と同じく、
+  // 「いまどれを開いていたか」をファイルへ持ち込まない（rev 3章）。
+  // 配列位置ではなく鍵で持つのも `lastCell` と同じ理由
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
 
   const readFont = (): void => {
+    setTitleFont((prev) => {
+      const next = readCanvasFont(titleProbeRef.current)
+      return sameFont(prev, next) ? prev : next
+    })
     setFont((prev) => {
       const next = readCanvasFont(probeRef.current)
       return sameFont(prev, next) ? prev : next
@@ -258,37 +359,35 @@ export function IssueTreeEditor({
 
   useLayoutEffect(readFont, [])
 
-  // **Web フォントの読み込み前に測るとフォールバック書体の幅になる。**
-  // Geist は日本語グリフを持たず和文はフォールバックに落ちるが、
-  // 欧文の幅は読み込みの前後で変わる。読み込み完了で測り直す
+  // 読み込みの世代。進んだら実効フォントも読み直す。
+  // **最初の1フレームはフォールバック書体のメトリクスで測っている**し、
+  // 同梱フォントは unicode-range 分割なので、珍しい字のスライスは
+  // 初入力のとき後から届く（M26）——どちらも世代が進んだ時点で測り直す
+  const fontGeneration = useFontGeneration()
   useEffect(() => {
-    if (typeof document === 'undefined' || !('fonts' in document)) return
-    let alive = true
-    void document.fonts.ready.then(() => {
-      if (!alive) return
-      readFont()
-      setFontGeneration((n) => n + 1)
-    })
-    return () => {
-      alive = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFont は毎レンダー再生成される安定した処理。購読はマウント時の1回でよい
-  }, [])
+    readFont()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFont は毎レンダー再生成される安定した処理。世代が進んだときだけ走らせる
+  }, [fontGeneration])
 
   // 測定器はフォントが変わったときだけ作り直す。
   //
   // 鍵に lineHeight と世代を混ぜる。**`font.font` の文字列には行間が入っていない**
   // のに折り返しの高さは lineHeight に依存するので、書体が同じまま行間だけ
-  // 変わるとキャッシュが古い高さを返し続ける。世代は上の document.fonts.ready が
-  // 進めるカウンタで、「読み込み後に測り直す」を成立させるのはこちらである。
+  // 変わるとキャッシュが古い高さを返し続ける。世代は useFontGeneration
+  // （ready＋loadingdone）が進めるカウンタで、「読み込み後に測り直す」を
+  // 成立させるのはこちらである。
   // **2種類のフォントを1つの入れ物に持つ**——鍵は文字列だけで、どちらの
   // フォントで測ったかを持っていないので、混ぜると片方が他方の幅を返す
-  const measurerKey = `${font.font}|${font.lineHeight}|${smallFont.font}|${smallFont.lineHeight}|${fontGeneration}`
+  const measurerKey = `${titleFont.font}|${titleFont.lineHeight}|${font.font}|${font.lineHeight}|${smallFont.font}|${smallFont.lineHeight}|${fontGeneration}`
   const measurerRef = useRef<{ key: string; fonts: IssueTreeFonts } | null>(null)
   if (measurerRef.current === null || measurerRef.current.key !== measurerKey) {
     measurerRef.current = {
       key: measurerKey,
-      fonts: { body: cachedMeasurer(font), small: cachedMeasurer(smallFont) },
+      fonts: {
+        title: cachedMeasurer(titleFont),
+        body: cachedMeasurer(font),
+        small: cachedMeasurer(smallFont),
+      },
     }
   }
   const fonts = measurerRef.current.fonts
@@ -296,26 +395,78 @@ export function IssueTreeEditor({
   const issueKeys = computeRowKeys(data.issues)
   const hypothesisKeys = computeRowKeys(data.hypotheses)
   const posed = poseQuestions(data)
-  const layout = layoutIssueTree(data, posed, fonts)
+  const tally = tallyQuestions(posed)
+  /**
+   * `lastCell` を**いまのデータでの行き先**に直す。鍵が消えていれば null
+   *（＝チップは列の先頭から、「仮説を追加」は末尾の課題へ）
+   */
+  const lastFocus = ((): FocusTarget | null => {
+    if (lastCell === null) return null
+    if (lastCell.cell === 'issue') {
+      const at = issueKeys.indexOf(lastCell.key)
+      return at < 0 ? null : { cell: 'issue', index: at }
+    }
+    const at = hypothesisKeys.indexOf(lastCell.key)
+    return at < 0 ? null : { cell: 'hypothesis', index: at }
+  })()
+  const expandedIndex = expandedKey === null ? -1 : hypothesisKeys.indexOf(expandedKey)
+  const layout = layoutIssueTree(data, posed, fonts, expandedIndex)
+  /** 課題 ID → ぶら下がる仮説の添字（配列順）。行は箱の中に描く */
+  const rowsOf = new Map<string, number[]>()
+  data.hypotheses.forEach((h, i) => {
+    rowsOf.set(h.issueId, [...(rowsOf.get(h.issueId) ?? []), i])
+  })
   const built = buildTree(data.issues)
   const suppressedIds = suppressedIssueIds(data.issues)
+  /** 自分自身の見送りを含む抑制（`derive.ts` の導出そのまま）。**箱の中の仮説行はこちら** */
   const issueSuppressed = data.issues.map((node) => suppressedIds.has(node.id))
+  /**
+   * **祖先のいずれかが見送っている課題**（自分が見送っているかは問わない）。
+   * 箱の面とエッジはこちら。
+   *
+   * 俯瞰モックの規則は「**見送りを掲げている当の課題は通常どおり描く。薄くなるのは
+   * 配下だけ**」である（`俯瞰.html` の見送り箱は `class="issue"` で `faint` を持たず、
+   * 入る線も実線。`faint` と破線はその配下から始まる）。見送りは**そこで下した判断の
+   * 表明**であって「もう見なくてよい枝」ではない——薄くすると、誰が何を落としたのかが
+   * 図から読めなくなる。
+   *
+   * **「自分が見送っていない」（`node.events.length === 0`）で代用してはならない。**
+   * それは「祖先由来」ではない。見送りが入れ子になったとき——A（通常）→ B（見送り）
+   * → C（見送り）→ D——C は B の配下なのに「自分も見送っている」というだけで通常の面に
+   * 戻り、**薄い D の上に濃い C が挟まる**（B→C の線も実線になる）。実際に一度そう書いて
+   * 退行させた。
+   *
+   * `suppressedIssueIds` は既に「自分または祖先が見送り」を畳んでいるので、
+   * **親がその集合に居るか**を見れば「祖先のいずれかが見送り」になる。親が図に
+   * 実在しない課題（参照切れ）は抑制されない——`suppressedIssueIds` が親を辿れずに
+   * 打ち切るのと同じ扱いで、赤表示は整合性検証が別に出す。
+   *
+   * **`suppressedIssueIds` と `poseQuestions` は触らない。** あちらの自己包含は
+   * 「見送った課題自身に『仮説なし』を立てない」ために必要で、集計もそれに乗っている
+   */
+  const inheritedSuppressed = data.issues.map(
+    (node) => node.parentId !== null && suppressedIds.has(node.parentId),
+  )
 
   /** フォーカス移動のときに「見えるところまで寄せる」ための矩形。data-cell 鍵で引く */
   const rects = new Map<string, Rect>()
   layout.issues.forEach((placement, index) => {
-    if (placement !== null) rects.set(issueCellKey(issueKeys[index]), placement.rect)
+    if (placement === null) return
+    // 見送りの理由も箱ごと見せる（理由だけ見えても、どの課題の話か分からない）
+    rects.set(issueCellKey(issueKeys[index]), placement.rect)
+    rects.set(issueDeferralCellKey(issueKeys[index]), placement.rect)
   })
   layout.hypotheses.forEach((placement, index) => {
     if (placement === null) return
     const key = hypothesisKeys[index]
-    // カードの中の欄はどれもカード全体を見せる（由来だけ見えても文脈が無い）
+    const h = data.hypotheses[index]
+    // 行の中の欄はどれも行全体（＝展開パネルを含む矩形）を見せる
     rects.set(hypothesisCellKey(key, { cell: 'hypothesis' }), placement.rect)
     rects.set(hypothesisCellKey(key, { cell: 'rationale' }), placement.rect)
-    placement.notes.forEach((_r, noteIndex) => {
+    h.pendingNotes.forEach((_n, noteIndex) => {
       rects.set(hypothesisCellKey(key, { cell: 'note', noteIndex }), placement.rect)
     })
-    placement.events.forEach((_r, eventIndex) => {
+    h.events.forEach((_e, eventIndex) => {
       rects.set(hypothesisCellKey(key, { cell: 'event', eventIndex }), placement.rect)
     })
   })
@@ -347,6 +498,28 @@ export function IssueTreeEditor({
   }
 
   /**
+   * 行き先の欄へ視点を移す。**データは変えない**——`apply` の後半そのもので、
+   * 帯のチップ（「次の要対応へ」）はこちらだけを使う。
+   *
+   * `source` は行き先の添字を読むデータ。**`apply` は差し替えた後のものを渡す**
+   *——構造が変わった後の配列で鍵を作らないと、予約が別の行に当たる
+   */
+  const goTo = (focus: FocusTarget, source: IssueTreeSchemaVersion2 = data): void => {
+    const nextIssueKeys = computeRowKeys(source.issues)
+    const nextHypothesisKeys = computeRowKeys(source.hypotheses)
+    // **行き先が仮説の欄なら、先にその仮説を展開する。** 畳まれた行に
+    // 由来・根拠・FB の欄は無いので、展開しないまま予約しても当たらない
+    //（同じ更新の中でよい——予約を当てる effect は描画後に querySelector する）。
+    // 仮説の文言そのものは、畳まれた行の `<button>` と展開後の `<textarea>` が
+    // 同じ `data-cell` を名乗るのでどちらでも当たる
+    if (focus.cell !== 'issue' && focus.cell !== 'deferral') {
+      setExpandedKey(nextHypothesisKeys[focus.index] ?? null)
+    }
+    // 画面の外なら寄せるのは、予約を当てる effect の仕事（`ensureVisible`）
+    setPendingFocus(cellKey(focus, nextIssueKeys, nextHypothesisKeys))
+  }
+
+  /**
    * 編集結果を額縁へ渡し、次に編集させたい欄へフォーカスを予約する。
    * `fallback` は結果が行き先を持たなかったときの代わり（`deleteHypothesis` が使う）
    */
@@ -357,11 +530,23 @@ export function IssueTreeEditor({
     // 構造操作は mergeKey に null を渡す（1操作1コミット。rev 10章）
     onChange(result.data, null)
     const focus = result.focus ?? fallback
-    setPendingFocus(
-      focus === null
-        ? null
-        : cellKey(focus, computeRowKeys(result.data.issues), computeRowKeys(result.data.hypotheses)),
-    )
+    if (focus === null) {
+      setPendingFocus(null)
+      return
+    }
+    goTo(focus, result.data)
+  }
+
+  /**
+   * 仮説の行を開き、文言の欄へフォーカスを予約する。
+   *
+   * **畳まれた行の `<button>` と展開後の `<textarea>` は同じ `data-cell` を
+   * 名乗る**ので、この予約は「開いた後の textarea」に当たる（`HypothesisRow`
+   * が両方を同時に描かないことで成立している継ぎ目）
+   */
+  const expandRow = (key: string): void => {
+    setExpandedKey(key)
+    setPendingFocus(hypothesisCellKey(key, { cell: 'hypothesis' }))
   }
 
   /** data-cell 鍵のセルへ移る。戻り値 true＝移った（＝キーを消費した） */
@@ -413,7 +598,6 @@ export function IssueTreeEditor({
 
   /** ドロップダウンの鍵。**`data-cell` と同じ文字列にしないこと**——フォーカスの
       予約は `data-cell` で引くので、衝突するとトリガーを掴んでしまう */
-  const deferralMenuKey = (issueKey: string): string => `menu:defer:${issueKey}`
   const judgementMenuKey = (hypothesisKey: string): string => `menu:judge:${hypothesisKey}`
 
   /** 編集の打ち切り。フォーカスを外すと CellInput が確定値に戻す */
@@ -468,8 +652,8 @@ export function IssueTreeEditor({
     }
   }
 
-  /** コマンドを仮説カードの構造へ写像する。戻り値 true＝消費した */
-  const runCardCommand = (cmd: Command, index: number, cell: HypothesisCell): boolean => {
+  /** コマンドを仮説の行の構造へ写像する。戻り値 true＝消費した */
+  const runRowCommand = (cmd: Command, index: number, cell: HypothesisCell): boolean => {
     switch (cmd) {
       case 'insert-item-after':
         if (cell.cell === 'hypothesis') {
@@ -484,7 +668,7 @@ export function IssueTreeEditor({
         }
         // メモの Enter は**押した位置の次**（コアのコマンド名どおり insert-item-after）。
         // 末尾に足すと、3件の1件目で押したときに生まれるのは4件目になり、
-        // フォーカスがカードの一番下へ飛ぶ
+        // フォーカスが展開パネルの一番下へ飛ぶ
         if (cell.cell === 'note') {
           apply(addPendingNoteAfter(data, index, cell.noteIndex))
           return true
@@ -568,8 +752,8 @@ export function IssueTreeEditor({
     if (runIssueCommand(cmd, index)) e.preventDefault()
   }
 
-  /** 仮説カードの中のセルのキー入力 */
-  const onCardKeyDown = (
+  /** 仮説の行（と展開パネル）の中のセルのキー入力 */
+  const onRowKeyDown = (
     e: React.KeyboardEvent,
     index: number,
     state: FieldState,
@@ -594,7 +778,7 @@ export function IssueTreeEditor({
     }
     const cmd = resolveCommand(toKeyEventLike(e), context)
     if (cmd === null) return
-    if (runCardCommand(cmd, index, cell)) e.preventDefault()
+    if (runRowCommand(cmd, index, cell)) e.preventDefault()
   }
 
   /** 帯の「課題を追加」。0件なら根を作り、あれば末尾の課題の隣（根の上では子）に足す */
@@ -606,10 +790,42 @@ export function IssueTreeEditor({
     )
   }
 
+  /**
+   * 最後に触っていた課題。**`lastCell` から導く**（別に持たない）——仮説の行に
+   * 居たなら、その仮説がぶら下がっている課題を指す
+   */
+  const lastIssueFocus = (): FocusTarget | null => {
+    if (lastFocus === null) return null
+    return lastFocus.cell === 'issue' ? lastFocus : ownerIssueFocus(lastFocus.index)
+  }
+
   /** 帯の「仮説を追加」。最後に触っていた課題（無ければ末尾の課題）に足す */
   const addHypothesisFromBanner = (): void => {
-    const at = lastIssueKey === null ? -1 : issueKeys.indexOf(lastIssueKey)
+    const at = lastIssueFocus()?.index ?? -1
     apply(addHypothesis(data, at < 0 ? data.issues.length - 1 : at))
+  }
+
+  /**
+   * 帯のチップ。押すと**その種類の次の要対応へ視点が飛ぶ**（末尾なら先頭へ）。
+   *
+   * キャンバスはアウトラインと違って上から順に舐められない——開いている問いは
+   * 平面に散らばっている。集計が数えるだけで終わると、数は読み上げにしかならない。
+   * **数える根と飛ぶ先の根は同じ**（`posed`）にしてあるので、帯が「未決 2」と
+   * 言いながら1件にしか飛べない、が起きない
+   */
+  const goToNextOpen = (kind: OpenKind): void => {
+    const next = nextOpenTarget(listOpenTargets(data, posed), kind, lastFocus)
+    // 0 件のチップは描かれていないので null は届かないはず。**それでも黙って返す**
+    //（参照切れの仮説だけが数に入っているファイルでは、列が空になりうる）
+    if (next !== null) goTo(next.focus)
+  }
+
+  const deferredCount = deferredIssueCount(data.issues)
+
+  /** 帯のグレーのチップ。押すと次の「見送りを掲げた課題」へ視点が飛ぶ（末尾なら先頭へ） */
+  const goToNextDeferred = (): void => {
+    const next = nextDeferredTarget(listDeferredTargets(data), lastFocus)
+    if (next !== null) goTo(next)
   }
 
   return (
@@ -622,9 +838,19 @@ export function IssueTreeEditor({
       {/* 測定用の見本。**描画されるセルと同じフォントのクラスを持たせる**ことで、
           測定と描画が同一の情報源を見る（rev 9章）。opacity-0 で見せないだけに
           するのは、display:none だと getComputedStyle がフォントを返さない環境が
-          あるため。見本が2本あるのは、課題ノード・仮説の文言（text-sm）と
-          由来・メモ・根拠（text-xs）でフォント階級が違うため——1本を両方に
-          使い回すと、片方の高さを見誤る */}
+          あるため。見本が2本あるのは、課題ノード・仮説の文言（`BODY_FONT_CLASS`
+          = text-sm + leading-normal）と節見出し・バッジ（`SMALL_FONT_CLASS` = text-sm）で
+          フォント階級が違うため——M26 でサイズは 14px に並んだが行間が違う（1.5 と 1.3）
+          ので、1本を両方に使い回すと片方の高さを見誤る。
+          **課題のタイトル（太字）も別に測る**——同じ 14px でも太字は幅が違い、
+          細字で測るとタイトルが切れる */}
+      <span
+        ref={titleProbeRef}
+        aria-hidden="true"
+        className={`${TITLE_FONT_CLASS} pointer-events-none absolute top-0 left-0 select-none opacity-0`}
+      >
+        あ
+      </span>
       <span
         ref={probeRef}
         aria-hidden="true"
@@ -652,7 +878,7 @@ export function IssueTreeEditor({
               （rev 10章）ので、マウスだけの人にも構造を増やす手段が要る */}
           <button
             type="button"
-            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
             onClick={addIssueFromBanner}
           >
             <Plus aria-hidden className="size-4" />
@@ -660,19 +886,47 @@ export function IssueTreeEditor({
           </button>
           <button
             type="button"
-            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
             disabled={data.issues.length === 0}
             onClick={addHypothesisFromBanner}
           >
             <Plus aria-hidden className="size-4" />
             仮説を追加
           </button>
-          {/* 未決の集計。**`whitespace-nowrap` を外さないこと**——折り返すと
-              帯の高さが変わり、下の図に重なる（SequenceEditor が同じ理由で付けている） */}
-          <div className="pointer-events-none whitespace-nowrap text-sm text-ink-muted">
-            {tallyLine(tallyQuestions(posed))}
-          </div>
-          <KeyHints hints={ISSUE_TREE_HINTS} className="ml-auto shrink-0 bg-surface/80 px-2 py-1" />
+          {/* 要対応の集計。**数えるだけでなく、そこへ飛べる。**
+              キャンバスでは開いている問いが平面に散らばるので、合計と内訳を
+              読み上げるだけでは「次に何をするか」に繋がらない——内訳を押せる
+              チップにして、押すたびにその種類の次の1件へ視点を移す。
+              **文言は `tallyLine` と同じ言葉**（`toMissingTally` が
+              `QUESTION_LABELS` から組み立てる）を出す。`tallyLine` 自体は
+              消していない（Skill の報告が使う）。
+              帯そのものは共通部品 `MissingTally`（M22）——合計・0件チップ非表示・
+              `whitespace-nowrap` は部品側が担う。**`as OpenKind` は
+              `toMissingTally` の kind が `OpenKind` の4語（'hypothesis' |
+              'result' | 'hold' | 'judgement'）と同じであることに依る** */}
+          <MissingTally
+            tally={toMissingTally(tally)}
+            onJump={(kind) => goToNextOpen(kind as OpenKind)}
+          />
+          {/* 見送りの別枠（UI ノート D17）。**要対応の外**——`MissingTally` の
+              parts は「total の内訳」という契約なので、そこへ混ぜると合計と
+              内訳が合わない帯になる。見送りを**掲げた課題の数**だけを出し
+              （配下の凍結中の問いは数えない。人間の裁定）、0件なら描かない。
+              面は rev 9章の見送りの描き方そのもの（badgeClass('deferred')＝
+              surface-muted の面・rule の枠・ink-muted の文字） */}
+          {deferredCount > 0 && (
+            <button
+              type="button"
+              className={`shrink-0 transition-colors ${badgeClass('deferred')}`}
+              aria-label="次の見送りへ"
+              title={DEFERRAL_NOTE}
+              onClick={goToNextDeferred}
+            >
+              <StickyNoteOff aria-hidden="true" className="mr-1 size-3.5 shrink-0" />
+              {deferralLine(deferredCount)}
+            </button>
+          )}
+          <KeyHints hints={ISSUE_TREE_HINTS} className="ml-auto shrink-0 bg-surface px-2 py-1" />
         </div>
       </div>
 
@@ -687,15 +941,16 @@ export function IssueTreeEditor({
       <IssueTreeEdges
         roots={built.roots}
         placements={layout.issues}
-        suppressed={issueSuppressed}
+        // 破線になるのは**配下へ入る線だけ**（見送り箱へ入る線は実線のまま）
+        suppressed={inheritedSuppressed}
         transform={transform}
       />
 
       {/* **レイヤ自体は操作を取らない。** ここは inset-0 の透明な面。
           pointer-events を切らないと、この面がキャンバス全体を覆う単一の
           ヒット領域になり、useViewport がコンテナに付けた背景パン／ズームの
-          ハンドラまで mousedown が届かなくなる。操作を受けるのは箱・カードの
-          矩形だけでよいので、部品の側で auto に戻す */}
+          ハンドラまで mousedown が届かなくなる。操作を受けるのは箱と
+          その中の行の矩形だけでよいので、部品の側で auto に戻す */}
       <div
         className="pointer-events-none absolute inset-0 origin-top-left"
         style={{ transform: cssTransform(transform) }}
@@ -707,131 +962,135 @@ export function IssueTreeEditor({
           //（存在は整合性検証の指摘として額縁に出ている）
           if (placement === null) return null
           const key = issueKeys[index]
+          // 箱の面と見送りバッジは**祖先由来の抑制だけ**で薄くする。
+          // 箱の中の仮説行は `issueSuppressed`（自分の見送りを含む）で薄くする
+          // ——「その課題はもう追わない」は配下の仮説にも及ぶ
+          const suppressed = inheritedSuppressed[index]
+          // 課題ノードのイベントは見送りだけで、**理由を書けるのは最新1件**
+          const deferral = node.events.length === 0 ? null : node.events[node.events.length - 1]
           return (
-            <div key={key} onFocusCapture={() => setLastIssueKey(key)}>
+            // **フォーカスの捕捉は外から内へ走る。** 仮説の行の中の欄に入ると、
+            // まずここが課題を、続いて行の側（下の包み）が仮説を記録する
+            // ——同じ更新の中で後に呼ばれた方が残るので、行に居るときは仮説になる
+            //（課題の箱そのものに居るときはここだけが走る）
+            <div key={key} onFocusCapture={() => setLastCell({ cell: 'issue', key })}>
               <IssueBox
                 nodeKey={issueCellKey(key)}
                 // **アクセシブル名の接頭辞であって、ノードの文言ではない。**
                 // 「課題{N}」で始まる約束をテストが前方一致で引く
                 label={`課題${index + 1}`}
                 text={node.text}
-                rect={placement.rect}
+                placement={placement}
                 invalid={invalidIssues.has(index)}
-                suppressed={issueSuppressed[index]}
+                suppressed={suppressed}
                 warn={posed.issueNeedsHypothesis[index]}
+                deferralNote={deferral === null ? null : deferral.note}
+                deferralCellKey={issueDeferralCellKey(key)}
                 onTextChange={(next) => onChange(setIssueText(data, index, next), `${key}:text`)}
-                onFieldKeyDown={(e, state) => onIssueKeyDown(e, index, state)}
-                deferralMenu={
-                  <KindMenu
-                    label={`課題${index + 1}を見送る`}
-                    triggerText="見送り"
-                    kinds={DEFERRAL_KINDS}
-                    onPick={(kind) => apply(appendDeferral(data, index, kind))}
-                    {...menuPropsFor(deferralMenuKey(key))}
-                  />
+                onDeferralNoteChange={(next) =>
+                  onChange(setDeferralNote(data, index, next), `${key}:deferral`)
                 }
-              />
-
-              {/* 見送りイベントの行。**レイアウトが縦の場所を空けているのはここ**
-                  ——描かないと、見送った課題は「箱の下に理由の分だけ空白が空いた
-                  ノード」になり、なぜ抑制されているのかが画面から消える。
-                  追記専用の記録なので読み取り専用で出す */}
-              {placement.deferrals.map((rect, eventIndex) => {
-                const event = node.events[eventIndex]
-                if (event === undefined) return null
-                return (
-                  <div
-                    key={`defer:${key}:${eventIndex}`}
-                    // **`overflow-hidden` を外さないこと。** 中身の高さは測定層が
-                    // 決めた値であり、ブラウザが測定より1行多く折り返したときに
-                    // ここが伸びると、レイアウトが予約したブロックを越えて
-                    // 下の仮説カードに重なる（HypothesisCard が各行の測定高さを
-                    // きっちり当てているのと同じ規律）
-                    className="absolute overflow-hidden text-xs text-ink-muted"
-                    style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
+                onFieldKeyDown={(e, state) => onIssueKeyDown(e, index, state)}
+                deferralToggle={
+                  <button
+                    type="button"
+                    // **アクセシブル名は状態で動かさない。** 前半（`課題{N}`）を
+                    // 動かさない約束はそのままに、後半は「何を入り切りするか」
+                    // ——見送り——に固定し、**入っているかどうかは `aria-pressed`
+                    // が運ぶ**。名前の方を「見送る」／「見送りをやめる」と
+                    // 入れ替えると、`aria-pressed` と二重に状態を述べることになり、
+                    // 支援技術では「見送りをやめる、押されている」と読まれて
+                    // どちらが現状か分からなくなる
+                    aria-label={`課題${index + 1}の見送り`}
+                    aria-pressed={deferral !== null}
+                    // 見送り済みなら、**このトグルが見送りバッジを兼ねる**
+                    //（同じ場所に2つ置かない）。まだなら、ホバーと
+                    // focus-within のときだけ出す小さなボタンにする。
+                    // **どちらの面もレイアウトが枠を空けている**——`layout.ts` の
+                    // `slotW` が、見送り済みならバッジ幅（`ISSUE_DEFERRED_LABEL`）、
+                    // まだならボタン幅（`DEFER_TRIGGER_LABEL`）で測る（幾何がバッジと
+                    // 同じになったので、いまはどちらの状態も `badgeWidth` の式で測っている）
+                    className={`${TRIGGER_BASE} ${
+                      deferral === null
+                        ? `${DEFER_TRIGGER_FACE} invisible group-hover/issue:visible group-focus-within/issue:visible`
+                        : badgeClass(badgeVariantOf('deferred', suppressed))
+                    }`}
+                    onClick={() => apply(toggleDeferral(data, index))}
                   >
-                    {/* **`BADGE_HEIGHT` ちょうどで描く。** レイアウトはこの高さで
-                        場所を空けており、縦の余白を足すと下の行がはみ出す */}
+                    {deferral === null ? DEFER_TRIGGER_LABEL : ISSUE_DEFERRED_LABEL}
+                  </button>
+                }
+              >
+                {/* 仮説は**この箱の中の行**。ぶら下がり先の課題が図に無い仮説は
+                    どの箱の子にもならないので、そのまま描かれない
+                    （参照切れは整合性検証が赤くする） */}
+                {(rowsOf.get(node.id) ?? []).map((hi) => {
+                  const row = layout.hypotheses[hi]
+                  if (row === null) return null
+                  const h = data.hypotheses[hi]
+                  const rowKey = hypothesisKeys[hi]
+                  return (
+                    // **包みは位置を持たない**（`position: static`）ので、行の中の
+                    // 絶対配置は箱を基準にしたまま。中身が全て絶対配置なので高さも 0
                     <div
-                      className="overflow-hidden leading-5 font-medium select-none"
-                      style={{ height: BADGE_HEIGHT }}
+                      key={rowKey}
+                      onFocusCapture={() => setLastCell({ cell: 'hypothesis', key: rowKey })}
                     >
-                      {EVENT_KIND_LABELS[event.kind]}
+                      <HypothesisRow
+                        hypothesisKey={rowKey}
+                        label={`仮説${hi + 1}`}
+                        placement={row}
+                        origin={placement.rect}
+                        text={h.text}
+                        rationale={h.rationale}
+                        notes={h.pendingNotes}
+                        events={h.events}
+                        invalid={invalidHypotheses.has(hi)}
+                        suppressed={issueSuppressed[index]}
+                        expanded={expandedKey === rowKey}
+                        onExpand={() => expandRow(rowKey)}
+                        onTextChange={(next) =>
+                          onChange(setHypothesisText(data, hi, next), `${rowKey}:text`)
+                        }
+                        onRationaleChange={(next) =>
+                          onChange(setRationale(data, hi, next), `${rowKey}:rationale`)
+                        }
+                        onNoteChange={(noteIndex, next) =>
+                          onChange(
+                            setPendingNote(data, hi, noteIndex, next),
+                            `${rowKey}:note:${noteIndex}`,
+                          )
+                        }
+                        onEventNoteChange={(eventIndex, next) =>
+                          onChange(
+                            setEventNote(data, hi, eventIndex, next),
+                            `${rowKey}:event:${eventIndex}`,
+                          )
+                        }
+                        onPromoteNote={(noteIndex) => apply(promoteNote(data, hi, noteIndex))}
+                        onAddNote={() => apply(addPendingNote(data, hi))}
+                        onFieldKeyDown={(e, state, cell) => onRowKeyDown(e, hi, state, cell)}
+                        judgementMenu={
+                          <KindMenu
+                            label={`仮説${hi + 1}に判断を追加`}
+                            // **文言はレイアウトが持つ**——空けた幅と描く幅を
+                            // 同じ文字列から出す（`layout.ts` が測っている）
+                            triggerText={
+                              JUDGEMENT_TRIGGER_LABELS[h.events.length === 0 ? 'empty' : 'latest']
+                            }
+                            // 高さは `ACTION_HEIGHT` で場所を空けてある（対のクラス）
+                            triggerClassName={`${TRIGGER_FACE} ${ACTION_HEIGHT_CLASS}`}
+                            kinds={JUDGEMENT_KINDS}
+                            onPick={(kind) => apply(appendJudgement(data, hi, kind))}
+                            {...menuPropsFor(judgementMenuKey(rowKey))}
+                          />
+                        }
+                      />
                     </div>
-                    {/* 理由の行も測定した高さで固定する（`layout.ts` は
-                        `BADGE_HEIGHT + ROW_GAP + 理由の高さ` で矩形を作っている）。
-                        自動の高さのままだと、外側の `overflow-hidden` が無ければ
-                        ブロックを越えて伸びる欄になる */}
-                    <div
-                      className="overflow-hidden break-all whitespace-pre-wrap"
-                      style={{ marginTop: ROW_GAP, height: rect.height - BADGE_HEIGHT - ROW_GAP }}
-                    >
-                      {event.note}
-                    </div>
-                  </div>
-                )
-              })}
-
-              {/* 「なぜここには問いが無いのか」の1文（`derive.ts` の導出の説明）。
-                  **文字列は import する**——打ち直すと Skill の報告と食い違う */}
-              {placement.suppressedNote !== null && (
-                <div
-                  className="absolute overflow-hidden text-xs break-all whitespace-pre-wrap text-ink-muted"
-                  style={{
-                    left: placement.suppressedNote.x,
-                    top: placement.suppressedNote.y,
-                    width: placement.suppressedNote.width,
-                    height: placement.suppressedNote.height,
-                  }}
-                >
-                  {SUPPRESSED_NOTE}
-                </div>
-              )}
+                  )
+                })}
+              </IssueBox>
             </div>
-          )
-        })}
-
-        {data.hypotheses.map((h, index) => {
-          const placement = layout.hypotheses[index]
-          // ぶら下がり先の課題が図に無い仮説は置き場所を持たない
-          //（参照切れは整合性検証が赤くする）
-          if (placement === null) return null
-          const key = hypothesisKeys[index]
-          return (
-            <HypothesisCard
-              key={key}
-              hypothesisKey={key}
-              label={`仮説${index + 1}`}
-              placement={placement}
-              text={h.text}
-              rationale={h.rationale}
-              notes={h.pendingNotes}
-              events={h.events}
-              questions={posed.hypothesisQuestions[index]}
-              invalid={invalidHypotheses.has(index)}
-              suppressed={suppressedIds.has(h.issueId)}
-              onTextChange={(next) => onChange(setHypothesisText(data, index, next), `${key}:text`)}
-              onRationaleChange={(next) =>
-                onChange(setRationale(data, index, next), `${key}:rationale`)
-              }
-              onNoteChange={(noteIndex, next) =>
-                onChange(setPendingNote(data, index, noteIndex, next), `${key}:note:${noteIndex}`)
-              }
-              onEventNoteChange={(eventIndex, next) =>
-                onChange(setEventNote(data, index, eventIndex, next), `${key}:event:${eventIndex}`)
-              }
-              onPromoteNote={(noteIndex) => apply(promoteNote(data, index, noteIndex))}
-              onFieldKeyDown={(e, state, cell) => onCardKeyDown(e, index, state, cell)}
-              judgementMenu={
-                <KindMenu
-                  label={`仮説${index + 1}に判断を追加`}
-                  triggerText="判断"
-                  kinds={JUDGEMENT_KINDS}
-                  onPick={(kind) => apply(appendJudgement(data, index, kind))}
-                  {...menuPropsFor(judgementMenuKey(key))}
-                />
-              }
-            />
           )
         })}
       </div>

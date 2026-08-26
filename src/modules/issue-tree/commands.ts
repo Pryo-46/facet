@@ -5,7 +5,7 @@ import type {
   DeferralEvent,
   Hypothesis,
   IssueNode,
-  IssueTreeSchemaVersion1,
+  IssueTreeSchemaVersion2,
   JudgementEvent,
 } from '@/types/issue-tree'
 
@@ -16,13 +16,14 @@ import type {
  */
 export type FocusTarget =
   | { cell: 'issue'; index: number }
+  | { cell: 'deferral'; index: number }
   | { cell: 'hypothesis'; index: number }
   | { cell: 'rationale'; index: number }
   | { cell: 'note'; index: number; noteIndex: number }
   | { cell: 'event'; index: number; eventIndex: number }
 
 export interface EditResult {
-  data: IssueTreeSchemaVersion1
+  data: IssueTreeSchemaVersion2
   /** 行き先が無いときは null */
   focus: FocusTarget | null
 }
@@ -38,7 +39,7 @@ export interface EditResult {
  *——ファイルにあるものが黙って減るのが一番たちが悪い（参照切れは
  * 整合性検証が赤くする）
  */
-export function normalizeOrder(data: IssueTreeSchemaVersion1): IssueTreeSchemaVersion1 {
+export function normalizeOrder(data: IssueTreeSchemaVersion2): IssueTreeSchemaVersion2 {
   const issues = orderFlatNodes(data.issues)
   const rank = new Map<string, number>()
   // ID 重複は先に現れた方を採る（core/canvas/flat-tree.ts と同じ規則）
@@ -62,7 +63,7 @@ function newIssue(parentId: string | null): IssueNode {
  * 課題の並びを動かさない。**通すのは仮説のため**——課題を動かすと
  * 「ぶら下がり先の課題の順」が崩れるので、ここで一緒に引き直す
  */
-function withIssues(data: IssueTreeSchemaVersion1, issues: IssueNode[]): IssueTreeSchemaVersion1 {
+function withIssues(data: IssueTreeSchemaVersion2, issues: IssueNode[]): IssueTreeSchemaVersion2 {
   return normalizeOrder({ ...data, issues })
 }
 
@@ -72,7 +73,7 @@ function withIssues(data: IssueTreeSchemaVersion1, issues: IssueNode[]): IssueTr
  * 呼び出し元が渡した index をそのまま使うと別の課題を操作する
  */
 function prepare(
-  data: IssueTreeSchemaVersion1,
+  data: IssueTreeSchemaVersion2,
   index: number,
 ): { issues: IssueNode[]; built: BuiltTree; i: number } | null {
   const ref = data.issues[index]
@@ -88,14 +89,14 @@ function prepare(
  * 到達不能ノードを末尾へ寄せるため、末尾に足した新ルートは `withIssues` の
  * 正規化で前へ戻る。足した位置をそのまま使うと別の実在ノードを指す
  */
-export function addRootIssue(data: IssueTreeSchemaVersion1): EditResult {
+export function addRootIssue(data: IssueTreeSchemaVersion2): EditResult {
   const created = newIssue(null)
   const next = withIssues(data, [...orderFlatNodes(data.issues), created])
   return { data: next, focus: { cell: 'issue', index: next.issues.indexOf(created) } }
 }
 
 /** 末尾の子を足す（Tab／ノードの「+」ハンドルが呼ぶのはこの関数） */
-export function addChildIssue(data: IssueTreeSchemaVersion1, parentIndex: number): EditResult {
+export function addChildIssue(data: IssueTreeSchemaVersion2, parentIndex: number): EditResult {
   const p = prepare(data, parentIndex)
   if (p === null) return { data, focus: null }
   // 行きがけ順では「部分木の直後」がそのまま「末尾の子の位置」になる
@@ -109,7 +110,7 @@ export function addChildIssue(data: IssueTreeSchemaVersion1, parentIndex: number
  * **ルートの上では子を足す**——ルートに兄弟を作ると多重ルートになり、
  * 単一ルートの木という制約と両立しない
  */
-export function addSiblingIssueAfter(data: IssueTreeSchemaVersion1, index: number): EditResult {
+export function addSiblingIssueAfter(data: IssueTreeSchemaVersion2, index: number): EditResult {
   const p = prepare(data, index)
   if (p === null) return { data, focus: null }
   if (p.built.parents[p.i] === null) return addChildIssue(withIssues(data, p.issues), p.i)
@@ -126,7 +127,7 @@ export function addSiblingIssueAfter(data: IssueTreeSchemaVersion1, index: numbe
  * 確認ダイアログは挟まない（rev 5章。会議中の入力速度を削ぐため）。
  * 1操作1コミットの Undo で戻せる
  */
-export function deleteIssueSubtree(data: IssueTreeSchemaVersion1, index: number): EditResult {
+export function deleteIssueSubtree(data: IssueTreeSchemaVersion2, index: number): EditResult {
   const p = prepare(data, index)
   if (p === null) return { data, focus: null }
   const end = subtreeEnd(p.built, p.i)
@@ -158,7 +159,7 @@ export function deleteIssueSubtree(data: IssueTreeSchemaVersion1, index: number)
  *——先に削除すると後続が前へずれ、下方向への移動が1つ手前に着地する
  */
 export function moveIssueSibling(
-  data: IssueTreeSchemaVersion1,
+  data: IssueTreeSchemaVersion2,
   index: number,
   delta: -1 | 1,
 ): EditResult {
@@ -189,10 +190,10 @@ export function moveIssueSibling(
  * 入力中のノードの配列位置がずれてフォーカスを見失う
  */
 export function setIssueText(
-  data: IssueTreeSchemaVersion1,
+  data: IssueTreeSchemaVersion2,
   index: number,
   text: string,
-): IssueTreeSchemaVersion1 {
+): IssueTreeSchemaVersion2 {
   return { ...data, issues: data.issues.map((n, i) => (i === index ? { ...n, text } : n)) }
 }
 
@@ -201,10 +202,10 @@ function newHypothesis(issueId: string): Hypothesis {
 }
 
 function replaceHypothesis(
-  data: IssueTreeSchemaVersion1,
+  data: IssueTreeSchemaVersion2,
   index: number,
   next: Hypothesis,
-): IssueTreeSchemaVersion1 {
+): IssueTreeSchemaVersion2 {
   return { ...data, hypotheses: data.hypotheses.map((h, i) => (i === index ? next : h)) }
 }
 
@@ -215,7 +216,7 @@ function replaceHypothesis(
  * 制約違反にすると、形式的な子ノードを作る迂回入力を強いることになる。
  * 「仮説は？」の問いが葉にしか立たないのは別の話で、そちらは derive.ts の担当
  */
-export function addHypothesis(data: IssueTreeSchemaVersion1, issueIndex: number): EditResult {
+export function addHypothesis(data: IssueTreeSchemaVersion2, issueIndex: number): EditResult {
   const issue = data.issues[issueIndex]
   if (issue === undefined) return { data, focus: null }
   const created = newHypothesis(issue.id)
@@ -226,7 +227,7 @@ export function addHypothesis(data: IssueTreeSchemaVersion1, issueIndex: number)
 }
 
 /** 直後に仮説を足す（仮説セルでの Enter）。**同じ課題にぶら下げる** */
-export function addHypothesisAfter(data: IssueTreeSchemaVersion1, index: number): EditResult {
+export function addHypothesisAfter(data: IssueTreeSchemaVersion2, index: number): EditResult {
   const ref = data.hypotheses[index]
   if (ref === undefined) return { data, focus: null }
   const created = newHypothesis(ref.issueId)
@@ -235,7 +236,7 @@ export function addHypothesisAfter(data: IssueTreeSchemaVersion1, index: number)
 }
 
 /** 仮説を消す（空欄 Backspace）。イベントもメモも一緒に消える */
-export function deleteHypothesis(data: IssueTreeSchemaVersion1, index: number): EditResult {
+export function deleteHypothesis(data: IssueTreeSchemaVersion2, index: number): EditResult {
   if (data.hypotheses[index] === undefined) return { data, focus: null }
   const kept = removeAt(data.hypotheses, index)
   const at = index > 0 && kept[index - 1]?.issueId === data.hypotheses[index].issueId ? index - 1 : null
@@ -248,7 +249,7 @@ export function deleteHypothesis(data: IssueTreeSchemaVersion1, index: number): 
  * 「並び替え」が「付け替え」に化ける
  */
 export function moveHypothesis(
-  data: IssueTreeSchemaVersion1,
+  data: IssueTreeSchemaVersion2,
   index: number,
   delta: -1 | 1,
 ): EditResult {
@@ -264,18 +265,18 @@ export function moveHypothesis(
 }
 
 /** 文言の置き換え。**並べ替えない**——打鍵のたびに配列が動くとフォーカスを見失う */
-export function setHypothesisText(data: IssueTreeSchemaVersion1, index: number, text: string) {
+export function setHypothesisText(data: IssueTreeSchemaVersion2, index: number, text: string) {
   const h = data.hypotheses[index]
   return h === undefined ? data : replaceHypothesis(data, index, { ...h, text })
 }
 
-export function setRationale(data: IssueTreeSchemaVersion1, index: number, rationale: string) {
+export function setRationale(data: IssueTreeSchemaVersion2, index: number, rationale: string) {
   const h = data.hypotheses[index]
   return h === undefined ? data : replaceHypothesis(data, index, { ...h, rationale })
 }
 
 /** FBメモを1件足す（由来セルの Enter／メモセルの Enter／「メモ」ボタン） */
-export function addPendingNote(data: IssueTreeSchemaVersion1, index: number): EditResult {
+export function addPendingNote(data: IssueTreeSchemaVersion2, index: number): EditResult {
   const h = data.hypotheses[index]
   if (h === undefined) return { data, focus: null }
   const pendingNotes = [...h.pendingNotes, '']
@@ -288,13 +289,13 @@ export function addPendingNote(data: IssueTreeSchemaVersion1, index: number): Ed
 /**
  * 直後にFBメモを1件足す（メモセルの Enter）。**押した位置の次に入る**
  *——末尾に足すと、3件の1件目で Enter を押したときに生まれるのは4件目で、
- * フォーカスがカードの一番下へ飛ぶ（`addHypothesisAfter` と同じ規律）。
+ * フォーカスが展開パネルの一番下へ飛ぶ（`addHypothesisAfter` と同じ規律）。
  *
  * 由来セルの Enter が使うのは `addPendingNote`（末尾）の方である
  *——あちらは「移動先が無ければ生やす」であって、間に差し込む操作ではない
  */
 export function addPendingNoteAfter(
-  data: IssueTreeSchemaVersion1,
+  data: IssueTreeSchemaVersion2,
   index: number,
   noteIndex: number,
 ): EditResult {
@@ -311,11 +312,11 @@ export function addPendingNoteAfter(
 }
 
 export function setPendingNote(
-  data: IssueTreeSchemaVersion1,
+  data: IssueTreeSchemaVersion2,
   index: number,
   noteIndex: number,
   text: string,
-): IssueTreeSchemaVersion1 {
+): IssueTreeSchemaVersion2 {
   const h = data.hypotheses[index]
   if (h === undefined || h.pendingNotes[noteIndex] === undefined) return data
   return replaceHypothesis(data, index, {
@@ -325,7 +326,7 @@ export function setPendingNote(
 }
 
 export function removePendingNote(
-  data: IssueTreeSchemaVersion1,
+  data: IssueTreeSchemaVersion2,
   index: number,
   noteIndex: number,
 ): EditResult {
@@ -347,7 +348,7 @@ export function removePendingNote(
  *（`moveHypothesis` と同じ約束。呼び出し側はこれで履歴の空振りを落とす）
  */
 export function movePendingNote(
-  data: IssueTreeSchemaVersion1,
+  data: IssueTreeSchemaVersion2,
   index: number,
   noteIndex: number,
   delta: -1 | 1,
@@ -368,13 +369,14 @@ export function movePendingNote(
 
 /**
  * 判断イベントを追記する（D2）。**追記専用**——過去の要素は書き換えない。
+ * **仮説側は例外を持たない**（例外は課題の見送りだけ。`toggleDeferral`）。
  *
  * `note` は空で作り、直後に最新イベントの note セルへフォーカスを移す。
  * **pendingNotes を自動で流し込まない**（D9）——雑談メモを公式の根拠へ
  * 昇格させない選別の余地を残すため、移動は promoteNote で1件ずつ行う
  */
 export function appendJudgement(
-  data: IssueTreeSchemaVersion1,
+  data: IssueTreeSchemaVersion2,
   index: number,
   kind: JudgementEvent['kind'],
 ): EditResult {
@@ -388,20 +390,77 @@ export function appendJudgement(
 }
 
 /**
- * 課題ノードへ見送りイベントを追記する（D3）。
- * **配下へ値をコピーしない**——抑制は derive.ts が祖先を遡って導出する
+ * 課題ノードの見送りを**入り切りする**（D3）。**配下へ値をコピーしない**
+ *——抑制は derive.ts が祖先を遡って導出する。
+ *
+ * **ここだけが D2 の追記専用の例外である**（設計ノート D2 の反転節を見よ）。
+ * 見送りは種別が `deferred` の1語しか無くなり、選ばせるものが無い操作になった
+ *——1択のドロップダウンをやめてトグルにしたので、「戻す」の意味を決める必要が
+ * 生まれ、**最新の見送りイベントを消す**を採った。追記による取り消しイベントは
+ * 作らない：`events` が「見送りの表明が1件」ではなく「見送って戻した履歴」に
+ * なった瞬間、抑制の導出（最新が `deferred` か）と俯瞰のバッジが列の中身に
+ * 依存し始める。**代償は、一度見送って戻した事実と、そのとき書いた理由が
+ * 消えることである**——受け入れた上での選択で、取り消しは Undo（1操作1コミット）
+ * が戻す。**仮説側（`appendJudgement`）は追記専用のまま。**
+ *
+ * **入り切りを1つの関数にしてあるのは、「いま見送っているか」を決める場所を
+ * 1つに保つためである。** 追加と削除を別の export にすると、呼ぶ側が
+ * `events.length > 0` を自分で見ることになり、レイアウト（`layout.ts` の
+ * `deferred`）・面（`derive.ts` の `issueStatus`）と並んで4箇所目の判定になる。
+ *
+ * **消すのは最新の1件だけ。** アプリが作る `events` は高々1件だが、手書きの
+ * ファイルは2件以上を持ちうる——そこで全部消すと、書いた人が見ていない過去の
+ * 理由まで1押しで飛ぶ。1件消してまだ見送りが残るなら、箱は見送りを掲げたまま
+ * （もう一度押せば次が消える）で、これは「最新から順に剥がす」として読める
  */
-export function appendDeferral(
-  data: IssueTreeSchemaVersion1,
-  index: number,
-  kind: DeferralEvent['kind'],
-): EditResult {
+export function toggleDeferral(data: IssueTreeSchemaVersion2, index: number): EditResult {
   const node = data.issues[index]
   if (node === undefined) return { data, focus: null }
-  const events = [...node.events, { kind, note: '' }]
+  const deferred = node.events.length > 0
+  const events: DeferralEvent[] = deferred
+    ? node.events.slice(0, -1)
+    : [...node.events, { kind: 'deferred', note: '' }]
   return {
     data: { ...data, issues: data.issues.map((n, i) => (i === index ? { ...n, events } : n)) },
-    focus: { cell: 'issue', index },
+    // **付けたら理由を打たせる**（`appendJudgement` が根拠へ飛ばすのと同じ形）。
+    // 課題の文言へ戻さないのは、見送りは理由が本体で、バッジだけ残ると
+    // 「なぜ落としたか」が図から消えるため。
+    //
+    // **外したときは、残った理由の欄の有無によらず課題の文言へ返す。**
+    // アプリが作る列は高々1件なので、たいていは理由の欄ごと消えて行き先が無い。
+    // 手書きの2件以上では剥がしても理由の欄は残るが、そちらへ返さない——
+    // **残っている理由はいま剥がしたものではなく1つ前の見送りのもの**であり、
+    // カーソルを置けば書き換えを誘う（`setDeferralNote` は最新を書き換えるので
+    // 実際に書き換わり、過去の理由が消える）。場合分けして行き先を散らす利も無い。
+    //
+    // null（＝どこへも移さない）にするとフォーカスはトグルのボタンに残るが、
+    // ボタンの上では木の操作言語（Enter／Tab／←→）が1つも効かない
+    // ——押した後そのまま打ち続けられる場所は、箱の中ではタイトルだけである
+    focus: deferred ? { cell: 'issue', index } : { cell: 'deferral', index },
+  }
+}
+
+/**
+ * 見送りの理由を書く。**書けるのは最新の見送りだけ**（`setEventNote` と同じ規則）。
+ *
+ * 課題の `events` は `toggleDeferral` が最新1件を消せる列になったが、
+ * **書き換えの側は最新に限ったままである**——過去の見送りの理由が後から
+ * 書き換わると「そのとき何を根拠に落としたか」が消える。見送りが1件も無い
+ * 課題では**同じ参照を返す**——`apply` がそれを見て何もしない契約
+ */
+export function setDeferralNote(
+  data: IssueTreeSchemaVersion2,
+  index: number,
+  note: string,
+): IssueTreeSchemaVersion2 {
+  const node = data.issues[index]
+  if (node === undefined || node.events.length === 0) return data
+  const last = node.events.length - 1
+  return {
+    ...data,
+    issues: data.issues.map((n, i) =>
+      i === index ? { ...n, events: n.events.map((e, j) => (j === last ? { ...e, note } : e)) } : n,
+    ),
   }
 }
 
@@ -413,11 +472,11 @@ export function appendDeferral(
  * 誤った追記の取り消しは Undo（1操作1コミット）に委ねる
  */
 export function setEventNote(
-  data: IssueTreeSchemaVersion1,
+  data: IssueTreeSchemaVersion2,
   index: number,
   eventIndex: number,
   note: string,
-): IssueTreeSchemaVersion1 {
+): IssueTreeSchemaVersion2 {
   const h = data.hypotheses[index]
   if (h === undefined || eventIndex !== h.events.length - 1) return data
   return replaceHypothesis(data, index, {
@@ -432,7 +491,7 @@ export function setEventNote(
  * 既に根拠があるときは改行で連結する
  */
 export function promoteNote(
-  data: IssueTreeSchemaVersion1,
+  data: IssueTreeSchemaVersion2,
   index: number,
   noteIndex: number,
 ): EditResult {

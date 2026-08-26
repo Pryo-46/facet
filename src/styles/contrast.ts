@@ -207,7 +207,7 @@ export interface FitCondition {
  * **二分探索を使わない。** `oklchToLinear` は色域外をクランプするため、
  * 彩度が高い色では L に対するコントラストが単調でなくなり、平坦域が
  * できる。二分探索は単調性を前提にするのでそこで誤った答えを返す。
- * 総当たりなら仮定が要らず、色は高々11個×2モードなので実行時間も問題にならない。
+ * 総当たりなら仮定が要らず、色は高々トークン数（rev 9章）×2モードなので実行時間も問題にならない。
  *
  * **明暗の関係を反転させる解は採らない。** 地より暗い文字を「地より
  * 明るくすれば要件を満たす」と解くのは数値的には正しいが、配色の
@@ -299,8 +299,8 @@ export function decodeSrgb(v: number): number {
  * **合成はガンマ補正済み sRGB の上で行う。** ブラウザが画面へ塗るときの
  * 空間がそこだからで、線形空間で混ぜると実際より明るい色が出る。
  *
- * Tailwind v4 の `bg-warning/25` は
- * `color-mix(in oklab, var(--color-warning) 25%, transparent)` を生成する。
+ * Tailwind v4 で「`invalid` を 25% の透過で重ねた面」を書くと
+ * `color-mix(in oklab, var(--color-invalid) 25%, transparent)` を生成する。
  * `transparent` との混合は premultiplied で行われるため、結果は
  * 「元の色にアルファ 25% が付いたもの」と厳密に等価であり、そのあと
  * ブラウザがこの関数と同じ合成を行う。だから alpha をそのまま渡してよい

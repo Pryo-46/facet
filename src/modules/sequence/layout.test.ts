@@ -167,11 +167,11 @@ describe('layoutSequence', () => {
         { fromIndex: 0, toIndex: 1, isSelf: false, metrics: { labelWidth: 60, labelHeight: 20, slotHeights: [30, 30, 30] } },
       ],
     })
-    // 30*3 + SLOT_GAP*2 = 98、見出し 18 を足して 116（MIN_ROW_HEIGHT 44 とラベル 20+8*2=36 に勝つ）
+    // 30*3 + SLOT_GAP*2 = 98、見出し 19 を足して 117（MIN_ROW_HEIGHT 44 とラベル 20+8*2=36 に勝つ）
     expect(result.rows[0].height).toBe(GUTTER_HEADING_HEIGHT + 98)
   })
 
-  it('スロットが無い行の行高は MIN_ROW_HEIGHT のまま（見出し 18 は 44 に届かない）', () => {
+  it('スロットが無い行の行高は MIN_ROW_HEIGHT のまま（見出し 19 は 44 に届かない）', () => {
     const result = layoutSequence({
       actorWidths: [80, 80],
       domains: [undefined, undefined],

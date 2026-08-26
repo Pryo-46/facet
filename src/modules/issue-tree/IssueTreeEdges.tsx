@@ -7,7 +7,14 @@ export interface IssueTreeEdgesProps {
   roots: readonly FlatTreeNode[]
   /** `issues` と同じ添字。null＝図に位置を持たない（循環して根から到達できない） */
   placements: readonly (IssuePlacement | null)[]
-  /** `issues` と同じ添字。true＝祖先（自分自身を含む）の見送りで抑制されている */
+  /**
+   * `issues` と同じ添字。true＝**祖先**の見送りで抑制されている。
+   *
+   * **自分自身の見送りは含まない。** エディタが渡すのは `inheritedSuppressed`
+   *（`IssueTreeEditor.tsx` の同名の配列）で、「親が抑制の集合に居るか」だけを
+   * 見る。見送りを付けた当の課題は薄くならず、そこへ入る線も実線のまま——
+   * 見送りは**そこで下した判断の表明**であって「もう見なくてよい枝」ではない
+   */
   suppressed: readonly boolean[]
   transform: Transform
 }
@@ -45,8 +52,9 @@ const SUPPRESSED_DASH = '4 3'
  *
  * ロジックツリーとの差は2つ:
  *
- * 1. **線は課題ノードの矩形から引く。** ブロック（ノード＋ぶら下がる仮説
- *    カード）の矩形から引くと、線が課題ではなくカードの束を指す
+ * 1. **線は課題の箱の矩形から引く。** M3 の文法では仮説は箱の中の行なので、
+ *    箱はぶら下がる仮説のぶんだけ縦に伸びる＝ブロックの矩形と箱の矩形は
+ *    同じものになった。別に矩形を作って引くと、線が箱の縁からずれた所を指す
  * 2. 抑制された枝は**破線**にする。色は `stroke-rule` のまま変えない
  *    （下の {@link SUPPRESSED_DASH} を見よ）
  */
@@ -65,9 +73,14 @@ export function IssueTreeEdges({
         edges.push({
           key: `${node.key}->${child.key}`,
           d: edgePath(from.rect, to.rect),
-          // 抑制は子で判定する。見送りを付けた当のノードも
-          // `suppressedIssueIds` に入る＝そこへ入る線から破線になり、
-          // ノードの面（bg-canvas）の切り替わりと同じ位置で見え方が変わる
+          // 抑制は子で判定する。`suppressed` は祖先由来だけを立てているので、
+          // **見送りを付けた当のノードへ入る線は実線**のまま、その配下へ入る
+          // 線から破線になる——箱の面と文字（ink-faint）が薄くなる位置と
+          // 同じところで見え方が変わる。
+          //
+          // **`suppressedIssueIds`（自分自身を含む集合）をここへ直接渡さない
+          // こと。** 渡すと見送り箱へ入る線まで破線になり、誰が何を落としたのかが
+          // 図から読めなくなる。M3 で実際に一度そう書いて退行させた
           suppressed: suppressed[child.index] === true,
         })
       }

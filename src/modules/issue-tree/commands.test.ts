@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import {
   addChildIssue,
   addHypothesis,
   addPendingNote,
   addPendingNoteAfter,
   addRootIssue,
-  appendDeferral,
   appendJudgement,
   deleteIssueSubtree,
   moveHypothesis,
@@ -14,16 +13,19 @@ import {
   movePendingNote,
   normalizeOrder,
   promoteNote,
+  setDeferralNote,
   setEventNote,
+  toggleDeferral,
 } from './commands'
+import type { DeferralKind } from './derive'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
 
 /** 根(0) — 子(1) — 孫(2), 孫(4) ／ 根 — 子(3)。兄弟3つ・深さ2を含む */
-function data(): IssueTreeSchemaVersion1 {
+function data(): IssueTreeSchemaVersion2 {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     type: 'issueTree',
     title: 'T',
     issues: [
@@ -51,10 +53,10 @@ const Z = I(14)
  * 根 R — X, Y, Z（兄弟3つ）／ Y — Ychild。
  * 仮説の id は H(11)=X / H(12)=Y / H(13)=Ychild / H(14)=Z にぶら下がる
  */
-function branched(hypothesisIds: string[]): IssueTreeSchemaVersion1 {
+function branched(hypothesisIds: string[]): IssueTreeSchemaVersion2 {
   const issueOf: Record<string, string> = { [H(11)]: X, [H(12)]: Y, [H(13)]: YCHILD, [H(14)]: Z }
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     type: 'issueTree',
     title: 'T',
     issues: [
@@ -111,8 +113,8 @@ describe('課題の構造編集', () => {
   it('循環を含むファイルに根を足しても、フォーカスは足した課題を指す', () => {
     // 出力を正規化する以上、**位置は参照の同一性で引き直さないと**
     // 別の実在ノード（循環側）を指す——空欄だと思って打つと他人の文言を潰す
-    const d: IssueTreeSchemaVersion1 = {
-      schemaVersion: 1,
+    const d: IssueTreeSchemaVersion2 = {
+      schemaVersion: 2,
       type: 'issueTree',
       title: 'T',
       issues: [
@@ -190,7 +192,7 @@ describe('仮説とメモ', () => {
    * 「全部を差し替える」実装と区別できない。メモも3件持たせる——2件だと
    * 上下の入れ替えが同じ結果になり、向きの取り違えを検出できない
    */
-  function withNotes(): IssueTreeSchemaVersion1 {
+  function withNotes(): IssueTreeSchemaVersion2 {
     const d = normalizeOrder(data())
     return {
       ...d,
@@ -256,7 +258,7 @@ describe('仮説とメモ', () => {
   })
 })
 
-describe('イベントの追記（D2: 追記専用）', () => {
+describe('イベントの記録（D2: 仮説は追記専用／課題の見送りだけ入り切りする）', () => {
   it('判断イベントは末尾に足され、過去の要素を書き換えない', () => {
     const d = normalizeOrder(data())
     const once = appendJudgement(d, 0, 'rejected')
@@ -268,9 +270,139 @@ describe('イベントの追記（D2: 追記専用）', () => {
     expect(twice.focus).toEqual({ cell: 'event', index: 0, eventIndex: 1 })
   })
 
-  it('課題ノードへは見送り系だけを追記する', () => {
-    const next = appendDeferral(normalizeOrder(data()), 1, 'deferred')
-    expect(next.data.issues[1].events).toEqual([{ kind: 'deferred', note: '' }])
+  /**
+   * **課題の見送りだけが D2 の追記専用から外れている。** かつては1択の
+   * ドロップダウンから `appendDeferral` を呼んでいた——選ぶものが1つしか
+   * 無いので、issue-tree-m3 の後追いでトグルに変えた。「切る」側は
+   * **最新の見送りイベントを消す**（打ち消しイベントの追記ではない。D2 の反転節）
+   */
+  describe('toggleDeferral（課題の見送りは入り切りする）', () => {
+    it('入り: 見送りを1件足し、理由の欄へ行き先を返す', () => {
+      const next = toggleDeferral(normalizeOrder(data()), 1)
+      expect(next.data.issues[1].events).toEqual([{ kind: 'deferred', note: '' }])
+      // **課題の文言ではなく理由の欄へ返す。** バッジだけ立って理由が空のまま
+      // 残ると「なぜ落としたか」が図から消える
+      expect(next.focus).toEqual({ cell: 'deferral', index: 1 })
+    })
+
+    it('切り: 最新の見送りが消え、理由も一緒に消える', () => {
+      const on = toggleDeferral(normalizeOrder(data()), 1)
+      const withNote = setDeferralNote(on.data, 1, '初回フローの成立が先')
+      expect(withNote.issues[1].events[0].note).toBe('初回フローの成立が先')
+
+      const off = toggleDeferral(withNote, 1)
+      // **理由ごと消えるのは自覚した代償である**（D2 の反転節）。取り消しは Undo
+      expect(off.data.issues[1].events).toEqual([])
+      // 理由の欄はいま消えた欄なので行き先にできない。課題の文言へ返す
+      //——トグルのボタンの上では木の操作言語（Enter／Tab／←→）が1つも効かない
+      expect(off.focus).toEqual({ cell: 'issue', index: 1 })
+    })
+
+    it('押すたびに向きが入れ替わり、往復すると元の課題に戻る', () => {
+      // **「見送っていないのに切る」という呼び出しは API に存在しない**——向きは
+      // `toggleDeferral` が押された瞬間の `events.length` から決めるので、
+      // 呼ぶ側が向きを指定する口が無い。だからここで見るのは片道ではなく
+      // **往復**である: 切った後のノードが「一度も見送っていないノード」と
+      // 区別できないこと（区別が残ると、次に押したとき別の向きへ倒れる）。
+      //
+      // **添字のずれ（`slice(0, -1)` を `slice(1)` などに書き換える退行）は
+      // ここでは捕まらない**——1件に `slice(1)` を当てても `[]` になるので
+      // 素通りする。それを捕まえるのは下の「手書きの2件」のテストである
+      const d = normalizeOrder(data())
+      const on = toggleDeferral(d, 1)
+      expect(on.data.issues[1].events).toEqual([{ kind: 'deferred', note: '' }])
+
+      const off = toggleDeferral(on.data, 1)
+      // **往復して元のノードそのものに戻る**（`events` が空になるだけでなく、
+      // 取り消しの痕跡も残らない。D2 の反転節で受け入れた代償の裏返し）
+      expect(off.data.issues[1]).toEqual(d.issues[1])
+
+      const again = toggleDeferral(off.data, 1)
+      expect(again.data.issues[1].events).toEqual([{ kind: 'deferred', note: '' }])
+      expect(again.focus).toEqual({ cell: 'deferral', index: 1 })
+    })
+
+    it('手書きの2件では最新の1件だけが消え、まだ見送ったままになる', () => {
+      // アプリが作る列は高々1件だが、手書きのファイルは2件以上を持ちうる。
+      // **全部消さない**——書いた人が見ていない過去の理由まで1押しで飛ぶ
+      const d: IssueTreeSchemaVersion2 = {
+        ...data(),
+        issues: [
+          {
+            id: I(0),
+            parentId: null,
+            text: '根',
+            events: [
+              { kind: 'deferred', note: '古い理由' },
+              { kind: 'deferred', note: '新しい理由' },
+            ],
+          },
+        ],
+        hypotheses: [],
+      }
+      const off = toggleDeferral(d, 0)
+      expect(off.data.issues[0].events).toEqual([{ kind: 'deferred', note: '古い理由' }])
+      // まだ見送り済み（`suppressedIssueIds` は1件でもあれば抑制する）。
+      // もう一度押せば次が消える＝「最新から順に剥がす」と読める
+      expect(off.focus).toEqual({ cell: 'issue', index: 0 })
+    })
+
+    it('存在しない添字では同じ参照を返す（apply が落とす契約）', () => {
+      const d = normalizeOrder(data())
+      expect(toggleDeferral(d, 99).data).toBe(d)
+    })
+  })
+
+  /**
+   * **スキーマへ見送りの種別が増えたら、この `Record` が「足りない」で tsc に落ちる。**
+   *
+   * かつて同じ見張りは `IssueTreeEditor` の `DEFERRAL_MENU_ORDER`
+   *（`Record<DeferralKind, number>`）が担っていたが、**唯一の消費者だった
+   * 1択のドロップダウンをトグルへ作り替えたので、あちらは消えた。**
+   * 見張りだけをここへ移してある——トグルは種別を選ばせないので、
+   * 種別が増えたときに**アプリからは選べない見送りが静かに残る**という穴は、
+   * ドロップダウンだったときより見つけにくい
+   */
+  const DEFERRAL_KIND_VOCABULARY: Record<DeferralKind, true> = { deferred: true }
+
+  it('課題に付く見送りの種別は deferred の1語だけ（増えたらトグルでは選べない）', () => {
+    expect(Object.keys(DEFERRAL_KIND_VOCABULARY)).toEqual(['deferred'])
+  })
+
+  describe('setDeferralNote', () => {
+    it('最新の見送りの理由だけを書き換える', () => {
+      const d: IssueTreeSchemaVersion2 = {
+        ...data(),
+        issues: [
+          {
+            id: I(0),
+            parentId: null,
+            text: '根',
+            // 同じ `deferred` が2件。**見送りの種別は1つしか無い**ので、
+            // 「最新だけを書き換える」は種別の違いではなく位置で効く必要がある
+            events: [
+              { kind: 'deferred', note: '古い理由' },
+              { kind: 'deferred', note: '' },
+            ],
+          },
+        ],
+        hypotheses: [],
+      }
+      const out = setDeferralNote(d, 0, '通知は本開発で')
+      expect(out.issues[0].events).toEqual([
+        { kind: 'deferred', note: '古い理由' },
+        { kind: 'deferred', note: '通知は本開発で' },
+      ])
+    })
+
+    it('見送りが無い課題では同じ参照を返す（apply が落とす契約）', () => {
+      const d: IssueTreeSchemaVersion2 = {
+        ...data(),
+        issues: [{ id: I(0), parentId: null, text: '根', events: [] }],
+        hypotheses: [],
+      }
+      expect(setDeferralNote(d, 0, 'x')).toBe(d)
+    })
   })
 
   it('最新イベントの note は書けるが、過去のイベントは書き換えられない', () => {

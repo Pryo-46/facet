@@ -1,5 +1,6 @@
 import { CellInput, type FieldState } from '@/components/CellInput'
 import { ANSWER_BOX_CLASS, gutterLabelText } from './measure'
+import { NOT_APPLICABLE_LABEL } from './output-labels'
 
 export type SlotState = 'unanswered' | 'handled' | 'notApplicable'
 
@@ -26,15 +27,19 @@ export interface GutterSlotProps {
 
 /**
  * 問いスロット1つ（design-notes 論点7）。
- * 未定義＝warning/10 の面（M8 の「未定義」の規約そのまま）。
- * handled＝無地・通常文字。notApplicable＝無地・ink-muted＋「─ 考慮不要」の接頭。
+ * 未回答＝`missing` の淡い面＋破線の枠（rev 9章 規約2。M21 の実機確認で
+ * 「破線だけではガターのスロットが方眼に埋もれて拾えない」と判断して面を足した。
+ * M22 で placeholder の「未定義」を消した——欠落は面が示すもので、
+ * データに無い語を空欄に書き込んで見せるものではない）。
+ * handled＝無地・通常文字。notApplicable＝無地・ink-muted＋「考慮不要」の接頭
+ * （M22。以前は `─` の記号だけだったが、初見に意図が伝わらないため語にした）。
  * 3状態の切替は Ctrl+Enter（toggle-item-state）で、キーの解釈は
  * エディタ側の resolveCommand が行う——ここはキーの意味を決めない
  */
 export function GutterSlot(props: GutterSlotProps) {
   const face =
     props.state === 'unanswered'
-      ? 'border-warning bg-warning/10 text-ink-muted'
+      ? 'border-dashed border-missing bg-missing-face text-ink-muted'
       : props.state === 'notApplicable'
         ? 'border-rule bg-surface text-ink-muted'
         : 'border-rule bg-surface text-ink'
@@ -45,27 +50,26 @@ export function GutterSlot(props: GutterSlotProps) {
       style={{ left: props.x + indentPad, top: props.y, height: props.height }}
     >
       <div
-        className="shrink-0 py-1 text-xs text-ink-muted"
+        className="shrink-0 py-1 text-sm text-ink-muted"
         style={{ width: props.labelWidth - indentPad }}
       >
         {gutterLabelText(props.question, props.indent)}
       </div>
       <div className="relative" style={{ width: props.answerWidth }}>
         {props.state === 'notApplicable' && (
-          <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1 text-sm">
-            ─
+          <span aria-hidden="true" className="pointer-events-none absolute left-2 top-1 text-sm leading-normal">
+            {NOT_APPLICABLE_LABEL}
           </span>
         )}
         <CellInput
           multiline
           autoSize={false}
           className={`h-full w-full resize-none overflow-hidden whitespace-pre-wrap break-all rounded-sm ${ANSWER_BOX_CLASS} ${face} ${
-            props.state === 'notApplicable' ? 'pl-6' : ''
-          } text-sm outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
+            props.state === 'notApplicable' ? 'pl-18' : ''
+          } text-sm leading-normal outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
           aria-label={props['aria-label']}
           data-cell={props['data-cell']}
           value={props.text}
-          placeholder={props.state === 'unanswered' ? '未定義' : undefined}
           onValueChange={props.onTextChange}
           onFieldKeyDown={props.onFieldKeyDown}
         />

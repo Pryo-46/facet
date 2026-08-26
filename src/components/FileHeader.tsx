@@ -30,7 +30,7 @@ export function FileHeader(props: FileHeaderProps) {
         value={props.title}
         readOnly={!props.editable}
         placeholder="(無題)"
-        className={`min-w-0 flex-1 border-b bg-transparent text-base font-bold outline-none ${
+        className={`min-w-0 flex-1 border-b bg-transparent text-xl font-medium outline-none ${
           props.editable
             ? 'border-transparent text-ink focus:border-ink'
             : 'border-transparent text-ink-muted'
@@ -48,11 +48,9 @@ export function FileHeader(props: FileHeaderProps) {
           （`truncate` の overflow:hidden が flex の自動最小幅を 0 にするので、
           `min-w-0` は要らない）
 
-          **`/70` は役割トークンへの透過。** ファイル名は識別子ではない副表示
-          なので、`ink-muted` そのままより一段引く（人間の裁定。M13 実機確認）。
-          トークン自体の 4.5:1 は palette が保証しているが、透過を掛けた分は
-          その保証の外に出る */}
-      <span className="truncate text-xs text-ink-muted/70">{props.fileName}</span>
+          ファイル名は副表示なので `ink-muted`。**透過は掛けない**——
+          トークンのコントラスト保証の外に出る（M21 で全面禁止） */}
+      <span className="truncate text-sm text-ink-muted">{props.fileName}</span>
     </div>
   )
 }

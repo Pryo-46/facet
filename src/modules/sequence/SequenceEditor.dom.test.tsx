@@ -140,6 +140,19 @@ describe('参加者ヘッダ', () => {
     fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'Backspace' })
     expect(last(onChange).actors).toHaveLength(2)
   })
+
+  it('名前が空の参加者ヘッダは欠落の面（破線＋淡い面）を持つ（M22 決定1）', () => {
+    const d = doc()
+    d.actors[1] = { ...d.actors[1], name: '' }
+    setup(d)
+    const cell = screen.getByLabelText('参加者2の名前')
+    expect(cell.className).toContain('bg-missing-face')
+    expect(cell.className).toContain('border-dashed')
+    // 面と枠は片方だけ（:871 のコメント）——border-rule が残ると欠落色が効かない
+    expect(cell.className).not.toContain('border-rule')
+    // 名前の埋まっているヘッダは巻き込まれない
+    expect(screen.getByLabelText('参加者1の名前').className).not.toContain('bg-missing-face')
+  })
 })
 
 describe('ステップ行', () => {
@@ -351,6 +364,53 @@ describe('問いスロット（ガター）', () => {
     expect(screen.getByLabelText('ステップ3の答え: 処理失敗したら？')).toBeDefined()
   })
 
+  it('notApplicable は「考慮不要」の接頭ぶん実効幅が狭く、同じ理由文言でも handled よりスロットの高さが大きくなる（M22 レビュー: ANSWER_WRAP の追随漏れと wrap キャッシュの鍵衝突を捕まえる）', () => {
+    // GutterSlot は notApplicable のとき CellInput に pl-18 を足して左を空ける
+    // （考慮不要の接頭と重ならないため）。実効幅が狭くなるぶん、同じ文言でも
+    // notApplicable は handled より多くの行に折り返り、スロットが高くなるはず。
+    // NOT_APPLICABLE_ANSWER_WRAP が無い、または wrap のキャッシュ鍵が箱名を
+    // 分けていないと、notApplicable 側が handled 側と同じ（狭すぎない）高さを
+    // 返し、この差が消える。入力長はフォント段に依存する。handled と notApplicable
+    // の行数が割れる長さを選ぶこと（M23 で 16px 段に合わせて 16→24 に変更）
+    const reason = '在'.repeat(24)
+    const d = doc()
+    d.steps[0] = { ...d.steps[0], failures: { failed: { decision: 'handled', text: reason } } }
+    d.steps[2] = { ...d.steps[2], failures: { failed: { decision: 'notApplicable', text: reason } } }
+    setup(d)
+    const slotHeight = (labelText: string): number =>
+      Number.parseFloat(
+        (screen.getByLabelText(labelText).parentElement!.parentElement as HTMLElement).style
+          .height,
+      )
+    const handledHeight = slotHeight('ステップ1の答え: 失敗が確定したら？')
+    const notApplicableHeight = slotHeight('ステップ3の答え: 処理失敗したら？')
+    expect(notApplicableHeight).toBeGreaterThan(handledHeight)
+  })
+
+  it('未回答のスロットに placeholder の語を出さない（面が「未回答」を示す。M22 決定1）', () => {
+    setup()
+    const cell = screen.getByLabelText('ステップ1の答え: 失敗が確定したら？') as HTMLTextAreaElement
+    expect(cell.getAttribute('placeholder')).toBeNull()
+    expect(cell.className).toContain('bg-missing-face')
+  })
+
+  it('空の未回答スロットも1行ぶんの高さを確保する（全角1文字で測る。placeholder の語に依存させない）', () => {
+    // **この番人は「'あ' を消す」では赤くならない**——wrapWithin は空文字にも
+    // lines: [''] を返すので高さは1行のまま。'未定義' → 'あ' の狙いは高さを
+    // 変えることではなく、測る文字列を placeholder の語から切り離すことにある。
+    // ここが押さえているのは「空スロットが1行ぶんに保たれる」性質そのもの
+    const d = doc()
+    d.steps[2] = { ...d.steps[2], failures: { failed: { decision: 'handled', text: 'あ' } } }
+    setup(d)
+    const slotHeight = (labelText: string): number =>
+      Number.parseFloat(
+        (screen.getByLabelText(labelText).parentElement!.parentElement as HTMLElement).style.height,
+      )
+    expect(slotHeight('ステップ1の答え: 失敗が確定したら？')).toBe(
+      slotHeight('ステップ3の答え: 処理失敗したら？'),
+    )
+  })
+
   it('reply の行には「問いは呼出側」の説明が出る（空白にしない）', () => {
     setup()
     expect(
@@ -378,9 +438,62 @@ describe('問いスロット（ガター）', () => {
     expect(last(onChange).steps[0].failures?.failed).toEqual({ decision: 'notApplicable' })
   })
 
-  it('未回答の集計が出る（doc() は failed/unknown/ifExecuted ＋ self の failed の計4問が未回答）', () => {
+  it('帯に「要対応」と内訳チップが出る（doc() は failed/unknown/ifExecuted ＋ self の failed の計4問が未回答）', () => {
     setup()
-    expect(screen.getByText(/未定義 4/)).toBeDefined()
+    expect(screen.getByText(/要対応 4/)).toBeDefined()
+    expect(screen.getByRole('button', { name: '次の未回答へ' })).toBeDefined()
+    // 回答済・考慮不要は欠落ではないのでチップにしない（補足の文言で添える）
+    expect(screen.getByText('回答済 0 ／ 考慮不要 0')).toBeDefined()
+    expect(screen.queryByRole('button', { name: '次の未記入へ' })).toBeNull()
+  })
+
+  it('回答済・考慮不要・未記入が帯に効く（未記入＝参加者名／ステップ文言の空）', () => {
+    const d = doc()
+    d.steps[0] = {
+      ...d.steps[0],
+      failures: {
+        failed: { decision: 'handled', text: 'エラー表示' },
+        unknown: { decision: 'notApplicable' },
+      },
+    }
+    d.actors[2] = { ...d.actors[2], name: '' }
+    d.steps[1] = { ...d.steps[1], label: '' }
+    setup(d)
+    // 未回答＝step1 の ifExecuted ＋ step3（self）の failed の2件、未記入＝2件
+    expect(screen.getByText(/要対応 4/)).toBeDefined()
+    expect(screen.getByText('未回答 2')).toBeDefined()
+    expect(screen.getByText('未記入 2')).toBeDefined()
+    expect(screen.getByText('回答済 1 ／ 考慮不要 1')).toBeDefined()
+  })
+
+  it('未回答のチップは未回答のスロットだけを巡る（回答済みは飛ばす）', () => {
+    const d = doc()
+    d.steps[0] = { ...d.steps[0], failures: { failed: { decision: 'handled', text: '再試行' } } }
+    setup(d)
+    const chip = screen.getByRole('button', { name: '次の未回答へ' })
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ1の答え: 結果不明だったら？'))
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ1の答え: 実行済みだったら？'))
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ3の答え: 処理失敗したら？'))
+    // 一周して先頭へ戻る（回答済みの failed には止まらない）
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ1の答え: 結果不明だったら？'))
+  })
+
+  it('未記入のチップは空の参加者名 → 空のステップ文言の順に巡る', () => {
+    const d = doc()
+    d.actors[1] = { ...d.actors[1], name: '' }
+    d.steps[2] = { ...d.steps[2], label: '' }
+    setup(d)
+    const chip = screen.getByRole('button', { name: '次の未記入へ' })
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('参加者2の名前'))
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('ステップ3の文言'))
+    fireEvent.click(chip)
+    expect(document.activeElement).toBe(screen.getByLabelText('参加者2の名前'))
   })
 })
 
@@ -566,6 +679,29 @@ describe('操作ヒントとラベルの面', () => {
     setup()
     expect(screen.getByLabelText('ステップ1の文言').className).toContain('bg-surface')
   })
+
+  it('文言が空のステップのラベルセルは欠落の面（破線＋淡い面）を持つ（M22 決定1）', () => {
+    const d = doc()
+    d.steps[0] = { ...d.steps[0], label: '' }
+    setup(d)
+    const cell = screen.getByLabelText('ステップ1の文言')
+    expect(cell.className).toContain('bg-missing-face')
+    expect(cell.className).toContain('border-dashed')
+    expect(cell.className).not.toContain('bg-surface')
+  })
+
+  it('文言が空の self のラベルセルも欠落の面になり、通常時の枠（border-rule）とは排他になる', () => {
+    // self は SELF_BOX_CLASS が枠を持つ形なので、通常時のクラスをそのまま
+    // 並べると border-rule と border-missing が同居して勝敗が生成 CSS の
+    // 順序で決まる（:871 のコメントが禁じている形）
+    const d = doc()
+    d.steps[2] = { ...d.steps[2], label: '' }
+    setup(d)
+    const cell = screen.getByLabelText('ステップ3の文言')
+    expect(cell.className).toContain('bg-missing-face')
+    expect(cell.className).toContain('border-dashed')
+    expect(cell.className).not.toContain('border-rule')
+  })
 })
 
 describe('立っていない答えのグレースロット', () => {
@@ -604,6 +740,13 @@ describe('立っていない答えのグレースロット', () => {
     expect(screen.getByText('失敗が確定したら？')).toBeDefined() // 打ち消し線付きの問いラベル
   })
 
+  it('✕ ボタンはスロットの縦中央に来る（実機所見: 上寄せになっていた）', () => {
+    // 入れ物（GhostSlot）は items-start——ラベルと答えの箱の上揃えは正しい。
+    // ✕ だけ self-center でスロットの全高に対して中央にする
+    setup(ghostDoc())
+    expect(screen.getByLabelText(/この答えを削除/).className).toContain('self-center')
+  })
+
   it('✕ を押すと確認ダイアログが出て、削除で failures から消える', () => {
     const onChange = vi.fn()
     render(<Harness initial={ghostDoc()} onChange={onChange} />)
@@ -621,14 +764,14 @@ describe('立っていない答えのグレースロット', () => {
     expect(screen.getByText('再試行する')).toBeDefined()
   })
 
-  it('notApplicable の立っていない答えは「─ 考慮不要」で見える', () => {
+  it('notApplicable の立っていない答えは「考慮不要」で見える', () => {
     const d = ghostDoc()
     d.steps[0] = {
       ...d.steps[0],
       failures: { failed: { decision: 'notApplicable' } },
     }
     setup(d)
-    expect(screen.getByText('─ 考慮不要')).toBeDefined()
+    expect(screen.getByText('考慮不要')).toBeDefined()
   })
 
   it('reply 行でも立っていない答えがグレースロットで出る（行内表示＝ブレスト決定7）', () => {
@@ -661,8 +804,8 @@ describe('立っていない答えのグレースロット', () => {
   })
 })
 
-describe('self の to-mismatch は行の帯になる', () => {
-  it('self なのに to があるステップは行の帯（row）扱いになる', () => {
+describe('self の to-mismatch は #N のセルに出る', () => {
+  it('self なのに to があるステップは、レールの通し番号が無効の輪郭を持つ', () => {
     const d = doc()
     d.steps[2] = { ...d.steps[2], to: 'actor_Aaaaaaaaa1' }
     const { container } = setup(d, [
@@ -672,33 +815,25 @@ describe('self の to-mismatch は行の帯になる', () => {
         locations: [{ entityId: 'step_Aaaaaaaaa3', entityIndex: 2, field: 'to' }],
       },
     ])
-    const bands = container.querySelectorAll<HTMLElement>('[data-layer="background"] .bg-warning\\/20')
-    expect(bands).toHaveLength(1)
+    // aria-hidden の通し番号だけを見る。**getByText('#1') 等は使わない**
+    // ——ガターの行見出し（`#N 文言`）も aria-hidden で、文言が空だと
+    // 同じく `#N` 単独のテキストになり得るため取り違える
+    const railNums = [...container.querySelectorAll('[aria-hidden="true"]')].filter(
+      (el) => el.textContent === '#3',
+    )
+    expect(railNums).toHaveLength(1)
+    expect(railNums[0]?.className).toContain('outline-invalid')
+    // 対照: 問題の無いステップ（#1）は輪郭を持たない
+    // （区別したい2つの実装が同じ答えを返す入力を選ばない）
+    const okRailNums = [...container.querySelectorAll('[aria-hidden="true"]')].filter(
+      (el) => el.textContent === '#1',
+    )
+    expect(okRailNums).toHaveLength(1)
+    expect(okRailNums[0]?.className).not.toContain('outline-invalid')
   })
 })
 
 describe('赤表示', () => {
-  it('行全体の赤は warning の面を2枚重ねない（M8「面は片方だけ」）', () => {
-    const { container } = setup(doc(), [
-      {
-        rule: 'duplicate-id',
-        message: 'x',
-        locations: [{ entityId: 'step_Aaaaaaaaa1', entityIndex: 0, field: 'id' }],
-      },
-    ])
-    const band = container.querySelector<HTMLElement>('[data-layer="background"] .bg-warning\\/20')
-    expect(band).not.toBe(null)
-    // 図の側: 文言セルは自分の面を持たない（帯を透かす）
-    expect(screen.getByLabelText('ステップ1の文言').className).toContain('bg-transparent')
-    expect(screen.getByLabelText('ステップ1の文言').className).not.toContain('bg-warning')
-    // ガターの側: 帯はスロット（未定義の bg-warning/10）の手前で止まる
-    const slot = screen.getByLabelText('ステップ1の答え: 失敗が確定したら？')
-    const slotBox = slot.parentElement?.parentElement as HTMLElement
-    const bandRight =
-      Number.parseFloat(band?.style.left ?? '0') + Number.parseFloat(band?.style.width ?? '0')
-    expect(bandRight).toBeLessThanOrEqual(Number.parseFloat(slotBox.style.left))
-  })
-
   it('missing-actor の issue が from セルに赤を付ける', () => {
     const d = doc()
     d.steps[0] = { ...d.steps[0], from: 'actor_Zzzzzzzzz9' }
@@ -710,7 +845,7 @@ describe('赤表示', () => {
       },
     ])
     const cell = screen.getByLabelText('ステップ1の送り手') as HTMLInputElement
-    expect(cell.className).toContain('bg-warning/20')
+    expect(cell.className).toContain('border-invalid')
   })
 })
 

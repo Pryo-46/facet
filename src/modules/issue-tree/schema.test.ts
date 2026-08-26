@@ -10,7 +10,7 @@ const ISSUE_B = 'issue_Qw7zR1nP4t'
 const HYP_A = 'hypothesis_Kd4hR6yU1c'
 
 const base = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   type: 'issueTree',
   title: '適性検査サービス連携PoC',
   issues: [
@@ -59,30 +59,59 @@ describe('issueTree のスキーマ検証（レベル1）', () => {
   })
 
   it('課題ノードに支持・棄却のイベントを付けたものを拒否する', () => {
-    // 課題は「支持・棄却を判定される主張」ではない。付けられるのは見送り系2種だけ
+    // 課題は「支持・棄却を判定される主張」ではない。付けられるのは見送りだけ
     const issues = [{ id: ISSUE_A, parentId: null, text: 'x', events: [{ kind: 'supported', note: '' }] }]
     expect(validate({ ...base, issues }).ok).toBe(false)
   })
 
-  it('課題ノードに見送り系2種のイベントを付けたものは受け入れる', () => {
-    for (const kind of ['deferred', 'deferredToMainDev']) {
-      const issues = [{ id: ISSUE_A, parentId: null, text: 'x', events: [{ kind, note: '理由' }] }]
-      expect(validate({ ...base, issues }).ok, kind).toBe(true)
-    }
+  it('課題ノードに見送り（deferred）のイベントを付けたものは受け入れる', () => {
+    const issues = [
+      { id: ISSUE_A, parentId: null, text: 'x', events: [{ kind: 'deferred', note: '理由' }] },
+    ]
+    expect(validate({ ...base, issues }).ok).toBe(true)
   })
 
-  it('仮説のイベント種別6種をすべて受け入れる', () => {
-    for (const kind of [
-      'supported',
-      'rejected',
-      'supportedWithoutTest',
-      'rejectedWithoutTest',
-      'deferred',
-      'deferredToMainDev',
-    ]) {
+  it('仮説のイベント種別をすべて受け入れる（4種目の onHold は次のケース）', () => {
+    for (const kind of ['supported', 'rejected', 'deferred']) {
       const hypotheses = [{ ...base.hypotheses[0], events: [{ kind, note: '' }] }]
       expect(validate({ ...base, hypotheses }).ok, kind).toBe(true)
     }
+  })
+
+  /**
+   * 判断を5語（未決・支持・棄却・保留・見送り）に畳んだとき、細かい3種を
+   * **データごと**落とした。**移行も互換の読み替えも用意しない**と決めたので、
+   * これらを持つファイルは検証で落ちて開けない——それがここで固定する契約である。
+   * 読み替えを足すと「もう無い区別」がデータの中に別の顔で生き残る
+   */
+  it('廃止した種別（検証せず系・本開発送り）を拒否する', () => {
+    for (const kind of ['supportedWithoutTest', 'rejectedWithoutTest', 'deferredToMainDev']) {
+      const hypotheses = [{ ...base.hypotheses[0], events: [{ kind, note: '' }] }]
+      expect(validate({ ...base, hypotheses }).ok, kind).toBe(false)
+    }
+    const issues = [
+      {
+        id: ISSUE_A,
+        parentId: null,
+        text: 'x',
+        events: [{ kind: 'deferredToMainDev', note: '' }],
+      },
+    ]
+    expect(validate({ ...base, issues }).ok).toBe(false)
+  })
+
+  it('仮説の判断に onHold（保留）を受け入れる', () => {
+    const h = { ...base.hypotheses[0], events: [{ kind: 'onHold', note: '「楽」の定義が決まらず判断できない' }] }
+    expect(validate({ ...base, hypotheses: [h] }).ok).toBe(true)
+  })
+
+  it('課題の見送りに onHold は付けられない（保留は仮説だけ）', () => {
+    const node = { ...base.issues[1], events: [{ kind: 'onHold', note: '' }] }
+    expect(validate({ ...base, issues: [base.issues[0], node] }).ok).toBe(false)
+  })
+
+  it('schemaVersion 1 はレベル1で弾く（移行は load.ts の仕事。スキーマは現行版しか受けない）', () => {
+    expect(validate({ ...base, schemaVersion: 1 }).ok).toBe(false)
   })
 
   it('未知のイベント種別を拒否する（enum の拡張は schemaVersion の改訂）', () => {

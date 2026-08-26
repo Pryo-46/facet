@@ -1,7 +1,11 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { serialize } from '@/core/canonical'
+import { classifyFile } from '@/core/load'
 import { createSchemaValidator } from '@/core/schema-validation'
 import { appRegistry } from '@/modules'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
+import { poseQuestions, tallyQuestions } from './derive'
 import { issueTreeModule } from './module'
 
 const validate = createSchemaValidator(issueTreeModule.schema)
@@ -10,7 +14,7 @@ describe('issueTreeModule', () => {
   it('規約1・単一性・ID プレフィクスを宣言している', () => {
     expect(issueTreeModule.type).toBe('issueTree')
     expect(issueTreeModule.displayName).toBe('課題ツリー')
-    expect(issueTreeModule.schemaVersion).toBe(1)
+    expect(issueTreeModule.schemaVersion).toBe(2)
     expect([...issueTreeModule.idPrefixes]).toEqual(['issue', 'hypothesis'])
     // PoC のテーマごとに1本作るのが普通の使い方。ハブではない
     expect(issueTreeModule.singleton).toBe(false)
@@ -30,18 +34,20 @@ describe('issueTreeModule', () => {
   it('createEmpty は正規形で書ける（キー順はスキーマの properties 記載順）', () => {
     const empty = issueTreeModule.createEmpty('課題ツリー')
     expect(serialize(empty, issueTreeModule.schema)).toBe(
-      `{\n  "schemaVersion": 1,\n  "type": "issueTree",\n  "title": "課題ツリー",\n  "issues": [\n    {\n      "id": "${empty.issues[0].id}",\n      "parentId": null,\n      "text": "",\n      "events": []\n    }\n  ],\n  "hypotheses": []\n}\n`,
+      `{\n  "schemaVersion": 2,\n  "type": "issueTree",\n  "title": "課題ツリー",\n  "issues": [\n    {\n      "id": "${empty.issues[0].id}",\n      "parentId": null,\n      "text": "",\n      "events": []\n    }\n  ],\n  "hypotheses": []\n}\n`,
     )
   })
 
-  it('マイグレータは恒等（初版なので旧版が存在しない）', () => {
+  it('マイグレータが繋がっている（現行版はそのまま・旧版は現行版へ移る）', () => {
+    // 1 → 2 の中身は migrate.test.ts が見る。ここは module の配線だけを固める
     const data = issueTreeModule.createEmpty('T')
-    expect(issueTreeModule.migrate(data, 1)).toBe(data)
+    expect(issueTreeModule.migrate(data, 2)).toBe(data)
+    expect(issueTreeModule.migrate({ ...data, schemaVersion: 1 }, 1).schemaVersion).toBe(2)
   })
 
   it('整合性検証が繋がっている（多重ルートを指摘する）', () => {
     const issues = issueTreeModule.checkConsistency({
-      schemaVersion: 1,
+      schemaVersion: 2,
       type: 'issueTree',
       title: 'T',
       issues: [
@@ -59,6 +65,21 @@ describe('出力プロファイル（規約5）', () => {
     // 0本は「出力を作っていないツール」の状態として正しい。額縁の ExportMenu は
     // outputs[0] が undefined のとき両ボタンを disabled にする
     expect(issueTreeModule.outputs).toEqual([])
+  })
+})
+
+describe('お手本ファイル（sample-project）', () => {
+  it('schemaVersion 2 のお手本は editable で開け、保留が1件観測できる', () => {
+    const raw = readFileSync(
+      new URL('../../../sample-project/課題ツリー.json', import.meta.url),
+      'utf8',
+    )
+    const result = classifyFile(raw, appRegistry)
+    expect(result.status).toBe('editable')
+    if (result.status === 'editable') {
+      const data = result.data as IssueTreeSchemaVersion2
+      expect(tallyQuestions(poseQuestions(data)).hold).toBe(1)
+    }
   })
 })
 

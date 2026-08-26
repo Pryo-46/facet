@@ -10,14 +10,14 @@ import { contrastRatio, parseAnyCssColor, relativeLuminance } from '@/styles/con
  * `src/styles/palette.test.ts` の仕事）
  */
 const LIGHT: Record<string, string> = {
-  '--surface': 'oklch(0.961 0.007 88.6)',
-  '--ink': 'oklch(0.205 0 89.9)',
-  '--surface-accent': 'oklch(0.87 0.04 126)',
+  '--surface': 'oklch(0.985 0 0)',
+  '--ink': 'oklch(0.18 0 0)',
+  '--surface-muted': 'oklch(0.91 0 0)',
 }
 const DARK: Record<string, string> = {
-  '--surface': 'oklch(0.205 0 89.9)',
-  '--ink': 'oklch(0.85 0.007 88.6)',
-  '--surface-accent': 'oklch(0.28 0.04 126)',
+  '--surface': 'oklch(0.205 0 0)',
+  '--ink': 'oklch(0.88 0 0)',
+  '--surface-muted': 'oklch(0.27 0 0)',
 }
 
 const reader =
@@ -84,12 +84,14 @@ describe('buildTerminalTheme', () => {
     delete missing['--ink']
     expect(buildTerminalTheme(reader(missing))).toBeNull()
     expect(buildTerminalTheme(reader({ ...LIGHT, '--surface': 'rebeccapurple' }))).toBeNull()
-    // `--surface-accent` **単独**の欠落も踏む。selectionBackground を null
+    // `--surface-muted` **単独**の欠落も踏む。selectionBackground を null
     // ガードから落とす／別のトークン名に結ぶ形の退行は、上の2つでは
-    // 素通りする。**`--surface-accent` は palette-retheme で人が選ぶ5つの
-    // 1つ**（rev 9章）なので、配色差し替えで最も落ちやすい
-    const noAccent = { ...LIGHT }
-    delete noAccent['--surface-accent']
-    expect(buildTerminalTheme(reader(noAccent))).toBeNull()
+    // 素通りする。**`--surface-muted` は palette-retheme が外部テーマの
+    // `muted` から機械的に拾う7つの1つ**（Skill 手順3）で、しかも
+    // **拾うのは L だけで C は捨てる**——その「L だけ写す」手順で
+    // 落としやすい側のトークンである
+    const noMuted = { ...LIGHT }
+    delete noMuted['--surface-muted']
+    expect(buildTerminalTheme(reader(noMuted))).toBeNull()
   })
 })

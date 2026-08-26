@@ -5,7 +5,7 @@ import { edgePath } from '@/core/canvas/edges'
 import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { INITIAL_TRANSFORM } from '@/core/canvas/viewport'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
-import type { IssueTreeSchemaVersion1 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
 import { poseQuestions, suppressedIssueIds } from './derive'
 import { IssueTreeEdges } from './IssueTreeEdges'
 import { layoutIssueTree } from './layout'
@@ -16,8 +16,9 @@ const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
 
 const fonts = {
-  body: { measure: createEstimateMeasurer(14), lineHeight: 23 },
-  small: { measure: createEstimateMeasurer(12), lineHeight: 18 },
+  title: { measure: createEstimateMeasurer(16), lineHeight: 24 },
+  body: { measure: createEstimateMeasurer(16), lineHeight: 24 },
+  small: { measure: createEstimateMeasurer(14), lineHeight: 18 },
 }
 
 /**
@@ -26,14 +27,15 @@ const fonts = {
  * 1つずれていても緑になる。
  *
  * 見送り（`deferred`）は**子Aに付ける**——根でも葉でもない位置に置くことで、
- * 抑制が「祖先を遡る導出」であること（子Aへ入る線・孫へ入る線の両方が
- * 破線になり、子B・子Cの枝はそのまま）が見える。
+ * 抑制が「祖先を遡る導出」であることが見える。**破線になるのは配下へ入る線だけ**
+ *（孫へ入る線は破線、見送りを掲げている子A自身へ入る線は実線のまま、
+ * 子B・子Cの枝はそのまま）。
  *
- * 課題0（根）にだけ仮説カードを2枚ぶら下げてある。カードはブロックの高さと
- * 幅を押し広げるので、**線がブロックの矩形から引かれていれば座標が変わる。**
+ * 課題0（根）にだけ仮説の行を2本ぶら下げてある。行は箱の高さを押し広げるので、
+ * **線が箱の矩形から引かれていれば座標が変わる。**
  */
-const data: IssueTreeSchemaVersion1 = {
-  schemaVersion: 1,
+const data: IssueTreeSchemaVersion2 = {
+  schemaVersion: 2,
   type: 'issueTree',
   title: 'テスト',
   issues: [
@@ -50,9 +52,20 @@ const data: IssueTreeSchemaVersion1 = {
 }
 
 const built = buildTree(data.issues)
-const layout = layoutIssueTree(data, poseQuestions(data), fonts)
+const layout = layoutIssueTree(data, poseQuestions(data), fonts, -1)
 const suppressedIds = suppressedIssueIds(data.issues)
-const suppressed = data.issues.map((node) => suppressedIds.has(node.id))
+/**
+ * **エディタが渡すのと同じ「祖先由来の抑制」。** `suppressedIssueIds` は
+ * 見送りを掲げている当の課題も含むが、俯瞰モックの規則では**その課題は
+ * 通常どおり描き、入る線も実線**である（薄くなる・破線になるのは配下だけ）。
+ * ここで自己包含のまま渡すと、部品は正しいのに画面だけがモックと食い違う
+ */
+const suppressed = data.issues.map(
+  // **「自分が見送っていない」で代用しない**（入れ子の見送りで壊れる。
+  // `IssueTreeEditor.tsx` の `inheritedSuppressed` の解説）。親が
+  // 「自分または祖先が見送り」の集合に居れば、その子は祖先由来で抑制される
+  (node) => node.parentId !== null && suppressedIds.has(node.parentId),
+)
 
 /** 添字 → 木の同一性の鍵（`key` は id ではないので、木から引き当てる） */
 const keys = new Map<number, string>()
@@ -91,31 +104,36 @@ const pathFor = (container: HTMLElement, parent: number, child: number): SVGPath
 
 describe('IssueTreeEdges: 線の引き元', () => {
   /**
-   * 線は**課題ノードの矩形**から引く。ブロック（ノード＋ぶら下がる仮説カード）
-   * の矩形から引くと、線が課題ではなくカードの束を指す——根には高さのある
-   * カードが2枚あるので、ブロックを使った実装ではこの `d` が一致しない
+   * 線は**課題の箱の矩形**から引く。M3 の文法では仮説は箱の中の行なので、
+   * 箱はぶら下がる仮説のぶんだけ縦に伸びる——**その伸びた矩形から引く**
+   *（別の矩形を作って引くと、線が箱の縁からずれた所を指す）
    */
-  it('親の矩形は課題ノードのもので、カードを含むブロックではない', () => {
+  it('親の矩形は課題の箱のもので、仮説の行はその中に収まる', () => {
     const container = renderEdges()
     const from = layout.issues[0]
     const to = layout.issues[3]
     if (from === null || to === null) throw new Error('図に位置を持たない課題がある')
     expect(pathFor(container, 0, 3).getAttribute('d')).toBe(edgePath(from.rect, to.rect))
-    // カードはノードより下へ伸びている＝ブロックの矩形はノードの矩形と別物
-    const card = layout.hypotheses[1]
-    if (card === null) throw new Error('仮説2が図に位置を持たない')
-    expect(card.rect.y + card.rect.height).toBeGreaterThan(from.rect.y + from.rect.height)
+    // 行は箱の中（はみ出さない）
+    const row = layout.hypotheses[1]
+    if (row === null) throw new Error('仮説2が図に位置を持たない')
+    expect(row.rect.y + row.rect.height).toBeLessThanOrEqual(from.rect.y + from.rect.height)
+    // それでも箱は仮説のぶんだけ高い（数え落とすと子の列が箱に重なる）
+    expect(from.rect.height).toBeGreaterThan(to.rect.height)
   })
 })
 
 describe('IssueTreeEdges: 抑制された枝', () => {
   /**
-   * 抑制は**子で判定する**（`suppressed[child.index]`）。見送りを付けた当の
-   * 課題も `suppressedIssueIds` に入るので、そこへ入る線から破線になる
+   * 抑制は**子で判定する**（`suppressed[child.index]`）。境目は
+   * 「見送りを掲げている課題**の下**」——その課題へ入る線は実線のまま、
+   * 配下へ入る線から破線になる（箱の面が薄くなるのと同じ位置で切り替わる）
    */
-  it('見送った課題へ入る線と、その配下へ入る線が破線になる', () => {
+  it('見送った課題の配下へ入る線だけが破線になる（見送った課題へ入る線は実線）', () => {
     const container = renderEdges()
-    expect(pathFor(container, 0, 1).getAttribute('stroke-dasharray')).toBe('4 3')
+    // 課題1（子A）が見送りを掲げている当人。そこへ入る線は実線
+    expect(pathFor(container, 0, 1).getAttribute('stroke-dasharray')).toBeNull()
+    // その配下（孫）へ入る線から破線になる
     expect(pathFor(container, 1, 2).getAttribute('stroke-dasharray')).toBe('4 3')
   })
 

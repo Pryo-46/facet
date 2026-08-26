@@ -4,6 +4,7 @@ import type { FieldState } from '@/components/CellInput'
 import { CellInput } from '@/components/CellInput'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { KeyHints } from '@/components/KeyHints'
+import { MissingTally } from '@/components/MissingTally'
 import { buttonBase } from '@/components/button-styles'
 import type { KeyHint } from '@/core/keyboard/hint-text'
 import {
@@ -52,9 +53,11 @@ import {
   ACTOR_INSET_X,
   ACTOR_MAX_WIDTH,
   ACTOR_MIN_WIDTH,
+  ANSWER_BORDER,
   ANSWER_CONTENT_WIDTH,
   ANSWER_INSET_X,
   ANSWER_INSET_Y,
+  ANSWER_NOT_APPLICABLE_PREFIX_PAD_X,
   gutterLabelText,
   LABEL_BOX_CLASS,
   LABEL_INSET_X,
@@ -70,6 +73,7 @@ import {
   type WrappedBlock,
   type WrapOptions,
 } from './measure'
+import { tallySequenceMissing } from './missing'
 import {
   poseQuestions,
   questionLabels,
@@ -77,6 +81,7 @@ import {
   unposedAnswers,
   type AnswerPath,
 } from './questions'
+import { NOT_APPLICABLE_LABEL } from './output-labels'
 import {
   createCanvasMeasurer,
   FALLBACK_CANVAS_FONT,
@@ -85,6 +90,7 @@ import {
   sameFont,
   type CanvasFont,
 } from '@/core/canvas/canvas-font'
+import { useFontGeneration } from '@/core/canvas/use-font-generation'
 import { cssTransform, type Rect } from '@/core/canvas/viewport'
 import { useViewport } from '@/core/canvas/use-viewport'
 import { SequenceEdges, type EdgeStep } from './SequenceEdges'
@@ -94,14 +100,17 @@ import { StepShapeCell } from './StepShapeCell'
 const MEASURE_CACHE_LIMIT = 2000
 
 /** 図の文字に当たるクラスのうち、フォントを決めている部分。見本要素と共有する */
-const SEQ_FONT_CLASS = 'text-sm'
+const SEQ_FONT_CLASS = 'text-sm leading-normal'
 
 /**
  * 問いラベルのフォント階級（GutterSlot のラベル列と同じ）。
- * **`SEQ_FONT_CLASS` で代用しないこと**——text-sm で text-xs を測ると
- * 高さを4割ほど過大に見積もり、行が無駄に伸びる
+ * **`SEQ_FONT_CLASS` で代用しないこと**——M26 で入力値が 14px へ下がって
+ * サイズは並んだが、**行間が違う**（答えセルは `leading-normal` = 1.5、
+ * ラベルは text-sm 既定の 1.3。src/index.css の --text-sm--line-height）。
+ * 代用すると 21px の行高でラベルを測ることになり、高さを過大に見積もって
+ * 行が無駄に伸びる
  */
-const LABEL_FONT_CLASS = 'text-xs'
+const LABEL_FONT_CLASS = 'text-sm'
 
 /** ガターと図の操作ヒント。`$mod` / `$alt` は KeyHints が解決する */
 const SEQ_HINTS: readonly KeyHint[] = [
@@ -133,8 +142,6 @@ const GHOST_QUESTION_LABEL: Record<AnswerPath, string> = {
 
 /** 答えセルの外形幅（内容幅＋左右の inset）。ガターの幅も layout がこれで導出する */
 const ANSWER_BOX_WIDTH = ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2
-
-const CELL_GAP = 4
 
 /**
  * レール（行の左端の編集セル列。編集の足場であって図の一部ではない）の内訳。
@@ -190,6 +197,17 @@ const ANSWER_WRAP: WrapOptions = {
   minWidth: ANSWER_BOX_WIDTH,
   insetX: ANSWER_INSET_X,
   insetY: ANSWER_INSET_Y,
+}
+/**
+ * notApplicable の答え用（M22）。GutterSlot は「考慮不要」の接頭ぶん左だけ
+ * 広く空ける（`ANSWER_NOT_APPLICABLE_PREFIX_PAD_X`）ので、右は変わらないまま
+ * 左右非対称になる。`wrapWithin` は `insetX * 2`（左右の合計）しか見ないので、
+ * 左右それぞれの実際の inset を足して2で割った値を渡せば、合計は実物と合う
+ */
+const ANSWER_NOT_APPLICABLE_LEFT_INSET = ANSWER_NOT_APPLICABLE_PREFIX_PAD_X + ANSWER_BORDER
+const NOT_APPLICABLE_ANSWER_WRAP: WrapOptions = {
+  ...ANSWER_WRAP,
+  insetX: (ANSWER_NOT_APPLICABLE_LEFT_INSET + ANSWER_INSET_X) / 2,
 }
 
 function slotStateOf(decision: 'handled' | 'notApplicable' | undefined): SlotState {
@@ -254,12 +272,6 @@ export function SequenceEditor({
   // ガターのブラケット強調用。どの行のセルにフォーカスがあるか（ガター外は null）
   const [focusedRow, setFocusedRow] = useState<number | null>(null)
 
-  // Web フォントの読み込みで canvas の measureText の結果は変わるが、
-  // getComputedStyle が返す値は変わらない（宣言されたファミリ列を返すだけで、
-  // どのフェイスに解決されたかは映らない）。だからフォントの同一性では
-  // 判定できず、読み込み完了を世代として数えて測り直す
-  const [fontGeneration, setFontGeneration] = useState(0)
-
   const readFont = (): void => {
     setFont((prev) => {
       const next = readCanvasFont(probeRef.current)
@@ -273,22 +285,15 @@ export function SequenceEditor({
 
   useLayoutEffect(readFont, [])
 
-  // **Web フォントの読み込み前に測るとフォールバック書体の幅になる。**
-  // Geist は日本語グリフを持たず和文はフォールバックに落ちるが、
-  // 欧文の幅は読み込みの前後で変わる。読み込み完了で測り直す
+  // 読み込みの世代。進んだら実効フォントも読み直す。
+  // **最初の1フレームはフォールバック書体のメトリクスで測っている**し、
+  // 同梱フォントは unicode-range 分割なので、珍しい字のスライスは
+  // 初入力のとき後から届く（M26）——どちらも世代が進んだ時点で測り直す
+  const fontGeneration = useFontGeneration()
   useEffect(() => {
-    if (typeof document === 'undefined' || !('fonts' in document)) return
-    let alive = true
-    void document.fonts.ready.then(() => {
-      if (!alive) return
-      readFont()
-      setFontGeneration((n) => n + 1)
-    })
-    return () => {
-      alive = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFont は毎レンダー再生成される安定した処理。購読はマウント時の1回でよい
-  }, [])
+    readFont()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFont は毎レンダー再生成される安定した処理。世代が進んだときだけ走らせる
+  }, [fontGeneration])
 
   useEffect(() => {
     if (pendingFocus === null) return
@@ -310,7 +315,7 @@ export function SequenceEditor({
   // 鍵に lineHeight と世代を混ぜる。**`font.font` の文字列には行間が
   // 入っていない**のに wrapWithin の height は lineHeight に依存するので、
   // 書体が同じまま行間だけ変わるとキャッシュが古い高さを返し続ける。
-  // 世代は上の document.fonts.ready が進めるカウンタで、
+  // 世代は useFontGeneration（ready＋loadingdone）が進めるカウンタで、
   // 「読み込み後に測り直す」を成立させるのはこちらである
   const measurerKey = `${font.font}|${font.lineHeight}|${fontGeneration}`
   const measurerRef = useRef<{
@@ -337,7 +342,7 @@ export function SequenceEditor({
     return block
   }
 
-  // 問いラベル用（text-xs）。**同じ入れ物に混ぜないこと**——キャッシュの鍵は
+  // 問いラベル用（text-sm）。**同じ入れ物に混ぜないこと**——キャッシュの鍵は
   // 文字列と箱の種別だけで、どのフォントで測ったかを持っていない
   const labelMeasurerKey = `${labelFont.font}|${labelFont.lineHeight}|${fontGeneration}`
   const labelMeasurerRef = useRef<{
@@ -393,12 +398,24 @@ export function SequenceEditor({
     const answers = QUESTION_ORDER.filter((path) => posed[path]).map((path) => {
       const slot = readSlot(step, path)
       const text = slot.text ?? ''
-      // 未回答の枠は placeholder の「未定義」が入る高さを確保する（空だと潰れる）
-      const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
+      const state = slotStateOf(slot.decision)
+      // 空スロットは全角1文字で1行ぶんの高さを測る（placeholder の語に
+      // 依存させない。M22 で placeholder の「未定義」自体を消した）。
+      // notApplicable は「考慮不要」の接頭ぶん実効幅が狭いので専用の WrapOptions で測る。
+      // **箱名も 'answer-na' に分ける。** wrap のキャッシュ鍵は `${box}:${text}` で
+      // WrapOptions を含まないので、同じ 'answer' のまま options だけ変えると、
+      // 同一文字列が先に測られた側（handled/ghosts の ANSWER_WRAP）の結果を誤って
+      // 引いてしまう（M22 レビューで発覚。ghosts（下の wrap 呼び出し）は常に
+      // ANSWER_WRAP なので 'answer' のままでよい）
+      const block = wrap(
+        state === 'notApplicable' ? 'answer-na' : 'answer',
+        text === '' ? 'あ' : text,
+        state === 'notApplicable' ? NOT_APPLICABLE_ANSWER_WRAP : ANSWER_WRAP,
+      )
       return {
         path,
         question: labels[path],
-        state: slotStateOf(slot.decision),
+        state,
         text,
         // **問いラベルの方が高いことがある。** 高い方を採らないと行から食み出す
         height: Math.max(block.height, questionHeight(labels[path], path === 'ifExecuted')),
@@ -409,9 +426,9 @@ export function SequenceEditor({
       const slot = readSlot(step, path)
       const text =
         slot.decision === 'notApplicable' && (slot.text === undefined || slot.text === '')
-          ? '─ 考慮不要'
+          ? NOT_APPLICABLE_LABEL
           : (slot.text ?? '')
-      const block = wrap('answer', text === '' ? '未定義' : text, ANSWER_WRAP)
+      const block = wrap('answer', text === '' ? 'あ' : text, ANSWER_WRAP)
       // GhostSlot もラベル列を持つ（インデントは無い）
       return {
         path,
@@ -460,6 +477,8 @@ export function SequenceEditor({
   })
   /** ガターの順に並べたスロットの data-cell 鍵（↑↓ の移動が使う） */
   const slotCells: string[] = []
+  /** そのうち未回答のものだけ（帯のチップのジャンプ先。M22） */
+  const unansweredCells: string[] = []
   data.steps.forEach((_step, index) => {
     const row = layout.rows[index]
     // 行はガターまで含めて1つの帯として扱う（答えを打つときも図の側が見えていてほしい）
@@ -476,6 +495,7 @@ export function SequenceEditor({
       const cell = `${stepKeys[index]}:${answer.path}`
       rects.set(cell, rect)
       slotCells.push(cell)
+      if (answer.state === 'unanswered') unansweredCells.push(cell)
     }
   })
 
@@ -496,7 +516,8 @@ export function SequenceEditor({
         location.field === 'from' || location.field === 'to' || location.field === 'failures'
           ? location.field
           : 'row'
-      // self は to セルを描画しないので、to への指摘は行の帯で見せる（ブレスト決定7）
+      // self は to セルを描画しないので、to への指摘は行全体（'row'）に回す（ブレスト決定7）。
+      // 出し先は #N セル（上の rail number。UI ノート D5）
       const field =
         rawField === 'to' && data.steps[location.entityIndex]?.kind === 'self' ? 'row' : rawField
       const fields = invalidStepFields.get(location.entityIndex) ?? new Set<string>()
@@ -507,12 +528,11 @@ export function SequenceEditor({
   const stepHas = (index: number, field: string): boolean =>
     invalidStepFields.get(index)?.has(field) ?? false
 
-  // ガターの集計。数えるのは**立っている問い**だけ（立たない問いへの答えは
-  // 整合性検証が unposed-answer として別に指摘する）
-  const tally = { unanswered: 0, handled: 0, notApplicable: 0 }
-  for (const view of stepViews) {
-    for (const answer of view.answers) tally[answer.state] += 1
-  }
+  // 帯の集計（M22。docs/missing-semantics.md 決定1）。**数え方の正は missing.ts**——
+  // ここで stepViews から数え直さない（stepViews の `answer.state` は描画用に残る）。
+  // 数えるのは立っている問いだけで、立たない問いへの答えは整合性検証が
+  // unposed-answer として別に指摘する——その規則も missing.ts が持つ
+  const seq = tallySequenceMissing(data)
 
   /** 編集結果を額縁へ渡し、次に編集させたいセルへフォーカスを予約する。
       focusField は data-cell の接尾辞。省略時は actor→name / step→label */
@@ -561,6 +581,32 @@ export function SequenceEditor({
   const focusSlot = (cell: string, delta: -1 | 1): boolean => {
     const at = slotCells.indexOf(cell)
     return at < 0 ? false : focusCell(slotCells[at + delta])
+  }
+
+  /** 帯のチップごとに巡る位置。kind → 直前に飛んだ順番 */
+  const jumpAt = useRef<Record<string, number>>({})
+
+  /**
+   * 帯のチップから次の欠落へ飛ぶ（M22）。**フォーカス位置は起点にせず巡回 ref で数える**
+   * （用語集と同じ。課題ツリーの nextOpenTarget とは違う——物足りなければ open-issues 行き）。
+   * 未回答はガターの並び順、未記入は参加者 → ステップの順に巡る
+   */
+  const jumpToMissing = (kind: string): void => {
+    const targets: (() => boolean)[] =
+      kind === 'unanswered'
+        ? unansweredCells.map((cell) => () => focusCell(cell))
+        : [
+            ...data.actors.flatMap((actor, index) =>
+              actor.name === '' ? [() => focusActorAt(index)] : [],
+            ),
+            ...data.steps.flatMap((step, index) =>
+              step.label === '' ? [() => focusStepLabelAt(index)] : [],
+            ),
+          ]
+    if (targets.length === 0) return
+    const next = ((jumpAt.current[kind] ?? -1) + 1) % targets.length
+    jumpAt.current[kind] = next
+    targets[next]()
   }
 
   /** コマンドをシーケンスの構造へ写像する。戻り値 true＝消費した（既定動作を止める） */
@@ -745,8 +791,10 @@ export function SequenceEditor({
       {/* 測定用の見本。**描画される文字と同じフォントのクラスを持たせる**ことで、
           測定と描画が同一の情報源を見る（rev 9章）。opacity-0 で見せないだけに
           するのは、display:none だと getComputedStyle がフォントを返さない環境があるため。
-          見本が2本あるのは、答えセル（text-sm）と問いラベル列（text-xs）で
-          フォント階級が違うため——1本を両方に使い回すと、片方の高さを見誤る */}
+          見本が2本あるのは、答えセル（`SEQ_FONT_CLASS` = text-sm + leading-normal）と
+          問いラベル列（`LABEL_FONT_CLASS` = text-sm）でフォント階級が違うため
+          ——M26 でサイズは 14px に並んだが行間が違う（1.5 と 1.3）ので、
+          1本を両方に使い回すと片方の高さを見誤る */}
       <span
         ref={probeRef}
         aria-hidden="true"
@@ -775,7 +823,7 @@ export function SequenceEditor({
               指摘の一覧を額縁へ寄せたのと同じ理由） */}
           <button
             type="button"
-            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
             onClick={() => apply(addStepLast(data), 'from')}
           >
             <Plus aria-hidden className="size-4" />
@@ -784,7 +832,7 @@ export function SequenceEditor({
           {/* マウスだけの人の唯一の参加者追加手段（sequence M3 で from/to のインライン作成を外したため） */}
           <button
             type="button"
-            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+            className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
             onClick={() =>
               apply(
                 data.actors.length === 0
@@ -796,11 +844,22 @@ export function SequenceEditor({
             <Plus aria-hidden className="size-4" />
             参加者を追加
           </button>
-          <KeyHints hints={SEQ_HINTS} className="ml-auto shrink-0 bg-surface/80 px-2 py-1" />
+          {/* 要対応の集計。**ガター上部（キャンバスの transform 層）からこの帯へ
+              移した**（M25 の計画外修正）——実機で「破線チップが参加者ボックスと
+              同じ高さ・同じ角丸・同じ破線黄で並び、図の要素に見える」と出たため。
+              論点7 の「ガター上部に集計」はこの点だけ反転した（ガターのスロット列
+              そのものはキャンバス内のまま。design-notes 論点7 の追記を見よ）。
+              回答済・考慮不要は欠落ではないのでチップにしない（押す先が無い）。
+              チップの pointer-events-auto は MissingTally 部品が持つ */}
+          <MissingTally tally={seq.missing} onJump={jumpToMissing} className="shrink-0" />
+          <span className="shrink-0 whitespace-nowrap text-base text-ink-muted">
+            {`回答済 ${seq.handled} ／ 考慮不要 ${seq.notApplicable}`}
+          </span>
+          <KeyHints hints={SEQ_HINTS} className="ml-auto shrink-0 bg-surface px-2 py-1" />
         </div>
       </div>
 
-      {/* 背景レイヤ: ライフライン・責任境界の縦線・行全体の赤表示
+      {/* 背景レイヤ: ライフライン・責任境界の縦線
           （ゾーン導入時はその帯もこの層に載る） */}
       <div
         aria-hidden="true"
@@ -808,25 +867,6 @@ export function SequenceEditor({
         style={{ transform: cssTransform(transform) }}
         data-layer="background"
       >
-        {/* 行全体の赤（id 重複など、欄を特定できない指摘）。
-            **同じピクセルに warning の面を2枚重ねない**（M8 の「面は片方だけ」）。
-            そのため帯はガターの手前で止める——ガターのセルは未定義の
-            `bg-warning/10` を自分で持っており、重ねると未検算の濃さになる。
-            図の側では文言セルが面を降りる（下の labelFace） */}
-        {data.steps.map((_step, index) =>
-          stepHas(index, 'row') ? (
-            <div
-              key={`row-${stepKeys[index]}`}
-              className="absolute bg-warning/20"
-              style={{
-                left: DIAGRAM_MARGIN,
-                top: layout.rows[index].top,
-                width: Math.max(0, layout.gutterX - DIAGRAM_MARGIN - CELL_GAP * 2),
-                height: layout.rows[index].height,
-              }}
-            />
-          ) : null,
-        )}
         {data.actors.map((_actor, index) => (
           <div
             key={`life-${actorKeys[index]}`}
@@ -866,8 +906,11 @@ export function SequenceEditor({
           // **面と枠のクラスは片方だけ出す。** 両方並べると勝つのは生成 CSS の
           // 順序であってクラス名の順序ではない（M8 が cascade layers で踏んだ形）
           const face = invalidActors.has(index)
-            ? 'border-warning bg-warning/20'
-            : 'border-rule bg-surface'
+            ? 'border-invalid bg-invalid-face'
+            : actor.name === ''
+              ? // 名前が空＝未記入（M22 決定1）。語で埋めず面で示す
+                'border-dashed border-missing bg-missing-face'
+              : 'border-rule bg-surface'
           return (
             <div
               key={key}
@@ -880,7 +923,7 @@ export function SequenceEditor({
               }}
             >
               <CellInput
-                className={`h-full w-full rounded-sm text-center ${ACTOR_BOX_CLASS} ${face} text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
+                className={`h-full w-full rounded-sm text-center ${ACTOR_BOX_CLASS} ${face} text-sm leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
                 aria-label={`参加者${index + 1}の名前`}
                 data-cell={`${key}:name`}
                 value={actor.name}
@@ -891,19 +934,6 @@ export function SequenceEditor({
           )
         })}
 
-        {/* ガターの集計（design-notes 論点7）。数えるのは立っている問いだけ。
-            **`whitespace-nowrap` を外さないこと。** この div は幅を持たない
-            absolute なので、折り返しの上限は「包含ブロックの右端まで」＝
-            キャンバスの見えている幅になる。ガターが右へ寄る図（文言が長く
-            `gutterX` が大きい）だと右の余白が尽きて2行になり、行の高さ
-            （`headerHeight`）を超えて最初のステップに重なる */}
-        <div
-          className="absolute whitespace-nowrap text-sm text-ink-muted"
-          style={{ left: layout.gutterX, top: layout.headerTop, height: layout.headerHeight }}
-        >
-          {`⚠ 未定義 ${tally.unanswered} ／ ✓ 回答済 ${tally.handled} ／ ─ 考慮不要 ${tally.notApplicable}`}
-        </div>
-
         {/* ステップ行 */}
         {data.steps.map((step, index) => {
           const key = stepKeys[index]
@@ -911,12 +941,15 @@ export function SequenceEditor({
           const row = layout.rows[index]
           const isSelf = view.shape === 'self'
           // 通常時は不透明の bg-surface を敷く——枠線の無いラベルセルが
-          // 入力可能に見えないという実機フィードバックへの対応（rounded-sm は
-          // 呼び出し側の className に既にある。ここは色だけを決める）。
-          // 行全体が赤い行では、文言セルは面を持たない（背景の帯を透かす）。
-          // bg-warning/20 を重ねると同じ色を2枚敷くことになり、
-          // bg-surface のまま塗ると帯に穴が開く（どちらも「面は片方だけ」に反する）
-          const labelFace = stepHas(index, 'row') ? 'bg-transparent' : 'bg-surface'
+          // 入力可能に見えないという実機フィードバックへの対応。
+          // 文言が空＝未記入（M22 決定1）は破線＋淡い面で示す。**枠のクラスを
+          // ここで自前に持つ**のは、通常時の枠が self（SELF_BOX_CLASS ＋
+          // border-rule）と通常（枠なしの LABEL_BOX_CLASS）で持ち方が違うため。
+          // 面と枠のクラスは片方だけ出す（:871 のコメントと同じ理由）
+          const labelMissing = step.label === ''
+          const labelFace = labelMissing
+            ? 'border border-dashed border-missing bg-missing-face'
+            : 'bg-surface'
           // 文言は矢印の真上に置く（layout の arrowY は文言の高さから決まっている）
           const labelTop = row.arrowY - ARROW_GAP - view.label.height
           // 文言の置き方はレイアウトが決める（`labelLeft`）。**ここで
@@ -930,10 +963,16 @@ export function SequenceEditor({
           return (
             <div key={key} onFocusCapture={() => setFocusedRow(index)}>
               {/* レールの通し番号。aria-hidden にするのは、各セルの aria-label が
-                  すでに「ステップN の…」と名乗っており、二重に読ませないため */}
+                  すでに「ステップN の…」と名乗っており、二重に読ませないため。
+                  **行全体の指摘（id 重複・self の to など欄を特定できない指摘）は
+                  ここに出す**——行を帯で染めると問題箇所が特定できない（UI ノート D5） */}
               <div
                 aria-hidden="true"
-                className="absolute select-none text-right text-xs text-ink-muted"
+                className={`absolute select-none rounded-sm text-center text-sm ${
+                  stepHas(index, 'row')
+                    ? 'text-invalid bg-invalid-face outline-1 -outline-offset-1 outline-invalid'
+                    : 'text-ink-muted'
+                }`}
                 style={{ left: RAIL_NUM_X, top: railTop + 4, width: RAIL_NUM_WIDTH }}
               >
                 {`#${index + 1}`}
@@ -961,7 +1000,7 @@ export function SequenceEditor({
                 <>
                   <div
                     aria-hidden="true"
-                    className="absolute select-none text-center text-xs text-ink-muted"
+                    className="absolute select-none text-center text-sm text-ink-muted"
                     style={{ left: RAIL_ARROW_X, top: railTop + 4, width: RAIL_ARROW_WIDTH }}
                   >
                     →
@@ -1014,8 +1053,10 @@ export function SequenceEditor({
                   multiline
                   autoSize={false}
                   className={`h-full w-full resize-none overflow-hidden whitespace-pre-wrap break-all rounded-sm ${
-                    isSelf ? `${SELF_BOX_CLASS} border-rule` : LABEL_BOX_CLASS
-                  } ${labelFace} text-center text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
+                    isSelf
+                      ? `${SELF_BOX_CLASS}${labelMissing ? '' : ' border-rule'}`
+                      : LABEL_BOX_CLASS
+                  } ${labelFace} text-center text-sm leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
                   aria-label={`ステップ${index + 1}の文言`}
                   data-cell={`${key}:label`}
                   value={step.label}
@@ -1038,7 +1079,9 @@ export function SequenceEditor({
                       : 0
                 const slotsBottom =
                   lastIndex < 0
-                    ? row.top + GUTTER_HEADING_HEIGHT + 18
+                    ? // 答え・ghost が無い行は「問いは立たない」の1行ぶんを見積もる。
+                      // 小さい字のもう1行ぶん——GUTTER_HEADING_HEIGHT と同じもの
+                      row.top + GUTTER_HEADING_HEIGHT + GUTTER_HEADING_HEIGHT
                     : row.slotTops[lastIndex] + lastHeight
                 return (
                   <>
@@ -1049,7 +1092,7 @@ export function SequenceEditor({
                     />
                     <div
                       aria-hidden="true"
-                      className="absolute truncate text-xs text-ink-muted"
+                      className="absolute truncate text-sm text-ink-muted"
                       style={{ left: layout.gutterX, top: row.top, width: layout.gutterWidth }}
                     >
                       {step.label === '' ? `#${index + 1}` : `#${index + 1} ${step.label}`}
@@ -1067,7 +1110,7 @@ export function SequenceEditor({
                   残骸そのものを見せる情報量が上位なので、一般文言側を省く */}
               {view.answers.length === 0 && view.ghosts.length === 0 ? (
                 <div
-                  className="absolute text-xs text-ink-muted"
+                  className="absolute text-sm text-ink-muted"
                   style={{ left: layout.gutterX, top: row.top + GUTTER_HEADING_HEIGHT, width: layout.gutterWidth }}
                 >
                   {view.shape === 'reply'
@@ -1132,7 +1175,7 @@ export function SequenceEditor({
           <button
             type="button"
             aria-label="末尾にステップを追加"
-            className={`${buttonBase} gap-1 border border-dashed border-rule bg-surface px-3 py-1 text-sm text-ink-muted hover:bg-canvas hover:text-ink`}
+            className={`${buttonBase} gap-1 border border-dashed border-rule bg-surface px-3 py-1 text-base text-ink-muted hover:bg-canvas hover:text-ink`}
             onClick={() => apply(addStepLast(data), 'from')}
           >
             <Plus aria-hidden className="size-4" />

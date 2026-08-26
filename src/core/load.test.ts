@@ -8,6 +8,10 @@ const glossarySchema = JSON.parse(
   readFileSync(new URL('../../schemas/glossary.schema.json', import.meta.url), 'utf8'),
 ) as JsonSchema
 
+const issueTreeSchema = JSON.parse(
+  readFileSync(new URL('../../schemas/issue-tree.schema.json', import.meta.url), 'utf8'),
+) as JsonSchema
+
 const sampleRaw = readFileSync(
   new URL('./__fixtures__/glossary.canonical.json', import.meta.url),
   'utf8',
@@ -27,6 +31,41 @@ function makeRegistry() {
     outputs: [{ id: 'default', label: 'Markdown', fileSuffix: '', toMarkdown: () => '' }],
     singleton: false,
     migrate: (d) => d,
+    createEmpty: () => ({}),
+  }
+  registry.register(mod)
+  return registry
+}
+
+/**
+ * 読み込み時の移行（rev 5章）を見るための2本目のレジストリ。
+ *
+ * **なぜ makeRegistry を使い回さないのか。** あちらの偽モジュールは
+ * `schemaVersion: 1`（＝初版で旧版が存在しない）であり、既存の
+ * 「未知の新しい schemaVersion は listOnly」がその 1 に対して 2 を
+ * 「未知の新版」として当てている。あちらを 2 に上げると、その検査が
+ * 「新版を listOnly にする」ではなく「現行版を通す」を見ることになり、
+ * 静かに空回りする。**移行の検査は現行版が 2 以上のモジュールを要る**ので、
+ * 混ぜずに別の偽モジュールを立てる。
+ *
+ * スキーマは実物の issue-tree.schema.json を読む——移行後に**本物の検証が
+ * 走る**ことが検査の主題であり、緩い偽スキーマではそこが確かめられない
+ */
+function makeMigratingRegistry() {
+  const registry = createRegistry()
+  const mod: AnyToolModule = {
+    type: 'issueTree',
+    displayName: 'issueTree',
+    icon: () => null,
+    schemaVersion: 2,
+    schema: issueTreeSchema,
+    idPrefixes: ['issue', 'hypothesis'],
+    Editor: () => null,
+    checkConsistency: () => [],
+    outputs: [],
+    singleton: false,
+    // 1 → 2 は schemaVersion の書き換えだけ（実物の migrateIssueTree と同じ形）
+    migrate: (d, from) => (from < 2 ? { ...(d as Record<string, unknown>), schemaVersion: 2 } : d),
     createEmpty: () => ({}),
   }
   registry.register(mod)
@@ -78,6 +117,20 @@ describe('classifyFile', () => {
     const data = JSON.parse(sampleRaw) as Record<string, unknown>
     data.schemaVersion = 2
     expect(classifyFile(JSON.stringify(data), makeRegistry()).status).toBe('listOnly')
+  })
+
+  it('既知 type × 旧 schemaVersion は module.migrate で移してから検証し、editable になる（rev 5章）', () => {
+    // 課題ツリーの v1（onHold を含まない）。移行後の data は schemaVersion 2
+    const text = JSON.stringify({ schemaVersion: 1, type: 'issueTree', title: '旧版', issues: [], hypotheses: [] })
+    const out = classifyFile(text, makeMigratingRegistry())
+    expect(out.status).toBe('editable')
+    if (out.status === 'editable') expect((out.data as { schemaVersion: number }).schemaVersion).toBe(2)
+  })
+
+  it('移行後にスキーマ検証へ落ちるファイルは rejected（移行が検証を飛ばさない）', () => {
+    // v1 の形をしているが必須キーが欠けている
+    const text = JSON.stringify({ schemaVersion: 1, type: 'issueTree', title: '壊れた旧版', issues: [] })
+    expect(classifyFile(text, makeMigratingRegistry()).status).toBe('rejected')
   })
 
   it('type を持たないただの JSON は listOnly', () => {

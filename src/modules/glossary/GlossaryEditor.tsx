@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { CellInput, type FieldState } from '@/components/CellInput'
+import { CellSelect } from '@/components/CellSelect'
 import { buttonBase } from '@/components/button-styles'
+import { Chip } from '@/components/Chip'
+import { MissingTally } from '@/components/MissingTally'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -10,7 +13,7 @@ import {
   type KeyContext,
 } from '@/core/keyboard/keymap'
 import { altModifierLabel, currentPlatform } from '@/core/keyboard/platform'
-import { buildErrorMarks, cellFace, hasError } from '@/core/list-editor/cell-face'
+import { buildErrorMarks, cellFace, CELL_FACE_CLASS } from '@/core/list-editor/cell-face'
 import { cellId, useListRows } from '@/core/list-editor/use-list-rows'
 import { newId } from '@/core/new-id'
 import type { EditorProps } from '@/core/registry'
@@ -23,9 +26,10 @@ import {
   MIN_COLUMN_WIDTH,
   RESIZE_STEP,
 } from './column-widths'
-import { COLUMNS, nextWidthIndex, WIDTH_INDEX } from './columns'
+import { COLUMNS, NO_COLUMN_LABEL, nextWidthIndex, WIDTH_INDEX } from './columns'
 import { FIELD_LABELS, stepField, type GlossaryField } from './fields'
 import { kindLabel } from './kind-labels'
+import { isMissingCell, tallyMissing } from './missing'
 import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } from './search'
 
 // 種別の選択肢はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂時に静かにずれる）
@@ -33,25 +37,15 @@ const KIND_OPTIONS = glossarySchema.$defs.term.properties.kind.enum
 
 // フォーカスは面の塗り替えではなくリングで示す（M8 修正3）。テーブルの面が
 // bg-surface になった今、focus:bg-surface はコントラスト比 1.00:1 で見えない。
-// エラー・未定義セルは bg-warning/20・/10 の面を警告として持っているので、
-// フォーカスで背景を塗り替えるとその警告表示が消えてしまう——リングなら
-// 面の色を潰さずに重ねられる。色は役割トークンの --ring から取る（既に
-// --ink に紐づいている。palette.css は変更していない）
+// エラー・未定義セルは輪郭（CELL_FACE_CLASS）で警告を示しているので、
+// フォーカスで背景を塗り替えても輪郭は消えない——リングは輪郭とは別の見た目
+// なので、どちらも潰さずに重ねられる。色は役割トークンの --ring から取る
+// （既に --ink に紐づいている。palette.css は変更していない）
 const cellInput =
   'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
-// レベル2エラー（受け入れて赤表示）と warning（undecided / 未定義）は
-// どちらも同系色の面で示し、濃さで強度を区別する。
-// 波線下線は表記ゆれの「指摘（suggestion）」用に予約されているため使わない
-// （glossary-session-notes 論点5）。
-//
-// **濃さは M8 で確定した**（設計スペック 決定13）。合成後のコントラストは
-// src/styles/palette.test.ts が機械検査しており、値を変えるとそちらが落ちる。
-// /25 はダークの surface 上で ink-muted が 4.58:1 に落ちるため使えない
-const errorCell = 'bg-warning/20'
-const warnCell = 'bg-warning/10'
 
-/** 列の境界の縦罫。先頭列には引かない（M8 決定2） */
-const colBorder = 'border-l border-grid'
+/** 列の境界の縦罫。先頭列（No）には引かない（M8 決定2） */
+const colBorder = 'border-l border-rule-muted'
 
 const PLATFORM = currentPlatform()
 
@@ -119,6 +113,24 @@ export function GlossaryEditor({
     const index = visible[visiblePos]
     if (index === undefined) return false
     return rows.focusCell(rowKeys[index], field)
+  }
+
+  /** 帯のチップ（欠落の種類）ごとに巡る位置。kind → 直前に飛んだ表示中の順番 */
+  const jumpAt = useRef<Record<string, number>>({})
+
+  /**
+   * 欠落セルへのジャンプ（M22）。**集計は全行、ジャンプは表示中**——
+   * 絞り込み中は集計と巡回先がずれうる（テーブル側はフォーカス位置追跡を
+   * 持たないので、課題ツリーの nextOpenTarget とは違い巡回 ref で数える。
+   * 物足りなければ open-issues 行き）
+   */
+  const jumpToMissing = (kind: string): void => {
+    const field: GlossaryField = kind === 'kind' ? 'kind' : 'definition'
+    const targets = visible.filter((i) => isMissingCell(data.terms[i], field))
+    if (targets.length === 0) return
+    const next = ((jumpAt.current[kind] ?? -1) + 1) % targets.length
+    jumpAt.current[kind] = next
+    rows.focusCell(rowKeys[targets[next]], field)
   }
 
   /** コマンドを用語集の構造へ写像する。戻り値 true＝消費した（既定動作を止める） */
@@ -197,16 +209,17 @@ export function GlossaryEditor({
   })
 
   // locations を「配列位置 → 赤表示するフィールド集合」に引き直す。判定
-  // ロジック（優先順位・二重塗り防止）とあわせて cell-face.ts の純関数へ
+  // ロジック（優先順位・行アンカー）とあわせて cell-face.ts の純関数へ
   // 切り出してある。DOM テストは role・アクセシブル名で引きクラス名を見ないため、
   // この振る舞いを固定する場所が別に要る（M8 でつぶした残件2の裏付け）
   const marks = buildErrorMarks(issues)
 
-  /** セルの面のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ */
-  const cellClass = (index: number, field: GlossaryField, warn = false): string => {
-    const face = cellFace(marks, index, field, warn)
-    return face === 'error' ? errorCell : face === 'warn' ? warnCell : ''
-  }
+  /** セルの輪郭のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ。
+      行全体の指摘は No セルの輪郭で示す（M22。UI ノート D5）。No は GlossaryField
+      ではないので、ここでは rowAnchor は常に false——No セル自身は tbody の中で
+      cellFace を直接呼んで別に組み立てる */
+  const cellClass = (index: number, field: GlossaryField, warn = false): string =>
+    CELL_FACE_CLASS[cellFace(marks, index, field, warn, false)]
 
   return (
     <div ref={rows.containerRef} className="p-4">
@@ -214,7 +227,7 @@ export function GlossaryEditor({
         <input
           type="search"
           aria-label="用語を検索"
-          className="w-64 rounded-sm border border-rule bg-canvas px-2 py-1 text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
+          className="w-64 rounded-sm border border-rule bg-canvas px-2 py-1 text-base text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
           placeholder="名称・別名・定義を検索"
           value={filter.query}
           onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
@@ -222,13 +235,9 @@ export function GlossaryEditor({
         {KIND_OPTIONS.map((kind) => {
           const active = filter.kinds.includes(kind)
           return (
-            <button
+            <Chip
               key={kind}
-              type="button"
-              aria-pressed={active}
-              className={`${buttonBase} border border-rule px-2 py-1 text-xs ${
-                active ? 'bg-ink text-canvas' : 'bg-canvas text-ink hover:bg-surface'
-              }`}
+              selected={active}
               onClick={() =>
                 setFilter((f) => ({
                   ...f,
@@ -237,16 +246,17 @@ export function GlossaryEditor({
               }
             >
               {kindLabel(kind)}
-            </button>
+            </Chip>
           )
         })}
-        <span className="text-xs text-ink-muted">
+        <span className="text-sm text-ink-muted">
           {visible.length} / {data.terms.length} 件
         </span>
+        <MissingTally tally={tallyMissing(data.terms)} onJump={jumpToMissing} />
         {!reorderEnabled && (
           // データ順と表示順が食い違う状態での並び替えは結果が予測不能になる
           // （session-notes 論点4）。無効であることを画面でも示す
-          <span className="text-xs text-ink-muted">
+          <span className="text-sm text-ink-muted">
             検索・フィルタ中は行の追加（Enter）と並び替え（{altModifierLabel(PLATFORM)}+↑↓）を使えません
           </span>
         )}
@@ -278,31 +288,35 @@ export function GlossaryEditor({
             })}
           </colgroup>
           <thead>
-            <tr className="text-left text-ink">
+            <tr className="text-left">
               {COLUMNS.map((col, i) => {
                 const w = WIDTH_INDEX[i]
+                // 'no' は GlossaryField ではないので FIELD_LABELS が引けない
+                // （エラーカタログ columns.ts の NO_COLUMN_LABEL と同じ形）
+                const label = col.field === 'no' ? NO_COLUMN_LABEL : FIELD_LABELS[col.field]
                 return (
                   <th
                     key={col.field}
-                    className={`sticky top-0 z-10 relative border-b border-rule bg-surface-accent px-2 py-1 font-bold${i === 0 ? '' : ` ${colBorder}`}`}
+                    className={`sticky top-0 z-10 relative border-b border-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
                   >
-                    {FIELD_LABELS[col.field]}
-                    {/* 幅を持たない定義列は自分ではハンドルを出さないが、右隣に
+                    {label}
+                    {/* No 列は導出（データ配列の index+1）なのでハンドルを出さない。
+                        幅を持たない定義列は自分ではハンドルを出さないが、右隣に
                         固定幅の列があればそこにハンドルを出す。掴めるのは
                         右隣（別名）の幅なので反転して渡す（見た目どおり、
                         右へ引くと定義が広がる＝別名が狭まる）。掴み代が見えるように
                         列の境界へ grid の縦罫を引いてある（M8 決定2） */}
-                    {w !== null ? (
+                    {col.field === 'no' ? null : w !== null ? (
                       <span
                         {...getHandleProps(w)}
-                        aria-label={`${FIELD_LABELS[col.field]}の列幅を変更`}
+                        aria-label={`${label}の列幅を変更`}
                         className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-rule"
                       />
                     ) : (
                       nextWidthIndex(i) !== null && (
                         <span
                           {...getHandleProps(nextWidthIndex(i) as number, { invert: true })}
-                          aria-label={`${FIELD_LABELS[col.field]}の列幅を変更`}
+                          aria-label={`${label}の列幅を変更`}
                           className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-rule"
                         />
                       )
@@ -318,8 +332,18 @@ export function GlossaryEditor({
               const rowKey = rowKeys[index]
               const row = visiblePos + 1
               return (
-                <tr key={rowKey} className={`border-b border-grid align-middle${hasError(marks, index, 'id') ? ` ${errorCell}` : ''}`}>
-                  <td className={cellClass(index, 'name')}>
+                <tr key={rowKey} className="border-b border-rule-muted align-middle">
+                  {/* No は編集対象ではない。データ配列の位置なので絞り込んでも動かない
+                      （表示中の行番号 `row` とは役割が違う——row は表示位置、
+                      No はデータ位置。エラーカタログ :416-422 の写し）。
+                      行全体の指摘（field: 'id'。ID 重複など欄を特定できない指摘）は
+                      ここへ出す（cellFace の rowAnchor 引数） */}
+                  <td
+                    className={`px-2 py-1 text-right text-ink-muted ${CELL_FACE_CLASS[cellFace(marks, index, 'no', false, true)]}`}
+                  >
+                    {index + 1}
+                  </td>
+                  <td className={`${colBorder} ${cellClass(index, 'name')}`}>
                     <CellInput
                       className={cellInput}
                       aria-label={`${FIELD_LABELS.name}（${row}行目）`}
@@ -340,15 +364,15 @@ export function GlossaryEditor({
                       }
                     />
                   </td>
-                  <td className={`relative ${colBorder} ${cellClass(index, 'kind', term.kind === 'undecided')}`}>
-                    <select
+                  <td className={`relative ${colBorder} ${cellClass(index, 'kind', isMissingCell(term, 'kind'))}`}>
+                    <CellSelect
                       className={`${cellInput} appearance-none pr-6`}
                       aria-label={`${FIELD_LABELS.kind}（${row}行目）`}
                       data-cell={cellId(rowKey, 'kind')}
                       value={term.kind}
-                      onChange={(e) =>
-                        updateTerm(index, { kind: e.target.value as Term['kind'] }, null)
-                      }
+                      options={KIND_OPTIONS}
+                      labelOf={kindLabel}
+                      onPick={(kind) => updateTerm(index, { kind: kind as Term['kind'] }, null)}
                       onKeyDown={(e) =>
                         onCellKeyDown(
                           e,
@@ -359,18 +383,12 @@ export function GlossaryEditor({
                             deletableField: false,
                             caretAtStart: true,
                             caretAtEnd: true,
-                            // 素の↑↓は select の選択肢切り替えに使う（Alt+↑↓ は有効）
+                            // 素の↑↓は CellSelect が値切り替えに消費する（ここへ届かない）
                             arrowsOwnedByField: true,
                           },
                         )
                       }
-                    >
-                      {KIND_OPTIONS.map((kind) => (
-                        <option key={kind} value={kind}>
-                          {kindLabel(kind)}
-                        </option>
-                      ))}
-                    </select>
+                    />
                     {/* appearance-none で消えた矢印を描き直す。**背景画像の
                         data URI は使わない**——色値を書くことになり
                         conventions.test.ts が弾く（M8 決定14） */}
@@ -382,15 +400,14 @@ export function GlossaryEditor({
                       <path d="M3 4.5 L6 7.5 L9 4.5" />
                     </svg>
                   </td>
-                  <td className={`${colBorder} ${cellClass(index, 'definition', term.definition === '')}`}>
+                  <td className={`${colBorder} ${cellClass(index, 'definition', isMissingCell(term, 'definition'))}`}>
                     <CellInput
                       multiline
-                      className={`${cellInput} placeholder:text-ink-muted`}
+                      className={`${cellInput} leading-normal`}
                       aria-label={`${FIELD_LABELS.definition}（${row}行目）`}
                       data-cell={cellId(rowKey, 'definition')}
-                      // 空欄は「未定義」と明示する（負債を消えなくして見せる。
-                      // M6 の Markdown 出力が空定義を「（未定義）」と書く仕様と揃える）
-                      placeholder="未定義"
+                      // 空は空のまま。欠落は cellClass の面（missing-face）が示す
+                      // （D1。placeholder に欠落の語を使わない——IssueBox と同じ判断）
                       value={term.definition}
                       onValueChange={(v) =>
                         updateTerm(index, { definition: v }, `${rowKey}:definition`)
@@ -434,7 +451,7 @@ export function GlossaryEditor({
                   <td className={`${colBorder} ${cellClass(index, 'notes')}`}>
                     <CellInput
                       multiline
-                      className={cellInput}
+                      className={`${cellInput} leading-normal`}
                       aria-label={`${FIELD_LABELS.notes}（${row}行目）`}
                       data-cell={cellId(rowKey, 'notes')}
                       value={term.notes}
@@ -451,7 +468,7 @@ export function GlossaryEditor({
         </table>
       </div>
       {data.terms.length > 0 && visible.length === 0 && (
-        <p className="mt-3 text-sm text-ink-muted">該当する用語がありません。</p>
+        <p className="mt-3 text-base text-ink-muted">該当する用語がありません。</p>
       )}
       {!derivedView && (
         // **0件のときだけでなく常に出す。** 行の追加が Enter だけだと、
@@ -461,7 +478,7 @@ export function GlossaryEditor({
         <button
           ref={rows.addButtonRef}
           type="button"
-          className={`${buttonBase} mt-3 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+          className={`${buttonBase} mt-3 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
           onClick={() => rows.insertAfter(data.terms.length - 1)}
         >
           <Plus aria-hidden className="size-4" />

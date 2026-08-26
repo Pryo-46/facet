@@ -15,8 +15,17 @@ import type { GlossaryField } from './fields'
  *
  * 写像の実装は `@/core/list-editor/columns` にある（M9 で引き上げ）。
  * このファイルが持つのは**列データそのものだけ**
+ *
+ * `'no'` は編集対象ではない**導出列**（データ配列の index + 1）。フィールドでは
+ * ないので `GlossaryField` には入れず、列としてだけ先頭に足す（M22。
+ * エラーカタログ `columns.ts` の形を写す）
  */
-export const COLUMNS: readonly ColumnSpec<GlossaryField>[] = [
+export type GlossaryColumn = 'no' | GlossaryField
+
+export const NO_COLUMN_LABEL = 'No'
+
+export const COLUMNS: readonly ColumnSpec<GlossaryColumn>[] = [
+  { field: 'no', defaultWidth: 56 },
   { field: 'name', defaultWidth: 176 },
   { field: 'kind', defaultWidth: 128 },
   { field: 'definition', defaultWidth: null },

@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { CellInput, type FieldState } from '@/components/CellInput'
+import { CellSelect } from '@/components/CellSelect'
 import { buttonBase } from '@/components/button-styles'
+import { Chip } from '@/components/Chip'
+import { MissingTally } from '@/components/MissingTally'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -10,7 +13,7 @@ import {
   type KeyContext,
 } from '@/core/keyboard/keymap'
 import { altModifierLabel, currentPlatform } from '@/core/keyboard/platform'
-import { buildErrorMarks, cellFace, hasError } from '@/core/list-editor/cell-face'
+import { buildErrorMarks, cellFace, CELL_FACE_CLASS } from '@/core/list-editor/cell-face'
 import { stepField } from '@/core/list-editor/field-step'
 import { cellId, useListRows } from '@/core/list-editor/use-list-rows'
 import { newId } from '@/core/new-id'
@@ -25,26 +28,22 @@ import {
 } from './column-widths'
 import { NO_COLUMN_LABEL, PROFILE_COLUMNS } from './columns'
 import { FIELD_LABELS, type ErrorField, type ProseField } from './fields'
+import { isMissingCell, TALLIED_FIELDS, tallyMissing } from './missing'
 import { PROFILES, SUPPORT_PROFILE, type ErrorProfile } from './profiles'
 import { resolutionLabel } from './resolution-labels'
 import { EMPTY_FILTER, filterErrorIndices, isDerivedView, type ErrorFilter } from './search'
-import { isWarnCell } from './warnings'
 
 // 解決レベルの選択肢はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂時に静かにずれる）
 const LEVEL_OPTIONS = errorCatalogSchema.$defs.errorEntry.properties.resolutionLevel.enum
 
 // フォーカスは面の塗り替えではなくリングで示す（M8 修正3）。エラー・未記入セルは
-// bg-warning/20・/10 の面を警告として持っているので、フォーカスで背景を塗り替えると
-// その警告表示が消えてしまう
+// 輪郭（CELL_FACE_CLASS）で示す。フォーカスで背景を塗り替えても消えないが、
+// リングで示す方針は変えない
 const cellInput =
   'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
-// レベル2エラー（受け入れて赤表示）と warning はどちらも同系色の面で示し、
-// 濃さで強度を区別する（M8 決定13。合成後のコントラストは palette.test.ts が機械検査する）
-const errorCell = 'bg-warning/20'
-const warnCell = 'bg-warning/10'
 
 /** 列の境界の縦罫。先頭列（No）には引かない（M8 決定2） */
-const colBorder = 'border-l border-grid'
+const colBorder = 'border-l border-rule-muted'
 
 const PLATFORM = currentPlatform()
 
@@ -137,6 +136,36 @@ export function ErrorCatalogEditor({
     return rows.focusCell(rowKeys[index], field)
   }
 
+  /** 帯のチップ（欠落の種類）ごとに巡る位置。kind → 直前に飛んだ表示中の順番 */
+  const jumpAt = useRef<Record<string, number>>({})
+
+  /**
+   * 欠落セルへのジャンプ（M22）。**集計は全行、ジャンプは表示中**——絞り込み中は
+   * 集計と巡回先がずれうる（用語集 GlossaryEditor と同じ理由・同じ形）。
+   * `'undecided'` は resolutionLevel セルへ、`'blank'` はその行の
+   * TALLIED_FIELDS 順で最初に isMissingCell が真になるフィールドへ飛ぶ
+   */
+  const jumpToMissing = (kind: string): void => {
+    if (kind === 'undecided') {
+      const targets = visible.filter((i) => isMissingCell(data.errors[i], 'resolutionLevel'))
+      if (targets.length === 0) return
+      const next = ((jumpAt.current[kind] ?? -1) + 1) % targets.length
+      jumpAt.current[kind] = next
+      rows.focusCell(rowKeys[targets[next]], 'resolutionLevel')
+      return
+    }
+    const targets = visible.filter((i) =>
+      TALLIED_FIELDS.some((f) => isMissingCell(data.errors[i], f)),
+    )
+    if (targets.length === 0) return
+    const next = ((jumpAt.current[kind] ?? -1) + 1) % targets.length
+    jumpAt.current[kind] = next
+    const index = targets[next]
+    const field = TALLIED_FIELDS.find((f) => isMissingCell(data.errors[index], f))
+    if (field === undefined) return
+    rows.focusCell(rowKeys[index], field)
+  }
+
   /** コマンドをエラーカタログの構造へ写像する。戻り値 true＝消費した */
   const runCommand = (
     cmd: Command,
@@ -220,11 +249,10 @@ export function ErrorCatalogEditor({
   // locations を「配列位置 → 赤表示するフィールド集合」に引き直す（コアの純関数）
   const marks = buildErrorMarks(issues)
 
-  /** セルの面のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ */
-  const cellClass = (index: number, field: ErrorField, warn: boolean): string => {
-    const face = cellFace(marks, index, field, warn)
-    return face === 'error' ? errorCell : face === 'warn' ? warnCell : ''
-  }
+  /** セルの輪郭のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ。
+      No 列は profile.fields に含まれないので rowAnchor はここでは常に false */
+  const cellClass = (index: number, field: ErrorField, warn: boolean): string =>
+    CELL_FACE_CLASS[cellFace(marks, index, field, warn)]
 
   /** セルの中身。列ごとの違いはここ1箇所に閉じる */
   const cellNode = (
@@ -237,14 +265,14 @@ export function ErrorCatalogEditor({
     if (field === 'resolutionLevel') {
       return (
         <>
-          <select
+          <CellSelect
             className={`${cellInput} appearance-none pr-6`}
             aria-label={label}
             data-cell={cellId(rowKey, field)}
             value={entry.resolutionLevel}
-            onChange={(e) =>
-              updateLevel(at.index, e.target.value as ErrorEntry['resolutionLevel'])
-            }
+            options={LEVEL_OPTIONS}
+            labelOf={resolutionLabel}
+            onPick={(level) => updateLevel(at.index, level as ErrorEntry['resolutionLevel'])}
             onKeyDown={(e) =>
               onCellKeyDown(e, at, {
                 editing: false,
@@ -252,17 +280,11 @@ export function ErrorCatalogEditor({
                 deletableField: false,
                 caretAtStart: true,
                 caretAtEnd: true,
-                // 素の↑↓は select の選択肢切り替えに使う（Alt+↑↓ は有効）
+                // 素の↑↓は CellSelect が値切り替えに消費する（ここへ届かない）
                 arrowsOwnedByField: true,
               })
             }
-          >
-            {LEVEL_OPTIONS.map((level) => (
-              <option key={level} value={level}>
-                {resolutionLabel(level)}
-              </option>
-            ))}
-          </select>
+          />
           {/* appearance-none で消えた矢印を描き直す。背景画像の data URI は
               使わない——色値を書くことになり conventions.test.ts が弾く */}
           <svg
@@ -291,15 +313,18 @@ export function ErrorCatalogEditor({
         />
       )
     }
+    // 選定基準は列幅ではなく描画機構（D11「textarea で複数行が入る列」）。
+    // ここに来る ErrorField（name・resolutionLevel を除く全部）は
+    // 例外なく `multiline`＝本物の textarea（CellInput.tsx の分岐）を
+    // 通るので、leading-normal は分岐なしで全部に足す
     return (
       <CellInput
         multiline
-        className={`${cellInput} placeholder:text-ink-muted`}
+        className={`${cellInput} leading-normal`}
         aria-label={label}
         data-cell={cellId(rowKey, field)}
-        // 空欄は「未定義」と明示する（Markdown 出力が （未定義） と書く仕様と揃える）。
-        // 備考だけは検知対象外の自由メモなので置かない
-        placeholder={field === 'notes' ? undefined : '未定義'}
+        // 空は空のまま。欠落は cellClass の面（missing-face）が示す
+        // （D1。placeholder に欠落の語を使わない——IssueBox と同じ判断）
         value={entry[field]}
         onValueChange={(v) => updateProse(at.index, field, v, `${rowKey}:${field}`)}
         onFieldKeyDown={(e, s) => onCellKeyDown(e, at, textFieldContext(s, false))}
@@ -313,31 +338,23 @@ export function ErrorCatalogEditor({
         <input
           type="search"
           aria-label="エラーを検索"
-          className="w-64 rounded-sm border border-rule bg-canvas px-2 py-1 text-sm text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
+          className="w-64 rounded-sm border border-rule bg-canvas px-2 py-1 text-base text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
           placeholder="エラー名・原因・対応を検索"
           value={filter.query}
           onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value }))}
         />
-        <span className="text-xs text-ink-muted">表示</span>
+        <span className="text-sm text-ink-muted">表示</span>
         <div role="group" aria-label="表示プロファイル" className="flex items-center gap-1">
           {PROFILES.map((p) => {
             const active = p.id === profile.id
             return (
-              <button
-                key={p.id}
-                type="button"
-                aria-pressed={active}
-                className={`${buttonBase} border border-rule px-2 py-1 text-xs ${
-                  active ? 'bg-ink text-canvas' : 'bg-canvas text-ink hover:bg-surface'
-                }`}
-                onClick={() => setProfile(p)}
-              >
+              <Chip key={p.id} selected={active} onClick={() => setProfile(p)}>
                 {p.label}
-              </button>
+              </Chip>
             )
           })}
         </div>
-        <span className="text-xs text-ink-muted">絞り込み</span>
+        <span className="text-sm text-ink-muted">絞り込み</span>
         <div
           role="group"
           aria-label="解決レベルで絞り込む"
@@ -346,13 +363,9 @@ export function ErrorCatalogEditor({
           {LEVEL_OPTIONS.map((level) => {
             const active = filter.levels.includes(level)
             return (
-              <button
+              <Chip
                 key={level}
-                type="button"
-                aria-pressed={active}
-                className={`${buttonBase} border border-rule px-2 py-1 text-xs ${
-                  active ? 'bg-ink text-canvas' : 'bg-canvas text-ink hover:bg-surface'
-                }`}
+                selected={active}
                 onClick={() =>
                   setFilter((f) => ({
                     ...f,
@@ -361,15 +374,16 @@ export function ErrorCatalogEditor({
                 }
               >
                 {resolutionLabel(level)}
-              </button>
+              </Chip>
             )
           })}
         </div>
-        <span className="text-xs text-ink-muted">
+        <span className="text-sm text-ink-muted">
           {visible.length} / {data.errors.length} 件
         </span>
+        <MissingTally tally={tallyMissing(data.errors)} onJump={jumpToMissing} />
         {!reorderEnabled && (
-          <span className="text-xs text-ink-muted">
+          <span className="text-sm text-ink-muted">
             検索・フィルタ中は行の追加（Enter）と並び替え（{altModifierLabel(PLATFORM)}+↑↓）を使えません
           </span>
         )}
@@ -389,7 +403,7 @@ export function ErrorCatalogEditor({
             })}
           </colgroup>
           <thead>
-            <tr className="text-left text-ink">
+            <tr className="text-left">
               {cols.columns.map((col, i) => {
                 const w = cols.widthIndex[i]
                 const label = col.field === 'no' ? NO_COLUMN_LABEL : FIELD_LABELS[col.field]
@@ -398,7 +412,7 @@ export function ErrorCatalogEditor({
                   <th
                     key={col.field}
                     // sticky 自体が絶対配置の包含ブロックになるので relative は要らない
-                    className={`sticky top-0 z-10 border-b border-rule bg-surface-accent px-2 py-1 font-bold${i === 0 ? '' : ` ${colBorder}`}`}
+                    className={`sticky top-0 z-10 border-b border-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
                   >
                     {label}
                     {/* No 列は導出（データ配列の index+1）なのでハンドルを出さない。
@@ -428,16 +442,20 @@ export function ErrorCatalogEditor({
               const entry = data.errors[index]
               const rowKey = rowKeys[index]
               return (
-                <tr
-                  key={rowKey}
-                  className={`border-b border-grid align-middle${hasError(marks, index, 'id') ? ` ${errorCell}` : ''}`}
-                >
-                  {/* No は編集対象ではない。データ配列の位置なので絞り込んでも動かない */}
-                  <td className="px-2 py-1 text-ink-muted">{index + 1}</td>
+                <tr key={rowKey} className="border-b border-rule-muted align-middle">
+                  {/* No は編集対象ではない。データ配列の位置なので絞り込んでも動かない。
+                      右揃え（UI ノート D9）。'no' は ErrorField ではないが cellFace の
+                      field は string なので通る。hasError(marks, index, 'no') は常に
+                      false で、rowAnchor だけが効く */}
+                  <td
+                    className={`px-2 py-1 text-right text-ink-muted ${CELL_FACE_CLASS[cellFace(marks, index, 'no', false, true)]}`}
+                  >
+                    {index + 1}
+                  </td>
                   {profile.fields.map((field) => (
                     <td
                       key={field}
-                      className={`${colBorder}${field === 'resolutionLevel' ? ' relative' : ''} ${cellClass(index, field, isWarnCell(entry, field))}`}
+                      className={`${colBorder}${field === 'resolutionLevel' ? ' relative' : ''} ${cellClass(index, field, isMissingCell(entry, field))}`}
                     >
                       {cellNode({ index, visiblePos, field }, entry, rowKey)}
                     </td>
@@ -449,7 +467,7 @@ export function ErrorCatalogEditor({
         </table>
       </div>
       {data.errors.length > 0 && visible.length === 0 && (
-        <p className="mt-3 text-sm text-ink-muted">該当するエラーがありません。</p>
+        <p className="mt-3 text-base text-ink-muted">該当するエラーがありません。</p>
       )}
       {!derivedView && (
         // **0件のときだけでなく常に出す。** 行の追加が Enter だけだと、
@@ -457,7 +475,7 @@ export function ErrorCatalogEditor({
         <button
           ref={rows.addButtonRef}
           type="button"
-          className={`${buttonBase} mt-3 gap-1 border border-rule bg-surface px-3 py-1 text-sm text-ink hover:bg-canvas`}
+          className={`${buttonBase} mt-3 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
           onClick={() => rows.insertAfter(data.errors.length - 1)}
         >
           <Plus aria-hidden className="size-4" />

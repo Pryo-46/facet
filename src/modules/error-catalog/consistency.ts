@@ -1,6 +1,7 @@
 import type { ConsistencyIssue } from '@/core/consistency'
 import { findDuplicates } from '@/core/duplicate'
 import { normalizeForMatch } from '@/core/normalize'
+import { rowRef } from '@/core/row-ref'
 import type { ErrorCatalogSchemaVersion1 } from '@/types/error-catalog'
 import { FIELD_LABELS, type ResolutionLevel } from './fields'
 import { resolutionLabel } from './resolution-labels'
@@ -10,9 +11,9 @@ import { resolutionLabel } from './resolution-labels'
  * レベル2＝受け入れて赤表示。自ファイルで完結する検証のみで、
  * 単一性違反はコア横断検証の管轄。
  *
- * **warning（対応文・原因の空、undecided）はここに載せない。** warning は
- * セルの面であってエディタが直接塗る（`warnings.ts`）——issue 一覧が
- * warning で埋まると、赤の指摘が読めなくなる。
+ * **欠落（対応文・原因の空、undecided）はここに載せない。** 欠落は
+ * セルの面であってエディタが直接塗る（`missing.ts`）——issue 一覧が
+ * 欠落で埋まると、赤の指摘が読めなくなる。
  *
  * locations は配列位置（entityIndex）で行を指す。ID 重複ファイルを
  * 「受け入れて赤表示」する以上、entityId だけでは行を一意に特定できない
@@ -36,7 +37,7 @@ export function checkErrorCatalogConsistency(
   for (const [id, indices] of findDuplicates(errors, (e) => e.id)) {
     issues.push({
       rule: 'duplicate-id',
-      message: `ID が重複しています（${indices.length}件）: ${id}`,
+      message: `ID が重複しています（${indices.length}件。${indices.map(rowRef).join(' ／ ')}）: ${id}`,
       locations: indices.map((i) => ({ entityId: id, entityIndex: i, field: 'id' })),
     })
   }
@@ -47,7 +48,7 @@ export function checkErrorCatalogConsistency(
   for (const indices of findDuplicates(errors, (e) => normalizeForMatch(e.name)).values()) {
     issues.push({
       rule: 'duplicate-name',
-      message: `エラー名が重複しています: ${indices.map((i) => `「${errors[i].name}」`).join(' と ')}`,
+      message: `エラー名「${errors[indices[0]].name}」が${indices.length}件重複しています（${indices.map(rowRef).join(' ／ ')}）`,
       locations: indices.map((i) => ({
         entityId: errors[i].id,
         entityIndex: i,
@@ -62,7 +63,7 @@ export function checkErrorCatalogConsistency(
     if (field === undefined || entry[field] !== '') return
     issues.push({
       rule: 'resolution-action-missing',
-      message: `「${entry.name}」は${resolutionLabel(entry.resolutionLevel)}としていますが、${FIELD_LABELS[field]}が空です`,
+      message: `${rowRef(index)}「${entry.name}」は${resolutionLabel(entry.resolutionLevel)}としていますが、${FIELD_LABELS[field]}が空です`,
       locations: [{ entityId: entry.id, entityIndex: index, field }],
     })
   })

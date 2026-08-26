@@ -140,7 +140,7 @@ describe('LogicTreeEditor（描画）', () => {
     expect(container.querySelectorAll('path').length).toBe(0)
   })
 
-  it('指摘の対象になったノードに警告の面と枠を当てる（面と枠は片方だけ）', () => {
+  it('指摘の対象になったノードに無効の枠と淡い面を当てる', () => {
     render(
       <LogicTreeEditor
         data={file([[1, null, 'x'], [2, 1, 'y']])}
@@ -156,17 +156,51 @@ describe('LogicTreeEditor（描画）', () => {
       />,
     )
     const target = screen.getByLabelText('ノード1')
-    expect(target.className).toContain('bg-warning/20')
-    expect(target.className).toContain('border-warning')
-    // **面と枠のクラスは片方だけ出す。** 両方並べると勝つのは生成 CSS の
-    // 順序であってクラス名の順序ではない（M8 が cascade layers で踏んだ形）
-    expect(target.className).not.toContain('bg-surface')
+    // 無効は `invalid` の枠＋淡い面（rev 9章 規約2。M21 の実機確認で、
+    // 1px の枠だけでは方眼に埋もれて拾えないと判断して面を足した）
+    expect(target.className).toContain('border-invalid')
+    expect(target.className).toContain('bg-invalid-face')
     expect(target.className).not.toContain('border-rule')
 
-    // 指摘の付いていないノードは通常の面のまま
+    // 指摘の付いていないノードは通常の枠と面のまま。**面の側も見る**
+    // ——枠だけ見ていると、淡い面を全ノードに撒いてしまっても緑になる
     const other = screen.getByLabelText('ノード2')
-    expect(other.className).toContain('bg-surface')
-    expect(other.className).not.toContain('bg-warning')
+    expect(other.className).toContain('border-rule')
+    expect(other.className).not.toContain('border-invalid')
+    expect(other.className).not.toContain('bg-invalid-face')
+  })
+
+  it('空ノードは破線＋淡い面（missing-face）、invalid が立てば赤が勝つ', () => {
+    render(
+      <LogicTreeEditor
+        data={file([[1, null, ''], [2, 1, ''], [3, 1, 'y']])}
+        onChange={() => {}}
+        issues={[
+          {
+            rule: 'duplicate-id',
+            message: 'ID が重複しています',
+            locations: [{ entityId: ID(2), entityIndex: 1, field: 'text' }],
+          },
+        ]}
+        modalOpen={false}
+      />,
+    )
+    // 空・指摘なし → 破線＋淡い面（missing-face）
+    const missing = screen.getByLabelText('ノード1')
+    expect(missing.className).toContain('border-dashed')
+    expect(missing.className).toContain('border-missing')
+    expect(missing.className).toContain('bg-missing-face')
+    expect(missing.className).not.toContain('bg-invalid-face')
+
+    // 空・指摘あり → invalid が勝つ（missing-face は出ない）
+    const invalidAndMissing = screen.getByLabelText('ノード2')
+    expect(invalidAndMissing.className).toContain('bg-invalid-face')
+    expect(invalidAndMissing.className).not.toContain('bg-missing-face')
+
+    // 非空・指摘なし → どちらの面も無い
+    const filled = screen.getByLabelText('ノード3')
+    expect(filled.className).not.toContain('bg-missing-face')
+    expect(filled.className).not.toContain('bg-invalid-face')
   })
 
   it('ノードのレイヤは操作を通し、ノードの矩形だけが受ける', () => {

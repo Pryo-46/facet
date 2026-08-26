@@ -854,9 +854,9 @@ function App() {
             `p-4` を持つのでちょうど本文の始まりの上に来る。
             **サイドメニューを畳んだときのずれは許容する**（畳んだ状態に
             合わせると、開いているときの方がずれる） */}
-        <h1 className="-ml-6 w-64 shrink-0 pl-6 text-2xl font-bold text-ink">facet</h1>
+        <h1 className="-ml-6 w-64 shrink-0 pl-6 text-xl font-medium text-ink">facet</h1>
         <div className="flex shrink-0 items-center gap-2">
-          <Button onClick={() => void openFolder()}>フォルダを開く</Button>
+          <Button variant="outline" onClick={() => void openFolder()}>フォルダを開く</Button>
           {/* Undo/Redo はアイコンのみ。accessible name は aria-label で保つ
               （キーボードが本筋の操作なので、帯では幅を使わない） */}
           <Button
@@ -922,7 +922,7 @@ function App() {
               嘘をつくボタンになる。**`currentPlatform()` は描画のたびに呼ぶ**
               （モジュールスコープの定数にすると、テストが UA を差し替えても
               効かない）。強調は TerminalPane の選択中タブと同じ
-              bg-surface-accent（新しい役割トークンは足さない） */}
+              bg-surface-muted（一段沈んだ面） */}
           {currentPlatform() !== 'mac' && (
             <button
               type="button"
@@ -931,7 +931,7 @@ function App() {
               disabled={!canCheck(updateState)}
               className={
                 isEmphasized(updateState)
-                  ? `${buttonBase} gap-1 bg-surface-accent px-2 py-1 text-ink`
+                  ? `${buttonBase} gap-1 bg-surface-muted px-2 py-1 text-ink`
                   : `${buttonBase} p-1 text-ink-muted`
               }
               onClick={() => {
@@ -942,7 +942,7 @@ function App() {
               {isEmphasized(updateState) ? (
                 <>
                   <Download aria-hidden className="size-4" />
-                  <span className="text-xs">{buttonLabel(updateState)}</span>
+                  <span className="text-sm">{buttonLabel(updateState)}</span>
                 </>
               ) : (
                 <RefreshCw aria-hidden className="size-4" />
@@ -969,7 +969,7 @@ function App() {
 
       {BANNER_ORDER.map((kind) =>
         banners[kind] === null ? null : (
-          <p key={kind} className="px-6 py-2 text-sm text-warning">
+          <p key={kind} className="px-6 py-2 text-base text-invalid">
             {banners[kind]}
           </p>
         ),
@@ -1033,15 +1033,15 @@ function App() {
             <div className="min-h-0 flex-1 overflow-auto">
               {selected === null && (
                 <div className="p-6">
-                  <p className="text-sm text-ink-muted">ファイルを選ぶとここで編集できます。</p>
+                  <p className="text-base text-ink-muted">ファイルを選ぶとここで編集できます。</p>
                   {projectDir !== null && canCreateGlossary && glossaryModule !== undefined && (
                     <div className="mt-4">
-                      <p className="text-sm text-ink-muted">
+                      <p className="text-base leading-normal text-ink-muted">
                         このプロジェクトにはまだ用語集がありません（新規プロジェクトでは正常な状態です）。
                       </p>
                       <button
                         type="button"
-                        className={`${buttonBase} mt-2 border border-rule px-3 py-1 text-sm text-ink hover:bg-surface`}
+                        className={`${buttonBase} mt-2 border border-rule px-3 py-1 text-base text-ink hover:bg-surface`}
                         onClick={() => void controller.ensureFileOfType(glossaryModule)}
                       >
                         用語集を作る
@@ -1052,21 +1052,21 @@ function App() {
               )}
               {selected?.result.status === 'rejected' && (
                 <div className="p-6">
-                  <h2 className="mb-2 font-bold text-warning">
+                  <h2 className="mb-2 font-semibold text-invalid">
                     このファイルは開けません（{selected.result.reason}）
                   </h2>
-                  <ul className="list-disc pl-5 text-sm text-ink">
+                  <ul className="list-disc pl-5 text-base leading-normal text-ink">
                     {selected.result.errors.map((err) => (
                       <li key={err}>{err}</li>
                     ))}
                   </ul>
-                  <p className="mt-3 text-sm text-ink-muted">
+                  <p className="mt-3 text-base leading-normal text-ink-muted">
                     外部エディタで修正してからフォルダを開き直してください。
                   </p>
                 </div>
               )}
               {selected?.result.status === 'listOnly' && (
-                <p className="p-6 text-sm text-ink-muted">{selected.result.reason}</p>
+                <p className="p-6 text-base text-ink-muted">{selected.result.reason}</p>
               )}
               {selected?.result.status === 'editable' && selectedModule && editingData !== null && (
                 <selectedModule.Editor

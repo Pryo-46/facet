@@ -15,17 +15,20 @@ export const ARROW_GAP = 8
 export const SLOT_GAP = 4
 export const ROW_GAP = 8
 export const GUTTER_GAP = 48
-/** ガターの行見出し（#N 文言）の1行分。スロット群はこの下から積む */
-export const GUTTER_HEADING_HEIGHT = 18
+/**
+ * ガターの行見出し（#N 文言）の1行分。スロット群はこの下から積む。
+ * text-sm 1行＝14×1.3＝18.2 の切り上げ
+ */
+export const GUTTER_HEADING_HEIGHT = 19
 /**
  * ガターの問いラベル列の幅。**いま立つ問いがすべて1行に収まる幅を採る。**
  *
- * 一番きついのは `ifExecuted` の「└ 実行済みだったら？」——インデント
- * （`GUTTER_INDENT`）ぶん列が狭いうえ接頭辞が付き、text-xs で約 126px 要る。
+ * 一番きついのは `ifExecuted` の「└ 実行済みだったら？」——`text-sm`（14px）で
+ * 概算 147px ＋ 字下げ 16px。閾値ちょうど（163）を避けて 180。
  * `questions.test.ts` がこの下限を検算しているので、**問いの文言を足す／
  * 伸ばすときはここも一緒に見ること**（折り返すとその行だけ背が伸びる）
  */
-export const QUESTION_LABEL_WIDTH = 164
+export const QUESTION_LABEL_WIDTH = 180
 export const DIAGRAM_MARGIN = 8
 /**
  * 行の左端に置く編集セル列（レール）の幅。**図はこの右から始まる。**

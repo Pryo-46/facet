@@ -4,10 +4,16 @@ export type { MeasureWidth }
 export { createEstimateMeasurer } from '@/core/canvas/wrap'
 export type WrappedText = WrappedBlock
 
-/** ノード矩形の最大幅。日本語で全角20文字前後（tech-notes 論点4） */
-export const NODE_MAX_WIDTH = 320
-/** ノード矩形の最小幅。空のノードが点にならないための下限 */
-export const NODE_MIN_WIDTH = 96
+/**
+ * ノード矩形の幅。**固定。導出しない**（UI ノート D3。M24）。
+ *
+ * 内容から導出していたころは長文ノードだけ幅が3倍になり、木の骨格が
+ * 読めなかった。課題ツリーの箱（`src/modules/issue-tree/measure.ts` の
+ * `BOX_WIDTH`）と同じ 320 で、**あちらも固定である**。シーケンスの
+ * `LABEL_MAX_WIDTH` も同じ 320 だが、あちらは**上限**であって固定ではない
+ * ——値が同じだけで意味が違うので、3つを共有定数に束ねていない
+ */
+export const NODE_WIDTH = 320
 export const NODE_PADDING_X = 10
 export const NODE_PADDING_Y = 6
 export const NODE_BORDER = 1
@@ -29,8 +35,10 @@ export const NODE_BOX_CLASS = 'border px-2.5 py-1.5'
 /** ノード矩形の寸法。折り返しの規則そのものは core/canvas/wrap.ts が持つ */
 export function wrapText(text: string, measure: MeasureWidth, lineHeight: number): WrappedText {
   return wrapWithin(text, measure, lineHeight, {
-    maxWidth: NODE_MAX_WIDTH,
-    minWidth: NODE_MIN_WIDTH,
+    // **`maxWidth === minWidth` が「幅を導出しない」の表現である**
+    //（シーケンスの答えセル `ANSWER_WRAP` と同じ形）
+    maxWidth: NODE_WIDTH,
+    minWidth: NODE_WIDTH,
     insetX: NODE_INSET_X,
     insetY: NODE_INSET_Y,
   })

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ja">
+<!-- フォント同梱の実験ページ（M26）。npm run dev で http://localhost:5173/font-probe.html を開く。
+     vite build の入力は index.html だけなので、このページは配布物に入らない -->
+<head>
+  <meta charset="utf-8" />
+  <title>font probe</title>
+  <style>
+    /* fonts.css は下の module script が import する——vite dev はスクリプト経由の
+       import なら url() の解決まで面倒を見る（style タグの @import は素通し） */
+    body { font-family: 'IBM Plex Sans Variable', 'IBM Plex Sans JP', sans-serif; font-size: 16px; }
+    .w400 { font-weight: 400 } .w450 { font-weight: 450 }
+    .w500 { font-weight: 500 } .w600 { font-weight: 600 }
+    .mono { font-family: 'IBM Plex Mono', monospace }
+  </style>
+</head>
+<body>
+  <p class="w400">400 未定義を物理的に見える化 glossary.json 0123456789</p>
+  <p class="w450">450 未定義を物理的に見える化 glossary.json 0123456789</p>
+  <p class="w500">500 未定義を物理的に見える化 glossary.json 0123456789</p>
+  <p class="w600">600 未定義を物理的に見える化 glossary.json 0123456789</p>
+  <p class="mono">mono: gl_x7K2mPq9Rt / #1 → #8 / 9 / 9 件</p>
+  <p id="rare-target">（ここに珍しい字を後から入れる）</p>
+  <pre id="log"></pre>
+  <script type="module">
+    import '/src/styles/fonts.css'
+    const log = (s) => { document.getElementById('log').textContent += s + '\n' }
+    const ctx = document.createElement('canvas').getContext('2d')
+    const width = (font, text) => { ctx.font = font; return ctx.measureText(text).width }
+    const SAMPLE = '未定義を物理的に見える化 glossary'
+    // 珍しい字。JP の分割スライス（CJK 拡張）に入っており、初期表示では読み込まれない
+    const RARE = '\u{2000B}\u{20089}'
+    await document.fonts.ready
+    log('fonts.ready 解決')
+    // 前提①: 400/450/500/600 の字幅が単調に増える＝可変ウェイトが描き分いている
+    for (const w of [400, 450, 500, 600]) {
+      log(`wght ${w}: latin=${width(`${w} 16px 'IBM Plex Sans Variable'`, 'glossary')}  jp=${width(`${w} 16px 'IBM Plex Sans JP'`, SAMPLE)}`)
+    }
+    // 前提②: 遅延スライスの到着で measureText が変わるか
+    document.fonts.addEventListener('loadingdone', (e) => {
+      log(`loadingdone: ${e.fontfaces.length} face(s)`)
+      log(`RARE after : ${width(`400 16px 'IBM Plex Sans JP'`, RARE)}`)
+    })
+    log(`RARE before: ${width(`400 16px 'IBM Plex Sans JP'`, RARE)}`)
+    document.getElementById('rare-target').textContent = RARE
+  </script>
+</body>
+</html>

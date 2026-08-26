@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { CellInput } from './CellInput'
 
 // globals: false なので自動クリーンアップは効かない。明示的に呼ぶ
@@ -229,5 +229,101 @@ describe('autoSize', () => {
       />,
     )
     expect((screen.getByLabelText('セル') as HTMLTextAreaElement).rows).toBe(1)
+  })
+})
+
+describe('CellInput: 遅延スライスの到着（loadingdone）で測り直される', () => {
+  // ↑の autoSize 節と同じ土台（scrollHeight スタブ ＋ getComputedStyle の
+  // lineHeight '20px'）を差し込んで「測れる環境」を作り、そこに今回の
+  // document.fonts fake（fire ヘルパ）を重ねる。scrollHeight を可変にして
+  // loadingdone の前後で値を変え、rows が実際に動くかを見る
+  type Listener = (e: unknown) => void
+  let listeners: Map<string, Set<Listener>>
+  let restore: (() => void) | null = null
+  let scrollHeight = 100
+
+  beforeEach(() => {
+    listeners = new Map()
+    scrollHeight = 100
+    Object.defineProperty(document, 'fonts', {
+      configurable: true,
+      value: {
+        ready: new Promise<void>(() => {}),
+        addEventListener: (type: string, fn: Listener) => {
+          if (!listeners.has(type)) listeners.set(type, new Set())
+          listeners.get(type)!.add(fn)
+        },
+        removeEventListener: (type: string, fn: Listener) => {
+          listeners.get(type)?.delete(fn)
+        },
+      },
+    })
+
+    const scrollHeightDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      'scrollHeight',
+    )
+    Object.defineProperty(HTMLTextAreaElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get: () => scrollHeight,
+    })
+    const original = window.getComputedStyle
+    const spy = vi.spyOn(window, 'getComputedStyle').mockImplementation(((
+      el: Element,
+      pseudo?: string | null,
+    ) => {
+      const style = original.call(window, el, pseudo ?? undefined)
+      return new Proxy(style, {
+        get(target, key) {
+          if (key === 'lineHeight') return '20px'
+          if (key === 'paddingTop' || key === 'paddingBottom') return '0px'
+          return Reflect.get(target, key)
+        },
+      })
+    }) as typeof window.getComputedStyle)
+    restore = () => {
+      spy.mockRestore()
+      if (scrollHeightDescriptor) {
+        Object.defineProperty(HTMLTextAreaElement.prototype, 'scrollHeight', scrollHeightDescriptor)
+      } else {
+        delete (HTMLTextAreaElement.prototype as unknown as Record<string, unknown>).scrollHeight
+      }
+    }
+  })
+
+  afterEach(() => {
+    // **順序に注意。** ファイル先頭の `afterEach(cleanup)` はこの describe の
+    // 外側で登録されているため、後（アンマウント）に走る。先に document.fonts
+    // を外すと、アンマウント時の effect クリーンアップが
+    // removeEventListener を呼べず落ちる——ここで先にアンマウントしておく
+    cleanup()
+    Reflect.deleteProperty(document, 'fonts')
+    restore?.()
+    restore = null
+  })
+
+  const fire = (type: string, event: unknown): void => {
+    for (const fn of listeners.get(type) ?? []) fn(event)
+  }
+
+  it('loadingdone の到着で rows が測り直される（5行 → 7行）', () => {
+    render(<CellInput multiline aria-label="セル" value={'あ\nい\nう'} onValueChange={() => {}} />)
+    const el = screen.getByLabelText('セル') as HTMLTextAreaElement
+    // scrollHeight 100 / lineHeight 20 = 5行
+    expect(el.rows).toBe(5)
+    // 珍しい字のスライスが後から届いて必要行数が変わった、に相当する変化
+    scrollHeight = 140
+    act(() => fire('loadingdone', { fontfaces: [{}] }))
+    // scrollHeight 140 / lineHeight 20 = 7行
+    expect(el.rows).toBe(7)
+  })
+
+  it('multiline でマウントすると loadingdone に購読し、アンマウントで外れる', () => {
+    const { unmount } = render(
+      <CellInput multiline aria-label="セル" value="" onValueChange={() => {}} />,
+    )
+    expect(listeners.get('loadingdone')?.size).toBe(1)
+    unmount()
+    expect(listeners.get('loadingdone')?.size).toBe(0)
   })
 })

@@ -40,12 +40,25 @@ describe('ActorRefCell: 表示', () => {
     expect(setup({ value: undefined, invalid: true }).cell.textContent).toBe('（未解決）')
   })
 
-  it('名前が空の参加者を指しているときは（未定義）と表示する（参照は引けている。（未解決）ではない）', () => {
+  it('名前が空の参加者を指しているときは本文を空にし、欠落の面（破線＋淡い面）で示す（（未定義）と書かない。M22 決定1）', () => {
     const { cell } = setup({
       value: 'actor_Aaaaaaaaa9',
       actors: [{ id: 'actor_Aaaaaaaaa9', name: '' }],
     })
-    expect(cell.textContent).toBe('（未定義）')
+    expect(cell.textContent).toBe('')
+    expect(cell.className).toContain('bg-missing-face')
+    expect(cell.className).toContain('border-dashed')
+    // 面と枠は片方だけ——通常時の枠が残ると border-missing が効かない
+    expect(cell.className).not.toContain('border-rule')
+    // **本文が空でも押す面積を残す。** 子が無いボタンは行ボックスを作らず
+    // 内容高 0 に潰れる（jsdom はレイアウトを持たないのでクラスの字面で固定する）
+    expect(cell.className).toContain('min-h-6.5')
+  })
+
+  it('名前が埋まっているセルは欠落の面を持たない', () => {
+    const { cell } = setup()
+    expect(cell.className).toContain('border-rule')
+    expect(cell.className).not.toContain('bg-missing-face')
   })
 })
 
@@ -133,12 +146,19 @@ describe('ActorRefCell: マウス', () => {
     expect(onOpenChange).toHaveBeenCalledWith(true)
   })
 
-  it('名前が空の参加者はメニュー項目でも（未定義）と表示する（空白の項目にしない）', async () => {
+  it('名前が空の参加者のメニュー項目は語ではなく欠落の面で示す（空白の項目にせず、（未定義）とも書かない）', async () => {
     const { cell } = setup({
       actors: [...actors, { id: 'actor_Aaaaaaaaa9', name: '' }],
     })
     fireEvent.pointerDown(cell, { button: 0, ctrlKey: false })
-    const item = await screen.findByRole('menuitem', { name: '（未定義）' })
-    expect(item.textContent).toBe('（未定義）')
+    // 名前は menuitem 自身の aria-label。**素の span に付けない**——generic は
+    // 命名禁止ロールで、実ブラウザでは名前が落ちて「空白の項目」になる
+    const item = await screen.findByRole('menuitem', { name: '名前が空の参加者' })
+    expect(item.getAttribute('aria-label')).toBe('名前が空の参加者')
+    expect(item.textContent).toBe('')
+    const mark = item.querySelector('span')!
+    expect(mark.className).toContain('bg-missing-face')
+    expect(mark.getAttribute('aria-hidden')).toBe('true')
+    expect(screen.queryByText('（未定義）')).toBeNull()
   })
 })

@@ -219,20 +219,16 @@ export function AliasCell(props: AliasCellProps) {
         onClick={openPanel}
         onKeyDown={onClosedKeyDown}
       >
-        {aliases.length === 0 ? (
-          <span className="text-ink-muted">別名なし</span>
-        ) : (
-          aliases.map((alias, i) => (
-            // チップの面は bg-surface だと表の面と同色で消える（テーブルの面が
-            // surface になった M8 決定2 が原因）。bg-canvas ではなく border に
-            // したのは、bg-canvas はサイドバーの選択行（M8 決定17）で
-            // 「地の色でへこんで見える＝選択中」の意味に既に使っており、
-            // チップは選択状態ではなく単なる項目の区切りなので意味を借用しない
-            <span key={`${alias}-${i}`} className="rounded-sm border border-grid px-1 text-ink">
-              {alias}
-            </span>
-          ))
-        )}
+        {aliases.map((alias, i) => (
+          // チップの面は bg-surface だと表の面と同色で消える（テーブルの面が
+          // surface になった M8 決定2 が原因）。bg-canvas ではなく border に
+          // したのは、bg-canvas はサイドバーの選択行（M8 決定17）で
+          // 「地の色でへこんで見える＝選択中」の意味に既に使っており、
+          // チップは選択状態ではなく単なる項目の区切りなので意味を借用しない
+          <span key={`${alias}-${i}`} className="rounded-sm border border-rule-muted px-1 text-ink">
+            {alias}
+          </span>
+        ))}
       </button>
     )
   }
@@ -281,7 +277,7 @@ export function AliasCell(props: AliasCellProps) {
             onFieldKeyDown={(e, s) => onAliasKeyDown(e, i, s)}
           />
         ))}
-        <p className="px-2 py-1 text-xs text-ink-muted">
+        <p className="px-2 py-1 text-sm text-ink-muted">
           Enter＝追加／空欄 Backspace＝削除／Esc＝閉じる
         </p>
       </div>

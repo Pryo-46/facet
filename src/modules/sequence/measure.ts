@@ -41,6 +41,20 @@ export const ANSWER_INSET_Y = ANSWER_PADDING_Y + ANSWER_BORDER
 export const ANSWER_BOX_CLASS = 'border px-2 py-1'
 
 /**
+ * notApplicable の答えは GutterSlot が「考慮不要」の接頭ぶん左を空ける
+ * （`pl-18` = 4.5rem = 72px。M23 で本文 16px 化に伴い `pl-16` から広げた
+ * （接頭「考慮不要」4字×16px＝64px が `left-2`(8px) から始まるため 8+64=72）。
+ * **M26 で入力値が 14px へ下がり、接頭の実幅は 4字×14px＝56px になった**が、
+ * 72px は動かさない——余る 8px は接頭と本文の間の空きになるだけで、狭すぎて
+ * 重なる向きの誤りではない（実機確認で問題なしと判断した）。
+ * 実効幅が狭くなるのは差分の 64px（72−8）。SequenceEditor の折り返し測定は
+ * この狭さを見積もりに反映しないと、reason 付きの notApplicable で行数を
+ * 過小に見積もり、CellInput の `overflow-hidden` で下端が欠ける。
+ * **GutterSlot.tsx の `pl-18` と対応する。片方だけ変えないこと**
+ */
+export const ANSWER_NOT_APPLICABLE_PREFIX_PAD_X = 72
+
+/**
  * ラベル列に実際に描画される文字列（ifExecuted の「└ 」接頭を含む）。
  * **測る文字列と描く文字列を同じにするため**、GutterSlot の描画も
  * SequenceEditor の questionHeight もこの戻り値だけを見る。素の問い文言を

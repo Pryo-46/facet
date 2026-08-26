@@ -9,7 +9,7 @@ import { oklchToLinear, parseOklch, toHex } from '@/styles/contrast'
  * 変換は `src/styles/contrast.ts` の既存の式を使う（同じ式を2本持たない）。
  *
  * **ANSI の16色は xterm の既定のままにする。** 16色は facet の役割
- * トークン（11個）に対応物が無く、持つと「配色を差し替える」作業が
+ * トークン（rev 9章）に対応物が無く、持つと「配色を差し替える」作業が
  * 「16色を選び直す」作業になる。代わりに `TERMINAL_MIN_CONTRAST` を
  * xterm の `minimumContrastRatio` へ渡し、ライトの面でも既定の16色が
  * 読める濃さへ xterm 自身に寄せさせる
@@ -44,9 +44,9 @@ export function buildTerminalTheme(readToken: (name: string) => string): Termina
   }
   const background = hex('--surface')
   const foreground = hex('--ink')
-  // 選択の面は見出しの面を流用する。**ink / ink-muted が載ることを
-  // palette.test.ts が既に検証している唯一の淡い面**だから
-  const selectionBackground = hex('--surface-accent')
+  // 選択の面は「一段沈んだ面」。ink / ink-muted が載ることを
+  // palette.test.ts が BACKGROUNDS の一員として検証している
+  const selectionBackground = hex('--surface-muted')
   if (background === null || foreground === null || selectionBackground === null) return null
   return {
     background,

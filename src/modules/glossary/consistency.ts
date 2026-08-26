@@ -1,6 +1,7 @@
 import type { ConsistencyIssue } from '@/core/consistency'
 import { findDuplicates, groupByKey } from '@/core/duplicate'
 import { normalizeForMatch } from '@/core/normalize'
+import { rowRef } from '@/core/row-ref'
 import type { GlossarySchemaVersion1 } from '@/types/glossary'
 
 /**
@@ -22,7 +23,7 @@ export function checkGlossaryConsistency(data: GlossarySchemaVersion1): Consiste
   for (const [id, indices] of findDuplicates(terms, (t) => t.id)) {
     issues.push({
       rule: 'duplicate-id',
-      message: `ID が重複しています（${indices.length}件）: ${id}`,
+      message: `ID が重複しています（${indices.length}件。${indices.map(rowRef).join(' ／ ')}）: ${id}`,
       locations: indices.map((i) => ({ entityId: id, entityIndex: i, field: 'id' })),
     })
   }
@@ -32,7 +33,7 @@ export function checkGlossaryConsistency(data: GlossarySchemaVersion1): Consiste
   for (const indices of findDuplicates(terms, (t) => nameKey(t.name)).values()) {
     issues.push({
       rule: 'duplicate-name',
-      message: `名称が重複しています: ${indices.map((i) => `「${terms[i].name}」`).join(' と ')}`,
+      message: `名称「${terms[indices[0]].name}」が${indices.length}件重複しています（${indices.map(rowRef).join(' ／ ')}）`,
       locations: indices.map((i) => ({
         entityId: terms[i].id,
         entityIndex: i,
@@ -58,7 +59,7 @@ export function checkGlossaryConsistency(data: GlossarySchemaVersion1): Consiste
     }
     issues.push({
       rule: 'duplicate-alias',
-      message: `別名「${owned[group[0]].alias}」が重複しています（${group.length}件）`,
+      message: `別名「${owned[group[0]].alias}」が${group.length}件重複しています（${locations.map((l) => rowRef(l.entityIndex)).join(' ／ ')}）`,
       locations,
     })
   }
@@ -74,7 +75,7 @@ export function checkGlossaryConsistency(data: GlossarySchemaVersion1): Consiste
         if (other === index) continue
         issues.push({
           rule: 'alias-name-collision',
-          message: `「${term.name}」の別名「${alias}」が用語「${terms[other].name}」の名称と衝突しています`,
+          message: `${rowRef(index)}「${term.name}」の別名「${alias}」が${rowRef(other)}「${terms[other].name}」の名称と衝突しています`,
           locations: [
             { entityId: term.id, entityIndex: index, field: 'aliases' },
             { entityId: terms[other].id, entityIndex: other, field: 'name' },

@@ -1,54 +1,85 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "./styles/fonts.css";
 @import "./styles/palette.css";
 
 @custom-variant dark (&:is(.dark *));
 
 /* =========================================================================
  * 役割トークン（rev 9章）を Tailwind のユーティリティに生やす。
- * text-ink / bg-canvas / border-rule / bg-warning … がここから来る。
+ * text-ink / bg-canvas / border-rule / text-missing / border-invalid …
+ * がここから来る（欠落・無効・着信は淡い面＋線（bg-missing-face 等）で、
+ * 線色そのものを面にしない＝規約2）。
  *
  * ★ 色値はここに書かない。src/styles/palette.css が唯一の出所。★
  * ========================================================================= */
 @theme inline {
-    /* タイポグラフィ（M7 決定6）。
+    /* タイポグラフィ（M23 決定1・2。設計スペック 2026-08-24-m23-core-typography-design.md）。
      *
-     * サイズは Tailwind の既定のまま（xs 12 / sm 14 / base 16 / lg 18px）。
-     * 再定義しない——既存コードは sm と xs でほぼ回っており、shadcn の
-     * 生成物も text-sm を既定にしている。ここで語彙を作り直しても得るものがない。
+     * 段は M23 で3サイズ4段、M26 で3サイズ5段になった（サイズは 14/16/22px の
+     * 3つのままで、増えたのは行間の組み合わせの側）:
+     *   1. text-sm 14px / 1.3          補助（ヒント・バッジ・問いラベル・節見出し）
+     *                                  ＋ **単行の入力値**（表の単行セル・種別・参照）
+     *   2. text-base 16px / 1.25       UI ラベル既定（カラム名・ボタン・検索欄・
+     *                                  ファイル一覧・帯・通知の帯・空状態の1行）
+     *   3. text-base + leading-normal  **読ませる短い塊**（トースト・IssueBanner・
+     *      16px / 1.5                  空状態の説明文）。**M26 で動かしていない**
+     *   4. text-sm + leading-normal    **複数行の入力値とキャンバスの折り返し**
+     *      14px / 1.5                  （M26 で新設。M23 では段3 に載っていた）
+     *   5. text-xl 22px / 1.3          文書タイトルとアプリ名（Tailwind 既定の 20px を
+     *                                  ここで再定義する。22px の出所は UI ノート D11 の
+     *                                  確定スケール＝ D12 の 96→109 PPI 正規化）
      *
-     * **使ってよいのは xs / sm / base / lg の4段だけ。**
-     * xl 以上と任意値 text-[...] は src/styles/conventions.test.ts が弾く。
+     * **入力値だけが M26 で 16px から 14px へ下がった**（M23 決定1 の部分反転。
+     * UI ノート D11「M26 での部分反転」）——IBM Plex は仮想ボディに対する字面が
+     * Yu Gothic UI より大きく、同じ 16px 指定で体感サイズが上がったため。
+     * カラム名・ボタン・バッジ・帯・検索欄・ファイル一覧は text-base のまま。
+     * **アプリが書いた文章（段3）もサイズ・行間ともに据え置き**——下げたのは
+     * 「利用者が打った文字」だけである。14px は D11 の下限そのもの。
+     * **行間まで据え置いたのは複数行の 1.5 だけで、単行の入力値は 1.25 から
+     * 1.3（text-sm の既定）へ動いている。**
      *
-     * 行間だけ日本語向けに上書きする。Tailwind の既定は英文基準で、
-     * text-sm は 1.43。用語集の定義・備考は自由記述の複数行が入る欄なので、
-     * ここが読みにくさに直結する。
+     * 段1 と段4 は**同じ 14px で行間だけ違う**。この差があるため、キャンバスの
+     * 測定見本（probe）は補助段と複数行段で別に持つ（1本で兼ねると片方の行高を
+     * 見誤る）。なお <button> は @layer base の --tw-leading: 1.2 を受けるので、
+     * 段1 のうち種別セル・参照セルの実効行間は 1.3 ではなく 1.2 である。
      *
-     * Geist は日本語グリフを持たない。和文のフォールバックを明示しないと
-     * 環境依存で MS UI Gothic に落ちる。和文フォントは同梱しない——
-     * rev 7章が配布形態を Windows のデスクトップアプリと定めており、
-     * Yu Gothic UI は Windows 8.1 以降の標準搭載なので事実上固定される */
+     * **使ってよいのは sm / base / xl の3段だけ。**
+     * text-xs（12px）は D11 の 14px 下限で廃止。text-lg は実使用 0 件のまま閉鎖。
+     * text-2xl はアプリ名を 22px に統合して閉鎖（2px 差の段を体系に残さない）。
+     * xs・lg・2xl・3xl 以上・任意値 text-[...] は conventions.test.ts が弾く。
+     *
+     * 行間は「詰めた値を既定にし、読ませる欄だけ leading-normal（1.5）を明示」（D11:
+     * 密度は行高で稼ぎ、サイズでは稼がない）。セクション見出しの 130% は本文の
+     * 125% に畳んである——16px では差が 0.8px しかなく、単行のラベルで視認できない */
     --font-heading: var(--font-sans);
-    --font-sans: 'Geist Variable', 'Yu Gothic UI', 'Hiragino Sans', sans-serif;
-    --font-mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-    --text-xs--line-height: 1.5;
-    --text-sm--line-height: 1.65;
-    --text-base--line-height: 1.5;
-    --text-lg--line-height: 1.4;
+    --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans JP', 'Yu Gothic UI', 'Hiragino Sans', sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    --text-xl: 22px;
+    --text-sm--line-height: 1.3;
+    --text-base--line-height: 1.25;
+    --text-xl--line-height: 1.3;
 
-    --color-ink: var(--ink);
-    --color-ink-muted: var(--ink-muted);
-    --color-warning: var(--warning);
-    --color-warning-fg: var(--warning-fg);
-    --color-ok: var(--ok);
-    --color-ok-fg: var(--ok-fg);
     --color-canvas: var(--canvas);
     --color-surface: var(--surface);
-    --color-surface-accent: var(--surface-accent);
+    --color-surface-muted: var(--surface-muted);
+    --color-ink: var(--ink);
+    --color-ink-muted: var(--ink-muted);
+    --color-ink-faint: var(--ink-faint);
     --color-rule: var(--rule);
+    --color-rule-muted: var(--rule-muted);
     --color-grid: var(--grid);
+    --color-missing: var(--missing);
+    --color-invalid: var(--invalid);
+    --color-pending: var(--pending);
+    --color-missing-face: var(--missing-face);
+    --color-invalid-face: var(--invalid-face);
+    --color-pending-face: var(--pending-face);
+    --color-judge-yes: var(--judge-yes);
+    --color-judge-yes-fg: var(--judge-yes-fg);
+    --color-judge-no: var(--judge-no);
+    --color-judge-no-fg: var(--judge-no-fg);
 
     /* shadcn の生成物が参照するトークン */
     --color-sidebar-ring: var(--sidebar-ring);
@@ -107,26 +138,27 @@
     --popover: var(--surface);
     --popover-foreground: var(--ink);
 
-    /* ボタン・選択状態。**Lichen Green を primary に流さない**——
-       ボタンが緑になると ok（確定）と意味が衝突する */
+    /* ボタン・選択状態。primary は ink に紐づけるが、facet は塗りボタン
+       （default variant）を使わない（M21。conventions.test.ts が弾く）。
+       shadcn の他の部品（メニューの選択行等）が accent / muted を参照するので、
+       「一段沈んだ面」をそこへ流す */
     --primary: var(--ink);
     --primary-foreground: var(--surface);
-    --secondary: var(--canvas);
+    --secondary: var(--surface-muted);
     --secondary-foreground: var(--ink);
-    --muted: var(--canvas);
+    --muted: var(--surface-muted);
     --muted-foreground: var(--ink-muted);
-    --accent: var(--canvas);
+    --accent: var(--surface-muted);
     --accent-foreground: var(--ink);
 
-    /* 破壊的アクション。Morphos の theme.css はここが Primary で上書き
-       される生成ミスがあり、Basalt では緑になっていた。
+    /* 破壊的アクション。無効軸の赤を借りる唯一の例外（rev 9章 規約5）。
        palette.test.ts が紐づきを検査する */
-    --destructive: var(--warning);
+    --destructive: var(--invalid);
 
     --border: var(--rule);
     --input: var(--rule);
-    /* フォーカスリング。**ok を当てない**——「いまフォーカスがある」と
-       「確定した」は別の意味であり、同じ色にすると型区別が薄まる */
+    /* フォーカスリング。**judge-yes を当てない**——「いまフォーカスがある」と
+       「支持した」は別の意味であり、同じ色にすると型区別が薄まる */
     --ring: var(--ink);
 
     /* facet では未使用。無彩色のまま残すと、shadcn のコンポーネントを
@@ -134,14 +166,14 @@
     --chart-1: var(--ink);
     --chart-2: var(--ink-muted);
     --chart-3: var(--rule);
-    --chart-4: var(--warning);
-    --chart-5: var(--ok);
+    --chart-4: var(--missing);
+    --chart-5: var(--judge-yes);
 
     --sidebar: var(--surface);
     --sidebar-foreground: var(--ink);
     --sidebar-primary: var(--ink);
     --sidebar-primary-foreground: var(--surface);
-    --sidebar-accent: var(--canvas);
+    --sidebar-accent: var(--surface-muted);
     --sidebar-accent-foreground: var(--ink);
     --sidebar-border: var(--rule);
     --sidebar-ring: var(--ink);
@@ -150,8 +182,14 @@
     --radius: 0.625rem;
 
     /* 方眼紙のマス目。色ではないので palette.css には置かない
-       （palette.css は色値だけを持つ）。text-sm の行高（14px × 1.65 ＝ 23.1px）
-       とほぼ一致させ、方眼と文字行が揃って見えるようにしている */
+       （palette.css は色値だけを持つ）。
+
+       **行高との一致は M23〜M26 の間だけの話。** M23 で複数行段の行高
+       （16px × 1.5 ＝ 24px）とぴったり一致していたが（それ以前は 14×1.65≒23.1 の
+       近似）、M26 で入力値を 14px へ下げたので行高は 21px になり、一致は失われた。
+       **それでも 24px は動かさない**——21px の行と 24px の升が並ぶ画面を実機で見て
+       問題なしと判断した（M26 の実機確認）。方眼は行の罫線ではなく紙の地なので、
+       文字行と1対1で噛み合う必要はない */
     --grid-size: 24px;
 }
 
@@ -161,20 +199,24 @@
     }
   body {
     @apply bg-background text-foreground;
+    /* 数字を等幅にする（UI ノート D9）。No 列・件数・#番号が縦に揃う。
+       一括で当てる——比例数字でなければならない箇所は facet に無い */
+    font-variant-numeric: tabular-nums;
     }
   html {
     @apply font-sans;
     }
   button {
-    /* ラベルは1行なので行間を詰める。--text-sm--line-height: 1.65 は
-       本文（複数行の定義文）向けの値で、ボタンに効くと和文フォントの
-       縦メトリクスの非対称によりラベルが上へ寄る（M8 の実機確認で判明）。
+    /* ラベルは1行なので行間を詰める。本文（複数行の定義文）向けに広げた行間
+       （M8 当時は --text-sm--line-height: 1.65、M23 の段では複数行の欄に明示する
+       leading-normal = 1.5）がボタンに効くと、和文フォントの縦メトリクスの
+       非対称によりラベルが上へ寄る（M8 の実機確認で判明）。
 
        **`line-height` を直接書いてはいけない。** Tailwind の text-* は
        utilities レイヤーで `line-height: var(--tw-leading, <既定>)` を生成する。
        cascade layers では異なるレイヤー間は特異性より先にレイヤー順序で決まり、
        後に宣言される utilities が base に勝つため、base レイヤーで line-height を
-       直接書いても text-sm / text-xs を持つボタン（＝ほぼ全部）には届かない。
+       直接書いても text-base / text-sm を持つボタン（＝ほぼ全部）には届かない。
        **--tw-leading を設定すれば話が変わる**——utilities 側が普段設定しない
        変数へ逃がしているので、そもそも衝突が起きない。
        leading-* を明示したボタンは utilities 側が同じ変数を上書きするので、

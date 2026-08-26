@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { createHistory, record, redo as redoHistory, undo as undoHistory } from '@/core/history'
 import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
 import { glossaryColumnWidths, RESIZE_STEP } from './column-widths'
@@ -197,8 +197,8 @@ describe('GlossaryEditor: 行の操作言語', () => {
 describe('GlossaryEditor: 表示', () => {
   it('種別セルは日本語ラベルで表示する', () => {
     renderEditor(glossary([term({ id: 'term_aaaaaaaaaa', name: '受注', kind: 'undecided' })]))
-    const select = screen.getByLabelText('種別（1行目）') as HTMLSelectElement
-    expect(select.selectedOptions[0].textContent).toBe('未分類')
+    const trigger = screen.getByLabelText('種別（1行目）')
+    expect(trigger.textContent).toBe('未分類')
   })
 
   it('検索は別名も横断する', () => {
@@ -436,6 +436,37 @@ describe('モーダル表示中', () => {
   })
 })
 
+describe('GlossaryEditor: No 列と行全体の指摘', () => {
+  it('No 列がデータ配列の位置を出し、行全体の指摘は No セルに出る', () => {
+    render(
+      <GlossaryEditor
+        data={twoTerms}
+        issues={[
+          {
+            rule: 'duplicate-id',
+            message: 'ID が重複しています',
+            locations: [{ entityId: twoTerms.terms[0].id, entityIndex: 0, field: 'id' }],
+          },
+        ]}
+        modalOpen={false}
+        onChange={() => {}}
+      />,
+    )
+    // 1列目の見出しが「No」
+    const headers = screen.getAllByRole('columnheader')
+    expect(headers[0].textContent).toBe('No')
+    // 1行目（データ配列の0番目）の先頭セルが「1」
+    const rows = screen.getAllByRole('row')
+    const firstDataRow = rows[1]
+    if (firstDataRow === undefined) throw new Error('data row not found')
+    const cells = within(firstDataRow).getAllByRole('cell')
+    expect(cells[0]?.textContent).toBe('1')
+    // 行全体の指摘（field: 'id'）は No セルに出る。名称セルには出ない（rowAnchor の移動）
+    expect(cells[0]?.className).toContain('bg-invalid-face')
+    expect(cells[1]?.className).not.toContain('bg-invalid-face')
+  })
+})
+
 describe('GlossaryEditor: 列幅', () => {
   // モジュールスコープの store はテスト間で漏れる
   beforeEach(() => glossaryColumnWidths.reset())
@@ -444,9 +475,11 @@ describe('GlossaryEditor: 列幅', () => {
     renderEditor(twoTerms)
     const handle = screen.getByRole('separator', { name: '名称の列幅を変更' })
     fireEvent.keyDown(handle, { key: 'ArrowRight' })
-    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(DEFAULT_WIDTHS[0] + RESIZE_STEP)
+    // widths は固定幅5列を並び順で持つ（No・名称・種別・別名・備考）。
+    // 名称は先頭の No の次＝添字1
+    expect(glossaryColumnWidths.getSnapshot()[1]).toBe(DEFAULT_WIDTHS[1] + RESIZE_STEP)
     fireEvent.keyDown(handle, { key: 'ArrowLeft' })
-    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(DEFAULT_WIDTHS[0])
+    expect(glossaryColumnWidths.getSnapshot()[1]).toBe(DEFAULT_WIDTHS[1])
   })
 
   it('Home でその列だけ既定へ戻る', () => {
@@ -456,9 +489,9 @@ describe('GlossaryEditor: 列幅', () => {
     fireEvent.keyDown(name, { key: 'ArrowRight' })
     fireEvent.keyDown(notes, { key: 'ArrowRight' })
     fireEvent.keyDown(name, { key: 'Home' })
-    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(DEFAULT_WIDTHS[0])
+    expect(glossaryColumnWidths.getSnapshot()[1]).toBe(DEFAULT_WIDTHS[1])
     // 他の列は戻さない
-    expect(glossaryColumnWidths.getSnapshot()[3]).toBe(DEFAULT_WIDTHS[3] + RESIZE_STEP)
+    expect(glossaryColumnWidths.getSnapshot()[4]).toBe(DEFAULT_WIDTHS[4] + RESIZE_STEP)
   })
 
   it('幅を持たない定義列にも、右隣の別名列を掴むハンドルが出る（定義｜別名の境界）', () => {
@@ -470,11 +503,11 @@ describe('GlossaryEditor: 列幅', () => {
     renderEditor(twoTerms)
     const handle = screen.getByRole('separator', { name: '定義の列幅を変更' })
     fireEvent.keyDown(handle, { key: 'ArrowRight' })
-    // widths は固定幅4列を並び順で持つ（名称・種別・別名・備考）。
-    // 定義列右端のハンドルが掴むのは右隣の別名列の幅なので、そこが変わる
-    expect(glossaryColumnWidths.getSnapshot()[2]).toBe(DEFAULT_WIDTHS[2] - RESIZE_STEP)
+    // widths は固定幅5列を並び順で持つ（No・名称・種別・別名・備考）。
+    // 定義列右端のハンドルが掴むのは右隣の別名列の幅なので、そこが変わる（添字3）
+    expect(glossaryColumnWidths.getSnapshot()[3]).toBe(DEFAULT_WIDTHS[3] - RESIZE_STEP)
     fireEvent.keyDown(handle, { key: 'ArrowLeft' })
-    expect(glossaryColumnWidths.getSnapshot()[2]).toBe(DEFAULT_WIDTHS[2])
+    expect(glossaryColumnWidths.getSnapshot()[3]).toBe(DEFAULT_WIDTHS[3])
   })
 
   it('エディタを作り直しても幅が残る（ファイル切替をまたぐ）', () => {
@@ -482,10 +515,10 @@ describe('GlossaryEditor: 列幅', () => {
     fireEvent.keyDown(screen.getByRole('separator', { name: '名称の列幅を変更' }), {
       key: 'ArrowRight',
     })
-    const widened = glossaryColumnWidths.getSnapshot()[0]
+    const widened = glossaryColumnWidths.getSnapshot()[1]
     // App は key={selected.path} でエディタを作り直す。それを再現する
     cleanup()
     renderEditor(twoTerms)
-    expect(glossaryColumnWidths.getSnapshot()[0]).toBe(widened)
+    expect(glossaryColumnWidths.getSnapshot()[1]).toBe(widened)
   })
 })
