@@ -10,7 +10,8 @@ facet は、人間が構造化された UI で入力し、ツールが網羅性�
      撮り方: sample-project/ を開き、左のファイル一覧＋右に用語集エディタが出ている全体像。
              ウィンドウ全体を 1280x800 で。
      置き場所: docs/images/hero.png -->
-![facet の全体像](docs/images/hero.png)
+<img width="1812" height="776" alt="image" src="https://github.com/user-attachments/assets/8f1c2853-317e-44ec-abd2-dd95b0094be3" />
+
 
 デスクトップアプリ（Windows / macOS）。データは**プロジェクトフォルダの中の JSON ファイル**で、それが仕様の正。サーバも DB もアカウントも無い。
 
@@ -36,7 +37,7 @@ facet は、人間が構造化された UI で入力し、ツールが網羅性�
      撮り方: sample-project/用語集.json を開いた状態。「辞退」と「タレントプール」の定義が空で
              warning が出ており、「選考ステータス」の種別が undecided になっているところが写るように。
      置き場所: docs/images/glossary-editor.png -->
-![用語集エディタ](docs/images/glossary-editor.png)
+<img width="1530" height="901" alt="image" src="https://github.com/user-attachments/assets/c9ff7707-dd4f-4fee-9f8f-660fa6557211" />
 
 ### エラーカタログ
 
@@ -46,7 +47,8 @@ facet は、人間が構造化された UI で入力し、ツールが網羅性�
      撮り方: sample-project/エラーカタログ.json を開いた状態。「ATS の障害で応募を取り込めない」の none と、
              「エージェント経由応募で応募者情報が欠落する」の undecided が同じ画面に並ぶように。
      置き場所: docs/images/error-catalog-editor.png -->
-![エラーカタログエディタ](docs/images/error-catalog-editor.png)
+<img width="1635" height="765" alt="image" src="https://github.com/user-attachments/assets/642d6902-8482-43c7-9c39-ec3601a47590" />
+
 
 ### シーケンス
 
@@ -63,8 +65,8 @@ facet は、人間が構造化された UI で入力し、ツールが網羅性�
      撮り方: sample-project/応募から書類選考まで.json を開いた状態。図と、ステップに紐づく
              「失敗したら？」の問い（回答済みと未回答が混在している）が両方写るように。
      置き場所: docs/images/sequence-editor.png -->
-![シーケンスエディタ](docs/images/sequence-editor1.png)
-![シーケンスエディタ](docs/images/sequence-editor2.png)
+<img width="2243" height="1032" alt="image" src="https://github.com/user-attachments/assets/a1d298dc-db42-491e-a460-1188ae0ee3bc" />
+
 
 ### ロジックツリー
 
@@ -74,7 +76,8 @@ facet は、人間が構造化された UI で入力し、ツールが網羅性�
      撮り方: sample-project/応募が書類選考に進まないケース.json を開いた状態。
              文言が空のノードが1つあり、未記入として見えているところが写るように。
      置き場所: docs/images/logic-tree-editor.png -->
-![ロジックツリーエディタ](docs/images/logic-tree-editor.png)
+<img width="1445" height="759" alt="image" src="https://github.com/user-attachments/assets/2075d714-a59f-491a-bfe8-1c8d4f178a2a" />
+
 
 ### 課題ツリー
 
@@ -100,6 +103,9 @@ facet は、人間が構造化された UI で入力し、ツールが網羅性�
 
 ![課題ツリーエディタ](docs/images/issue-tree-editor.png)
 -->
+
+<img width="1685" height="1052" alt="image" src="https://github.com/user-attachments/assets/aa785ec1-58ce-4eeb-9bb0-fae82c02eabf" />
+
 
 ---
 
@@ -166,7 +172,8 @@ facet は **AI をアプリに組み込まない。** API も呼ばないし、�
      撮り方: 左にエディタ、右（か下）に Claude Code ペインを開いた状態。
              AI がファイルを書き換えて、アプリ側にトーストが出た瞬間が撮れると理想。
      置き場所: docs/images/claude-code-pane.png -->
-![Claude Code ペイン](docs/images/claude-code-pane.png)
+<img width="1975" height="1289" alt="image" src="https://github.com/user-attachments/assets/a5a3170e-9f86-4b9f-a9db-dbcbec159088" />
+
 
 ---
 
@@ -182,7 +189,8 @@ Markdown をクリップボードへコピーするか、`.md` ファイルへ�
      撮り方: エラーカタログを開いて出力メニューを展開し、「サポート向け」「開発向け」の
              2プロファイルが並んでいるところ。
      置き場所: docs/images/export-menu.png -->
-![出力メニュー](docs/images/export-menu.png)
+<img width="672" height="277" alt="image" src="https://github.com/user-attachments/assets/bdba3d05-9334-443c-b78f-32f04400766a" />
+
 
 ---
 
