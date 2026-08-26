@@ -1,0 +1,89 @@
+name: 不具合
+description: 動かない・落ちる・表示がおかしい
+title: "[不具合] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        直したいので、できれば**こちらで再現できる形**で書いてください。
+        `*` が付いた欄だけ必須です。分からないものは空のままで構いません。
+
+  - type: dropdown
+    id: tool
+    attributes:
+      label: どのあたりの話か
+      options:
+        - 用語集
+        - エラーカタログ
+        - シーケンス
+        - ロジックツリー
+        - 課題ツリー
+        - ファイル一覧・アプリ全体
+        - Claude Code ペイン
+        - Markdown 出力
+        - 更新まわり（アプリ内アップデート）
+        - わからない / 複数にまたがる
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 何が起きたか
+      placeholder: 用語を消したら、その用語を参照していた行が空欄になったまま warning が出ない
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: どうなってほしかったか
+      placeholder: 参照が切れたことが warning として見え続けてほしい
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      description: 1 から順に、その通りやれば同じことが起きる形で書いてください。
+      placeholder: |
+        1. sample-project を開く
+        2. 用語集の「応募者」を選ぶ
+        3. 削除ボタンを押す
+        4. エラーカタログを開く → ここで空欄になっている
+    validations:
+      required: true
+
+  - type: dropdown
+    id: build
+    attributes:
+      label: どちらで使っているか
+      options:
+        - 配布版（インストーラで入れた）
+        - 開発ビルド（npm run tauri dev）
+    validations:
+      required: true
+
+  - type: textarea
+    id: json
+    attributes:
+      label: 対象の JSON（あれば）
+      description: これが一番効く再現材料です。長ければ問題の部分だけで構いません。
+      render: json
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: スクリーンショット・動画（あれば）
+      description: この欄に画像ファイルをドラッグ＆ドロップすれば貼れます。
+
+  - type: textarea
+    id: env
+    attributes:
+      label: 環境（あれば）
+      placeholder: |
+        OS: Windows 11
+        アプリの版数: v0.5.2   ← 額縁の右上に出ています
+        （開発ビルドなら、代わりにブランチ名とコミット）

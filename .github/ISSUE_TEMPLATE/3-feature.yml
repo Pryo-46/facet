@@ -1,0 +1,48 @@
+name: 新機能提案
+description: いまは無いものを足したい（「改善」と迷ったら、どちらでも構いません）
+title: "[提案] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **「今あるものが使いにくい」なら「改善」のほうが近い**ですが、迷ったらどちらでも構いません。こちらで振り直します。
+
+        作るかどうかを決めるのに、**それが要る場面**が一番効きます。機能の形より、そこを厚く書いてもらえると助かります。
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 何が欲しいか
+      placeholder: 用語集の用語を、シーケンスのステップ本文から直接引けるようにしたい
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: どういう場面で要るか／いまはどう回避しているか
+      description: 「無くても回避できているが面倒」なのか「これが無いので使うのを諦めた」なのかで、優先度が変わります。
+      placeholder: |
+        場面: 会議中に用語の定義を確認しながらシーケンスを書いている
+        いまの回避: 用語集タブに切り替えて確認し、戻ってきて手で打ち直している（切り替えのたびに話が止まる）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: tool
+    attributes:
+      label: どのツールの話か
+      options:
+        - 用語集
+        - エラーカタログ
+        - シーケンス
+        - ロジックツリー
+        - 課題ツリー
+        - ファイル一覧・アプリ全体
+        - Claude Code ペイン
+        - Markdown 出力
+        - 新しいツールとして欲しい
+        - わからない / 複数にまたがる
+    validations:
+      required: true
