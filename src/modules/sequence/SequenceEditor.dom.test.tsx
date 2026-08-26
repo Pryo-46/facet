@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SequenceSchemaVersion1 } from '@/types/sequence'
 import { DIAGRAM_MARGIN, RAIL_WIDTH } from './layout'
 import { questionHints } from './questions'
-import { SequenceEditor } from './SequenceEditor'
+import { RAIL_SPAN, SequenceEditor } from './SequenceEditor'
 
 afterEach(cleanup)
 
@@ -592,6 +592,14 @@ describe('ステップ0件のとき末尾アクターの Tab', () => {
 })
 
 describe('レール（行の左端の編集セル列）', () => {
+  it('内訳の積み上げが layout の RAIL_WIDTH と一致する', () => {
+    // 描画側（SequenceEditor の RAIL_* 定数）と測定側（layout の RAIL_WIDTH）は
+    // 別のファイルに置かれた同じ寸法である。片方だけ動かすと、セルが図に侵入するか
+    // レールの右に隙間が空く。**セルの幅を変えたらこの検算が捕まえる**
+    expect(RAIL_SPAN).toBe(RAIL_WIDTH)
+  })
+
+
   /** 絶対配置のセルの矩形を style から読む（jsdom はレイアウトを計算しない） */
   function box(el: HTMLElement): { left: number; right: number } {
     const left = Number.parseFloat(el.style.left)

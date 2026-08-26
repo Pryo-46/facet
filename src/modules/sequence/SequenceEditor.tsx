@@ -152,19 +152,33 @@ const ANSWER_BOX_WIDTH = ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2
  * 横の帯域を [レール][図][ガター] に分けることで衝突を構造ごと無くす。
  *
  * x は行に依らず固定なので、モジュールの定数として1回だけ積む。
- * 合計が layout の `RAIL_WIDTH` と一致していることは下の RAIL_SPAN で押さえる
+ * 合計が layout の `RAIL_WIDTH` と一致していることは下の RAIL_SPAN で押さえる（実検算は DOM テスト）
  */
 const RAIL_PAD_X = 8
 const RAIL_NUM_WIDTH = 24
 const RAIL_CELL_GAP = 4
 const RAIL_REF_WIDTH = 100
 const RAIL_ARROW_WIDTH = 12
-const RAIL_SHAPE_WIDTH = 88
+/**
+ * 種別セルの幅。**4値の中で一番長い「呼出（応答なし）」が1行に収まること。**
+ * `text-sm`（14px）で 8文字＝112 ＋ `px-1.5` 12 ＋ 枠 2 ＝ 126。余裕を見て 136。
+ * 折り返すとセルが2行になり、`RAIL_TOP_INSET` で上端寄せしているぶん
+ * `MIN_ROW_HEIGHT` 44 から食み出す
+ */
+const RAIL_SHAPE_WIDTH = 136
 const RAIL_NUM_X = DIAGRAM_MARGIN + RAIL_PAD_X
 const RAIL_FROM_X = RAIL_NUM_X + RAIL_NUM_WIDTH + RAIL_CELL_GAP
 const RAIL_ARROW_X = RAIL_FROM_X + RAIL_REF_WIDTH
 const RAIL_TO_X = RAIL_ARROW_X + RAIL_ARROW_WIDTH
 const RAIL_SHAPE_X = RAIL_TO_X + RAIL_REF_WIDTH + RAIL_CELL_GAP
+/**
+ * 内訳を積み上げたレールの実幅。**`layout.RAIL_WIDTH` と一致すること**を
+ * `SequenceEditor.dom.test.tsx` が検算する——レールの内訳は描画側（このファイル）が
+ * 持ち、図の左端は測定側（layout）が `RAIL_WIDTH` で決めるので、片方だけ動かすと
+ * セルが図に侵入するか、レールの右に隙間が空く。
+ * **セルの幅を足す／伸ばすときはここと `RAIL_WIDTH` を一緒に見ること**
+ */
+export const RAIL_SPAN = RAIL_SHAPE_X + RAIL_SHAPE_WIDTH + RAIL_PAD_X - DIAGRAM_MARGIN
 /**
  * レールのセルを行の上端からどれだけ下げるか。
  * 行の帯は `max(ラベル高, ガタースロット群)` で決まりレールのぶんを含まないので、
