@@ -69,6 +69,7 @@ import {
   startInstall,
   type UpdateState,
 } from '@/core/update-check'
+import { readAppVersion } from '@/fs/app-version'
 import { forceClose, interceptClose } from '@/fs/app-window'
 import { copyToClipboard } from '@/fs/clipboard'
 import {
@@ -430,6 +431,20 @@ function App() {
     updateCheckedRef.current = true
     void runUpdateCheck(false)
   }, [runUpdateCheck])
+
+  /**
+   * 額縁に出す版番号。**取れるまでと、取れなかったときは何も出さない**——
+   * 額縁の添え物のために起動を落とさないし、`?` のような穴埋めも置かない
+   * （見出しの隣に意味の無い記号が残るだけ）。一回性ガードを持たせないのは
+   * 上の更新チェックと同じ理由（合成的な二重マウントが1回目を壊す）で、
+   * 2回読んでも同じ値が返るだけの読み取りなので害が無い
+   */
+  const [appVersion, setAppVersion] = useState<string | null>(null)
+  useEffect(() => {
+    readAppVersion().then(setAppVersion, (err: unknown) => {
+      console.error('版番号を取得できませんでした', err)
+    })
+  }, [])
 
   /**
    * 更新のインストールを要求する。**確認を挟むのは、承諾した瞬間に facet が
@@ -854,7 +869,16 @@ function App() {
             `p-4` を持つのでちょうど本文の始まりの上に来る。
             **サイドメニューを畳んだときのずれは許容する**（畳んだ状態に
             合わせると、開いているときの方がずれる） */}
-        <h1 className="-ml-6 w-64 shrink-0 pl-6 text-xl font-medium text-ink">facet</h1>
+        {/* 版番号は見出しの**外**に置く（h1 の中に入れると、見出しの
+            accessible name が「facet v1.0.1」になる——文書の見出しは
+            あくまで `facet`）。`w-64` を包む div へ移したので、
+            サイドメニューと幅を揃える意味は変わらない */}
+        <div className="-ml-6 flex w-64 shrink-0 items-baseline gap-2 pl-6">
+          <h1 className="text-xl font-medium text-ink">facet</h1>
+          {appVersion !== null && (
+            <span className="text-sm text-ink-muted">v{appVersion}</span>
+          )}
+        </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="outline" onClick={() => void openFolder()}>フォルダを開く</Button>
           {/* Undo/Redo はアイコンのみ。accessible name は aria-label で保つ

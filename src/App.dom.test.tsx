@@ -58,6 +58,7 @@ const {
   allowProjectDirCalls,
   updateConfig,
   installMock,
+  versionConfig,
 } = vi.hoisted(() => ({
   closeState: { callback: null as (() => Promise<boolean>) | null },
   killAllPtysMock: vi.fn(async () => undefined),
@@ -84,6 +85,9 @@ const {
   installMock: vi.fn(
     async (_onProgress: (chunk: number, total: number | null) => void) => undefined,
   ),
+  // 額縁の版番号専用の可変状態。**既定は「取れる」**——額縁に必ず出るものなので、
+  // 取れない既定にすると全テストが「取得に失敗した画面」を見ることになる
+  versionConfig: { value: '9.9.9', error: null as Error | null },
 }))
 
 vi.mock('@/fs/project-fs', () => ({
@@ -204,6 +208,14 @@ vi.mock('@/fs/updater', () => ({
     return { version: updateConfig.available.version, install: installMock }
   },
 }))
+// 額縁の版番号。取得元は tauri.conf.json（実行中バイナリの版）で、
+// 更新チェックが比較する版と同じ源
+vi.mock('@/fs/app-version', () => ({
+  readAppVersion: async () => {
+    if (versionConfig.error !== null) throw versionConfig.error
+    return versionConfig.value
+  },
+}))
 // jsdom には ResizeObserver が無い。TerminalTab がペイン幅の追従に使うので
 // ここでは「何もしないフェイク」に差し替えて落ちないようにするだけでよい
 vi.stubGlobal(
@@ -249,6 +261,8 @@ afterEach(() => {
   updateConfig.available = null
   updateConfig.checkError = null
   installMock.mockClear()
+  versionConfig.value = '9.9.9'
+  versionConfig.error = null
   restoreUserAgent?.()
   restoreUserAgent = null
 })
@@ -858,5 +872,28 @@ describe('自動アップデート（M19）', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'v1.2.3 に更新' }))
     fireEvent.click(await screen.findByRole('button', { name: '更新する' }))
     expect(await screen.findByText('更新をダウンロード中… 2.0 / 4.0 MB')).toBeTruthy()
+  })
+})
+
+describe('額縁の版番号', () => {
+  it('アプリ名の横に、いま動いている版が出る', async () => {
+    versionConfig.value = '4.5.6'
+    render(<App />)
+    expect(await screen.findByText('v4.5.6')).toBeTruthy()
+  })
+
+  it('**版番号が取れなくても画面は出る**（額縁の添え物のために起動を落とさない）', async () => {
+    // 「出ていない」だけでは、まだ取得中なのか諦めたのかを区別できない。
+    // 更新チェックの失敗と同じく、諦めた証拠として console.error を見る
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    versionConfig.error = new Error('取れない')
+    render(<App />)
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(screen.getByRole('heading', { level: 1, name: 'facet' })).toBeTruthy()
+    expect(screen.queryByText(/^v\d/)).toBeNull()
+    expect(consoleError).toHaveBeenCalled()
+    consoleError.mockRestore()
   })
 })
