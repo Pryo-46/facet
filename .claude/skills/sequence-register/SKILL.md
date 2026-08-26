@@ -53,12 +53,10 @@ description: 仕様整理ツールのシーケンスファイル（type=sequence
 
 ## 2. 参加者（actors）を組む
 
-`{ id, name, domain? }` の配列。**配列順が図の横の並び（左→右）の正である。** 会話に出てくる順（＝呼び出しの流れの順）に並べるのが自然。
+`{ id, name }` の配列。**配列順が図の横の並び（左→右）の正である。** 会話に出てくる順（＝呼び出しの流れの順）に並べるのが自然。
 
 - `name` は会話で使われている呼び方をそのまま使う（「決済API」と言っていたなら「決済API」）
-- **`domain`（責任ドメイン）は会話で明示されたものだけ。** 「決済会社の」「外部の」「うちの」と言われていない参加者には**入れない**
-
-`domain` を推測で埋めてはならない理由は具体的である。**隣接する参加者の `domain` が異なる位置に、アプリが責任境界の縦線を描く。** 推測で入れると**存在しない境界が図に現れる**。境界はこのツールの看板（「時系列＋責任境界」）なので、嘘の境界は図の意味そのものを壊す。
+- 参加者が持てるキーは `id` と `name` だけである。**責任ドメインのような属性を足さないこと**——スキーマが `additionalProperties: false` なので、足すとファイルが開けなくなる
 
 ## 3. ステップ（steps）を組む
 
@@ -142,8 +140,8 @@ node scripts/sequence-write.mjs --in <下書き.json> --out <プロジェクト>
   "type": "sequence",
   "title": "注文確定（在庫あり）",
   "actors": [
-    { "id": "actor_Xp2mQ9rT4k", "name": "画面", "domain": "自社" },
-    { "id": "actor_Kd4hR6yU1c", "name": "決済", "domain": "決済会社" }
+    { "id": "actor_Xp2mQ9rT4k", "name": "画面" },
+    { "id": "actor_Kd4hR6yU1c", "name": "決済" }
   ],
   "steps": [
     { "id": "step_Ab3xK9mP2q", "kind": "call", "from": "actor_Xp2mQ9rT4k", "to": "actor_Kd4hR6yU1c", "label": "与信依頼", "awaitsReply": true }
@@ -151,7 +149,7 @@ node scripts/sequence-write.mjs --in <下書き.json> --out <プロジェクト>
 }
 ```
 
-用語集・エラーカタログと違い、**全キー常在ではない。** `domain` / `to` / `awaitsReply` / `failures` は条件付きで存在する。
+用語集・エラーカタログと違い、**全キー常在ではない。** `to` / `awaitsReply` / `failures` は条件付きで存在する。
 
 ### 警告が出たときの扱いは、出どころで分ける
 

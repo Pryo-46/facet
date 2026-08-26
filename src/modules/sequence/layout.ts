@@ -51,7 +51,6 @@ export interface StepMetrics {
 
 export interface SeqLayoutInput {
   actorWidths: number[]
-  domains: (string | undefined)[]
   /**
    * `isSelf` は文言の置き方が種別で変わるために要る（self は起点の真上、
    * 呼出／応答は from-to の中点）。**エディタ側で分岐させないこと**——
@@ -79,7 +78,6 @@ export interface SeqLayoutResult {
   headerTop: number
   headerHeight: number
   rows: SeqRow[]
-  boundaries: number[]
   gutterX: number
   gutterWidth: number
   totalWidth: number
@@ -105,22 +103,12 @@ export function layoutSequence(input: SeqLayoutInput): SeqLayoutResult {
     gaps[g] = Math.max(gaps[g], need)
   }
   const actorX: number[] = []
-  // 図の左端はレールの右。以降の導出（gap・境界線・ガター）はすべて
+  // 図の左端はレールの右。以降の導出（gap・ガター）はすべて
   // actorX からの相対なので、起点をずらすだけで帯域が分かれる
   let x = DIAGRAM_MARGIN + RAIL_WIDTH + (input.actorWidths[0] ?? 0) / 2
   for (let i = 0; i < n; i++) {
     actorX.push(x)
     x += gaps[i] ?? 0
-  }
-
-  // ---- 境界線: 双方が指定済みかつ異なる隣接間の中点 ----
-  const boundaries: number[] = []
-  for (let i = 0; i + 1 < n; i++) {
-    const a = input.domains[i]
-    const b = input.domains[i + 1]
-    if (a !== undefined && b !== undefined && a !== b) {
-      boundaries.push((actorX[i] + actorX[i + 1]) / 2)
-    }
   }
 
   // 参照が引けない行の逃げ場は「図の左端」＝レールの右。
@@ -180,7 +168,6 @@ export function layoutSequence(input: SeqLayoutInput): SeqLayoutResult {
     headerTop: 0,
     headerHeight: HEADER_HEIGHT,
     rows,
-    boundaries,
     gutterX,
     gutterWidth,
     totalWidth: gutterX + gutterWidth + DIAGRAM_MARGIN,

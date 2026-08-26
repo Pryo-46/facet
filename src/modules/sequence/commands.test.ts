@@ -10,7 +10,6 @@ import {
   removeActor,
   removeAnswer,
   removeStep,
-  setActorDomain,
   setActorName,
   setAnswerText,
   setStepActor,
@@ -70,13 +69,6 @@ describe('actor 操作', () => {
   it('端の moveActor は何もしない', () => {
     const r = moveActor(data(), 0, -1)
     expect(r.data.actors.map((a) => a.name)).toEqual(['画面', 'API', '決済'])
-  })
-
-  it('setActorDomain は空文字で domain キー自体を消す', () => {
-    const withDomain = setActorDomain(data(), 0, '自社')
-    expect(withDomain.actors[0].domain).toBe('自社')
-    const cleared = setActorDomain(withDomain, 0, '')
-    expect('domain' in cleared.actors[0]).toBe(false)
   })
 })
 
@@ -161,7 +153,6 @@ describe('範囲外 index は何もしない（グローバル制約）', () => 
   it('参加者を書き換える関数は範囲外 index で元データをそのまま返す', () => {
     const d = data()
     expect(setActorName(d, 99, 'x')).toBe(d)
-    expect(setActorDomain(d, 99, 'x')).toBe(d)
   })
 
   it('ステップを書き換える関数は範囲外 index で元データをそのまま返す', () => {

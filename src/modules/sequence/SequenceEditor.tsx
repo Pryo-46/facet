@@ -444,7 +444,6 @@ export function SequenceEditor({
 
   const layoutInput: SeqLayoutInput = {
     actorWidths,
-    domains: data.actors.map((actor) => actor.domain),
     steps: stepViews.map((view) => ({
       fromIndex: view.fromIndex,
       toIndex: view.toIndex,
@@ -859,7 +858,7 @@ export function SequenceEditor({
         </div>
       </div>
 
-      {/* 背景レイヤ: ライフライン・責任境界の縦線
+      {/* 背景レイヤ: ライフラインの縦線
           （ゾーン導入時はその帯もこの層に載る） */}
       <div
         aria-hidden="true"
@@ -876,13 +875,6 @@ export function SequenceEditor({
               top: layout.headerTop + layout.headerHeight,
               height: Math.max(0, layout.totalHeight - layout.headerHeight),
             }}
-          />
-        ))}
-        {layout.boundaries.map((x) => (
-          <div
-            key={`boundary-${x}`}
-            className="absolute border-l border-dashed border-rule"
-            style={{ left: x, top: 0, height: layout.totalHeight }}
           />
         ))}
       </div>

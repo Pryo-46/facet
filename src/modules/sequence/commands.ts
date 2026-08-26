@@ -79,19 +79,6 @@ export function setActorName(
   return withActors(d, actors)
 }
 
-/** domain は任意キー。空文字はキーごと消す（欠落＝未指定が正規の表現） */
-export function setActorDomain(
-  d: SequenceSchemaVersion1,
-  index: number,
-  domain: string,
-): SequenceSchemaVersion1 {
-  if (d.actors[index] === undefined) return d
-  const actors = [...d.actors]
-  const { domain: _old, ...rest } = actors[index]
-  actors[index] = domain === '' ? rest : { ...rest, domain }
-  return withActors(d, actors)
-}
-
 // ---- ステップ ----
 
 function newStep(from: string, to: string | undefined): SequenceStep {

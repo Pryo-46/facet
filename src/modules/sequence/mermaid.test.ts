@@ -45,9 +45,9 @@ function doc(over: Partial<SequenceSchemaVersion1> = {}): SequenceSchemaVersion1
     type: 'sequence',
     title: '注文確定（在庫あり）',
     actors: [
-      { id: 'actor_Aaaaaaaaa1', name: '画面', domain: '自社' },
-      { id: 'actor_Aaaaaaaaa2', name: 'API', domain: '自社' },
-      { id: 'actor_Aaaaaaaaa3', name: '決済', domain: '決済会社' },
+      { id: 'actor_Aaaaaaaaa1', name: '画面' },
+      { id: 'actor_Aaaaaaaaa2', name: 'API' },
+      { id: 'actor_Aaaaaaaaa3', name: '決済' },
     ],
     steps: [
       { id: 'step_Aaaaaaaaa1', kind: 'call', from: 'actor_Aaaaaaaaa1', to: 'actor_Aaaaaaaaa2', label: '注文確定', awaitsReply: true },
@@ -73,13 +73,6 @@ describe('sequenceToMermaid', () => {
         '    a2->>a2: 在庫引当',
       ].join('\n'),
     )
-  })
-
-  it('domain は出力しない（M3 の確定事項。box 構文も参加者名への併記もしない）', () => {
-    const out = sequenceToMermaid(doc())
-    expect(out).not.toContain('box')
-    expect(out).not.toContain('決済会社')
-    expect(out).not.toContain('自社')
   })
 
   it('参照切れの to は（未解決）参加者へ向け、行は落とさない', () => {

@@ -13,7 +13,7 @@ function valid() {
     type: 'sequence',
     title: '注文確定',
     actors: [
-      { id: 'actor_Aaaaaaaaa1', name: '画面', domain: '自社' },
+      { id: 'actor_Aaaaaaaaa1', name: '画面' },
       { id: 'actor_Aaaaaaaaa2', name: 'API' },
     ],
     steps: [
@@ -44,10 +44,19 @@ describe('sequence スキーマ（レベル1）', () => {
     expect(validate(valid()).ok).toBe(true)
   })
 
-  it('domain / to / awaitsReply / failures の省略を受け入れる', () => {
+  it('to / awaitsReply / failures の省略を受け入れる', () => {
     const d = valid()
     // self は to を持たない。reply は awaitsReply を持たない。failures 未回答は欠落
     expect(validate(d).ok).toBe(true)
+  })
+
+  // 責任境界（domain）は廃止した属性である。図にも出力にも問いの導出にも
+  // 関与しないまま残っていたため消した。additionalProperties: false が
+  // 効いている＝「消した」が意図であることを、ここで固定する
+  it('廃止した domain を持つ参加者を拒否する', () => {
+    const d = valid()
+    ;(d.actors[0] as Record<string, unknown>).domain = '自社'
+    expect(validate(d).ok).toBe(false)
   })
 
   it('ID のプレフィクス違いを拒否する', () => {

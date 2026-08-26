@@ -14,9 +14,9 @@ function doc(): SequenceSchemaVersion1 {
     type: 'sequence',
     title: 't',
     actors: [
-      { id: 'actor_Aaaaaaaaa1', name: '画面', domain: '自社' },
-      { id: 'actor_Aaaaaaaaa2', name: 'API', domain: '自社' },
-      { id: 'actor_Aaaaaaaaa3', name: '決済', domain: '決済会社' },
+      { id: 'actor_Aaaaaaaaa1', name: '画面' },
+      { id: 'actor_Aaaaaaaaa2', name: 'API' },
+      { id: 'actor_Aaaaaaaaa3', name: '決済' },
     ],
     steps: [
       { id: 'step_Aaaaaaaaa1', kind: 'call', from: 'actor_Aaaaaaaaa1', to: 'actor_Aaaaaaaaa2', label: '注文を確定', awaitsReply: true },
@@ -527,8 +527,8 @@ describe('ステップ0件のとき末尾アクターの Tab', () => {
       type: 'sequence',
       title: 't',
       actors: [
-        { id: 'actor_Aaaaaaaaa1', name: '画面', domain: '自社' },
-        { id: 'actor_Aaaaaaaaa2', name: 'API', domain: '自社' },
+        { id: 'actor_Aaaaaaaaa1', name: '画面' },
+        { id: 'actor_Aaaaaaaaa2', name: 'API' },
       ],
       steps: [],
     }
@@ -612,7 +612,7 @@ describe('レール（行の左端の編集セル列）', () => {
     // 図が細いとガターの問いラベル列と横方向で衝突した
     setup({
       ...doc(),
-      actors: [{ id: 'actor_Aaaaaaaaa1', name: '画面', domain: '自社' }],
+      actors: [{ id: 'actor_Aaaaaaaaa1', name: '画面' }],
       steps: [
         {
           id: 'step_Aaaaaaaaa1',

@@ -5,18 +5,15 @@
   "actors": [
     {
       "id": "actor_Xp2mQ9rT4k",
-      "name": "画面",
-      "domain": "自社"
+      "name": "画面"
     },
     {
       "id": "actor_Bv7nW3jL8s",
-      "name": "受注API",
-      "domain": "自社"
+      "name": "受注API"
     },
     {
       "id": "actor_Kd4hR6yU1c",
-      "name": "決済サービス",
-      "domain": "決済会社"
+      "name": "決済サービス"
     }
   ],
   "steps": [
