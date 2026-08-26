@@ -24,7 +24,6 @@ const metrics = (labelWidth = 80, labelHeight = 24, slotHeights: number[] = []) 
 function input(over: Partial<SeqLayoutInput> = {}): SeqLayoutInput {
   return {
     actorWidths: [96, 96, 96],
-    domains: [undefined, undefined, undefined],
     steps: [
       { fromIndex: 0, toIndex: 1, isSelf: false, metrics: metrics() },
       { fromIndex: 1, toIndex: 2, isSelf: false, metrics: metrics(80, 24, [28, 28, 28]) },
@@ -48,7 +47,6 @@ describe('layoutSequence', () => {
     // 参加者1人・ステップ1件の最も細い図でも、ガターはレールの右に来る
     const thin = layoutSequence({
       actorWidths: [96],
-      domains: [undefined],
       steps: [{ fromIndex: 0, toIndex: null, isSelf: false, metrics: metrics() }],
     })
     expect(thin.gutterX).toBeGreaterThan(RAIL_WIDTH + DIAGRAM_MARGIN)
@@ -148,7 +146,6 @@ describe('layoutSequence', () => {
   it('slotTops は行見出しのぶん下がった位置から積まれる', () => {
     const result = layoutSequence({
       actorWidths: [80, 80],
-      domains: [undefined, undefined],
       steps: [
         { fromIndex: 0, toIndex: 1, isSelf: false, metrics: { labelWidth: 60, labelHeight: 20, slotHeights: [30, 30, 30] } },
       ],
@@ -162,7 +159,6 @@ describe('layoutSequence', () => {
   it('行高は見出し込みのスロット群がラベルより高ければそちらで決まる', () => {
     const result = layoutSequence({
       actorWidths: [80, 80],
-      domains: [undefined, undefined],
       steps: [
         { fromIndex: 0, toIndex: 1, isSelf: false, metrics: { labelWidth: 60, labelHeight: 20, slotHeights: [30, 30, 30] } },
       ],
@@ -174,19 +170,9 @@ describe('layoutSequence', () => {
   it('スロットが無い行の行高は MIN_ROW_HEIGHT のまま（見出し 19 は 44 に届かない）', () => {
     const result = layoutSequence({
       actorWidths: [80, 80],
-      domains: [undefined, undefined],
       steps: [{ fromIndex: 0, toIndex: 1, isSelf: false, metrics: { labelWidth: 60, labelHeight: 20, slotHeights: [] } }],
     })
     expect(result.rows[0].height).toBe(MIN_ROW_HEIGHT)
-  })
-
-  it('境界線: 双方が指定済みかつ異なる隣接間だけに出る', () => {
-    const r = layoutSequence(input({ domains: ['自社', '自社', '決済会社'] }))
-    expect(r.boundaries).toHaveLength(1)
-    expect(r.boundaries[0]).toBeGreaterThan(r.actorX[1])
-    expect(r.boundaries[0]).toBeLessThan(r.actorX[2])
-    // 片方未指定は境界にしない
-    expect(layoutSequence(input({ domains: [undefined, '自社', '自社'] })).boundaries).toHaveLength(0)
   })
 
   it('ガターは最後のライフラインの右', () => {
@@ -196,7 +182,7 @@ describe('layoutSequence', () => {
   })
 
   it('参加者0人・ステップ0件でも壊れない', () => {
-    const r = layoutSequence({ actorWidths: [], domains: [], steps: [] })
+    const r = layoutSequence({ actorWidths: [], steps: [] })
     expect(r.rows).toEqual([])
     expect(r.actorX).toEqual([])
   })
@@ -204,7 +190,6 @@ describe('layoutSequence', () => {
   it('スロットが高いと行もその分高くなる（問いラベルの高さは呼び出し側が畳んで渡す）', () => {
     const result = layoutSequence({
       actorWidths: [100],
-      domains: [undefined],
       steps: [
         { fromIndex: 0, toIndex: null, isSelf: false, metrics: { labelWidth: 50, labelHeight: 20, slotHeights: [60] } },
         { fromIndex: 0, toIndex: null, isSelf: false, metrics: { labelWidth: 50, labelHeight: 20, slotHeights: [20] } },
@@ -237,7 +222,6 @@ describe('layoutSequence', () => {
   it('長い文言はガターに食い込まない（ガターの左端は文言の右端も見る）', () => {
     const r = layoutSequence({
       actorWidths: [96],
-      domains: [undefined],
       steps: [{ fromIndex: 0, toIndex: null, isSelf: true, metrics: metrics(320, 24, [28]) }],
     })
     expect(r.gutterX).toBeGreaterThanOrEqual(r.rows[0].labelLeft + 320 + GUTTER_GAP)

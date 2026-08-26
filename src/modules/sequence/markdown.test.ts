@@ -15,9 +15,9 @@ function doc(over: Partial<SequenceSchemaVersion1> = {}): SequenceSchemaVersion1
     type: 'sequence',
     title: '注文確定（在庫あり）',
     actors: [
-      { id: 'actor_Aaaaaaaaa1', name: '画面', domain: '自社' },
-      { id: 'actor_Aaaaaaaaa2', name: 'API', domain: '自社' },
-      { id: 'actor_Aaaaaaaaa3', name: '決済', domain: '決済会社' },
+      { id: 'actor_Aaaaaaaaa1', name: '画面' },
+      { id: 'actor_Aaaaaaaaa2', name: 'API' },
+      { id: 'actor_Aaaaaaaaa3', name: '決済' },
     ],
     steps: [
       {
@@ -171,8 +171,8 @@ describe('sequenceToMarkdown: 壊れたデータ', () => {
     const out = sequenceToMarkdown(
       doc({
         actors: [
-          { id: 'actor_Aaaaaaaaa1', name: '', domain: '自社' },
-          { id: 'actor_Aaaaaaaaa2', name: 'API', domain: '自社' },
+          { id: 'actor_Aaaaaaaaa1', name: '' },
+          { id: 'actor_Aaaaaaaaa2', name: 'API' },
         ],
         steps: [
           {

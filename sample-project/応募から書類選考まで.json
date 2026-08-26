@@ -5,28 +5,23 @@
   "actors": [
     {
       "id": "actor_SZ3Efas4py",
-      "name": "応募者",
-      "domain": "社外"
+      "name": "応募者"
     },
     {
       "id": "actor_xIqO7SjENz",
-      "name": "採用サイト",
-      "domain": "自社"
+      "name": "採用サイト"
     },
     {
       "id": "actor_KN8328b8v6",
-      "name": "採用担当",
-      "domain": "自社"
+      "name": "採用担当"
     },
     {
       "id": "actor_CpEyURZgnk",
-      "name": "ATS",
-      "domain": "外部サービス"
+      "name": "ATS"
     },
     {
       "id": "actor_GJ5HHvXXeQ",
-      "name": "メール配信サービス",
-      "domain": "外部サービス"
+      "name": "メール配信サービス"
     }
   ],
   "steps": [
