@@ -1185,7 +1185,10 @@ export function SequenceEditor({
           <button
             type="button"
             aria-label="末尾にステップを追加"
-            className={`${buttonBase} gap-1 border border-dashed border-rule bg-surface px-3 py-1 text-base text-ink-muted hover:bg-canvas hover:text-ink`}
+            // **破線にしないこと。** rev 9章の欠落軸は「破線＝まだ見ていない」を
+            // 意味づけており、破線のボタンは図の欠落要素に見える（M25 で破線チップを
+            // ガターから帯へ移したのと同じ理由）。副次であることは文字色で示す
+            className={`${buttonBase} gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink-muted hover:bg-canvas hover:text-ink`}
             onClick={() => apply(addStepLast(data), 'from')}
           >
             <Plus aria-hidden className="size-4" />
