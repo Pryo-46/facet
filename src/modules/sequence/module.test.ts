@@ -11,7 +11,7 @@ describe('sequenceModule', () => {
     expect(sequenceModule.checkConsistency(empty)).toEqual([])
   })
 
-  it('createEmpty は参加者1人で作る（空状態のボタンを廃止したため）', () => {
+  it('createEmpty はアクター1人で作る（空状態のボタンを廃止したため）', () => {
     const empty = sequenceModule.createEmpty('新しいシーケンス')
     expect(empty.actors).toHaveLength(1)
     expect(empty.actors[0].name).toBe('')

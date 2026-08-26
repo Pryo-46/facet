@@ -92,7 +92,7 @@ export function sequenceToMermaid(data: SequenceSchemaVersion1): string {
         `    participant ${idOf.get(actor.id)} as ${escapeMermaidLabel(orUndefined(actor.name))}`,
     )
   if (usedUnresolved) {
-    // 末尾に置く——既存の参加者の列順を動かさない
+    // 末尾に置く——既存のアクターの列順を動かさない
     participants.push(`    participant ${UNRESOLVED_ID} as ${UNRESOLVED_ACTOR_LABEL}`)
   }
 

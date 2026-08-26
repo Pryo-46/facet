@@ -6,6 +6,7 @@ import { createEstimateMeasurer, gutterLabelText, wrapWithin } from './measure'
 import {
   poseQuestions,
   presentAnswers,
+  questionHints,
   questionLabels,
   readSlot,
   unposedAnswers,
@@ -35,11 +36,11 @@ describe('poseQuestions', () => {
 
 describe('questionLabels', () => {
   it('文言はステップ種別で変わる（キーは同じ）', () => {
-    expect(questionLabels(call(true)).unknown).toBe('結果不明だったら？')
-    expect(questionLabels(call(false)).unknown).toBe('届かなくてよいか？')
-    expect(questionLabels({ kind: 'self' }).failed).toBe('処理失敗したら？')
-    expect(questionLabels(call(true)).failed).toBe('失敗が確定したら？')
-    expect(questionLabels(call(true)).ifExecuted).toBe('実行済みだったら？')
+    expect(questionLabels(call(true)).unknown).toBe('結果がわからなかったら？')
+    expect(questionLabels(call(false)).unknown).toBe('応答が届かなくてもよいか？')
+    expect(questionLabels({ kind: 'self' }).failed).toBe('処理が失敗したら？')
+    expect(questionLabels(call(true)).failed).toBe('呼出が失敗したら？')
+    expect(questionLabels(call(true)).ifExecuted).toBe('既に実行されていたら？')
   })
   it('reply には問いが立たない（すべて空文字）', () => {
     expect(questionLabels({ kind: 'reply' })).toEqual({ failed: '', unknown: '', ifExecuted: '' })
@@ -78,6 +79,25 @@ describe('questionLabels', () => {
         expect(lineCount(text, key === 'ifExecuted'), `${key}: ${text}`).toBe(1)
       }
     }
+  })
+})
+
+describe('questionHints', () => {
+  // ヒントは title 属性で出す具体例。**立つ問いと過不足なく一致すること**が要件で、
+  // 文面そのものは検査しない（言い回しの推敲でテストが割れる）
+  it('立つ問いにだけヒントがあり、立たない問いは空文字', () => {
+    for (const step of [call(true), call(false), { kind: 'self' } as const, { kind: 'reply' } as const]) {
+      const posed = poseQuestions(step)
+      const hints = questionHints(step)
+      for (const path of ['failed', 'unknown', 'ifExecuted'] as const) {
+        expect(hints[path] !== '', `${step.kind}/${path}`).toBe(posed[path])
+      }
+    }
+  })
+
+  it('同じ path でも種別でヒントが変わる（自分の失敗と相手の失敗は別の場面）', () => {
+    expect(questionHints({ kind: 'self' }).failed).not.toBe(questionHints(call(true)).failed)
+    expect(questionHints(call(false)).unknown).not.toBe(questionHints(call(true)).unknown)
   })
 })
 

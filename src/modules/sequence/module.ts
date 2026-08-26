@@ -34,7 +34,7 @@ export const sequenceModule: ToolModule<SequenceSchemaVersion1> = {
   // プロジェクトにシーケンスは何本あってもよい（機能ごとに分けるのが普通の使い方）
   singleton: false,
   migrate: migrateSequence,
-  // **参加者1人で作る。** 空状態の「クリックして開始」を廃止したので、
+  // **アクター1人で作る。** 空状態の「クリックして開始」を廃止したので、
   // 最初の1人は雛形が持つ。ID の採番は commands.ts の1箇所に保つため
   // addFirstActor を通す（ここで newId を直接呼ばない）
   createEmpty: (title) =>

@@ -5,7 +5,7 @@ import { describeSequenceIssueEffect, sequenceToMarkdown } from './markdown'
 
 /**
  * 退化ケースを避けたフィクスチャ（lessons-for-planning）。
- * 参加者3人・4種類のステップ・4つの答えの状態（handled / notApplicable（理由あり）/
+ * アクター3人・4種類のステップ・4つの答えの状態（handled / notApplicable（理由あり）/
  * notApplicable（理由なし）/ 未回答）を混ぜる——1種類だと「立っていない＝空」と
  * 「未回答＝（未定義）」を取り違えた実装でも同じ表になる
  */
@@ -167,7 +167,7 @@ describe('sequenceToMarkdown: 壊れたデータ', () => {
     expect(bodyRows(out)[0]).toContain('画面 → （未解決）')
   })
 
-  it('名前が空の参加者は表でも（未定義）（（未解決）ではない。参照は引けている）', () => {
+  it('名前が空のアクターは表でも（未定義）（（未解決）ではない。参照は引けている）', () => {
     const out = sequenceToMarkdown(
       doc({
         actors: [

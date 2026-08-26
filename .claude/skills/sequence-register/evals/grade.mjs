@@ -72,7 +72,7 @@ function assertionsFor(evalId, dir) {
     steps.length > 0 && steps.every((s) => STEP_RE.test(s.id)), steps.map((s) => s.id).join(", ") || "なし");
 
   if (evalId === 0) {
-    push("参加者が3人（画面・受注API・決済サービス相当）",
+    push("アクターが3人（画面・受注API・決済サービス相当）",
       actors.length === 3, actors.map((a) => a.name).join("、"));
     push("ステップが3件（言及されていない reply を補っていない）",
       steps.length === 3, `${steps.length}件: ${steps.map((s) => `${s.kind}:${s.label}`).join(" / ")}`);

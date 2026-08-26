@@ -76,6 +76,7 @@ import {
 import { tallySequenceMissing } from './missing'
 import {
   poseQuestions,
+  questionHints,
   questionLabels,
   readSlot,
   unposedAnswers,
@@ -134,11 +135,10 @@ const QUESTION_ORDER: readonly AnswerPath[] = ['failed', 'unknown', 'ifExecuted'
  * 立っていた問いかは失われている）ので、call-sync（応答待ちの呼出）の
  * 文言を汎用として使う。GhostSlot は文字列を受け取るだけで意味を知らない
  */
-const GHOST_QUESTION_LABEL: Record<AnswerPath, string> = {
-  failed: '失敗が確定したら？',
-  unknown: '結果不明だったら？',
-  ifExecuted: '実行済みだったら？',
-}
+const GHOST_SHAPE = { kind: 'call', awaitsReply: true } as const
+const GHOST_QUESTION_LABEL: Record<AnswerPath, string> = questionLabels(GHOST_SHAPE)
+/** 同上のツールチップ。ラベルと同じ理由で call-sync のものを汎用に使う */
+const GHOST_QUESTION_HINT: Record<AnswerPath, string> = questionHints(GHOST_SHAPE)
 
 /** 答えセルの外形幅（内容幅＋左右の inset）。ガターの幅も layout がこれで導出する */
 const ANSWER_BOX_WIDTH = ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2
@@ -146,25 +146,39 @@ const ANSWER_BOX_WIDTH = ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2
 /**
  * レール（行の左端の編集セル列。編集の足場であって図の一部ではない）の内訳。
  *
- * **編集セルは矢印の脇に置かない。** 脇に置くと、図が細いとき（参加者1人など）に
+ * **編集セルは矢印の脇に置かない。** 脇に置くと、図が細いとき（アクター1人など）に
  * ガターの問いラベル列と横方向で衝突する（実機確認の第一報。「呼出」チップが
- * 「結果不明だったら？」に重なった）。行の左端に固定幅の列を切り、
+ * 「結果がわからなかったら？」に重なった）。行の左端に固定幅の列を切り、
  * 横の帯域を [レール][図][ガター] に分けることで衝突を構造ごと無くす。
  *
  * x は行に依らず固定なので、モジュールの定数として1回だけ積む。
- * 合計が layout の `RAIL_WIDTH` と一致していることは下の RAIL_SPAN で押さえる
+ * 合計が layout の `RAIL_WIDTH` と一致していることは下の RAIL_SPAN で押さえる（実検算は DOM テスト）
  */
 const RAIL_PAD_X = 8
 const RAIL_NUM_WIDTH = 24
 const RAIL_CELL_GAP = 4
 const RAIL_REF_WIDTH = 100
 const RAIL_ARROW_WIDTH = 12
-const RAIL_SHAPE_WIDTH = 88
+/**
+ * 種別セルの幅。**4値の中で一番長い「呼出（応答なし）」が1行に収まること。**
+ * `text-sm`（14px）で 8文字＝112 ＋ `px-1.5` 12 ＋ 枠 2 ＝ 126。余裕を見て 136。
+ * 折り返すとセルが2行になり、`RAIL_TOP_INSET` で上端寄せしているぶん
+ * `MIN_ROW_HEIGHT` 44 から食み出す
+ */
+const RAIL_SHAPE_WIDTH = 136
 const RAIL_NUM_X = DIAGRAM_MARGIN + RAIL_PAD_X
 const RAIL_FROM_X = RAIL_NUM_X + RAIL_NUM_WIDTH + RAIL_CELL_GAP
 const RAIL_ARROW_X = RAIL_FROM_X + RAIL_REF_WIDTH
 const RAIL_TO_X = RAIL_ARROW_X + RAIL_ARROW_WIDTH
 const RAIL_SHAPE_X = RAIL_TO_X + RAIL_REF_WIDTH + RAIL_CELL_GAP
+/**
+ * 内訳を積み上げたレールの実幅。**`layout.RAIL_WIDTH` と一致すること**を
+ * `SequenceEditor.dom.test.tsx` が検算する——レールの内訳は描画側（このファイル）が
+ * 持ち、図の左端は測定側（layout）が `RAIL_WIDTH` で決めるので、片方だけ動かすと
+ * セルが図に侵入するか、レールの右に隙間が空く。
+ * **セルの幅を足す／伸ばすときはここと `RAIL_WIDTH` を一緒に見ること**
+ */
+export const RAIL_SPAN = RAIL_SHAPE_X + RAIL_SHAPE_WIDTH + RAIL_PAD_X - DIAGRAM_MARGIN
 /**
  * レールのセルを行の上端からどれだけ下げるか。
  * 行の帯は `max(ラベル高, ガタースロット群)` で決まりレールのぶんを含まないので、
@@ -394,6 +408,7 @@ export function SequenceEditor({
     const shape = stepShapeOf(step)
     const posed = poseQuestions(step)
     const labels = questionLabels(step)
+    const hints = questionHints(step)
     const label = wrap(shape === 'self' ? 'self' : 'label', step.label, shape === 'self' ? SELF_WRAP : LABEL_WRAP)
     const answers = QUESTION_ORDER.filter((path) => posed[path]).map((path) => {
       const slot = readSlot(step, path)
@@ -415,6 +430,7 @@ export function SequenceEditor({
       return {
         path,
         question: labels[path],
+        hint: hints[path],
         state,
         text,
         // **問いラベルの方が高いことがある。** 高い方を採らないと行から食み出す
@@ -588,7 +604,7 @@ export function SequenceEditor({
   /**
    * 帯のチップから次の欠落へ飛ぶ（M22）。**フォーカス位置は起点にせず巡回 ref で数える**
    * （用語集と同じ。課題ツリーの nextOpenTarget とは違う——物足りなければ open-issues 行き）。
-   * 未回答はガターの並び順、未記入は参加者 → ステップの順に巡る
+   * 未回答はガターの並び順、未記入はアクター → ステップの順に巡る
    */
   const jumpToMissing = (kind: string): void => {
     const targets: (() => boolean)[] =
@@ -627,7 +643,7 @@ export function SequenceEditor({
         )
         return true
       case 'delete-item':
-        // deletableField を立てている欄（参加者名・ステップ文言）からしか来ない
+        // deletableField を立てている欄（アクター名・ステップ文言）からしか来ない
         apply(target.kind === 'actor' ? removeActor(data, index) : removeStep(data, index))
         return true
       case 'move-item-up':
@@ -688,7 +704,7 @@ export function SequenceEditor({
     handleKey(e, { kind: 'actor', index }, {
       editing: true,
       fieldEmpty: state.empty,
-      // 参加者名は1つしかない欄なので、空欄 Backspace の削除を認める
+      // アクター名は1つしかない欄なので、空欄 Backspace の削除を認める
       deletableField: true,
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
@@ -828,7 +844,7 @@ export function SequenceEditor({
             <Plus aria-hidden className="size-4" />
             ステップを追加
           </button>
-          {/* マウスだけの人の唯一の参加者追加手段（sequence M3 で from/to のインライン作成を外したため） */}
+          {/* マウスだけの人の唯一のアクター追加手段（sequence M3 で from/to のインライン作成を外したため） */}
           <button
             type="button"
             className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
@@ -841,10 +857,10 @@ export function SequenceEditor({
             }
           >
             <Plus aria-hidden className="size-4" />
-            参加者を追加
+            アクターを追加
           </button>
           {/* 要対応の集計。**ガター上部（キャンバスの transform 層）からこの帯へ
-              移した**（M25 の計画外修正）——実機で「破線チップが参加者ボックスと
+              移した**（M25 の計画外修正）——実機で「破線チップがアクターボックスと
               同じ高さ・同じ角丸・同じ破線黄で並び、図の要素に見える」と出たため。
               論点7 の「ガター上部に集計」はこの点だけ反転した（ガターのスロット列
               そのものはキャンバス内のまま。design-notes 論点7 の追記を見よ）。
@@ -891,7 +907,7 @@ export function SequenceEditor({
         style={{ transform: cssTransform(transform) }}
         data-layer="nodes"
       >
-        {/* 参加者ヘッダ */}
+        {/* アクターヘッダ */}
         {data.actors.map((actor, index) => {
           const key = actorKeys[index]
           const width = actorWidths[index]
@@ -916,7 +932,7 @@ export function SequenceEditor({
             >
               <CellInput
                 className={`h-full w-full rounded-sm text-center ${ACTOR_BOX_CLASS} ${face} text-sm leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
-                aria-label={`参加者${index + 1}の名前`}
+                aria-label={`アクター${index + 1}の名前`}
                 data-cell={`${key}:name`}
                 value={actor.name}
                 onValueChange={(next) => onChange(setActorName(data, index, next), `${key}:name`)}
@@ -949,7 +965,7 @@ export function SequenceEditor({
           // 置き方が2箇所にあると図が静かに重なる（実機確認で踏んだ）
           const labelLeft = row.labelLeft
           // 編集の足場（#番号 / from / to / 形）はレールの中の固定 x に置く。
-          // **矢印の位置も参加者の数も見ない**——だから from==to の呼出（線が引けない）でも
+          // **矢印の位置もアクターの数も見ない**——だから from==to の呼出（線が引けない）でも
           // 定位置に出るし、細い図でガターに被ることもない
           const railTop = row.top + RAIL_TOP_INSET
           return (
@@ -1106,7 +1122,7 @@ export function SequenceEditor({
                   style={{ left: layout.gutterX, top: row.top + GUTTER_HEADING_HEIGHT, width: layout.gutterWidth }}
                 >
                   {view.shape === 'reply'
-                    ? '─ 応答が返らないケースは、呼び出した側の「結果不明だったら？」に書く'
+                    ? '─ 応答が返らないときは呼出側の「結果がわからなかったら？」に書く'
                     : '─ 問いは立たない'}
                 </div>
               ) : (
@@ -1114,6 +1130,7 @@ export function SequenceEditor({
                   <GutterSlot
                     key={`${key}:${answer.path}`}
                     question={answer.question}
+                    hint={answer.hint}
                     indent={answer.path === 'ifExecuted'}
                     state={answer.state}
                     text={answer.text}
@@ -1141,6 +1158,7 @@ export function SequenceEditor({
                 <GhostSlot
                   key={`${key}:ghost:${ghost.path}`}
                   question={GHOST_QUESTION_LABEL[ghost.path]}
+                  hint={GHOST_QUESTION_HINT[ghost.path]}
                   text={ghost.text}
                   aria-label={`ステップ${index + 1}の立っていない答え「${GHOST_QUESTION_LABEL[ghost.path]}」: この答えを削除`}
                   x={layout.gutterX}
@@ -1167,7 +1185,10 @@ export function SequenceEditor({
           <button
             type="button"
             aria-label="末尾にステップを追加"
-            className={`${buttonBase} gap-1 border border-dashed border-rule bg-surface px-3 py-1 text-base text-ink-muted hover:bg-canvas hover:text-ink`}
+            // **破線にしないこと。** rev 9章の欠落軸は「破線＝まだ見ていない」を
+            // 意味づけており、破線のボタンは図の欠落要素に見える（M25 で破線チップを
+            // ガターから帯へ移したのと同じ理由）。副次であることは文字色で示す
+            className={`${buttonBase} gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink-muted hover:bg-canvas hover:text-ink`}
             onClick={() => apply(addStepLast(data), 'from')}
           >
             <Plus aria-hidden className="size-4" />

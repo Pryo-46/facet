@@ -29,7 +29,7 @@ function call(patch: Partial<SequenceStep> = {}): SequenceStep {
 }
 
 describe('tallySequenceMissing', () => {
-  it('未回答（立っている問いに decision が無い）と未記入（参加者名・ステップラベルの空）を分けて数える', () => {
+  it('未回答（立っている問いに decision が無い）と未記入（アクター名・ステップラベルの空）を分けて数える', () => {
     const t = tallySequenceMissing(
       data({
         actors: [

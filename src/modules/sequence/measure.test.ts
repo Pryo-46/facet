@@ -8,15 +8,15 @@ import { gutterLabelText } from './measure'
  */
 describe('gutterLabelText', () => {
   it('インデントする問い（ifExecuted）は「└ 」を前置する', () => {
-    expect(gutterLabelText('実行済みだったら？', true)).toBe('└ 実行済みだったら？')
+    expect(gutterLabelText('既に実行されていたら？', true)).toBe('└ 既に実行されていたら？')
   })
 
   it('インデントしない問いは素の文言をそのまま返す', () => {
-    expect(gutterLabelText('処理失敗したら？', false)).toBe('処理失敗したら？')
+    expect(gutterLabelText('処理が失敗したら？', false)).toBe('処理が失敗したら？')
   })
 
   it('接頭辞は2文字ぶんだけ伸びる（測定側が見込む余裕の根拠）', () => {
-    const bare = '結果不明だったら？'
+    const bare = '結果がわからなかったら？'
     expect(gutterLabelText(bare, true).length).toBe(bare.length + 2)
   })
 

@@ -23,7 +23,7 @@ export const SELF_INSET_Y = SELF_PADDING_Y + SELF_BORDER
 export const SELF_MIN_WIDTH = 96
 export const SELF_BOX_CLASS = 'border px-2.5 py-1.5'
 
-/** 参加者ヘッダ */
+/** アクターヘッダ */
 export const ACTOR_MIN_WIDTH = 96
 export const ACTOR_MAX_WIDTH = 240
 export const ACTOR_PADDING_X = 12

@@ -22,15 +22,15 @@ export interface ActorRefCellProps {
 }
 
 /**
- * from / to の参加者参照セル（sequence M3 で選択専用にした）。
+ * from / to のアクター参照セル（sequence M3 で選択専用にした）。
  *
  * **マウスはメニュー、キーボードは ↑↓ の即時切替。** M1 の「頭文字の
  * インクリメンタル一致＋未登録名の確定でその場で `actors` に追加」は、
- * 実使用の観察（補完の出番が少なく、その場で参加者を作る必要も無かった）を
- * 受けて外した。M1 の実機確認チェックリスト自体が「『決』＋Enter で参加者
+ * 実使用の観察（補完の出番が少なく、その場でアクターを作る必要も無かった）を
+ * 受けて外した。M1 の実機確認チェックリスト自体が「『決』＋Enter でアクター
  *『決』ができる挙動」を危険として見に行っていたのと整合する。
  *
- * 参加者の追加は、ヘッダの `Enter` とツールバーの「参加者を追加」の2本になった。
+ * アクターの追加は、ヘッダの `Enter` とツールバーの「アクターを追加」の2本になった。
  *
  * 参照切れを空表示にしない——ボタンなので、空だと押す場所が見えなくなる。
  * 出力と同じ「（未解決）」の語を使う（無効軸の表示であって、無いデータの
@@ -51,12 +51,12 @@ export function ActorRefCell(props: ActorRefCellProps) {
     const next = (at + delta + props.actors.length) % props.actors.length
     props.onSelect(props.actors[next].id)
   }
-  // 名前が空の参加者を指している＝欠落（M22）。プロップでは受けない——
+  // 名前が空のアクターを指している＝欠落（M22）。プロップでは受けない——
   // 判定に要る材料（actors と value）がすでに手元にあり、渡す側が
   // 間違える余地を作らないため
   const missing = resolved !== undefined && resolved.name === ''
   // 無効は `invalid` の枠＋淡い面、欠落は破線＋淡い面（rev 9章 規約2）。
-  // **面と枠のクラスは片方だけ出す**（SequenceEditor の参加者ヘッダと同じ理由）
+  // **面と枠のクラスは片方だけ出す**（SequenceEditor のアクターヘッダと同じ理由）
   const face = props.invalid
     ? 'border-invalid bg-invalid-face'
     : missing
@@ -66,7 +66,7 @@ export function ActorRefCell(props: ActorRefCellProps) {
     <DropdownMenu open={props.open} onOpenChange={props.onOpenChange}>
       <DropdownMenuTrigger
         type="button"
-        // **`min-h-6.5` を外さないこと。** 名前が空の参加者を指しているときは
+        // **`min-h-6.5` を外さないこと。** 名前が空のアクターを指しているときは
         // 本文が空になり、子が無いボタンは行ボックスを作らないので内容高 0＋
         // 余白だけの帯に潰れる（親は height を渡さない）。押す面積が消え、
         // 押せるものがそこに在ることが見えなくなる。
@@ -118,7 +118,7 @@ export function ActorRefCell(props: ActorRefCellProps) {
             // aria-label は accname 仕様で無視されうる命名禁止ロールで、
             // 実ブラウザでは「空白の項目」として支援技術に届く。menuitem は
             // 命名できるロールなので、名前はこちら、面は aria-hidden の飾りにする
-            aria-label={actor.name === '' ? '名前が空の参加者' : undefined}
+            aria-label={actor.name === '' ? '名前が空のアクター' : undefined}
           >
             {actor.name === '' ? (
               <span
