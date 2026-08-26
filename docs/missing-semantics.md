@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 用語集 | `definition === ''`（未定義）／`kind === 'undecided'`（未分類） | `aliases` が空、`notes` が空 |
 | エラーカタログ | `resolutionLevel === 'undecided'`（未分類）／`occurrence`・`causeForSupport`・`causeForSpec` が空／対応欄（`userAction` 等）が空で、かつ `resolutionLevel` がその主体か `none`（未記入） | `notes` が空、主体でない対応欄が空（「書く必要がないので空」） |
-| シーケンス | 問いが立っているのに `failures` にキーが無い（未回答）／参加者の `name` が空／ステップの `label` が空（未記入） | 問いが立っていないスロット、`notApplicable`（決めた） |
+| シーケンス | 問いが立っているのに `failures` にキーが無い（未回答）／アクターの `name` が空／ステップの `label` が空（未記入） | 問いが立っていないスロット、`notApplicable`（決めた） |
 | ロジックツリー | `text === ''`（未記入） | — |
 | 課題ツリー | 4つの問い（仮説なし・未決・保留・未判断）。`poseQuestions` が導出する | `rationale` が空、見送り配下（抑制） |
 
@@ -29,18 +29,18 @@
 
 画面に「未定義」「別名なし」のような、データに実在しない文字列を捏造してはならない。`placeholder` にも欠落を意味する語を使わない——面が欠落を運ぶので、`placeholder` は同じ情報の二重表現になる。**データに実在する値のラベルは捏造ではない**ので、`undecided` の「未分類」、`notApplicable` の「考慮不要」は使ってよい。空タイトルの `(無題)`（`src/core/load.ts` の `UNTITLED`）も引き続き使ってよいが、理由は別で——**タイトルは決定1の表に無く、この文書が規約する欠落軸そのものではない**（ファイル一覧・帯の見出しの表示上の便宜であって、`missing` の面を伴わない）。欠落軸のフィールド（決定1の表にある値）を空のまま実在しない文字列で埋めることは、このルールが引き続き禁じる。
 
-出力（Markdown / Mermaid）は画面と別の制約を持つ。出力先（NotePM 等）には面が無く文字でしか欠落を残せないため、未回答は出力に `（未定義）` と書く（`src/modules/sequence/output-labels.ts` の `UNDEFINED_VALUE`）。**ただし `notApplicable`（考慮不要）は画面・出力のどちらも同じ語 `考慮不要` を書く**——`NOT_APPLICABLE_LABEL` は `'考慮不要'` で（かつて `'─ 考慮不要'` だったが M22 で記号を外した）、`GutterSlot.tsx` の画面表示にも `markdown.ts` の出力にも同じ定数を使う。`（未解決）`（`UNRESOLVED_ACTOR_LABEL`。参照先の参加者が無い）は無効軸の表示であって欠落ではなく、捏造でもない。
+出力（Markdown / Mermaid）は画面と別の制約を持つ。出力先（NotePM 等）には面が無く文字でしか欠落を残せないため、未回答は出力に `（未定義）` と書く（`src/modules/sequence/output-labels.ts` の `UNDEFINED_VALUE`）。**ただし `notApplicable`（考慮不要）は画面・出力のどちらも同じ語 `考慮不要` を書く**——`NOT_APPLICABLE_LABEL` は `'考慮不要'` で（かつて `'─ 考慮不要'` だったが M22 で記号を外した）、`GutterSlot.tsx` の画面表示にも `markdown.ts` の出力にも同じ定数を使う。`（未解決）`（`UNRESOLVED_ACTOR_LABEL`。参照先のアクターが無い）は無効軸の表示であって欠落ではなく、捏造でもない。
 
 - 捏造文字列を消した箇所: `src/modules/glossary/AliasCell.tsx`（別名なし→消去）／`src/modules/glossary/GlossaryEditor.tsx`（定義列の `placeholder="未定義"`→消去）／`src/modules/error-catalog/ErrorCatalogEditor.tsx`（対応欄の `placeholder="未定義"`→消去）／`src/modules/sequence/GutterSlot.tsx`（未回答の `placeholder="未定義"`→消去）／`src/modules/sequence/ActorRefCell.tsx`（本文の `（未定義）`→消去。ボタン自体を破線＋淡い面にする）
 - 語の一元管理: `src/modules/sequence/output-labels.ts`（`UNDEFINED_VALUE` / `NOT_APPLICABLE_LABEL` / `UNRESOLVED_ACTOR_LABEL`）
 
 ### 3. 見せ方は rev 9章の欠落軸に従う
 
-表のセルは淡い面（`missing-face`）だけ、キャンバスのノード・スロット・参加者参照・ラベルセルは破線＋淡い面、バッジは線種で段を分ける（破線＝まだ見ていない／実線＝保留）。無効（`invalid`。赤）が欠落より優先する——両方が立つ入力では無効の枠・面が勝ち、欠落の面は出ない。
+表のセルは淡い面（`missing-face`）だけ、キャンバスのノード・スロット・アクター参照・ラベルセルは破線＋淡い面、バッジは線種で段を分ける（破線＝まだ見ていない／実線＝保留）。無効（`invalid`。赤）が欠落より優先する——両方が立つ入力では無効の枠・面が勝ち、欠落の面は出ない。
 
 - 表のセル: `src/modules/glossary/GlossaryEditor.tsx`／`src/modules/error-catalog/ErrorCatalogEditor.tsx`（`CELL_FACE_CLASS` / `cellFace`。`src/core/list-editor/cell-face.ts`）
 - キャンバスのノード: `src/modules/logic-tree/NodeBox.tsx`（`border-dashed border-missing bg-missing-face`。`invalid` が勝つ）
-- シーケンスのスロット・参照・ラベル: `src/modules/sequence/GutterSlot.tsx`／`src/modules/sequence/ActorRefCell.tsx`／`src/modules/sequence/SequenceEditor.tsx`（参加者ヘッダ・ステップのラベルセル）
+- シーケンスのスロット・参照・ラベル: `src/modules/sequence/GutterSlot.tsx`／`src/modules/sequence/ActorRefCell.tsx`／`src/modules/sequence/SequenceEditor.tsx`（アクターヘッダ・ステップのラベルセル）
 - バッジの線種: `src/components/badge-styles.ts`（`badgeClass`）／`src/modules/issue-tree/badge-variant.ts`
 
 ### 4. 必ずヘッダで集計する

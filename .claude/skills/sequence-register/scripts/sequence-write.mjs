@@ -143,7 +143,7 @@ const stepName = (step, index) =>
 // ID重複（IDは機械的識別子なので正規化しない完全一致。1つのidにつき1件——
 // アプリの dupLocations と同じ構造で actors / steps を回す）
 for (const [label, items] of [
-  ["参加者", actors],
+  ["アクター", actors],
   ["ステップ", steps],
 ]) {
   const counts = new Map();
@@ -160,7 +160,7 @@ steps.forEach((step, index) => {
   for (const field of ["from", "to"]) {
     const ref = step[field];
     if (ref !== undefined && !actorIds.has(ref)) {
-      warnings.push(`${stepName(step, index)} の ${field} が指す参加者が存在しません: ${ref}`);
+      warnings.push(`${stepName(step, index)} の ${field} が指すアクターが存在しません: ${ref}`);
     }
   }
 
@@ -177,7 +177,7 @@ steps.forEach((step, index) => {
   // from == to（矢印が引けない。self への変更を促す）。参照切れのときは出さない
   if (step.kind !== "self" && step.to !== undefined && step.to === step.from && actorIds.has(step.from)) {
     warnings.push(
-      `${stepName(step, index)} の from と to が同じ参加者を指しています。自分への処理は形を「内部処理」（self）に変えて表します`
+      `${stepName(step, index)} の from と to が同じアクターを指しています。自分への処理は形を「内部処理」（self）に変えて表します`
     );
   }
 
@@ -205,7 +205,7 @@ if (targetPath) {
 //
 // 未回答＝**立っている問い**に decision が無い。立っていない問いへの答えは上の
 // unposed-answer が別に指摘するので、ここには混ぜない（src/modules/sequence/missing.ts
-// と同じ扱い）。未記入＝参加者の name ／ ステップの label が空。
+// と同じ扱い）。未記入＝アクターの name ／ ステップの label が空。
 //
 // **文言は手書きである。** Skill は src/ を import できない（利用者のプロジェクトへ
 // コピーされる）ので、アプリ側の tallyLine との逐語一致は
@@ -241,7 +241,7 @@ if (targetPath) {
   console.log(raw === text ? "✓ 正規形と一致しています" : "△ 正規形と差があります（--in/--out で書き直せます）");
 }
 console.log(`  スキーマ: ${schemaPath}`);
-console.log(`  参加者: ${actors.length}人 ／ ステップ: ${steps.length}件`);
+console.log(`  アクター: ${actors.length}人 ／ ステップ: ${steps.length}件`);
 const parts = [];
 if (tally.unanswered > 0) parts.push(`未回答 ${tally.unanswered}`);
 if (blank > 0) parts.push(`未記入 ${blank}`);

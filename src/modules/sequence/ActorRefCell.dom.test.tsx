@@ -40,7 +40,7 @@ describe('ActorRefCell: 表示', () => {
     expect(setup({ value: undefined, invalid: true }).cell.textContent).toBe('（未解決）')
   })
 
-  it('名前が空の参加者を指しているときは本文を空にし、欠落の面（破線＋淡い面）で示す（（未定義）と書かない。M22 決定1）', () => {
+  it('名前が空のアクターを指しているときは本文を空にし、欠落の面（破線＋淡い面）で示す（（未定義）と書かない。M22 決定1）', () => {
     const { cell } = setup({
       value: 'actor_Aaaaaaaaa9',
       actors: [{ id: 'actor_Aaaaaaaaa9', name: '' }],
@@ -84,7 +84,7 @@ describe('ActorRefCell: キーボード（M2 までと同じ）', () => {
   })
 
   it('Alt+↓ は候補を切り替えず、onFieldKeyDown へ委譲する', () => {
-    // 参加者3人のフィクスチャで検査する——2人だと「切替が起きない」と
+    // アクター3人のフィクスチャで検査する——2人だと「切替が起きない」と
     // 「委譲された」の区別が実装によっては付かない
     const { onSelect, onFieldKeyDown, cell } = setup()
     fireEvent.keyDown(cell, { key: 'ArrowDown', altKey: true })
@@ -99,7 +99,7 @@ describe('ActorRefCell: キーボード（M2 までと同じ）', () => {
     expect(screen.queryByRole('menuitem')).toBeNull()
   })
 
-  it('参加者が0人のときの ↑↓ は何も起こさない', () => {
+  it('アクターが0人のときの ↑↓ は何も起こさない', () => {
     const { onSelect, cell } = setup({ actors: [], value: undefined })
     // **例外を投げないことも「何も起こさない」の一部として検査する。**
     // cycle が early return を失うと actors[NaN] を読んで例外を投げるが、
@@ -121,7 +121,7 @@ describe('ActorRefCell: キーボード（M2 までと同じ）', () => {
 })
 
 describe('ActorRefCell: マウス', () => {
-  it('クリックで参加者の一覧が開き、選ぶと onSelect', async () => {
+  it('クリックでアクターの一覧が開き、選ぶと onSelect', async () => {
     const { onSelect, cell } = setup()
     fireEvent.pointerDown(cell, { button: 0, ctrlKey: false })
     fireEvent.click(await screen.findByRole('menuitem', { name: '決済' }))
@@ -146,15 +146,15 @@ describe('ActorRefCell: マウス', () => {
     expect(onOpenChange).toHaveBeenCalledWith(true)
   })
 
-  it('名前が空の参加者のメニュー項目は語ではなく欠落の面で示す（空白の項目にせず、（未定義）とも書かない）', async () => {
+  it('名前が空のアクターのメニュー項目は語ではなく欠落の面で示す（空白の項目にせず、（未定義）とも書かない）', async () => {
     const { cell } = setup({
       actors: [...actors, { id: 'actor_Aaaaaaaaa9', name: '' }],
     })
     fireEvent.pointerDown(cell, { button: 0, ctrlKey: false })
     // 名前は menuitem 自身の aria-label。**素の span に付けない**——generic は
     // 命名禁止ロールで、実ブラウザでは名前が落ちて「空白の項目」になる
-    const item = await screen.findByRole('menuitem', { name: '名前が空の参加者' })
-    expect(item.getAttribute('aria-label')).toBe('名前が空の参加者')
+    const item = await screen.findByRole('menuitem', { name: '名前が空のアクター' })
+    expect(item.getAttribute('aria-label')).toBe('名前が空のアクター')
     expect(item.textContent).toBe('')
     const mark = item.querySelector('span')!
     expect(mark.className).toContain('bg-missing-face')

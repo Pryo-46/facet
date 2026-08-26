@@ -44,7 +44,7 @@ export function checkSequenceConsistency(data: SequenceSchemaVersion1): Consiste
 
   // ID 重複（actor / step それぞれ。1つの id につき1指摘・全行を指す）
   for (const [label, items] of [
-    ['参加者', data.actors],
+    ['アクター', data.actors],
     ['ステップ', data.steps],
   ] as const) {
     for (const [id, locations] of dupLocations(items, 'id')) {
@@ -67,7 +67,7 @@ export function checkSequenceConsistency(data: SequenceSchemaVersion1): Consiste
       if (ref !== undefined && !actorIds.has(ref)) {
         issues.push({
           rule: 'missing-actor',
-          message: `${stepName(step, index)} の ${field} が指す参加者が存在しません: ${ref}`,
+          message: `${stepName(step, index)} の ${field} が指すアクターが存在しません: ${ref}`,
           locations: [{ entityId: step.id, entityIndex: index, field }],
         })
       }
@@ -95,7 +95,7 @@ export function checkSequenceConsistency(data: SequenceSchemaVersion1): Consiste
     if (step.kind !== 'self' && step.to !== undefined && step.to === step.from && actorIds.has(step.from)) {
       issues.push({
         rule: 'self-call',
-        message: `${stepName(step, index)} の from と to が同じ参加者を指しています。自分への処理は形を「内部処理」（self）に変えて表します`,
+        message: `${stepName(step, index)} の from と to が同じアクターを指しています。自分への処理は形を「内部処理」（self）に変えて表します`,
         locations: [{ entityId: step.id, entityIndex: index, field: 'shape' }],
       })
     }

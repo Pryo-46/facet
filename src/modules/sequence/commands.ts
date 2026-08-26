@@ -31,7 +31,7 @@ function replaceStep(
   return withSteps(d, steps)
 }
 
-// ---- 参加者 ----
+// ---- アクター ----
 
 export function addFirstActor(d: SequenceSchemaVersion1): SeqEditResult {
   const actors = [...d.actors, { id: newId('actor'), name: '' }]
@@ -45,7 +45,7 @@ export function addActorAfter(d: SequenceSchemaVersion1, index: number): SeqEdit
 }
 
 /**
- * 参加者だけ消す。参照しているステップは触らない——参照切れは整合性検証が
+ * アクターだけ消す。参照しているステップは触らない——参照切れは整合性検証が
  * 赤表示する（「問題は防ぐものではなく赤く見せるもの」。rev 5章の用語削除と同じ）
  */
 export function removeActor(d: SequenceSchemaVersion1, index: number): SeqEditResult {

@@ -44,7 +44,7 @@ describe('layoutSequence', () => {
     // ここが崩れると編集セルが図に潜り、細い図ではガターとも衝突する
     expect(r.actorX[0] - 96 / 2).toBeGreaterThanOrEqual(RAIL_WIDTH + DIAGRAM_MARGIN)
     expect(r.actorX[0]).toBeGreaterThanOrEqual(RAIL_WIDTH + DIAGRAM_MARGIN)
-    // 参加者1人・ステップ1件の最も細い図でも、ガターはレールの右に来る
+    // アクター1人・ステップ1件の最も細い図でも、ガターはレールの右に来る
     const thin = layoutSequence({
       actorWidths: [96],
       steps: [{ fromIndex: 0, toIndex: null, isSelf: false, metrics: metrics() }],
@@ -181,7 +181,7 @@ describe('layoutSequence', () => {
     expect(r.gutterWidth).toBe(QUESTION_LABEL_WIDTH + ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2)
   })
 
-  it('参加者0人・ステップ0件でも壊れない', () => {
+  it('アクター0人・ステップ0件でも壊れない', () => {
     const r = layoutSequence({ actorWidths: [], steps: [] })
     expect(r.rows).toEqual([])
     expect(r.actorX).toEqual([])
@@ -217,8 +217,8 @@ describe('layoutSequence', () => {
     expect(r.rows[2].labelLeft).toBe(DIAGRAM_MARGIN + RAIL_WIDTH)
   })
 
-  // 実機で踏んだ欠陥: 参加者1人＋長い self 文言だと、文言がガターの
-  // 問いラベルに重なっていた（ガターの左端が参加者ヘッダの幅しか見ていなかった）
+  // 実機で踏んだ欠陥: アクター1人＋長い self 文言だと、文言がガターの
+  // 問いラベルに重なっていた（ガターの左端がアクターヘッダの幅しか見ていなかった）
   it('長い文言はガターに食い込まない（ガターの左端は文言の右端も見る）', () => {
     const r = layoutSequence({
       actorWidths: [96],

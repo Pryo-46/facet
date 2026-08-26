@@ -18,7 +18,7 @@
       "type": "string"
     },
     "actors": {
-      "description": "参加者の配列。配列順が図の横の並び（左→右）の正である。座標は持たない。",
+      "description": "アクターの配列。配列順が図の横の並び（左→右）の正である。座標は持たない。",
       "type": "array",
       "items": { "$ref": "#/$defs/sequenceActor" }
     },
@@ -32,7 +32,7 @@
   "additionalProperties": false,
   "$defs": {
     "sequenceActor": {
-      "description": "参加者（ライフライン）1本。",
+      "description": "アクター（ライフライン）1本。",
       "type": "object",
       "properties": {
         "id": {
@@ -41,7 +41,7 @@
           "pattern": "^actor_[A-Za-z0-9]{10}$"
         },
         "name": {
-          "description": "参加者名。空文字＝「未記入」（追加直後の状態がそのまま自動保存に載りうるため空を許す）。",
+          "description": "アクター名。空文字＝「未記入」（追加直後の状態がそのまま自動保存に載りうるため空を許す）。",
           "type": "string"
         }
       },
@@ -62,12 +62,12 @@
           "enum": ["call", "reply", "self"]
         },
         "from": {
-          "description": "送り手の参加者ID。実在しない参照は整合性検証（レベル2）が赤表示する。",
+          "description": "送り手のアクターID。実在しない参照は整合性検証（レベル2）が赤表示する。",
           "type": "string",
           "pattern": "^actor_[A-Za-z0-9]{10}$"
         },
         "to": {
-          "description": "受け手の参加者ID。self は持たない。call / reply で欠けている状態は整合性検証（レベル2）が指摘する（スキーマでは拒否しない——編集途中の自動保存がレベル1違反ファイルを作らないため）。",
+          "description": "受け手のアクターID。self は持たない。call / reply で欠けている状態は整合性検証（レベル2）が指摘する（スキーマでは拒否しない——編集途中の自動保存がレベル1違反ファイルを作らないため）。",
           "type": "string",
           "pattern": "^actor_[A-Za-z0-9]{10}$"
         },

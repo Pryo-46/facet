@@ -67,70 +67,70 @@ function last(onChange: ReturnType<typeof vi.fn>): SequenceSchemaVersion1 {
 }
 
 describe('空状態', () => {
-  it('参加者0人でもツールバーから参加者を足せる（空状態のボタンは無い）', () => {
+  it('アクター0人でもツールバーからアクターを足せる（空状態のボタンは無い）', () => {
     const { onChange } = setup({ ...doc(), actors: [], steps: [] })
     expect(screen.queryByRole('button', { name: 'クリックして開始' })).toBe(null)
-    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
+    fireEvent.click(screen.getByRole('button', { name: 'アクターを追加' }))
     expect(last(onChange).actors).toHaveLength(1)
   })
 
-  it('参加者がいてステップ0件なら「ステップを追加」ボタンが出る', () => {
+  it('アクターがいてステップ0件なら「ステップを追加」ボタンが出る', () => {
     const { onChange } = setup({ ...doc(), steps: [] })
     fireEvent.click(screen.getByRole('button', { name: 'ステップを追加' }))
     expect(last(onChange).steps).toHaveLength(1)
   })
 })
 
-describe('参加者を追加ボタン', () => {
-  it('参加者がいるとき「参加者を追加」ボタンが出て、末尾に1人増える', () => {
+describe('アクターを追加ボタン', () => {
+  it('アクターがいるとき「アクターを追加」ボタンが出て、末尾に1人増える', () => {
     const { onChange } = setup()
-    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
+    fireEvent.click(screen.getByRole('button', { name: 'アクターを追加' }))
     expect(last(onChange).actors).toHaveLength(4)
     expect(last(onChange).actors[3].name).toBe('')
   })
 
-  it('「参加者を追加」ボタンは既存の参加者を1人も動かさない', () => {
+  it('「アクターを追加」ボタンは既存のアクターを1人も動かさない', () => {
     // **末尾に足す**（途中に差し込まない）。配列順＝横の並びの正本なので、
     // 差し込むと既存のステップの見え方が動く
     const before = doc().actors
     const { onChange } = setup()
-    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
+    fireEvent.click(screen.getByRole('button', { name: 'アクターを追加' }))
     expect(last(onChange).actors.slice(0, 3).map((a) => a.id)).toEqual(before.map((a) => a.id))
   })
 
-  it('「参加者を追加」ボタンで新しい参加者の名前欄にフォーカスが移る', () => {
+  it('「アクターを追加」ボタンで新しいアクターの名前欄にフォーカスが移る', () => {
     // ボタン経路のフォーカスを固定する（M2 の最終レビューが「ステップを追加」
     // ボタンで同じ穴を見つけている——キー経路だけ固定してボタン経路を放置しない）
     render(<Harness initial={doc()} />)
-    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
-    expect(document.activeElement?.getAttribute('aria-label')).toBe('参加者4の名前')
+    fireEvent.click(screen.getByRole('button', { name: 'アクターを追加' }))
+    expect(document.activeElement?.getAttribute('aria-label')).toBe('アクター4の名前')
   })
 
-  it('参加者が0人のときも「参加者を追加」ボタンが出て、最初の参加者ができる（空状態のボタンを廃止したため）', () => {
+  it('アクターが0人のときも「アクターを追加」ボタンが出て、最初のアクターができる（空状態のボタンを廃止したため）', () => {
     const { onChange } = setup({ ...doc(), actors: [], steps: [] })
-    fireEvent.click(screen.getByRole('button', { name: '参加者を追加' }))
+    fireEvent.click(screen.getByRole('button', { name: 'アクターを追加' }))
     expect(last(onChange).actors).toHaveLength(1)
     expect(last(onChange).actors[0].name).toBe('')
   })
 })
 
-describe('参加者ヘッダ', () => {
-  it('Enter で直後に参加者が増える', () => {
+describe('アクターヘッダ', () => {
+  it('Enter で直後にアクターが増える', () => {
     const { onChange } = setup()
-    fireEvent.keyDown(screen.getByLabelText('参加者1の名前'), { key: 'Enter' })
+    fireEvent.keyDown(screen.getByLabelText('アクター1の名前'), { key: 'Enter' })
     expect(last(onChange).actors).toHaveLength(4)
     expect(last(onChange).actors[1].name).toBe('')
   })
 
   it('IME 変換確定の Enter では増えない（最重要）', () => {
     const { onChange } = setup()
-    fireEvent.keyDown(screen.getByLabelText('参加者1の名前'), { key: 'Enter', isComposing: true })
+    fireEvent.keyDown(screen.getByLabelText('アクター1の名前'), { key: 'Enter', isComposing: true })
     expect(onChange).not.toHaveBeenCalled()
   })
 
   it('Alt+→ で並び替え（3人の真ん中から）', () => {
     const { onChange } = setup()
-    fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'ArrowRight', altKey: true })
+    fireEvent.keyDown(screen.getByLabelText('アクター2の名前'), { key: 'ArrowRight', altKey: true })
     expect(last(onChange).actors.map((a) => a.name)).toEqual(['画面', '決済', 'API'])
   })
 
@@ -138,21 +138,21 @@ describe('参加者ヘッダ', () => {
     const d = doc()
     d.actors[1] = { ...d.actors[1], name: '' }
     const { onChange } = setup(d)
-    fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'Backspace' })
+    fireEvent.keyDown(screen.getByLabelText('アクター2の名前'), { key: 'Backspace' })
     expect(last(onChange).actors).toHaveLength(2)
   })
 
-  it('名前が空の参加者ヘッダは欠落の面（破線＋淡い面）を持つ（M22 決定1）', () => {
+  it('名前が空のアクターヘッダは欠落の面（破線＋淡い面）を持つ（M22 決定1）', () => {
     const d = doc()
     d.actors[1] = { ...d.actors[1], name: '' }
     setup(d)
-    const cell = screen.getByLabelText('参加者2の名前')
+    const cell = screen.getByLabelText('アクター2の名前')
     expect(cell.className).toContain('bg-missing-face')
     expect(cell.className).toContain('border-dashed')
     // 面と枠は片方だけ（:871 のコメント）——border-rule が残ると欠落色が効かない
     expect(cell.className).not.toContain('border-rule')
     // 名前の埋まっているヘッダは巻き込まれない
-    expect(screen.getByLabelText('参加者1の名前').className).not.toContain('bg-missing-face')
+    expect(screen.getByLabelText('アクター1の名前').className).not.toContain('bg-missing-face')
   })
 })
 
@@ -299,7 +299,7 @@ describe('セルのドロップダウンは同時に1つだけ（Task 11b）', (
     // 2つにもならず、常に1つのまま
     expect(rawMenus()).toHaveLength(1)
     // 開いているのは種別のメニューであって、送り手のメニューではない
-    // （STEP_SHAPE_LABEL の項目が見えているはず。送り手のメニューなら参加者名が出る）
+    // （STEP_SHAPE_LABEL の項目が見えているはず。送り手のメニューならアクター名が出る）
     expect(screen.getByRole('menuitem', { name: '呼出' })).toBeDefined()
     expect(screen.queryByRole('menuitem', { name: '画面' })).toBeNull()
   })
@@ -318,7 +318,7 @@ describe('セルのドロップダウンは同時に1つだけ（Task 11b）', (
 
     fireEvent.pointerDown(to, { button: 0 })
     expect(rawMenus()).toHaveLength(1)
-    // 受け手のメニュー（参加者名の項目）が開いているはず
+    // 受け手のメニュー（アクター名の項目）が開いているはず
     expect(screen.getByRole('menuitem', { name: '画面' })).toBeDefined()
   })
 
@@ -460,7 +460,7 @@ describe('問いスロット（ガター）', () => {
     expect(screen.queryByRole('button', { name: '次の未記入へ' })).toBeNull()
   })
 
-  it('回答済・考慮不要・未記入が帯に効く（未記入＝参加者名／ステップ文言の空）', () => {
+  it('回答済・考慮不要・未記入が帯に効く（未記入＝アクター名／ステップ文言の空）', () => {
     const d = doc()
     d.steps[0] = {
       ...d.steps[0],
@@ -495,18 +495,18 @@ describe('問いスロット（ガター）', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('ステップ1の答え: 結果がわからなかったら？'))
   })
 
-  it('未記入のチップは空の参加者名 → 空のステップ文言の順に巡る', () => {
+  it('未記入のチップは空のアクター名 → 空のステップ文言の順に巡る', () => {
     const d = doc()
     d.actors[1] = { ...d.actors[1], name: '' }
     d.steps[2] = { ...d.steps[2], label: '' }
     setup(d)
     const chip = screen.getByRole('button', { name: '次の未記入へ' })
     fireEvent.click(chip)
-    expect(document.activeElement).toBe(screen.getByLabelText('参加者2の名前'))
+    expect(document.activeElement).toBe(screen.getByLabelText('アクター2の名前'))
     fireEvent.click(chip)
     expect(document.activeElement).toBe(screen.getByLabelText('ステップ3の文言'))
     fireEvent.click(chip)
-    expect(document.activeElement).toBe(screen.getByLabelText('参加者2の名前'))
+    expect(document.activeElement).toBe(screen.getByLabelText('アクター2の名前'))
   })
 })
 
@@ -567,26 +567,26 @@ describe('ステップ0件のとき末尾アクターの Tab', () => {
   it('ステップ 0 件のとき、末尾アクターの Tab で最初のステップが生えて from にフォーカスする', () => {
     const onChange = vi.fn()
     render(<Harness initial={twoActorsNoSteps()} onChange={onChange} />)
-    fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'Tab' })
+    fireEvent.keyDown(screen.getByLabelText('アクター2の名前'), { key: 'Tab' })
     expect(last(onChange).steps).toHaveLength(1)
     expect(document.activeElement?.getAttribute('aria-label')).toBe('ステップ1の送り手')
   })
 
   it('ステップ 0 件でも、末尾でないアクターの Tab では生えない', () => {
     const { onChange } = setup(twoActorsNoSteps())
-    fireEvent.keyDown(screen.getByLabelText('参加者1の名前'), { key: 'Tab' })
+    fireEvent.keyDown(screen.getByLabelText('アクター1の名前'), { key: 'Tab' })
     expect(onChange).not.toHaveBeenCalled()
   })
 
   it('ステップが 1 件でもあれば、末尾アクターの Tab では生えない（既定動作のまま）', () => {
     const { onChange } = setup(twoActorsOneStep())
-    fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'Tab' })
+    fireEvent.keyDown(screen.getByLabelText('アクター2の名前'), { key: 'Tab' })
     expect(onChange).not.toHaveBeenCalled()
   })
 
   it('Shift+Tab では生えない', () => {
     const { onChange } = setup(twoActorsNoSteps())
-    fireEvent.keyDown(screen.getByLabelText('参加者2の名前'), { key: 'Tab', shiftKey: true })
+    fireEvent.keyDown(screen.getByLabelText('アクター2の名前'), { key: 'Tab', shiftKey: true })
     expect(onChange).not.toHaveBeenCalled()
   })
 })
@@ -628,7 +628,7 @@ describe('レール（行の左端の編集セル列）', () => {
     expect(shape.right).toBeLessThanOrEqual(Number.parseFloat(life!.style.left))
   })
 
-  it('参加者1人・ステップ1本（図が最も細い形）でもガターと重ならない', () => {
+  it('アクター1人・ステップ1本（図が最も細い形）でもガターと重ならない', () => {
     // **この形が実機で崩れた**——編集セルを矢印の脇に置いていたため、
     // 図が細いとガターの問いラベル列と横方向で衝突した
     setup({

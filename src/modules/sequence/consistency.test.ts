@@ -105,7 +105,7 @@ describe('checkSequenceConsistency', () => {
     expect(rules).toEqual(['missing-actor', 'to-mismatch'])
   })
 
-  it('from と to が同じ参加者を指す call に self-call が出る', () => {
+  it('from と to が同じアクターを指す call に self-call が出る', () => {
     const d = base()
     d.steps[0].to = d.steps[0].from
     const issues = checkSequenceConsistency(d)
@@ -131,7 +131,7 @@ describe('checkSequenceConsistency', () => {
     expect(checkSequenceConsistency(d).some((i) => i.rule === 'self-call')).toBe(false)
   })
 
-  it('参加者の ID 重複も duplicate-id で指摘される（actor 側のループの変異検知）', () => {
+  it('アクターの ID 重複も duplicate-id で指摘される（actor 側のループの変異検知）', () => {
     const d = base()
     d.actors = [
       { id: 'actor_Aaaaaaaaaa', name: '画面' },
@@ -139,7 +139,7 @@ describe('checkSequenceConsistency', () => {
     ]
     const found = checkSequenceConsistency(d).filter((i) => i.rule === 'duplicate-id')
     expect(found).toHaveLength(1)
-    expect(found[0].message).toContain('参加者')
+    expect(found[0].message).toContain('アクター')
     expect(found[0].locations).toHaveLength(2)
   })
 

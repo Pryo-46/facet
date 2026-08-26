@@ -35,8 +35,8 @@ describe('escapeMermaidLabel', () => {
 
 /**
  * 退化ケースを避けたフィクスチャ（lessons-for-planning）。
- * 参加者3人・4種類のステップ（呼出／投げっぱなし／応答／内部処理）を混ぜる——
- * 参加者2人や1種類だと「配列順で採番」と「出現順で採番」が同じ値になり、
+ * アクター3人・4種類のステップ（呼出／投げっぱなし／応答／内部処理）を混ぜる——
+ * アクター2人や1種類だと「配列順で採番」と「出現順で採番」が同じ値になり、
  * 矢印の対応表も1本しか検査できない
  */
 function doc(over: Partial<SequenceSchemaVersion1> = {}): SequenceSchemaVersion1 {
@@ -75,7 +75,7 @@ describe('sequenceToMermaid', () => {
     )
   })
 
-  it('参照切れの to は（未解決）参加者へ向け、行は落とさない', () => {
+  it('参照切れの to は（未解決）アクターへ向け、行は落とさない', () => {
     const out = sequenceToMermaid(
       doc({
         steps: [
@@ -127,7 +127,7 @@ describe('sequenceToMermaid', () => {
     expect(out).toContain('a1->>a2: （未定義）')
   })
 
-  it('名前が空の参加者も（未定義）と書く（participant a1 as  は壊れる）', () => {
+  it('名前が空のアクターも（未定義）と書く（participant a1 as  は壊れる）', () => {
     const out = sequenceToMermaid(
       doc({ actors: [{ id: 'actor_Aaaaaaaaa1', name: '' }], steps: [] }),
     )
@@ -145,7 +145,7 @@ describe('sequenceToMermaid', () => {
     expect(out).toContain('a1->>a2: #35;1 を<br>送る')
   })
 
-  it('ID が重複している参加者は先頭の1つだけが採番を持つ（logic-tree の ID 重複と同じ扱い）', () => {
+  it('ID が重複しているアクターは先頭の1つだけが採番を持つ（logic-tree の ID 重複と同じ扱い）', () => {
     const out = sequenceToMermaid(
       doc({
         actors: [
@@ -177,7 +177,7 @@ describe('sequenceToMermaid', () => {
     expect(out).toContain('a2->>a2: 在庫引当')
   })
 
-  it('参加者もステップも無いときは sequenceDiagram の1行だけ', () => {
+  it('アクターもステップも無いときは sequenceDiagram の1行だけ', () => {
     expect(sequenceToMermaid(doc({ actors: [], steps: [] }))).toBe('sequenceDiagram')
   })
 })

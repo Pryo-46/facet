@@ -58,7 +58,7 @@ export interface KeyContext {
    */
   hierarchical: boolean
   /**
-   * 横に並ぶリストか（シーケンスの参加者ヘッダ）。true のとき Alt+←→ が
+   * 横に並ぶリストか（シーケンスのアクターヘッダ）。true のとき Alt+←→ が
    * 並び替え、←→ がキャレット端で隣への移動になり、↑↓ は関与しない。
    * hierarchical と同時に true にしないこと
    */

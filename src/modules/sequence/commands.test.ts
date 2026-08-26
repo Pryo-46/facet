@@ -38,7 +38,7 @@ function data(): SequenceSchemaVersion1 {
 }
 
 describe('actor 操作', () => {
-  it('addFirstActor は空の参加者を1人足してフォーカスする', () => {
+  it('addFirstActor は空のアクターを1人足してフォーカスする', () => {
     const r = addFirstActor({ ...data(), actors: [], steps: [] })
     expect(r.data.actors).toHaveLength(1)
     expect(r.data.actors[0].name).toBe('')
@@ -52,7 +52,7 @@ describe('actor 操作', () => {
     expect(r.focus).toEqual({ kind: 'actor', index: 1 })
   })
 
-  it('removeActor は参加者だけ消し、参照しているステップは残す（missing-actor は検証の仕事）', () => {
+  it('removeActor はアクターだけ消し、参照しているステップは残す（missing-actor は検証の仕事）', () => {
     const r = removeActor(data(), 1)
     expect(r.data.actors.map((a) => a.name)).toEqual(['画面', '決済'])
     expect(r.data.steps).toHaveLength(3)
@@ -92,7 +92,7 @@ describe('step 操作', () => {
     expect(added.to).toBe('actor_Aaaaaaaaa3')
   })
 
-  it('addStepLast: ステップ0件では先頭の2参加者を from/to にする', () => {
+  it('addStepLast: ステップ0件では先頭の2アクターを from/to にする', () => {
     const r = addStepLast({ ...data(), steps: [] })
     expect(r.data.steps).toHaveLength(1)
     expect(r.data.steps[0].from).toBe('actor_Aaaaaaaaa1')
@@ -150,7 +150,7 @@ describe('setStepShape', () => {
 })
 
 describe('範囲外 index は何もしない（グローバル制約）', () => {
-  it('参加者を書き換える関数は範囲外 index で元データをそのまま返す', () => {
+  it('アクターを書き換える関数は範囲外 index で元データをそのまま返す', () => {
     const d = data()
     expect(setActorName(d, 99, 'x')).toBe(d)
   })

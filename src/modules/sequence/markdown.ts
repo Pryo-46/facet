@@ -26,7 +26,7 @@ import { poseQuestions, readSlot, type AnswerPath } from './questions'
 /** 表の列（No を除く）の並び。TABLE_HEADERS の 3番目以降と1対1で対応する */
 const ANSWER_COLUMNS: readonly AnswerPath[] = ['failed', 'unknown', 'ifExecuted']
 
-/** 参加者の表示名。引けなければ（未解決）、名前が空なら（未定義） */
+/** アクターの表示名。引けなければ（未解決）、名前が空なら（未定義） */
 function actorLabel(data: SequenceSchemaVersion1, ref: string | undefined): string {
   const actor = ref === undefined ? undefined : data.actors.find((a) => a.id === ref)
   if (actor === undefined) return UNRESOLVED_ACTOR_LABEL
@@ -89,5 +89,5 @@ export function describeSequenceIssueEffect(issues: readonly ConsistencyIssue[])
   if (!breaksRoute) {
     return 'このまま出力すると、指摘のある箇所もそのまま図と表に出ます。'
   }
-  return 'このまま出力すると、図には「（未解決）」という参加者が立ち、宛先を引けない矢印はそこへ向きます。表には全行がそのまま出ます。'
+  return 'このまま出力すると、図には「（未解決）」というアクターが立ち、宛先を引けない矢印はそこへ向きます。表には全行がそのまま出ます。'
 }

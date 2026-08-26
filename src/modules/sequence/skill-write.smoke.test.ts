@@ -37,7 +37,7 @@ const FIXTURE = {
     { id: 'actor_BBBBBBBBBB', name: '配送サービス' },
   ],
   steps: [
-    // from が存在しない参加者 → missing-actor
+    // from が存在しないアクター → missing-actor
     { id: 'step_AAAAAAAAAA', kind: 'call', from: 'actor_ZZZZZZZZZZ', to: 'actor_BBBBBBBBBB', label: '在庫を引き当てる', awaitsReply: true },
     // self なのに to → to-mismatch（UI からは作れない外部編集ケース）
     { id: 'step_BBBBBBBBBB', kind: 'self', from: 'actor_BBBBBBBBBB', to: 'actor_BBBBBBBBBB', label: '在庫を再計算する' },

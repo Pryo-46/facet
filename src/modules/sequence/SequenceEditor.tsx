@@ -146,7 +146,7 @@ const ANSWER_BOX_WIDTH = ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2
 /**
  * レール（行の左端の編集セル列。編集の足場であって図の一部ではない）の内訳。
  *
- * **編集セルは矢印の脇に置かない。** 脇に置くと、図が細いとき（参加者1人など）に
+ * **編集セルは矢印の脇に置かない。** 脇に置くと、図が細いとき（アクター1人など）に
  * ガターの問いラベル列と横方向で衝突する（実機確認の第一報。「呼出」チップが
  * 「結果がわからなかったら？」に重なった）。行の左端に固定幅の列を切り、
  * 横の帯域を [レール][図][ガター] に分けることで衝突を構造ごと無くす。
@@ -604,7 +604,7 @@ export function SequenceEditor({
   /**
    * 帯のチップから次の欠落へ飛ぶ（M22）。**フォーカス位置は起点にせず巡回 ref で数える**
    * （用語集と同じ。課題ツリーの nextOpenTarget とは違う——物足りなければ open-issues 行き）。
-   * 未回答はガターの並び順、未記入は参加者 → ステップの順に巡る
+   * 未回答はガターの並び順、未記入はアクター → ステップの順に巡る
    */
   const jumpToMissing = (kind: string): void => {
     const targets: (() => boolean)[] =
@@ -643,7 +643,7 @@ export function SequenceEditor({
         )
         return true
       case 'delete-item':
-        // deletableField を立てている欄（参加者名・ステップ文言）からしか来ない
+        // deletableField を立てている欄（アクター名・ステップ文言）からしか来ない
         apply(target.kind === 'actor' ? removeActor(data, index) : removeStep(data, index))
         return true
       case 'move-item-up':
@@ -704,7 +704,7 @@ export function SequenceEditor({
     handleKey(e, { kind: 'actor', index }, {
       editing: true,
       fieldEmpty: state.empty,
-      // 参加者名は1つしかない欄なので、空欄 Backspace の削除を認める
+      // アクター名は1つしかない欄なので、空欄 Backspace の削除を認める
       deletableField: true,
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
@@ -844,7 +844,7 @@ export function SequenceEditor({
             <Plus aria-hidden className="size-4" />
             ステップを追加
           </button>
-          {/* マウスだけの人の唯一の参加者追加手段（sequence M3 で from/to のインライン作成を外したため） */}
+          {/* マウスだけの人の唯一のアクター追加手段（sequence M3 で from/to のインライン作成を外したため） */}
           <button
             type="button"
             className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
@@ -857,10 +857,10 @@ export function SequenceEditor({
             }
           >
             <Plus aria-hidden className="size-4" />
-            参加者を追加
+            アクターを追加
           </button>
           {/* 要対応の集計。**ガター上部（キャンバスの transform 層）からこの帯へ
-              移した**（M25 の計画外修正）——実機で「破線チップが参加者ボックスと
+              移した**（M25 の計画外修正）——実機で「破線チップがアクターボックスと
               同じ高さ・同じ角丸・同じ破線黄で並び、図の要素に見える」と出たため。
               論点7 の「ガター上部に集計」はこの点だけ反転した（ガターのスロット列
               そのものはキャンバス内のまま。design-notes 論点7 の追記を見よ）。
@@ -907,7 +907,7 @@ export function SequenceEditor({
         style={{ transform: cssTransform(transform) }}
         data-layer="nodes"
       >
-        {/* 参加者ヘッダ */}
+        {/* アクターヘッダ */}
         {data.actors.map((actor, index) => {
           const key = actorKeys[index]
           const width = actorWidths[index]
@@ -932,7 +932,7 @@ export function SequenceEditor({
             >
               <CellInput
                 className={`h-full w-full rounded-sm text-center ${ACTOR_BOX_CLASS} ${face} text-sm leading-normal text-ink outline-none focus:ring-2 focus:ring-inset focus:ring-ring`}
-                aria-label={`参加者${index + 1}の名前`}
+                aria-label={`アクター${index + 1}の名前`}
                 data-cell={`${key}:name`}
                 value={actor.name}
                 onValueChange={(next) => onChange(setActorName(data, index, next), `${key}:name`)}
@@ -965,7 +965,7 @@ export function SequenceEditor({
           // 置き方が2箇所にあると図が静かに重なる（実機確認で踏んだ）
           const labelLeft = row.labelLeft
           // 編集の足場（#番号 / from / to / 形）はレールの中の固定 x に置く。
-          // **矢印の位置も参加者の数も見ない**——だから from==to の呼出（線が引けない）でも
+          // **矢印の位置もアクターの数も見ない**——だから from==to の呼出（線が引けない）でも
           // 定位置に出るし、細い図でガターに被ることもない
           const railTop = row.top + RAIL_TOP_INSET
           return (

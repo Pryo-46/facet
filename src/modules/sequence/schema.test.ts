@@ -53,7 +53,7 @@ describe('sequence スキーマ（レベル1）', () => {
   // 責任境界（domain）は廃止した属性である。図にも出力にも問いの導出にも
   // 関与しないまま残っていたため消した。additionalProperties: false が
   // 効いている＝「消した」が意図であることを、ここで固定する
-  it('廃止した domain を持つ参加者を拒否する', () => {
+  it('廃止した domain を持つアクターを拒否する', () => {
     const d = valid()
     ;(d.actors[0] as Record<string, unknown>).domain = '自社'
     expect(validate(d).ok).toBe(false)
