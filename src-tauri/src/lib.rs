@@ -83,6 +83,21 @@ async fn move_to_trash(path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?
 }
 
+/// クリップボードの HTML を読む（logic-tree M2）。
+///
+/// `tauri-plugin-clipboard-manager` は **HTML の読み取り API を持たない**
+/// （型定義に「we can read html data only as a string so there's just readText(),
+/// no readHtml()」と明記されている）。内部で使っている arboard は `Get::html()` を
+/// 持ち Windows 実装も入っているので、公開されていないだけのそれをここで通す。
+///
+/// **判断もロジックも持たない**（rev 12章）。復号もパースも木の組み立ても TypeScript 側。
+#[tauri::command]
+fn read_clipboard_html() -> Result<String, String> {
+    arboard::Clipboard::new()
+        .and_then(|mut clipboard| clipboard.get().html())
+        .map_err(|err| err.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -103,6 +118,7 @@ pub fn run() {
             move_to_trash,
             allow_skill_dir,
             allow_project_dir,
+            read_clipboard_html,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,
