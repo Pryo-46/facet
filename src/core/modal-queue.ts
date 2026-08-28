@@ -24,6 +24,12 @@ export type ModalRequest =
       secondaryLabel: string
       onPrimary: () => void | Promise<void>
       onSecondary: () => void | Promise<void>
+      /**
+       * **任意。** 渡すとキャンセルのボタンが出る（logic-tree M2）。
+       * `onCancel` は持たせない——キャンセルは「キューから外す」以上のことをせず、
+       * それは額縁の `shiftModal` が既にやっている
+       */
+      cancelLabel?: string
     }
 
 export function pushModal(
