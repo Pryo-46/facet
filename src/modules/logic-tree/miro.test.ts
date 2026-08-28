@@ -10,11 +10,13 @@ const TREE: LogicTreeSchemaVersion1 = {
   schemaVersion: 1,
   type: 'logicTree',
   title: '往復テスト',
+  // DFS 行きがけ順（親 → 子1 → 孫 → 子2）。配列順は「同じ親を持つノードどうしの
+  // 並び順（＝兄弟順）」の正なので、フィクスチャもこの規約に沿わせる
   nodes: [
     { id: 'node_aaaaaaaaaa', parentId: null, text: '親' },
     { id: 'node_bbbbbbbbbb', parentId: 'node_aaaaaaaaaa', text: '子1' },
-    { id: 'node_cccccccccc', parentId: 'node_aaaaaaaaaa', text: '子2' },
     { id: 'node_dddddddddd', parentId: 'node_bbbbbbbbbb', text: '孫' },
+    { id: 'node_cccccccccc', parentId: 'node_aaaaaaaaaa', text: '子2' },
   ],
 }
 
@@ -49,19 +51,14 @@ describe('miroMindmapExchange', () => {
     const back = miroMindmapExchange.fromClipboard(html, '往復テスト')
     if (!back.ok) throw new Error('往復できるはず')
 
-    // ID は採番し直されるので、**形と文言で比べる**。
-    // 復号側は DFS 行きがけ順で並び直る（miro-export.test.ts が言う「texts は DFS
-    // 行きがけ順」と対になる仕様）ため、元の TREE の宣言順（レベル順）とは
-    // 配列の並びが一致しない。並び自体は往復の保証対象ではないので、
-    // text で安定ソートしてから比較する
+    // ID は採番し直されるので、**形と文言で比べる**。配列順（＝兄弟順）は
+    // ロジックツリーにとって意味のある情報なので、比較でも崩さない
     const shape = (data: LogicTreeSchemaVersion1) => {
       const byId = new Map(data.nodes.map((n) => [n.id, n]))
-      return data.nodes
-        .map((n) => ({
-          text: n.text,
-          parent: n.parentId === null ? null : (byId.get(n.parentId)?.text ?? '?'),
-        }))
-        .sort((a, b) => a.text.localeCompare(b.text))
+      return data.nodes.map((n) => ({
+        text: n.text,
+        parent: n.parentId === null ? null : (byId.get(n.parentId)?.text ?? '?'),
+      }))
     }
     expect(shape(back.data)).toEqual(shape(TREE))
   })
