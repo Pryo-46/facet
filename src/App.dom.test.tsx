@@ -120,7 +120,12 @@ vi.mock('@/fs/app-window', () => ({
   },
   forceClose: async () => undefined,
 }))
-vi.mock('@/fs/clipboard', () => ({ copyToClipboard: async () => undefined }))
+vi.mock('@/fs/clipboard', () => ({
+  copyToClipboard: async () => undefined,
+  // Miro 等とのクリップボード交換（logic-tree M2）。ボタンの配線・専用テストは Task 9
+  copyHtmlToClipboard: async () => undefined,
+  readClipboardHtml: async () => '',
+}))
 vi.mock('@/fs/pty', () => ({
   tauriPtyIo: {
     // spec 全体（program/args/cwd/cols/rows/onData/onExit）のうち、ここでは

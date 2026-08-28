@@ -7,7 +7,7 @@ import { createKnownDisk } from './known-disk'
 import { classifyFile, titleOf } from './load'
 import type { ModalRequest } from './modal-queue'
 import { computeIssues, type ProjectFile } from './project-file'
-import type { AnyToolModule, ModuleRegistry, OutputProfile } from './registry'
+import type { AnyToolModule, ClipboardExchange, ModuleRegistry, OutputProfile } from './registry'
 import { toProjectFile, type ScanResult } from './scan'
 import type { ToastItem } from './toasts'
 
@@ -59,6 +59,10 @@ export interface AppIo {
   trash: (path: string) => Promise<void>
   join: (dir: string, name: string) => Promise<string>
   copyText: (text: string) => Promise<void>
+  /** HTML としてコピーする。altText は他アプリに貼るための平文（logic-tree M2） */
+  copyHtml: (html: string, altText: string) => Promise<void>
+  /** クリップボードの HTML。載っていなければ空文字（logic-tree M2） */
+  readClipboardHtml: () => Promise<string>
   /** 保存先を尋ねる。null＝キャンセル */
   askSavePath: (defaultPath: string) => Promise<string | null>
   /** 保留編集を書き切らずにウィンドウを閉じる（脱出口） */
@@ -107,6 +111,10 @@ export interface AppController {
   copyMarkdown(profile: OutputProfile<unknown>): Promise<void>
   /** 選択中ファイルの Markdown を .md として書き出す（rev 8章） */
   exportMarkdown(profile: OutputProfile<unknown>): Promise<void>
+  /** 選択中のデータを外部ツールの形式でクリップボードへ（logic-tree M2） */
+  copyToExternal(exchange: ClipboardExchange<unknown>): Promise<void>
+  /** クリップボードから外部ツールの形式を取り込む（logic-tree M2） */
+  importFromExternal(exchange: ClipboardExchange<unknown>): Promise<void>
   /** アンマウント時。**flush しない**（失敗で復元された pending を捨てないため） */
   dispose(): void
 }
@@ -854,6 +862,86 @@ export function createAppController(
     await doExportMarkdown(profile)
   }
 
+  /**
+   * 選択中のデータを外部ツールの形式でクリップボードへ（logic-tree M2）。
+   * **判断は `exchange`（`ClipboardExchange`）が持ち、ここは順序だけ**を持つ
+   */
+  const copyToExternal = async (exchange: ClipboardExchange<unknown>): Promise<void> => {
+    const data = host.getEditingData()
+    if (data === null) return
+    const { html, text } = exchange.toClipboard(data)
+    try {
+      await io.copyHtml(html, text)
+      host.showToast({ key: 'clipboard-export', message: `${exchange.label}としてコピーしました` })
+    } catch (err) {
+      host.setBanner('io', `クリップボードにコピーできませんでした: ${describeError(err)}`)
+    }
+  }
+
+  /**
+   * クリップボードから取り込む（logic-tree M2）。
+   *
+   * **押された時点で読み直す。** ボタンの活性はウィンドウがアクティブになった時点の
+   * スナップショットで、その後ユーザーが別のものをコピーしている可能性がある。
+   * 「活性なのに押したら何もない」を防ぐ
+   */
+  const importFromExternal = async (exchange: ClipboardExchange<unknown>): Promise<void> => {
+    const path = selectedPath
+    // モジュールは選択中ファイルの一覧エントリから引く（copyMarkdown が使う
+    // currentDocument と同じやり方。host 側の値は判断材料にしない）
+    const entry = path === null ? undefined : files.find((f) => f.path === path)
+    const module =
+      entry !== undefined && entry.result.status === 'editable' ? registry.get(entry.result.type) : undefined
+    if (path === null || module === undefined) return
+
+    let html: string
+    try {
+      html = await io.readClipboardHtml()
+    } catch (err) {
+      host.setBanner('io', `クリップボードを読み取れませんでした: ${describeError(err)}`)
+      return
+    }
+
+    // 取り込み先の title は「上書きなら今の title、新規なら額縁が決めた名前」なので、
+    // ここでは今の title を仮に渡し、新規側で作られたファイルの title で上書きする
+    const current = host.getEditingData() as { title?: string } | null
+    const result = exchange.fromClipboard(html, current?.title ?? '')
+    if (!result.ok) {
+      host.setBanner('io', result.reason)
+      return
+    }
+
+    const count = (result.data as { nodes?: unknown[] }).nodes?.length ?? 0
+    host.showModal({
+      kind: 'choice',
+      key: 'clipboard-import',
+      title: `${exchange.label}を取り込む`,
+      description: `ノード ${count} 個のマインドマップが見つかりました。どちらに取り込みますか。`,
+      primaryLabel: 'このツリーを上書き',
+      secondaryLabel: '新しいファイルに作る',
+      // キャンセルは額縁の shiftModal が処理するので、ここに onCancel は要らない
+      cancelLabel: 'やめる',
+      onPrimary: () => {
+        // **1回の applyEdit で置き換える**（独立した履歴）。Ctrl+Z 一発で
+        // 戻せるので、二段階の確認は要らない
+        applyEdit(path, module, result.data)
+      },
+      onSecondary: async () => {
+        // 額縁の既存経路（createNewFile）を通す——ファイル名の採番・一覧への登録・
+        // 選択を自前で再実装しないため。作られた雛形（ルート1件）は捨てられる
+        await createNewFile(module)
+        // createNewFile は作ったファイルを選択済み。host 側を読み返さず、
+        // ここでもクロージャ変数（selectedPath / files）から引く
+        const created = selectedPath
+        if (created === null) return
+        const createdName = files.find((f) => f.path === created)?.name ?? ''
+        // 拡張子を落として title にする（新規作成が「ファイル名＝title」で作るのと揃える）
+        const title = createdName.replace(/\.json$/i, '')
+        applyEdit(created, module, { ...(result.data as object), title })
+      },
+    })
+  }
+
   return {
     openFolder,
     selectFile,
@@ -867,6 +955,8 @@ export function createAppController(
     requestClose,
     copyMarkdown,
     exportMarkdown,
+    copyToExternal,
+    importFromExternal,
     dispose() {
       // **flush しない**——失敗で復元された pending を捨てる経路になる。
       // 実際のウィンドウ close は requestClose を通る

@@ -5,7 +5,7 @@ import { serialize, type JsonSchema } from './canonical'
 import type { ConsistencyIssue } from './consistency'
 import { pushModal, type ModalRequest } from './modal-queue'
 import type { ProjectFile } from './project-file'
-import { createRegistry, type AnyToolModule, type ModuleRegistry } from './registry'
+import { createRegistry, type AnyToolModule, type ClipboardExchange, type ModuleRegistry } from './registry'
 import { scanFolder } from './scan'
 import type { ToastItem } from './toasts'
 
@@ -195,6 +195,8 @@ function createHarness(
     },
     join: async (dir, name) => `${dir}\\${name}`,
     copyText: async () => { log.push('copyText') },
+    copyHtml: vi.fn<(html: string, altText: string) => Promise<void>>().mockResolvedValue(undefined),
+    readClipboardHtml: vi.fn<() => Promise<string>>().mockResolvedValue(''),
     askSavePath: async () => null,
     forceClose: async () => { log.push('forceClose') },
     createSaver: savers.factory,
@@ -1284,5 +1286,142 @@ describe('interleaving（走査・選択の直列化ガード）', () => {
     expect(h.selectedPath()).toBeNull()
     expect(h.document()).toBeNull()
     expect(h.banners().io).toBeNull()
+  })
+})
+
+// ---- クリップボード交換（logic-tree M2） ----
+
+/**
+ * テスト用の ClipboardExchange。判断は固定の振る舞いで代用する
+ *（本物は src/modules/logic-tree/miro.ts。ここでは往復のロジックは検証しない——
+ * それは miro.ts 側のテストの仕事で、ここが検証するのは「順序」だけ）。
+ * `fromClipboard` が返すデータの type を noteModule に合わせているのは、
+ * このファイルのハーネスが登録しているモジュールが note だけのため
+ */
+function fakeExchange(): ClipboardExchange<unknown> {
+  return {
+    id: 'fake-exchange',
+    label: '外部ツール',
+    toClipboard: () => ({ html: '<html-of-exchange>', text: '<text-of-exchange>' }),
+    canImport: (html) => html === '<miro-html>',
+    fromClipboard: (html, title) =>
+      html === '<miro-html>'
+        ? { ok: true, data: { schemaVersion: 1, type: 'note', title, body: '', nodes: [{}, {}] } }
+        : { ok: false, reason: '外部ツールのデータとして読めませんでした。' },
+  }
+}
+
+describe('クリップボード交換（logic-tree M2）', () => {
+  async function openNote(h: Harness): Promise<void> {
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+  }
+
+  describe('copyToExternal', () => {
+    it('exchange の html と text をそのまま書き込む', async () => {
+      const h = createHarness({ [p('a.json')]: note('A') })
+      await openNote(h)
+      await h.controller.copyToExternal(fakeExchange())
+      expect(h.io.copyHtml).toHaveBeenCalledWith('<html-of-exchange>', '<text-of-exchange>')
+    })
+
+    it('成功をトーストで知らせる', async () => {
+      const h = createHarness({ [p('a.json')]: note('A') })
+      await openNote(h)
+      await h.controller.copyToExternal(fakeExchange())
+      expect(h.toasts().at(-1)?.message).toContain('コピーしました')
+    })
+
+    it('編集中データが無ければ何もしない（ファイル未選択・開けないファイルなど）', async () => {
+      const h = createHarness()
+      await h.controller.copyToExternal(fakeExchange())
+      expect(h.io.copyHtml).not.toHaveBeenCalled()
+    })
+
+    it('失敗はバナーに出す', async () => {
+      const copyHtml = vi.fn<(html: string, altText: string) => Promise<void>>().mockRejectedValue(new Error('denied'))
+      const h = createHarness({ [p('a.json')]: note('A') }, { copyHtml })
+      await openNote(h)
+      await h.controller.copyToExternal(fakeExchange())
+      expect(h.banners().io).toContain('コピーできませんでした')
+    })
+  })
+
+  describe('importFromExternal', () => {
+    it('押した時点でクリップボードを読み直す（活性状態は「ウィンドウがアクティブになった時点」のスナップショットなので信用しない）', async () => {
+      const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<miro-html>')
+      const h = createHarness({ [p('a.json')]: note('A') }, { readClipboardHtml })
+      await openNote(h)
+      await h.controller.importFromExternal(fakeExchange())
+      expect(readClipboardHtml).toHaveBeenCalledTimes(1)
+    })
+
+    it('取り込めないときバナーに理由を出し、ダイアログを出さない', async () => {
+      const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<p>ちがう</p>')
+      const h = createHarness({ [p('a.json')]: note('A') }, { readClipboardHtml })
+      await openNote(h)
+      await h.controller.importFromExternal(fakeExchange())
+      expect(h.modals()).toEqual([])
+      expect(h.banners().io).toContain('読めませんでした')
+    })
+
+    it('取り込めるとき三択のダイアログを出す（上書き／新しいファイル／やめる）', async () => {
+      const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<miro-html>')
+      const h = createHarness({ [p('a.json')]: note('A') }, { readClipboardHtml })
+      await openNote(h)
+      await h.controller.importFromExternal(fakeExchange())
+      expect(h.modals().length).toBe(1)
+      const modal = h.modals()[0]
+      expect(modal.kind).toBe('choice')
+      if (modal.kind !== 'choice') throw new Error('choice を期待した')
+      expect(modal.cancelLabel).toBeDefined()
+    })
+
+    it('選択中のファイルが無ければ何もしない（クリップボードも読まない）', async () => {
+      const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<miro-html>')
+      const h = createHarness({}, { readClipboardHtml })
+      await h.controller.importFromExternal(fakeExchange())
+      expect(readClipboardHtml).not.toHaveBeenCalled()
+      expect(h.modals()).toEqual([])
+    })
+
+    it('「上書き」を選ぶと applyEdit の経路を1回だけ通る（host.setDocument は増えない＝独立した1手として Ctrl+Z で戻せる）', async () => {
+      const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<miro-html>')
+      const h = createHarness({ [p('a.json')]: note('A') }, { readClipboardHtml })
+      await openNote(h)
+      await h.controller.importFromExternal(fakeExchange())
+      const modal = h.modals()[0]
+      if (modal.kind !== 'choice') throw new Error('choice を期待した')
+      const setDocumentCallsBefore = h.log.filter((l) => l === 'setDocument').length
+      await modal.onPrimary()
+      // applyEdit は host.setDocument を呼ばない経路（一覧の差し替えと自動保存だけ）。
+      // 呼ばれているなら selectFile 等の別経路を誤って通っている
+      expect(h.log.filter((l) => l === 'setDocument').length).toBe(setDocumentCallsBefore)
+      const entry = h.files().find((f) => f.path === p('a.json'))
+      expect(entry?.result.status).toBe('editable')
+      if (entry?.result.status !== 'editable') throw new Error('editable を期待した')
+      expect(entry.result.data).toEqual({ schemaVersion: 1, type: 'note', title: 'A', body: '', nodes: [{}, {}] })
+    })
+
+    it('「新しいファイルに作る」を選ぶとファイルを作ってから中身を差し替える', async () => {
+      const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<miro-html>')
+      const h = createHarness({ [p('a.json')]: note('A') }, { readClipboardHtml })
+      await openNote(h)
+      await h.controller.importFromExternal(fakeExchange())
+      const modal = h.modals()[0]
+      if (modal.kind !== 'choice') throw new Error('choice を期待した')
+      await modal.onSecondary()
+      expect(h.log.some((l) => l.startsWith('write:'))).toBe(true) // createNewFile が通った
+      const created = h.selectedPath()
+      expect(created).not.toBeNull()
+      expect(created).not.toBe(p('a.json'))
+      const entry = h.files().find((f) => f.path === created)
+      expect(entry?.result.status).toBe('editable')
+      if (entry?.result.status !== 'editable') throw new Error('editable を期待した')
+      expect((entry.result.data as { nodes: unknown[] }).nodes).toEqual([{}, {}])
+      // 新規側の title は、額縁が決めたファイル名（拡張子なし）に合わせる
+      //（新規作成が「ファイル名＝title」で作るのと揃える）
+      expect((entry.result.data as { title: string }).title).toBe(entry.name.replace(/\.json$/i, ''))
+    })
   })
 })

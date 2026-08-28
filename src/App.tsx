@@ -71,7 +71,7 @@ import {
 } from '@/core/update-check'
 import { readAppVersion } from '@/fs/app-version'
 import { forceClose, interceptClose } from '@/fs/app-window'
-import { copyToClipboard } from '@/fs/clipboard'
+import { copyHtmlToClipboard, copyToClipboard, readClipboardHtml } from '@/fs/clipboard'
 import {
   allowProjectDir,
   askSaveMarkdownPath,
@@ -120,6 +120,9 @@ const appIo: AppIo = {
   trash: moveFileToTrash,
   join: joinPath,
   copyText: copyToClipboard,
+  // Miro 等とのクリップボード交換（logic-tree M2）。ボタンの配線は Task 9
+  copyHtml: copyHtmlToClipboard,
+  readClipboardHtml,
   askSavePath: askSaveMarkdownPath,
   // **アプリを閉じるときに端末も全部殺す。** Windows では ConPTY の子は
   // ホストプロセスの終了で自動的には死なず、claude が孤児として残る
