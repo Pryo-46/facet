@@ -108,12 +108,54 @@ describe('miroPayloadToNodes', () => {
     expect(new Set(result.nodes.map((n) => n.id)).size).toBe(result.nodes.length)
   })
 
-  it('ns:mindmap を持たないオブジェクトは黙って捨てる', () => {
+  it('ns:mindmap を持たないオブジェクトは黙って捨てる（インデックスはずれない）', () => {
     const sticky = { widgetData: { json: { text: '<p>付箋</p>' }, type: 'text' } }
-    const objects = [node('親', 0), node('子', 10), line(0, 1), sticky]
+    // sticky を先頭と中間に挟み、line の widgetIndex（1 と 3）が指す位置は
+    // 「フィルタ前」の配列位置のまま。先にフィルタしてから index を振り直す
+    // バグを入れると、この widgetIndex がずれたノードを指してしまい親子関係が壊れる
+    const objects = [sticky, node('親', 0), sticky, node('子', 10), line(1, 3)]
     const result = miroPayloadToNodes(payloadOf(objects))
     if (!result.ok) throw new Error('取り込めるはず')
     expect(result.nodes.map((n) => n.text)).toEqual(['親', '子'])
+    expect(result.nodes[1].parentId).toBe(result.nodes[0].id)
+  })
+
+  it('同じ子に複数の親エッジが来たら最初の1本を採る', () => {
+    const objects = [
+      node('A', 0), // 0 ルート
+      node('Parent1', 20), // 1 DFS では後に訪問される（y が大きい）
+      node('Parent2', 10), // 2 DFS では先に訪問される（y が小さい）
+      node('Child', 0), // 3
+      line(0, 1), // A→Parent1
+      line(0, 2), // A→Parent2
+      line(1, 3), // Parent1→Child（先着。採用されるはず）
+      line(2, 3), // Parent2→Child（後着。無視されるはず）
+    ]
+    const result = miroPayloadToNodes(payloadOf(objects))
+    if (!result.ok) throw new Error('取り込めるはず')
+    const byText = new Map(result.nodes.map((n) => [n.text, n]))
+    // **DFS は y の小さい Parent2 を先に訪問するが、Child の親を決めるのは
+    // エッジの処理順（先着）であって DFS の訪問順ではない。** ここが崩れていると
+    // Child は（後から訪問される）Parent1 ではなく Parent2 の子になってしまう
+    expect(byText.get('Child')?.parentId).toBe(byText.get('Parent1')?.id)
+  })
+
+  it('自己ループのエッジは無視する', () => {
+    const objects = [
+      node('A', 0), // 0 ルート
+      node('B', 10), // 1
+      node('C', 20), // 2
+      line(0, 1), // A→B
+      line(2, 2), // C の自己ループ（無視されるべき）
+      line(0, 2), // A→C（自己ループの直後だが、無視されず採用されるべき）
+    ]
+    const result = miroPayloadToNodes(payloadOf(objects))
+    if (!result.ok) throw new Error('取り込めるはず（自己ループが親子関係を汚染していないか）')
+    const byText = new Map(result.nodes.map((n) => [n.text, n]))
+    const a = byText.get('A')
+    expect(byText.get('B')?.parentId).toBe(a?.id)
+    expect(byText.get('C')?.parentId).toBe(a?.id)
+    expect(result.nodes.map((n) => n.text)).toEqual(['A', 'B', 'C'])
   })
 
   it('ルートが2つ以上なら本数を添えて断る', () => {

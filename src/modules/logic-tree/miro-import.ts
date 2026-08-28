@@ -126,13 +126,11 @@ export function miroPayloadToNodes(payload: unknown): MiroImportResult {
   // 4. ルートから DFS。兄弟は y 座標の昇順（Miro 自身が見た目の順をこれで決めている）。
   //    **到達できなかったノードがあれば循環している**（buildTree と同じ考え方）
   const out: TreeNode[] = []
-  const idOf = new Map<number, string>()
   const visited = new Set<number>()
   const walk = (index: number, parentId: string | null): void => {
     if (visited.has(index)) return
     visited.add(index)
     const id = newId('node')
-    idOf.set(index, id)
     const self = nodes.get(index)
     out.push({ id, parentId, text: self === undefined ? '' : self.text })
     const kids = (childrenOf.get(index) ?? []).slice().sort((a, b) => {
