@@ -208,6 +208,10 @@ function createHarness(
     setProjectDir: () => {},
     setSelectedPath: (path) => { selectedPath = path; log.push(`setSelectedPath:${path ?? 'null'}`) },
     setDocument: (data) => { document = data; log.push('setDocument') },
+    // 履歴を保ったまま積む（logic-tree M2）。この偽物は past/future を模していないので
+    // 「document が更新される」ところだけ setDocument と同じに見えるが、
+    // ログの種別（'recordEdit' vs 'setDocument'）でどちらの経路を通ったかは区別できる
+    recordEdit: (data) => { document = data; log.push('recordEdit') },
     setBanner: (kind, message) => { banners[kind] = message },
     showToast: (toast) => { toasts.push(toast); log.push('toast') },
     dismissToast: (key) => { log.push(`dismissToast:${key}`) },
@@ -608,6 +612,10 @@ describe('externalChange（外部変更の検知）', () => {
     expect(h.document()).toMatchObject({ body: '外部が書いた' })
     // setDocument＝履歴の作り直し。取り込みごとに必ず1回通ること
     expect(h.log.filter((l) => l === 'setDocument').length).toBeGreaterThan(0)
+    // recordEdit（logic-tree M2）は履歴を保つ口なので、履歴を破棄すべきこの経路には
+    // 混ざらない——setDocument と recordEdit を混同すると Ctrl+Z がディスクの内容を
+    // 無言で巻き戻す事故になる（AppHost の JSDoc）
+    expect(h.log).not.toContain('recordEdit')
     expect(h.toasts().at(-1)?.message).toContain('外部の変更を読み込みました')
   })
 
@@ -1385,7 +1393,7 @@ describe('クリップボード交換（logic-tree M2）', () => {
       expect(h.modals()).toEqual([])
     })
 
-    it('「上書き」を選ぶと applyEdit の経路を1回だけ通る（host.setDocument は増えない＝独立した1手として Ctrl+Z で戻せる）', async () => {
+    it('「上書き」を選ぶと recordEdit と applyEdit の両方を通る（片方だけだと保存されるが表示されない／表示されるが保存されない、のどちらかになる）', async () => {
       const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<miro-html>')
       const h = createHarness({ [p('a.json')]: note('A') }, { readClipboardHtml })
       await openNote(h)
@@ -1397,13 +1405,19 @@ describe('クリップボード交換（logic-tree M2）', () => {
       // applyEdit は host.setDocument を呼ばない経路（一覧の差し替えと自動保存だけ）。
       // 呼ばれているなら selectFile 等の別経路を誤って通っている
       expect(h.log.filter((l) => l === 'setDocument').length).toBe(setDocumentCallsBefore)
+      // recordEdit＝履歴を保ったまま積む経路（額縁の onChange と同じ）。
+      // これが無いと applyEdit だけではエディタの表示（history.present）が
+      // 更新されない（file 一覧と自動保存の更新に留まるため）
+      expect(h.log.filter((l) => l === 'recordEdit').length).toBe(1)
+      const expected = { schemaVersion: 1, type: 'note', title: 'A', body: '', nodes: [{}, {}] }
+      expect(h.document()).toEqual(expected)
       const entry = h.files().find((f) => f.path === p('a.json'))
       expect(entry?.result.status).toBe('editable')
       if (entry?.result.status !== 'editable') throw new Error('editable を期待した')
-      expect(entry.result.data).toEqual({ schemaVersion: 1, type: 'note', title: 'A', body: '', nodes: [{}, {}] })
+      expect(entry.result.data).toEqual(expected)
     })
 
-    it('「新しいファイルに作る」を選ぶとファイルを作ってから中身を差し替える', async () => {
+    it('「新しいファイルに作る」を選ぶとファイルを作ってから recordEdit と applyEdit の両方で中身を差し替える', async () => {
       const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<miro-html>')
       const h = createHarness({ [p('a.json')]: note('A') }, { readClipboardHtml })
       await openNote(h)
@@ -1412,6 +1426,9 @@ describe('クリップボード交換（logic-tree M2）', () => {
       if (modal.kind !== 'choice') throw new Error('choice を期待した')
       await modal.onSecondary()
       expect(h.log.some((l) => l.startsWith('write:'))).toBe(true) // createNewFile が通った
+      // createNewFile → selectFile が雛形で setDocument（履歴の作り直し）を通した後、
+      // recordEdit が取り込みデータで積み直している——ここが無いと画面が雛形のまま残る
+      expect(h.log.filter((l) => l === 'recordEdit').length).toBe(1)
       const created = h.selectedPath()
       expect(created).not.toBeNull()
       expect(created).not.toBe(p('a.json'))
@@ -1422,6 +1439,8 @@ describe('クリップボード交換（logic-tree M2）', () => {
       // 新規側の title は、額縁が決めたファイル名（拡張子なし）に合わせる
       //（新規作成が「ファイル名＝title」で作るのと揃える）
       expect((entry.result.data as { title: string }).title).toBe(entry.name.replace(/\.json$/i, ''))
+      // recordEdit（＝host.getEditingData が読む値）も同じ内容に揃っている
+      expect(h.document()).toEqual(entry.result.data)
     })
   })
 })

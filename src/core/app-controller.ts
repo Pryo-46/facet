@@ -81,6 +81,15 @@ export interface AppHost {
    * 指しており、残すと Ctrl+Z がディスクの内容を無言で巻き戻す（rev 3章）
    */
   setDocument: (data: unknown | null) => void
+  /**
+   * 編集を履歴へ積む（額縁の `onChange` と同じ経路。logic-tree M2）。
+   *
+   * **`setDocument` と混同しないこと。** あちらは履歴を作り直す＝Undo 履歴の破棄で、
+   * 外部変更の取り込みのように「元に戻せてはいけない」場面のもの。こちらは
+   * 履歴を保つので Ctrl+Z で戻せる——`applyEdit`（自動保存・整合性検証）とは
+   * 独立した口で、額縁側は `mergeKey: null`（独立した履歴）で積む
+   */
+  recordEdit: (data: unknown) => void
   setBanner: (kind: BannerKind, message: string | null) => void
   showToast: (toast: Omit<ToastItem, 'id'>) => void
   dismissToast: (key: string) => void
@@ -922,8 +931,11 @@ export function createAppController(
       // キャンセルは額縁の shiftModal が処理するので、ここに onCancel は要らない
       cancelLabel: 'やめる',
       onPrimary: () => {
-        // **1回の applyEdit で置き換える**（独立した履歴）。Ctrl+Z 一発で
-        // 戻せるので、二段階の確認は要らない
+        // **履歴へ積む＋applyEdit の両方が要る**（独立した履歴。Ctrl+Z 一発で
+        // 戻せるので、二段階の確認は要らない）。recordEdit が無いと表示が
+        // 古いツリーのままになり、applyEdit が無いと自動保存に載らない——
+        // 額縁の onChange と同じ2本立て（片方だけにしないこと）
+        host.recordEdit(result.data)
         applyEdit(path, module, result.data)
       },
       onSecondary: async () => {
@@ -937,7 +949,11 @@ export function createAppController(
         const createdName = files.find((f) => f.path === created)?.name ?? ''
         // 拡張子を落として title にする（新規作成が「ファイル名＝title」で作るのと揃える）
         const title = createdName.replace(/\.json$/i, '')
-        applyEdit(created, module, { ...(result.data as object), title })
+        const next = { ...(result.data as object), title }
+        // createNewFile → selectFile が setDocument（雛形で履歴を作り直す）を
+        // 通しているので、ここでも履歴へ積み直さないと画面が雛形のまま残る
+        host.recordEdit(next)
+        applyEdit(created, module, next)
       },
     })
   }

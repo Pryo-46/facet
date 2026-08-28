@@ -537,6 +537,10 @@ function App() {
       setSelectedPath,
       // **これが Undo 履歴の破棄そのもの**（外部変更の取り込み時。rev 3章）
       setDocument: (data) => setHistory(data === null ? null : createHistory(data)),
+      // 履歴を保ったまま積む（クリップボード取り込みの上書き・logic-tree M2）。
+      // エディタの onChange と同じ形——mergeKey に null を渡すのは「独立した履歴」の意味
+      recordEdit: (data) =>
+        setHistory((h) => (h === null ? h : record(h, data, null, Date.now()))),
       setBanner,
       showToast,
       dismissToast: (key) => setToasts((prev) => dismissToastByKey(prev, key)),
