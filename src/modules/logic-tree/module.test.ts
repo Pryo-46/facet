@@ -55,11 +55,11 @@ describe('logicTreeModule', () => {
 })
 
 describe('出力プロファイル（規約5）', () => {
-  it('0本を宣言している（Markdown / Mermaid 出力は M2）', () => {
-    // **0本は「出力を作っていないツール」の状態として正しい。**
-    // 額縁の ExportMenu は outputs[0] が undefined のとき両ボタンを
-    // disabled にするので、押せるが壊れた文字列が出るボタンは生まれない
-    expect(logicTreeModule.outputs).toEqual([])
+  it('Markdown 出力を1本宣言している（M2 で 0本から1本にした）', () => {
+    // 図と箇条書きを1本のプロファイルにまとめている（形式の軸でプロファイルを割らない）
+    expect(logicTreeModule.outputs).toHaveLength(1)
+    expect(logicTreeModule.outputs[0].id).toBe('default')
+    expect(logicTreeModule.outputs[0].label).toBe('Markdown')
   })
 })
 
