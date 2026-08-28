@@ -870,8 +870,16 @@ const ordered = { ...data, nodes: T.orderFlatNodes(data.nodes) };
 // serialize がキー順（スキーマの properties 記載順）・2スペース・末尾改行を担う
 
 const text = C.serialize(ordered, schema);
-const normalized = JSON.parse(text);
-const nodes = normalized.nodes ?? [];
+
+// ---------- 以降の報告は「入力ファイルの並び」で行う ----------
+//
+// **並べ替えた配列を見ないこと。** 整合性の message は
+// 「（未記入・N番目）」のように**配列位置でノードを指す**ので、並べ替えた
+// あとの位置で報告すると、アプリが同じファイルを開いたときの指し方と食い違う。
+// アプリ（checkLogicTreeConsistency）が見るのは読み込んだファイルそのままの
+// 並びであり、ここもそれに合わせる
+
+const nodes = data.nodes ?? [];
 
 // ---------- 整合性検証（レベル2相当。警告にとどめる） ----------
 //
@@ -1286,21 +1294,28 @@ import { BUNDLED_SKILLS } from './skill-sync'
  * 「値 import を持たないこと」の検査は元ファイル共通なので各モジュールの
  * skill-copy.test.ts に任せる（あちらは自分のモジュール固有のコピーも見る）
  */
-const CANONICAL_COPIES = BUNDLED_SKILLS.map((skill) => ({
-  skill,
-  copy: `.claude/skills/${skill}/scripts/canonical.ts`,
-}))
+const CANONICAL_COPIES = [
+  { skill: 'glossary-term-register' },
+  { skill: 'error-catalog-register' },
+  { skill: 'sequence-register' },
+  { skill: 'issue-tree-register' },
+  { skill: 'logic-tree-register' },
+]
 
 describe('canonical.ts のバイト一致コピー', () => {
   it('BUNDLED_SKILLS のすべてを網羅する', () => {
     expect(CANONICAL_COPIES.map((c) => c.skill).sort()).toEqual([...BUNDLED_SKILLS].sort())
   })
 
-  it.each(CANONICAL_COPIES)('$skill の $copy が src/core/canonical.ts とバイト一致する', ({ copy }) => {
-    expect(readFileSync(copy)).toEqual(readFileSync('src/core/canonical.ts'))
+  it.each(CANONICAL_COPIES)('$skill が src/core/canonical.ts とバイト一致する', ({ skill }) => {
+    expect(readFileSync(`.claude/skills/${skill}/scripts/canonical.ts`)).toEqual(
+      readFileSync('src/core/canonical.ts'),
+    )
   })
 })
 ```
+
+> **`CANONICAL_COPIES` を `BUNDLED_SKILLS` から導出しないこと。** `map` で作ると網羅アサーションが自分自身を比べるだけの**恒真式**になり、何も縛らなくなる。`SCHEMA_COPIES` と同じく**手で書いた配列リテラル**にして、6本目を足した人がここにも足さないと赤くなる状態にする。
 
 **既存の `src/modules/sequence/skill-copy.test.ts` と `src/modules/issue-tree/skill-copy.test.ts` から `canonical.ts` の行を消さないこと。** あちらは同じファイルに対して「値 import を持たない」「enum を持たない」も回しており、消すと検査が減る。バイト一致の二重チェックは無害である。
 
@@ -1462,18 +1477,25 @@ function inspect(file) {
   }
 }
 
-/** nodes が DFS 行きがけ順に並んでいるか（--check の「正規形と一致」に含まれるが、単独でも見る） */
+/**
+ * nodes が DFS 行きがけ順に並んでいるか（--check の「正規形と一致」にも含まれるが、単独でも見る）。
+ *
+ * 祖先を積んだスタックを持ち、各ノードの親が**スタックの上から辿って見つかる**
+ * ことを要求する。**「親が既出か」だけを見ると不十分**——[A, B(A), D(A), C(B)]
+ * のような、親は既出だが行きがけ順ではない並びを通してしまう
+ */
 function isDfsOrdered(nodes) {
-  const seen = new Set();
+  const ids = new Set(nodes.map((n) => n.id));
   const stack = [];
   for (const n of nodes) {
-    if (n.parentId === null) { stack.length = 0; }
-    else {
+    // 親が居ない・参照切れのノードは、ルートとして描かれる＝スタックを畳む
+    if (n.parentId === null || !ids.has(n.parentId)) {
+      stack.length = 0;
+    } else {
       while (stack.length && stack[stack.length - 1] !== n.parentId) stack.pop();
-      if (!seen.has(n.parentId)) return false; // 親より先に子が来ている
+      if (stack.length === 0) return false; // 親が祖先の連なりに無い＝行きがけ順ではない
     }
     stack.push(n.id);
-    seen.add(n.id);
   }
   return true;
 }
