@@ -1,6 +1,13 @@
 // テストケースの機械判定。
 // 使い方: node evals/grade.mjs <iteration-dir>
 // 各 run ディレクトリに grading.json を書き出す。
+//
+// **骨格は兄弟3本（sequence / glossary-term / error-catalog）と揃えてある。**
+// 実行ハーネスが作るのは `<iteration-dir>/eval-<id>/{with_skill,without_skill}/`
+// で、プロジェクトは run ディレクトリそのものである。`grading.json` の形
+//（`run_id` / `expectations[{text,passed,evidence}]` / `passed` / `total`）も
+// レビュー生成側が読む契約なので、ここだけ独自形にしない。
+// ツール固有なのは assertionsFor の中身だけ。
 
 import fs from "node:fs";
 import path from "node:path";
@@ -9,6 +16,8 @@ import { fileURLToPath } from "node:url";
 
 const ITER = path.resolve(process.argv[2] ?? ".");
 const SKILL = path.resolve(fileURLToPath(import.meta.url), "../..");
+// 同梱コピーを指す（facet のチェックアウトの有無に依存しない。コピーは
+// src/core/skill-schema-copy.test.ts が原本とのバイト一致を強制している）
 const SCHEMA = path.resolve(SKILL, "schemas/logic-tree.schema.json");
 const NODE_RE = /^node_[A-Za-z0-9]{10}$/;
 
@@ -72,80 +81,92 @@ function rootsOf(nodes) {
   return nodes.filter((n) => n.parentId === null || !ids.has(n.parentId));
 }
 
-function grade(runDir) {
-  const project = path.join(runDir, "project");
-  const trees = filesOfType(project, "logicTree");
-  const issueTrees = filesOfType(project, "issueTree");
-  const checks = [];
-  const add = (name, ok, note = "") => checks.push({ name, ok, note });
+/** eval id=4（既存ファイルへの書き足し）で、1バイトも動いてはいけない3ノード */
+const KEPT_IDS = ["node_Aa1Bb2Cc3D", "node_Ee4Ff5Gg6H", "node_Ii7Jj8Kk9L"];
 
-  const evalId = Number(path.basename(runDir).split("-")[0]);
+function assertionsFor(evalId, dir) {
+  const trees = filesOfType(dir, "logicTree");
+  const issueTrees = filesOfType(dir, "issueTree");
+  const A = [];
+  const push = (text, passed, evidence) => A.push({ text, passed: !!passed, evidence: String(evidence) });
 
   if (evalId === 3) {
     // 課題ツリーへ譲るべきケース。logicTree を作っていないことが合格
-    add("logicTree を作っていない", trees.length === 0, `logicTree=${trees.length}`);
-    return checks;
+    push("logicTree を作っていない（課題ツリーへ譲っている）",
+      trees.length === 0,
+      trees.length ? trees.map((t) => path.basename(t.path)).join(", ") : "logicTree なし");
+    return A;
   }
 
-  add("logicTree が1つある", trees.length === 1, `logicTree=${trees.length}`);
-  add("issueTree を作っていない", issueTrees.length === 0, `issueTree=${issueTrees.length}`);
-  if (trees.length !== 1) return checks;
+  push("type=logicTree の JSON がちょうど1つ作られている",
+    trees.length === 1, trees.length ? trees.map((t) => path.basename(t.path)).join(", ") : "ファイルなし");
+  push("issueTree を作っていない",
+    issueTrees.length === 0, issueTrees.length ? issueTrees.map((t) => path.basename(t.path)).join(", ") : "issueTree なし");
 
-  const { path: file, json } = trees[0];
-  const nodes = json.nodes ?? [];
-  const info = inspect(file);
+  const f = trees[0];
+  if (!f) {
+    push("スキーマ検証を通り正規形と一致する", false, "ファイルなし");
+    return A;
+  }
 
-  add("スキーマ検証を通る", info.schemaOk);
-  add("正規形と一致する", info.canonicalOk);
-  add("整合性の警告が無い", !info.warned);
-  add("ルートが1つ", rootsOf(nodes).length === 1, `roots=${rootsOf(nodes).length}`);
-  add("すべての id が node_ ＋英数字10文字", nodes.every((n) => NODE_RE.test(n.id)));
-  add("nodes が DFS 行きがけ順", isDfsOrdered(nodes));
+  const nodes = f.json.nodes ?? [];
+  const ins = inspect(f.path);
+  push("スキーマ検証を通る", ins.schemaOk, ins.schemaOk ? "OK" : "検証失敗");
+  push("正規形と一致する（キー順・LF・末尾改行）", ins.canonicalOk, ins.canonicalOk ? "OK" : "差あり");
+  push("整合性の警告が無い", !ins.warned, ins.warned ? ins.out.trim() || "警告あり" : "警告なし");
+  push("ルートが1つ", rootsOf(nodes).length === 1, `roots=${rootsOf(nodes).length}`);
+  push("すべての id が node_ ＋英数字10文字",
+    nodes.length > 0 && nodes.every((n) => NODE_RE.test(n.id)), nodes.map((n) => n.id).join(", ") || "なし");
+  push("nodes が DFS 行きがけ順", isDfsOrdered(nodes), nodes.map((n) => n.id).join(", ") || "なし");
 
   if (evalId === 1) {
-    add("ノードが4つ（根＋会話に出た原因3つ）で、余計な枝が無い", nodes.length === 4, `nodes=${nodes.length}`);
+    // このケースの存在理由は「AI が幻覚した枝を足していないこと」を測ること
     const texts = nodes.map((n) => n.text ?? "").join(" / ");
-    const hasSubmit = nodes.some((n) => /送信/.test(n.text ?? ""));
-    const hasAttachment = nodes.some((n) => /添付/.test(n.text ?? ""));
-    const hasDuplicate = nodes.some((n) => /重複/.test(n.text ?? ""));
-    add("「送信」に触れる枝がある", hasSubmit, texts);
-    add("「添付」に触れる枝がある", hasAttachment, texts);
-    add("「重複」に触れる枝がある", hasDuplicate, texts);
+    push("ノードが4つ（根＋会話に出た原因3つ）で、余計な枝が無い", nodes.length === 4, `nodes=${nodes.length}: ${texts}`);
+    push("「送信」に触れる枝がある", nodes.some((n) => /送信/.test(n.text ?? "")), texts);
+    push("「添付」に触れる枝がある", nodes.some((n) => /添付/.test(n.text ?? "")), texts);
+    push("「重複」に触れる枝がある", nodes.some((n) => /重複/.test(n.text ?? "")), texts);
   }
 
   if (evalId === 4) {
     const byId = new Map(nodes.map((n) => [n.id, n]));
-    add("title が変わっていない", json.title === "応募が書類選考に進まないケース", json.title);
-    add(
-      "既存3ノードの text が変わっていない",
+    push("title が変わっていない", f.json.title === "応募が書類選考に進まないケース", String(f.json.title));
+    push("既存3ノードの text が変わっていない",
       byId.get("node_Aa1Bb2Cc3D")?.text === "応募が書類選考に進まないのはどんなときか" &&
         byId.get("node_Ee4Ff5Gg6H")?.text === "応募そのものが成立しない" &&
-        byId.get("node_Ii7Jj8Kk9L")?.text === "応募フォームの送信に失敗した"
-    );
-    add(
-      "既存3ノードの parentId が変わっていない（付け替えられていない）",
+        byId.get("node_Ii7Jj8Kk9L")?.text === "応募フォームの送信に失敗した",
+      KEPT_IDS.map((id) => `${id}:${byId.get(id)?.text ?? "なし"}`).join(" / "));
+    // **木の形が変わるので、このケースが一番防ぎたい壊れ方である**
+    push("既存3ノードの parentId が変わっていない（付け替えられていない）",
       byId.get("node_Aa1Bb2Cc3D")?.parentId === null &&
         byId.get("node_Ee4Ff5Gg6H")?.parentId === "node_Aa1Bb2Cc3D" &&
         byId.get("node_Ii7Jj8Kk9L")?.parentId === "node_Ee4Ff5Gg6H",
-      `A.parentId=${byId.get("node_Aa1Bb2Cc3D")?.parentId} / B.parentId=${byId.get("node_Ee4Ff5Gg6H")?.parentId} / C.parentId=${byId.get("node_Ii7Jj8Kk9L")?.parentId}`
-    );
-    add("ノードが1つ増えている", nodes.length === 4, `nodes=${nodes.length}`);
-    const added = nodes.filter((n) => !["node_Aa1Bb2Cc3D", "node_Ee4Ff5Gg6H", "node_Ii7Jj8Kk9L"].includes(n.id));
-    add("足したノードの親が node_Ee4Ff5Gg6H", added.length === 1 && added[0].parentId === "node_Ee4Ff5Gg6H");
+      KEPT_IDS.map((id) => `${id}.parentId=${byId.get(id)?.parentId}`).join(" / "));
+    push("ノードが1つ増えている（3 → 4）", nodes.length === 4, `nodes=${nodes.length}`);
+    const added = nodes.filter((n) => !KEPT_IDS.includes(n.id));
+    push("足したノードの親が node_Ee4Ff5Gg6H",
+      added.length === 1 && added[0].parentId === "node_Ee4Ff5Gg6H",
+      added.map((n) => `${n.id}(parentId=${n.parentId})`).join(", ") || "追加なし");
   }
 
-  return checks;
+  return A;
 }
 
-for (const name of fs.readdirSync(ITER)) {
-  const runDir = path.join(ITER, name);
-  if (!fs.statSync(runDir).isDirectory()) continue;
-  const checks = grade(runDir);
-  const passed = checks.every((c) => c.ok);
-  fs.writeFileSync(
-    path.join(runDir, "grading.json"),
-    JSON.stringify({ run: name, passed, checks }, null, 2) + "\n",
-    "utf8"
-  );
-  console.log(`${passed ? "PASS" : "FAIL"} ${name}  (${checks.filter((c) => c.ok).length}/${checks.length})`);
+const results = [];
+for (const evalDir of fs.readdirSync(ITER).filter((d) => d.startsWith("eval-"))) {
+  const evalId = Number(evalDir.split("-")[1]);
+  for (const variant of ["with_skill", "without_skill"]) {
+    const runDir = path.join(ITER, evalDir, variant);
+    if (!fs.existsSync(runDir)) continue;
+    const expectations = assertionsFor(evalId, runDir);
+    const passed = expectations.filter((e) => e.passed).length;
+    const grading = { run_id: `${evalDir}-${variant}`, expectations, passed, total: expectations.length };
+    fs.writeFileSync(path.join(runDir, "grading.json"), JSON.stringify(grading, null, 2) + "\n", "utf8");
+    results.push(grading);
+  }
+}
+
+for (const r of results.sort((a, b) => a.run_id.localeCompare(b.run_id))) {
+  console.log(`${r.run_id}: ${r.passed}/${r.total}`);
+  for (const e of r.expectations.filter((x) => !x.passed)) console.log(`   ✗ ${e.text} — ${e.evidence}`);
 }
