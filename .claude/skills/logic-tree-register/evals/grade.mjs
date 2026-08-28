@@ -102,6 +102,17 @@ function grade(runDir) {
   add("すべての id が node_ ＋英数字10文字", nodes.every((n) => NODE_RE.test(n.id)));
   add("nodes が DFS 行きがけ順", isDfsOrdered(nodes));
 
+  if (evalId === 1) {
+    add("ノードが4つ（根＋会話に出た原因3つ）で、余計な枝が無い", nodes.length === 4, `nodes=${nodes.length}`);
+    const texts = nodes.map((n) => n.text ?? "").join(" / ");
+    const hasSubmit = nodes.some((n) => /送信/.test(n.text ?? ""));
+    const hasAttachment = nodes.some((n) => /添付/.test(n.text ?? ""));
+    const hasDuplicate = nodes.some((n) => /重複/.test(n.text ?? ""));
+    add("「送信」に触れる枝がある", hasSubmit, texts);
+    add("「添付」に触れる枝がある", hasAttachment, texts);
+    add("「重複」に触れる枝がある", hasDuplicate, texts);
+  }
+
   if (evalId === 4) {
     const byId = new Map(nodes.map((n) => [n.id, n]));
     add("title が変わっていない", json.title === "応募が書類選考に進まないケース", json.title);
@@ -110,6 +121,13 @@ function grade(runDir) {
       byId.get("node_Aa1Bb2Cc3D")?.text === "応募が書類選考に進まないのはどんなときか" &&
         byId.get("node_Ee4Ff5Gg6H")?.text === "応募そのものが成立しない" &&
         byId.get("node_Ii7Jj8Kk9L")?.text === "応募フォームの送信に失敗した"
+    );
+    add(
+      "既存3ノードの parentId が変わっていない（付け替えられていない）",
+      byId.get("node_Aa1Bb2Cc3D")?.parentId === null &&
+        byId.get("node_Ee4Ff5Gg6H")?.parentId === "node_Aa1Bb2Cc3D" &&
+        byId.get("node_Ii7Jj8Kk9L")?.parentId === "node_Ee4Ff5Gg6H",
+      `A.parentId=${byId.get("node_Aa1Bb2Cc3D")?.parentId} / B.parentId=${byId.get("node_Ee4Ff5Gg6H")?.parentId} / C.parentId=${byId.get("node_Ii7Jj8Kk9L")?.parentId}`
     );
     add("ノードが1つ増えている", nodes.length === 4, `nodes=${nodes.length}`);
     const added = nodes.filter((n) => !["node_Aa1Bb2Cc3D", "node_Ee4Ff5Gg6H", "node_Ii7Jj8Kk9L"].includes(n.id));
