@@ -193,6 +193,10 @@ npm run tauri dev
 - 「`palette-fit.mjs` が Node の型ストリップに依存している」の列挙に `logic-tree-register`（`flat-tree-core.ts` / `canonical.ts`）と一致検査の所在を足した
 - 「`src/core/reading-guide.md` の Skill 名一覧を縛るテストが無い」の「**5本目**を足したとき」を**6本目**へ改めた。**5本目＝このマイルストーンはこの穴を素通りできた**（`reading-guide.md` の更新自体は行われている）が、**守ったのは人の記憶であってテストではない**ので消していない
 
+**台帳に載せず、記録としてここに残すもの（1件）:**
+
+- **[`../README.md`](../README.md) の「マイルストーンの履歴」の表に `sequence-m5` と `M27` の行が欠けている。** どちらも `docs/history/` に実体があり、[`../open-issues.md`](../open-issues.md) の「最終更新」からも参照されている。**このマイルストーンの範囲外なので直していない**（logic-tree-m2 が足したのは自分の行だけである）。`open-issues.md` へは載せていない——台帳はコードの残件を扱う場所で、これは文書の地図の欠落だからである。次に地図を触る人が拾えるよう、ここに記録する
+
 ---
 
 ## rev への反映事項
@@ -213,7 +217,7 @@ npm run tauri dev
 
 - `src/modules/sequence/module.ts` の `outputs` は **1件だけ**（`{ id: 'default', label: 'Markdown', fileSuffix: '' }`）
 - `mermaid.ts` は独立したプロファイルではなく、`markdown.ts` から呼ばれて**1本の Markdown の中に図として埋め込まれる**（同ファイルのコメント「規約5: 図（Mermaid）と失敗考慮の表を1本の Markdown にまとめる（sequence M3）」）
-- **rev 2章のシーケンスの行は、もともと正しく「（Markdown 表＋Mermaid、1プロファイル）」と書いていた**——計画の指定に従うと、同じ文書の2章と10章が食い違うことになっていた
+- **rev 2章のシーケンスの行は、もともと正しく「（Markdown 表＋Mermaid、1プロファイル）」と書いていた**——計画の指定に従うと、同じ文書の2章と6章が食い違うことになっていた
 
 `mermaid.ts` / `markdown.ts` が実在することは確かめたが、**ファイルが2本あることとプロファイルが2本あることは別である。** 実物に合わせて「シーケンスも1プロファイル」と書き、Mermaid が別プロファイルではない理由（1本の Markdown にまとめている）を添えた。
 
