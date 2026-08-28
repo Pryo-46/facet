@@ -15,7 +15,7 @@ logic-tree-m2 は「**会話で『どんなときに◯◯が起きるか洗い�
 | 5 | `f551509` | `BUNDLED_SKILLS` ほか5箇所の登録 ＋ `skill-canonical-copy.test.ts` の網羅アサーション |
 | 6 | `e698db8` → `1e8c5c8` | evals（5ケース・`grade.mjs`・fixture） |
 | 7 | `d0b03dc` → `b246dea` | rev・README・docs の地図・台帳・本書（2つ目は章参照の訂正と `docs/README.md` の欠落行の記録） |
-| 最終レビューの修正 | 本コミット群（3本） | `--out` の報告位置（Important 1）／`grade.mjs` を実行ハーネスの骨格へ（Important 2）／文書と注釈の不正確 4件（Minor） |
+| 最終レビューの修正 | 本コミット群（4本） | `--out` の報告位置（Important 1）／`grade.mjs` を実行ハーネスの骨格へ（Important 2）／文書と注釈の不正確 4件（Minor）／実測欄の取り残し（再レビューの指摘） |
 
 ---
 
@@ -112,7 +112,7 @@ issue-tree-m2 が台帳に立てた残件——「`canonical.ts` のバイト一
 
 - `src/modules/logic-tree/skill-write.smoke.test.ts` — **6ケース**（整合性 message の逐語一致／集計行の `tallyLine` との逐語一致／欠陥の無いファイルは exit 0 で「要対応 0」／`--out` の DFS 正規化と `--check` の冪等性／スキーマ違反は exit 1／**`--out` の報告位置が出力の `--check` と一致する**。最後の1本は最終レビューで足した）
 - `src/core/canvas/flat-tree-core.test.ts` — 新設。`flat-tree.test.ts` は**無変更**
-- `npm test` — **1832 passed / 1 failed**。**落ちる1件は `src/styles/fonts.test.ts` で、着手前から赤い**（フォントファイルの存在検査。このマイルストーンとは無関係）。`tsc -b` / `lint` / `cargo test` は緑
+- `npm test` — **1833 passed / 1 failed**（最終レビューで smoke テストを1本足したぶん、着手時の 1832 から1件増えている）。**落ちる1件は `src/styles/fonts.test.ts` で、着手前から赤い**（フォントファイルの存在検査。このマイルストーンとは無関係）。`tsc -b` / `lint` / `cargo test` は緑
 
 ### 同梱 Skill を増やすときに触るのは5箇所（issue-tree-m2 の「3箇所」から増えた）
 
