@@ -120,7 +120,7 @@ const appIo: AppIo = {
   trash: moveFileToTrash,
   join: joinPath,
   copyText: copyToClipboard,
-  // Miro 等とのクリップボード交換（logic-tree M2）。ボタンの配線は Task 9
+  // Miro 等とのクリップボード交換（logic-tree M2）。コントローラが押下時に使う
   copyHtml: copyHtmlToClipboard,
   readClipboardHtml,
   askSavePath: askSaveMarkdownPath,
@@ -745,6 +745,46 @@ function App() {
   // コントローラ側でも同じ条件を確認しているが、UI はそれを押せる／押せないの形で見せる
   const canExport = selectedModule !== undefined && editingData !== null
 
+  // 外部ツールとのクリップボード交換（規約7・logic-tree M2）。**額縁はツールを
+  // 名指ししない**——活性の判断はすべて選択中モジュールが宣言しているかどうかで決める
+  const exchange = selectedModule?.clipboardExchanges?.[0]
+  const [clipboardHasImport, setClipboardHasImport] = useState(false)
+
+  /**
+   * ウィンドウがアクティブになったらクリップボードを1回だけ見る（logic-tree M2）。
+   *
+   * **ポーリングはしない。** Miro のデータが載る瞬間は「Miro でコピーして facet に
+   * 戻ってくる瞬間」なので、フォーカスを得たときに読めば足りる。常時ポーリングは
+   * CPU を食うわりに得るものがない。
+   *
+   * Tauri の window イベントではなく DOM の focus を使うのは、**コアを Tauri に
+   * 近づけないため**と、DOM のテストでそのまま発火させられるため。
+   *
+   * **`src/fs/clipboard.ts` を直接呼ぶ**（`appIo.readClipboardHtml` ではない）。
+   * ここはボタンの活性を決めるためだけの読み取りで、コントローラの判断には
+   * 関わらない。額縁は元々 `AppIo` を組み立てる側なので fs を知っている——
+   * コントローラ（押された時点で読み直す方）が `io.readClipboardHtml` を呼ぶのとは
+   * 役割が違うので、片方に寄せない
+   */
+  useEffect(() => {
+    if (exchange === undefined) {
+      setClipboardHasImport(false)
+      return
+    }
+    let alive = true
+    const check = (): void => {
+      void readClipboardHtml().then((html) => {
+        if (alive) setClipboardHasImport(exchange.canImport(html))
+      })
+    }
+    check()
+    window.addEventListener('focus', check)
+    return () => {
+      alive = false
+      window.removeEventListener('focus', check)
+    }
+  }, [exchange])
+
   const runHistory = (kind: 'undo' | 'redo') => {
     const h = historyRef.current
     if (h === null || selectedPath === null || selectedModule === undefined) return
@@ -916,6 +956,24 @@ function App() {
             onCopy={(profile) => void controller.copyMarkdown(profile)}
             onExport={(profile) => void controller.exportMarkdown(profile)}
           />
+          {/* Miro 交換（規約7・logic-tree M2）。**常に出す**——ExportMenu と同じ
+              原則で、押せる／押せないだけを切り替え、ボタン自体は消えたり
+              出たりしない。文言に「Miro」と書いてよいが、活性の判断には
+              モジュールの type を使わない（`exchange` の有無だけで決める） */}
+          <Button
+            variant="outline"
+            disabled={!canExport || exchange === undefined}
+            onClick={() => exchange !== undefined && void controller.copyToExternal(exchange)}
+          >
+            Miro へコピー
+          </Button>
+          <Button
+            variant="outline"
+            disabled={exchange === undefined || !clipboardHasImport}
+            onClick={() => exchange !== undefined && void controller.importFromExternal(exchange)}
+          >
+            Miro から取り込む
+          </Button>
         </div>
         {/* **右端の3つを絶対に押し出さないこと。** 余白を食って右端へ寄せるのは
             `ml-auto` の仕事で、`shrink-0` がそれ以上の圧縮を止める。
@@ -1184,6 +1242,16 @@ function App() {
           setModals((prev) => shiftModal(prev))
           if (request?.kind === 'choice') void request.onSecondary()
         }}
+        cancelLabel={head?.kind === 'choice' ? head.cancelLabel : undefined}
+        // **`cancelLabel` を持つ要求のときだけ渡す。** 常に渡すと、外部変更の
+        // 二択（`cancelLabel` を持たない）でも Esc が効くようになり、「決めるまで
+        // 閉じない」という M5 の決着が壊れる（logic-tree M2 の取り込みの二択だけが
+        // `cancelLabel` を持つ）
+        onCancel={
+          head?.kind === 'choice' && head.cancelLabel !== undefined
+            ? () => setModals((prev) => shiftModal(prev))
+            : undefined
+        }
       />
     </main>
   )
