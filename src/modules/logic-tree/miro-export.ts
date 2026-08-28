@@ -16,6 +16,16 @@ import type { LogicTreeSchemaVersion1, TreeNode } from '@/types/logic-tree'
  * - **固定値だけを使う**（乱数も時刻も混ぜない）。原本照合のテストが成立しなくなる
  */
 
+/**
+ * `nodesToMiroPayload` が返す2種類の文言配列の違い（取り違え防止のため明記する）。
+ * どちらも DFS 行きがけ順（ordered）から作るので、並びは常に一致する:
+ *
+ * - `texts`: **HTML エスケープ済み**。`encodeMiroClipboard` が div フラグメントに
+ *   埋め込む（＝クリップボードの HTML 表現に使う）ための文字列
+ * - `plainTexts`: **エスケープしない生の文言**。clipboardExchanges の `text`
+ *   （HTML を解釈しないアプリへ貼るプレーンテキスト）に使う文字列
+ */
+
 /** Miro の標準の黒 (#1A1A1A)。枠・線・文字すべてこれ */
 const INK = 1710618
 const NODE_HEIGHT = 40
@@ -54,7 +64,7 @@ function escapeHtml(text: string): string {
 
 export function nodesToMiroPayload(
   data: LogicTreeSchemaVersion1,
-): { payload: unknown; texts: string[] } {
+): { payload: unknown; texts: string[]; plainTexts: string[] } {
   const built = buildTree(data.nodes)
 
   // 1. DFS 行きがけ順で並べる。**この順が objects の index になる**（widgetIndex が指す先）
@@ -173,5 +183,10 @@ export function nodesToMiroPayload(
     },
     // div 側は表示用。Miro の原本もエスケープ済みの文言を並べている
     texts: ordered.map((e) => escapeHtml(e.node.text)),
+    // clipboardExchanges の `text`（他アプリに貼るプレーンテキスト）向けの生の文言。
+    // **texts と違って HTML エスケープしない**——貼り付け先は HTML ではないので、
+    // `&amp;` のようなエスケープ済み文字列をそのまま貼るとかえって壊れる。
+    // texts と同じ DFS 行きがけ順（ordered）から作るので、両者の並びは常に一致する
+    plainTexts: ordered.map((e) => e.node.text),
   }
 }

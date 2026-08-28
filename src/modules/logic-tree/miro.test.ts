@@ -69,4 +69,21 @@ describe('miroMindmapExchange', () => {
     // text は他アプリに貼るためのもの。DFS 行きがけ順の文言を改行で連ねる
     expect(text).toBe('親\n子1\n孫\n子2')
   })
+
+  it('特殊文字を含む文言は html 側でエスケープされ、text 側は生のまま入る', () => {
+    // texts（HTML エスケープ済み）を text にも使うと `&amp;` のような文字列が
+    // そのまま他アプリに貼られてしまう不具合の再発防止テスト
+    const risky: LogicTreeSchemaVersion1 = {
+      schemaVersion: 1,
+      type: 'logicTree',
+      title: '特殊文字テスト',
+      nodes: [{ id: 'node_aaaaaaaaaa', parentId: null, text: 'A & B <script>' }],
+    }
+    const { html, text } = miroMindmapExchange.toClipboard(risky)
+    // html 側（div フラグメント）はエスケープ済みの形で入る
+    expect(html).toContain('A &amp; B &lt;script&gt;')
+    expect(html).not.toContain('A & B <script>')
+    // text 側（プレーンテキスト。他アプリへの貼り付け用）は生のまま入る
+    expect(text).toBe('A & B <script>')
+  })
 })

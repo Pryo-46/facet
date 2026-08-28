@@ -144,4 +144,23 @@ describe('nodesToMiroPayload', () => {
     // div 側（表示用）も同じくエスケープされていること
     expect(texts[0]).toBe('A &amp; B &lt;script&gt;')
   })
+
+  it('plainTexts は texts と同じ並びで、エスケープしない生の文言を返す', () => {
+    const risky: LogicTreeSchemaVersion1 = {
+      ...TREE,
+      nodes: [{ id: 'node_aaaaaaaaaa', parentId: null, text: 'A & B <script>' }],
+    }
+    const { texts, plainTexts } = nodesToMiroPayload(risky)
+    // texts（HTML 用）はエスケープ済み、plainTexts（プレーンテキスト用）は生のまま
+    expect(texts[0]).toBe('A &amp; B &lt;script&gt;')
+    expect(plainTexts[0]).toBe('A & B <script>')
+    // DFS 行きがけ順は共通（並びが構造的に一致する）
+    expect(nodesToMiroPayload(TREE).plainTexts).toEqual([
+      '親',
+      '枝A',
+      '枝Aの子1',
+      '枝Aの子2',
+      'ずいぶん長い文言のノード',
+    ])
+  })
 })

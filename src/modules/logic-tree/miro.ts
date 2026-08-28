@@ -13,11 +13,14 @@ export const miroMindmapExchange: ClipboardExchange<LogicTreeSchemaVersion1> = {
   label: 'Miro のマインドマップ',
 
   toClipboard(data) {
-    const { payload, texts } = nodesToMiroPayload(data)
+    const { payload, texts, plainTexts } = nodesToMiroPayload(data)
     return {
       html: encodeMiroClipboard(payload, texts),
-      // プレーンテキスト側は他アプリ向け。Miro も同じ位置に文言だけを並べている
-      text: texts.join('\n'),
+      // プレーンテキスト側は他アプリ向け。**texts（HTML エスケープ済み）ではなく
+      // plainTexts（生の文言）を使う**——ここに texts を使うと、貼り付け先が
+      // HTML を解釈しないアプリの場合に `&amp;` のようなエスケープ済み文字列が
+      // そのまま見えてしまう
+      text: plainTexts.join('\n'),
     }
   },
 
