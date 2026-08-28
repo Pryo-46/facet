@@ -63,6 +63,13 @@ describe('出力プロファイル（規約5）', () => {
   })
 })
 
+describe('クリップボード交換（規約7）', () => {
+  it('Miro のクリップボード交換を1本宣言する', () => {
+    expect(logicTreeModule.clipboardExchanges).toHaveLength(1)
+    expect(logicTreeModule.clipboardExchanges?.[0].id).toBe('miro-mindmap')
+  })
+})
+
 describe('レジストリ登録', () => {
   it('appRegistry から type で引ける（新規作成メニューに出る）', () => {
     expect(appRegistry.get('logicTree')).toBe(logicTreeModule)

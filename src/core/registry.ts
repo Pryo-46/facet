@@ -56,6 +56,39 @@ export interface OutputProfile<TData> {
 }
 
 /**
+ * 規約7（任意）: 外部ツールとのクリップボード交換（logic-tree M2）。
+ *
+ * **規約5（`OutputProfile`）に乗せない理由**: あちらは「Markdown を返す純関数」と
+ * `.md` 書き出しを前提にしている。Miro 交換は出力が HTML とプレーンテキストの2つで、
+ * `.md` 書き出しに意味がなく、そもそも**入力の口が規約に無い**。押し込むと
+ * `toMarkdown` という名前が嘘になる。
+ *
+ * **宣言しないツールの規約の点数は増えない**（`describeIssueEffect` と同じ層の任意拡張）。
+ */
+export interface ClipboardExchange<TData> {
+  /** 安定識別子。UI の状態とテストが参照する */
+  id: string
+  /** ボタンの説明に使う名前（例: Miro のマインドマップ） */
+  label: string
+  /**
+   * データ → クリップボードに書くもの。**副作用を持たない純関数**であること
+   *（書き込むのは額縁。モジュールはクリップボードに触らない）。
+   * `text` を併せて返すのは、HTML だけを載せると他アプリに貼れなくなるため
+   */
+  toClipboard: (data: TData) => { html: string; text: string }
+  /**
+   * この HTML は自分の形式か。**ウィンドウがアクティブになるたびに呼ぶので速いこと**
+   *（完全な復号をせず、印の有無だけを見る）
+   */
+  canImport: (html: string) => boolean
+  /** HTML → データ。取り込めないときは**人に見せる理由**を返す */
+  fromClipboard: (
+    html: string,
+    title: string,
+  ) => { ok: true; data: TData } | { ok: false; reason: string }
+}
+
+/**
  * ツールモジュール規約（rev 6章）。M6 の出力ロジック追加で6点セットが埋まった。
  * `createEmpty` は6点セットには無い7つ目のスロット（額縁の新規作成が使う雛形）。
  * M9 で規約5を複数プロファイル（`outputs`）へ拡張した。
@@ -88,6 +121,11 @@ export interface ToolModule<TData = unknown> {
    * 「押せるが壊れた文字列が出るボタン」を作らないため
    */
   outputs: readonly OutputProfile<TData>[]
+  /**
+   * 規約7（任意）: 外部ツールとのクリップボード交換。**持たないツールは書かない。**
+   * 額縁はこの有無だけを見てボタンの活性を決める（ツールを名指ししない）
+   */
+  clipboardExchanges?: readonly ClipboardExchange<TData>[]
   /** プロジェクト内に同 type のファイルを1つしか許さないか（コア横断検証が使う） */
   singleton: boolean
   /** 規約6: マイグレータ（旧 schemaVersion → 現行版。初版は恒等） */

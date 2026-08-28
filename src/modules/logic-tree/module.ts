@@ -7,6 +7,7 @@ import { addRoot } from './commands'
 import { checkLogicTreeConsistency } from './consistency'
 import { LogicTreeEditor } from './LogicTreeEditor'
 import { migrateLogicTree } from './migrate'
+import { miroMindmapExchange } from './miro'
 
 export const logicTreeModule: ToolModule<LogicTreeSchemaVersion1> = {
   type: 'logicTree',
@@ -20,6 +21,9 @@ export const logicTreeModule: ToolModule<LogicTreeSchemaVersion1> = {
   // 規約5: 出力プロファイルは0本。Markdown / Mermaid 出力は M2 で足す——
   // それまで額縁（ExportMenu）は出力ボタンを押せない状態で出す
   outputs: [],
+  // 規約7（任意）: Miro のマインドマップとのクリップボード交換（M2）。
+  // **他のツールは宣言しない**——額縁はこの有無でボタンの活性を決める
+  clipboardExchanges: [miroMindmapExchange],
   // プロジェクトにロジックツリーは何本あってもよい（用語集と違いハブではない）
   singleton: false,
   migrate: migrateLogicTree,
