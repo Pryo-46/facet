@@ -60,6 +60,38 @@ describe('logicTreeToMarkdown', () => {
     expect(md).toContain('- A["B"] と C')
   })
 
+  it('mermaid のエンティティ記法と衝突する # ; もエスケープする（共通の escapeMermaidLabel 経由）', () => {
+    const risky: LogicTreeSchemaVersion1 = {
+      ...TREE,
+      nodes: [{ id: 'node_aaaaaaaaaa', parentId: null, text: '#1;対応' }],
+    }
+    const md = logicTreeToMarkdown(risky)
+    expect(md).toContain('n1["#35;1#59;対応"]')
+    // 箇条書き側は Markdown なのでエスケープしない
+    expect(md).toContain('- #1;対応')
+  })
+
+  it('多重ルートで、子を持たない孤立ルートも図に単独の行として出す（他ノードと共存するとき図から消えていた欠陥の再現）', () => {
+    const multiRoot: LogicTreeSchemaVersion1 = {
+      schemaVersion: 1,
+      type: 'logicTree',
+      title: 'T',
+      nodes: [
+        { id: 'node_lonelyroot0', parentId: null, text: 'ひとりぼっち' },
+        { id: 'node_root2xxxxx0', parentId: null, text: 'root2' },
+        { id: 'node_childofroot0', parentId: 'node_root2xxxxx0', text: 'root2の子' },
+      ],
+    }
+    const md = logicTreeToMarkdown(multiRoot)
+    // 辺を持たない lonely-root は単独行として出る（消えてはいけない）
+    expect(md).toContain('n1["ひとりぼっち"]')
+    expect(md).toContain('n2["root2"] --> n3["root2の子"]')
+    // 箇条書きには常に3件とも出ており、図と件数が食い違ってはいけない
+    expect(md).toContain('- ひとりぼっち')
+    expect(md).toContain('- root2')
+    expect(md).toContain('- root2の子')
+  })
+
   it('ノードが1つでも図と箇条書きの両方を出す', () => {
     const single: LogicTreeSchemaVersion1 = {
       ...TREE,
