@@ -63,4 +63,4 @@ facet の核心は「決めていないことを消せなくする」ことで�
 
 ## 書き込みたくなったら
 
-このフォルダの JSON を直接手で編集しない。`.claude/skills/` に登録用 Skill（glossary-term-register / error-catalog-register / sequence-register / issue-tree-register）があれば必ずそれを使う（ID 採番・スキーマ検証・正規形書き出しを通すため）。Skill が無い種類のファイルを編集する場合も、最低限次を守る: (1) ID は既存と同じ形式で、ランダムに振る（連番にしない） (2) 既存のキー順・インデント（半角スペース2）・末尾改行を保つ。
+このフォルダの JSON を直接手で編集しない。`.claude/skills/` に登録用 Skill（glossary-term-register / error-catalog-register / sequence-register / issue-tree-register / logic-tree-register）があれば必ずそれを使う（ID 採番・スキーマ検証・正規形書き出しを通すため）。Skill が無い種類のファイルを編集する場合も、最低限次を守る: (1) ID は既存と同じ形式で、ランダムに振る（連番にしない） (2) 既存のキー順・インデント（半角スペース2）・末尾改行を保つ。
