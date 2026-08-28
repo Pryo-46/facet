@@ -104,13 +104,16 @@ describe('logic-tree-write.mjs（実行 smoke ＋ 警告文言のアプリ一致
   }, 20000)
 
   it('--out は配列を DFS 行きがけ順に整えて正規形で書き出し、--check が冪等に通る', () => {
-    // 兄弟の相対順（b → c）は変えずに、行きがけ順へ入れ替わること
+    // 兄弟（根の子である c と b）の相対順は配列順が正本なので、**入れ替えずに**
+    // そのまま（c → b）持ち越し、親子の入れ子だけを行きがけ順へ組み直すこと。
+    // c を先に置いてあるのは、id や文言による並べ替えが混じっていたら落ちるようにするため
     const scrambled = {
       schemaVersion: 1,
       type: 'logicTree',
       title: '並び順の検証',
       nodes: [
         { id: 'node_CCCCCCCCCC', parentId: 'node_BBBBBBBBBB', text: 'b の子' },
+        { id: 'node_DDDDDDDDDD', parentId: 'node_AAAAAAAAAA', text: 'c' },
         { id: 'node_BBBBBBBBBB', parentId: 'node_AAAAAAAAAA', text: 'b' },
         { id: 'node_AAAAAAAAAA', parentId: null, text: '根' },
       ],
@@ -124,6 +127,7 @@ describe('logic-tree-write.mjs（実行 smoke ＋ 警告文言のアプリ一致
       const written = readFileSync(dst, 'utf8')
       expect(JSON.parse(written).nodes.map((n: { id: string }) => n.id)).toEqual([
         'node_AAAAAAAAAA',
+        'node_DDDDDDDDDD',
         'node_BBBBBBBBBB',
         'node_CCCCCCCCCC',
       ])
@@ -134,6 +138,58 @@ describe('logic-tree-write.mjs（実行 smoke ＋ 警告文言のアプリ一致
       const back = run(['--check', dst])
       expect(back.status).toBe(0)
       expect(back.stdout).toContain('正規形と一致しています')
+    })
+  }, 20000)
+
+  /**
+   * **契約: 出力を `--check` に戻したら、同じ位置を同じ言葉で言うこと。**
+   *
+   * 整合性の message と「未記入のノード: N番目」は**配列位置でノードを指す**ので、
+   * 報告に使う並びは「アプリが開くことになるファイル」の並びでなければならない。
+   * `--out` のときそれは**並べ替えた後**であって、下書きの並びではない。
+   * ほかの4ケースは message の検証をすべて `--check` 経由で行っており、
+   * この食い違いを構造的に捕まえられない
+   */
+  it('--out の報告位置が、書き出したファイルを --check したときの位置と一致する', () => {
+    // 下書きの並び:            1: b の子 / 2: b / 3:（未記入・親が参照切れ） / 4: 根
+    // 書き出した後の並び:      1:（未記入・親が参照切れ） / 2: 根 / 3: b / 4: b の子
+    // 未記入かつ参照切れのノードが 3番目 → 1番目 へ動くので、入力の並びで
+    // 報告していると出力の --check と食い違う
+    const scrambled = {
+      schemaVersion: 1,
+      type: 'logicTree',
+      title: '報告位置の検証',
+      nodes: [
+        { id: 'node_CCCCCCCCCC', parentId: 'node_BBBBBBBBBB', text: 'b の子' },
+        { id: 'node_BBBBBBBBBB', parentId: 'node_AAAAAAAAAA', text: 'b' },
+        { id: 'node_DDDDDDDDDD', parentId: 'node_ZZZZZZZZZZ', text: '' },
+        { id: 'node_AAAAAAAAAA', parentId: null, text: '根' },
+      ],
+    }
+    // 位置を含む行だけを取り出す（見出しやスキーマのパスは経路で違って当然）
+    const positions = (stdout: string): string[] =>
+      stdout
+        .split('\n')
+        .map((line) => line.trimEnd())
+        .filter((line) => line.includes('未記入のノード:') || line.startsWith('  - '))
+
+    withTempDir((dir) => {
+      const src = path.join(dir, 'draft.json')
+      const dst = path.join(dir, 'out.json')
+      writeFileSync(src, JSON.stringify(scrambled), 'utf8')
+
+      const out = run(['--in', src, '--out', dst])
+      expect(out.status).toBe(0)
+      const back = run(['--check', dst])
+      expect(back.status).toBe(0)
+
+      // fixture が退化していないことを先に固める（報告が空なら以降が空回りする）
+      expect(positions(back.stdout).length).toBeGreaterThanOrEqual(3)
+      expect(out.stdout).toContain('未記入のノード: 1番目')
+      expect(out.stdout).toContain('（未記入・1番目）')
+      expect(out.stdout).not.toContain('3番目')
+
+      expect(positions(out.stdout)).toEqual(positions(back.stdout))
     })
   }, 20000)
 
