@@ -9,11 +9,13 @@ import { BUNDLED_SKILLS } from './skill-sync'
  * **この表は網羅を強制するためにある。** かつて検査は3ファイルに散っていて
  *（旧2本＝ここ／sequence・issue-tree＝各モジュールの skill-copy.test.ts）、
  * 新しい Skill がコピーを持ったのに検査を書き忘れても緑で通った。
- * logic-tree-m2 で1箇所へ集約し、`SCHEMA_COPIES` と同型の網羅アサーションを
- * 置いた。**6本目を足した人は、ここに足さないと赤くなる。**
+ * logic-tree-m2 で `SCHEMA_COPIES` と同型の網羅アサーションをここへ置いた。
+ * **6本目を足した人は、ここに足さないと赤くなる。**
  *
- * 「値 import を持たないこと」の検査は元ファイル共通なので各モジュールの
- * skill-copy.test.ts に任せる（あちらは自分のモジュール固有のコピーも見る）
+ * **1箇所に寄せたのは網羅の強制だけである。** バイト一致の検査そのものは
+ * 各モジュールの skill-copy.test.ts にも**意図して残してある**——あちらは
+ * 「値 import を持たない」「消去できない構文が無い」の検査を一緒に回し、
+ * 自分のモジュール固有のコピーも見るためで、消すとその検査まで落ちる
  */
 const CANONICAL_COPIES = [
   { skill: 'glossary-term-register' },
