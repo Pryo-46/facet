@@ -229,7 +229,7 @@ M1 は `outputs: []` で開始（rev 6章の「0本以上」規約。額縁が�
 
 1. **Markdown 表**（NotePM）: No／from→to／ラベル／失敗確定／結果不明／実行済みなら、の列構成。**ガターがそのまま表になる**。未定義は `（未定義）`、notApplicable は `─ 考慮不要` 相当の表記（既存ツールの規約に合わせる）。図と表は1プロファイルにまとめ、h2 見出し→Mermaid ブロック→表の順で並べる（プロファイルを図・表で分けなかった経緯は [`../history/sequence-m3-mouse-and-output.md`](../history/sequence-m3-mouse-and-output.md)）
 2. **Mermaid `sequenceDiagram`**: 正常系のみ。矢印種別は `kind` × `awaitsReply` から導出（`->>`／`-)`／`-->>`）
-3. 明示改行の `<br>` 変換と Mermaid ラベル正規化関数は logic-tree M2 と共通の論点。**先に出力を実装した側が正規化関数を1本立て、後発がそれに乗る**——シーケンスが1本目になったため `escapeMermaidLabel` は現状モジュール内に置いている（`core/mermaid.ts` への引き上げは open-issues に記録済み。logic-tree の出力を作るときに判断する）
+3. 明示改行の `<br>` 変換と Mermaid ラベル正規化関数は logic-tree M2 と共通の論点。**先に出力を実装した側が正規化関数を1本立て、後発がそれに乗る**——シーケンスが1本目になったため `escapeMermaidLabel` は当初モジュール内に置いていたが、**logic-tree M2 で `core/mermaid.ts` へ引き上げ、両モジュールがそこから import する形になった**（open-issues の宿題は解消済み）。ロジックツリーの `flowchart` ラベルは改行を許さない1行制約を持つため、`logic-tree/markdown.ts` は先に改行を空白へ畳んでから共通版へ渡す2段構えにしている
 4. **参照切れ（from/to が引けない）は `（未解決）`**。ボタン化したセルと同じ語を出力にも使い、貼った先の読み手が「何が欠けているか」を読み取れるようにした（M3 で from/to をドロップダウン化した帰結。論点9 参照）
 
 ## 論点12: マイルストーン分割（確定）
