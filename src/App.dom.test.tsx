@@ -1123,4 +1123,53 @@ describe('Claude Code へファイルを渡す（M28）', () => {
 
     await waitFor(() => expect(pasted).toEqual(['@用語集.json ']))
   })
+
+  it('動いているタブがあれば、@ は新しいタブを作らずそのタブへ差し込む（会話中の差し込み）', async () => {
+    // App レベルで「会話中の差し込み」経路（insertionSeq → targetId: active.id）が
+    // 一度も走っていなかった（最終レビュー指摘）。ペインを開いてタブを1本
+    // 立ててから @ を押し、既存タブへの insertion 経由で差し込まれることを見る
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    const toggle = await screen.findByRole('button', { name: 'Claude Code ペインを開く' })
+    await waitFor(() => expect(toggle.hasAttribute('disabled')).toBe(false))
+    fireEvent.click(toggle)
+    await screen.findByRole('button', { name: 'Claude 1' })
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
+    )
+
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']))
+    // 新しいタブは立たない。動いている Claude 1 へ差し込まれただけ
+    expect(screen.queryByRole('button', { name: 'Claude 2' })).toBeNull()
+  })
+
+  it('終了済みのタブがアクティブなときに @ を押すと、死んだ PTY へは書きに行かず新しいタブを起こす', async () => {
+    // handoffToTerminal は activeId === null かどうかで「タブが無い」を判定
+    // していたが、markExited / markFailed はセッションを台帳に残し activeId も
+    // 指したままにするので、終了済みのタブがアクティブなときに死んだ PTY へ
+    // 書きに行ってしまっていた（最終レビュー指摘）
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    const toggle = await screen.findByRole('button', { name: 'Claude Code ペインを開く' })
+    await waitFor(() => expect(toggle.hasAttribute('disabled')).toBe(false))
+    fireEvent.click(toggle)
+    await screen.findByRole('button', { name: 'Claude 1' })
+
+    // Claude 1 を自然終了させる。activeId はそのまま Claude 1 を指し続ける
+    act(() => {
+      ptyExitHandlers.get(1)?.(0)
+    })
+    await screen.findByText('終了しました（コード 0）')
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
+    )
+
+    // 新しいタブ（Claude 2）が立って、そちらへ差し込まれる
+    await screen.findByRole('button', { name: 'Claude 2' })
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']))
+  })
 })

@@ -320,7 +320,16 @@ function App() {
     setPaneOpen(true)
     // **`terminals` を直読みしない。** ドロップのリスナは1回しか張らないので、
     // 最新の台帳は ref から読む（closeTerminalNow と同じ理由）
-    const active = terminalsRef.current.activeId
+    //
+    // **「実行中のタブが無い」も「タブが無い」と同じ扱いにする。**
+    // markExited / markFailed はセッションを台帳に残し activeId も指したままにするので、
+    // activeId の null 判定だけでは死んだ PTY へ書きに行ってしまう（pty_write が
+    // 「その端末はもうありません」で拒否し、タブの文言が受け渡しと無関係な
+    // 書き込み失敗に化ける）。押した人がやりたいのは「渡すこと」なので、新しく起こす
+    const active =
+      terminalsRef.current.sessions.find(
+        (s) => s.id === terminalsRef.current.activeId && isSessionRunning(s),
+      ) ?? null
     if (active === null) {
       openTerminal(text)
       return
@@ -328,7 +337,7 @@ function App() {
     // **採番は updater の外。** setState の updater は純粋でなければならない
     //（StrictMode の二重実行で seq を余分に消費する。showToast の id と同じ理由）
     const seq = ++insertionSeq.current
-    setInsertion({ targetId: active, seq, text })
+    setInsertion({ targetId: active.id, seq, text })
   }
 
   const closeTerminalNow = (id: number) => {
@@ -892,6 +901,11 @@ function App() {
       const x = position.x / ratio
       const y = position.y / ratio
       const rect = pane.getBoundingClientRect()
+      // **矩形が潰れていたら「外」。** 畳んだペインは display:none で全部 0 になり、
+      // 両端を含む比較だと (0,0) の1点だけが一致してしまう（ウィンドウ左上隅への
+      // ドロップでペインが開く）。「見えていないペインはドロップ先になれない」を
+      // 創発的な性質ではなく明示の規則として書く
+      if (rect.width === 0 || rect.height === 0) return false
       return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
     }
 

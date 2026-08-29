@@ -722,7 +722,9 @@ describe('TerminalTab', () => {
 
     expect(dispatched).toBe(false) // preventDefault された＝既定メニューは出ない
     await waitFor(() => expect(clipboardIo.writeText).toHaveBeenCalledWith('選択したところ'))
-    expect(term.clearSelection).toHaveBeenCalledTimes(1)
+    // **書き込みが解決してから選択を外す**（設計 §7.1 の順）ので、
+    // clearSelection の呼び出しも非同期に待つ
+    await waitFor(() => expect(term.clearSelection).toHaveBeenCalledTimes(1))
     expect(clipboardIo.readText).not.toHaveBeenCalled()
   })
 
@@ -767,6 +769,9 @@ describe('TerminalTab', () => {
     // **`onFailed` は呼ばない。** あれはセッションが死んだときの経路で、
     // コピーの失敗でタブを「終了」扱いにしてはいけない
     expect(onFailed).not.toHaveBeenCalled()
+    // **失敗したときは選択を残す。** 先に外していると、やり直すための
+    // 選択が既に消えている（修正4。設計 §7.1 の順）
+    expect(term.clearSelection).not.toHaveBeenCalled()
   })
 })
 

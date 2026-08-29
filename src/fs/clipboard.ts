@@ -46,6 +46,13 @@ export async function readClipboardHtml(): Promise<string> {
  * テキストが載っていないときプラグインはエラーを返すので、**空文字に潰して
  * 呼び出し側を単純にする**——「テキストが無い」は異常ではなく日常的な状態である
  *（`readClipboardHtml` と同じ扱い）
+ *
+ * **「空」と「失敗」を区別していない。** プラグインはどちらでも例外を投げ、
+ * メッセージ文字列を解析しないと見分けられない（非公開の文言に依存する分岐は
+ * 作らない）。その代償として、`clipboard-manager:allow-read-text` が外れると
+ * **右クリック貼り付けは無反応になり、画面には何も出ない**——`TerminalTab` の
+ * 貼り付け失敗の経路（`onError`）はここを通らないため到達しない。
+ * 無反応を見たらまず capabilities の権限を疑うこと（`docs/open-issues.md`）
  */
 export async function readClipboardText(): Promise<string> {
   try {

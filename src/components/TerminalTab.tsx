@@ -388,10 +388,14 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     if (term === null) return
     if (term.hasSelection()) {
       const selected = term.getSelection()
-      term.clearSelection()
-      void clipboardIo.writeText(selected).catch((err: unknown) => {
-        onError(`コピーできませんでした: ${errorText(err)}`)
-      })
+      void clipboardIo
+        .writeText(selected)
+        // **成功してから選択を外す。** 先に外すと、失敗したときに
+        // やり直すための選択が消えている（設計 §7.1 の順）
+        .then(() => term.clearSelection())
+        .catch((err: unknown) => {
+          onError(`コピーできませんでした: ${errorText(err)}`)
+        })
       return
     }
     void clipboardIo
