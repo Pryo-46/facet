@@ -23,6 +23,11 @@ export interface TerminalPaneProps {
   paneVisible: boolean
   /** ダーク表示か。`TerminalTab` へ中継するだけ（配色の読み直しの合図） */
   dark: boolean
+  /**
+   * 差し込み指示（M28）。App が**1つだけ**持ち、ここで宛先のタブへ振り分ける。
+   * `targetId` と一致しないタブには `null` を渡す
+   */
+  insertion: { targetId: number; seq: number; text: string } | null
   onOpen: () => void
   onClose: (id: number) => void
   onActivate: (id: number) => void
@@ -32,11 +37,23 @@ export interface TerminalPaneProps {
 }
 
 export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
-  const { state, cwd, ptyIo, paneVisible, dark, onOpen, onClose, onActivate } = props
+  const { state, cwd, ptyIo, paneVisible, dark, insertion, onOpen, onClose, onActivate } = props
   const { onRunning, onExited, onFailed } = props
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
+    <div
+      className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface"
+      /*
+       * **ペインの中では OS の既定メニューを出さない**（M28）。ここが受けるのは
+       * タブバーと余白の分で、**止めるだけで何も起こさない**——タブバーで
+       * 右クリックして貼り付けが起きるのはおかしい。端末の中身は `TerminalTab`
+       * が先に拾ってコピー／貼り付けへ割り当てる（バブリングで両方が
+       * `preventDefault` を呼ぶが無害）。
+       * **アプリ全体では止めない**（人間の裁定）——エディタ側のテキスト欄では
+       * OS のメニューからの貼り付けが使えたままになる
+       */
+      onContextMenu={(event) => event.preventDefault()}
+    >
       {/*
        * role="tablist"/"tab" は名乗らない。スクリーンリーダー利用者は考慮しない
        * という依頼者判断のもと、対応する tabpanel も矢印キー移動も持たない
@@ -96,10 +113,9 @@ export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
             ptyIo={ptyIo}
             hidden={!paneVisible || state.activeId !== session.id}
             dark={dark}
-            // Task 4 で宛先の振り分けに差し替わる暫定値。ここで props を
-            // 増やさないのは、振り分けの判断を `TerminalPane` に置くのが
-            // Task 4 の設計だから
-            insertion={null}
+            insertion={
+              insertion !== null && insertion.targetId === session.id ? insertion : null
+            }
             onRunning={onRunning}
             onExited={onExited}
             onFailed={onFailed}

@@ -1200,6 +1200,8 @@ function App() {
                 ptyIo={tauriPtyIo}
                 paneVisible={paneOpen}
                 dark={dark}
+                // Task 8 で本物の差し込み state に差し替わる暫定値
+                insertion={null}
                 onOpen={openTerminal}
                 onClose={closeTerminal}
                 onActivate={(id) => setTerminals((prev) => activateSession(prev, id))}
