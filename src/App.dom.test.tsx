@@ -3,6 +3,7 @@ import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { encodeMiroClipboard } from '@/modules/logic-tree/miro-codec'
+import { tableCopyPrefs } from '@/core/table-copy-options'
 
 /**
  * 額縁レベルの DOM テスト。**このファイルが守っているのは1点だけ**——
@@ -1053,6 +1054,13 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
 })
 
 describe('表形式でコピー（M29）', () => {
+  // モジュールスコープの可変状態はテスト間で漏れる（`table-copy-options.ts` の
+  // JSDoc）。ここで reset しないと、先に走ったテストが変えた設定（No 列オフ等）
+  // が後続のテストへ持ち越される
+  beforeEach(() => {
+    tableCopyPrefs.reset()
+  })
+
   const GLOSSARY_PATH = '/proj/用語集.json'
   const LOGIC_TREE_PATH = '/proj/木.json'
 
