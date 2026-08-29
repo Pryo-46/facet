@@ -135,7 +135,7 @@ export function TableCopyDialog(props: TableCopyDialogProps) {
                     disabled={!options.numbering}
                     onChange={() => setOptions((o) => ({ ...o, numberStyle: style }))}
                   />
-                  {style === 'path' ? '階層番号（1-1-1）' : '通し番号（1, 2, 3…）'}
+                  {style === 'path' ? '階層番号（1_1_1）' : '通し番号（1, 2, 3…）'}
                 </label>
               ))}
             </div>

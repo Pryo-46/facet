@@ -55,18 +55,27 @@ describe('logicTreeToTable', () => {
 
   it('親は先頭行だけに出す（既定）', () => {
     expect(logicTreeToTable(data, opts()).rows).toEqual([
-      ['1-1-1', '売上が下がった', '客数が減った', '新規が減った'],
-      ['1-1-2', '', '', '離脱が増えた'],
-      ['1-2-1', '', '単価が下がった', '値引きが増えた'],
-      ['1-2-2', '', '', '安いプランへの移行'],
-      ['1-3', '', '（未定義）', ''],
+      ['1_1_1', '売上が下がった', '客数が減った', '新規が減った'],
+      ['1_1_2', '', '', '離脱が増えた'],
+      ['1_2_1', '', '単価が下がった', '値引きが増えた'],
+      ['1_2_2', '', '', '安いプランへの移行'],
+      ['1_3', '', '（未定義）', ''],
     ])
+  })
+
+  it('**階層番号に `-` を使わない**（Excel・スプレッドシートが日付に変換する）', () => {
+    const numbers = logicTreeToTable(data, opts()).rows.map((r) => r[0])
+    // `1-1-1` は 2001/1/1、`1-3` は 3月1日 に化ける。2階層の葉でも起きる
+    expect(numbers.some((n) => n.includes('-'))).toBe(false)
+    // `.` もロケールによっては日付になるので使わない
+    expect(numbers.some((n) => n.includes('.'))).toBe(false)
+    expect(numbers).toContain('1_3')
   })
 
   it('repeatParent オンなら親を毎行くり返す', () => {
     const rows = logicTreeToTable(data, opts({ repeatParent: true })).rows
-    expect(rows[1]).toEqual(['1-1-2', '売上が下がった', '客数が減った', '離脱が増えた'])
-    expect(rows[4]).toEqual(['1-3', '売上が下がった', '（未定義）', ''])
+    expect(rows[1]).toEqual(['1_1_2', '売上が下がった', '客数が減った', '離脱が増えた'])
+    expect(rows[4]).toEqual(['1_3', '売上が下がった', '（未定義）', ''])
   })
 
   it('numberStyle が serial なら通し番号', () => {
@@ -85,7 +94,7 @@ describe('logicTreeToTable', () => {
   })
 
   it('葉より浅い階層の残り列は空にする', () => {
-    // 1-3 は深さ2の葉なので、第3階層は空
+    // 1_3 は深さ2の葉なので、第3階層は空
     expect(logicTreeToTable(data, opts()).rows[4][3]).toBe('')
   })
 
@@ -109,7 +118,7 @@ describe('logicTreeToTable', () => {
     }
     expect(logicTreeToTable(two, opts()).rows).toEqual([
       ['1', 'A', ''],
-      ['2-1', 'B', 'B1'],
+      ['2_1', 'B', 'B1'],
     ])
   })
 })

@@ -1154,7 +1154,7 @@ describe('表形式でコピー（M29）', () => {
     await screen.findByRole('textbox', { name: 'ファイルの名前' })
 
     fireEvent.click(screen.getByRole('button', { name: '表形式でコピー' }))
-    expect(await screen.findByRole('radio', { name: '階層番号（1-1-1）' })).toBeTruthy()
+    expect(await screen.findByRole('radio', { name: '階層番号（1_1_1）' })).toBeTruthy()
     expect(screen.getByRole('checkbox', { name: '親の文言を毎行くり返す' })).toBeTruthy()
   })
 

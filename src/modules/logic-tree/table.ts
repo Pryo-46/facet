@@ -7,7 +7,7 @@ import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
  *
  * **階層を列に展開し、葉ごとに1行を出す。** コンサルのロジックツリー表の定番で、
  * 貼ったまま木の形が目で追える。**中間ノードは自分の行を持たない**ので、
- * 階層番号に出るのは葉のパス（`1-2-1`）だけになる——番号は葉を指す識別子である。
+ * 階層番号に出るのは葉のパス（`1_2_1`）だけになる——番号は葉を指す識別子である。
  *
  * **`visible` は受け取らない。** ロジックツリーのエディタは絞り込みを持たない
  *（額縁は常に null を渡す）ので、引数に取ると「効かない設定」が型に現れる。
@@ -22,6 +22,22 @@ import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
 
 /** No 列の見出し。**ロジックツリーは表を持たない**ので、列ラベルの置き場がここしかない */
 const NO_COLUMN_LABEL = 'No'
+
+/**
+ * 階層番号の区切り。**`-` は使えない。**
+ *
+ * Excel も Google スプレッドシートも、貼り付けたセルに型推論をかける。`1-1-1` は
+ * 2001/1/1 に、`1-3` は 3月1日 に化ける——**2階層の葉でも起きる**ので、深い木に
+ * 限った話ではない。**RFC 4180 の引用（`"…"`）では止まらない**（あれは区切り文字を
+ * 守るだけで、型推論には効かない）。
+ *
+ * `.` も選べない。**ロケールによっては `1.1.1` が日付として解釈される**（`.` を
+ * 日付区切りに使う地域）。`_` はどのロケールでも数値にも日付にもならないので、
+ * 貼った先で文字列のまま残る唯一の確実な選択肢である。
+ *
+ * **通し番号（`serial`）はこの問題を持たない**——素の整数は数値になるのが正しい。
+ */
+const NUMBER_SEPARATOR = '_'
 
 /** 葉1件。ルートからその葉までの経路を持つ */
 interface Leaf {
@@ -79,7 +95,7 @@ export function logicTreeToTable(
         !options.repeatParent && prev !== undefined && sameAncestors(leaf.numbers, prev.numbers, d)
       cells.push(alreadyShown ? '' : leaf.labels[d])
     }
-    const no = options.numberStyle === 'path' ? leaf.numbers.join('-') : String(rowIndex + 1)
+    const no = options.numberStyle === 'path' ? leaf.numbers.join(NUMBER_SEPARATOR) : String(rowIndex + 1)
     return [...(options.numbering ? [no] : []), ...cells]
   })
   return { header, rows }

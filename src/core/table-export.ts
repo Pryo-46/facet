@@ -41,7 +41,12 @@ export type VisibleRows = ReadonlySet<string> | null
 export interface TableOptions {
   /** No 列を付ける */
   readonly numbering: boolean
-  /** No の形式。'serial' = 1, 2, 3… / 'path' = 1-1-1 */
+  /**
+   * No の形式。'serial' = 1, 2, 3… / 'path' = 1_1_1
+   *
+   * **区切りが `_` なのは Excel 対策**（`1-1-1` は日付に化ける）。理由は
+   * 実装側の `logic-tree/table.ts` の `NUMBER_SEPARATOR` に書いてある
+   */
   readonly numberStyle: 'serial' | 'path'
   /** 親の文言を毎行くり返す */
   readonly repeatParent: boolean

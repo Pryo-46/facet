@@ -21,7 +21,7 @@ describe('TableCopyDialog: 出す項目', () => {
     render(<TableCopyDialog {...base} onCopy={vi.fn()} onCancel={vi.fn()} />)
     expect(screen.getByRole('checkbox', { name: 'No 列を付ける' })).toBeTruthy()
     expect(screen.getByRole('checkbox', { name: '未記入を（未定義）と出す' })).toBeTruthy()
-    expect(screen.queryByRole('radio', { name: '階層番号（1-1-1）' })).toBeNull()
+    expect(screen.queryByRole('radio', { name: '階層番号（1_1_1）' })).toBeNull()
     expect(screen.queryByRole('checkbox', { name: '親の文言を毎行くり返す' })).toBeNull()
   })
 
@@ -62,7 +62,7 @@ describe('TableCopyDialog: No 列と形式の連動', () => {
   it('No 列オフなら形式のラジオが不活性になる（選ばせても効かない設定を押させない）', () => {
     render(<TableCopyDialog {...withStyle} onCopy={vi.fn()} onCancel={vi.fn()} />)
     fireEvent.click(screen.getByRole('checkbox', { name: 'No 列を付ける' }))
-    expect(screen.getByRole('radio', { name: '階層番号（1-1-1）' })).toHaveProperty('disabled', true)
+    expect(screen.getByRole('radio', { name: '階層番号（1_1_1）' })).toHaveProperty('disabled', true)
   })
 })
 
