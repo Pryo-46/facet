@@ -155,6 +155,11 @@ vi.mock('@/fs/clipboard', () => ({
   // の担当
   tauriClipboardIo: { readText: async () => '', writeText: async () => undefined },
 }))
+// エクスプローラからのドロップ（M28）。jsdom には Tauri のグローバルが無いので、
+// 購読は何もしない関数に差し替える（このファイルのテストはドロップを主張しない）
+vi.mock('@/fs/drag-drop', () => ({
+  onDragDrop: async () => () => undefined,
+}))
 vi.mock('@/fs/pty', () => ({
   tauriPtyIo: {
     // spec 全体（program/args/cwd/cols/rows/onData/onExit）のうち、ここでは

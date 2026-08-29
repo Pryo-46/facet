@@ -41,7 +41,7 @@ import type { ProjectFile } from '@/core/project-file'
 import { READING_GUIDE_FILENAME, syncReadingGuide } from '@/core/reading-guide'
 import { scanFolder } from '@/core/scan'
 import { BUNDLED_SKILLS, syncBundledSkills } from '@/core/skill-sync'
-import { fileReference } from '@/core/terminal/file-reference'
+import { fileReference, fileReferences } from '@/core/terminal/file-reference'
 import {
   activateSession,
   closeAll,
@@ -78,6 +78,7 @@ import {
   readClipboardHtml,
   tauriClipboardIo,
 } from '@/fs/clipboard'
+import { onDragDrop } from '@/fs/drag-drop'
 import {
   allowProjectDir,
   askSaveMarkdownPath,
@@ -234,6 +235,8 @@ function App() {
   // window リスナーはマウント時に1回しか張らないので、最新値は ref から読む
   //（**state 直読みに「簡潔化」しないこと**。常に初期値になる）
   const terminalPaneRef = useRef<HTMLElement | null>(null)
+  /** エクスプローラからファイルを持ってこられている最中か（M28。設計 §6.3） */
+  const [dropActive, setDropActive] = useState(false)
 
   /**
    * `splitRef`（サイドバーを含まない、エディタ＋ペインの区間）の実測幅
@@ -366,6 +369,12 @@ function App() {
     )
   }
   const [projectDir, setProjectDir] = useState<string | null>(null)
+  // window リスナーはマウント時に1回しか張らないので、最新値は ref から読む
+  //（terminalPaneRef の隣のコメントと同じ理由）
+  const projectDirRef = useRef(projectDir)
+  projectDirRef.current = projectDir
+  const handoffRef = useRef(handoffToTerminal)
+  handoffRef.current = handoffToTerminal
   const [files, setFiles] = useState<ProjectFile[]>([])
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   // 編集中データは履歴の present が正（Undo/Redo で入れ替わる。ファイル単位・
@@ -862,6 +871,69 @@ function App() {
   }, [])
 
   /**
+   * エクスプローラからのドロップ（M28）。
+   *
+   * **HTML5 の D&D は使わない。** Tauri の `dragDropEnabled` は既定で `true` で、
+   * その状態では Windows の HTML5 D&D が効かない（両立しない）。facet は HTML5
+   * D&D を1箇所も使っていない（仕切りもキャンバスもポインタイベント）ので、
+   * 既定のまま Tauri のイベントを受ける方が得（設計 §6.1）。
+   *
+   * **イベントはウィンドウ全体で発火する**ので、位置がペインの矩形の中に
+   * あるときだけ受ける。**畳んでいるペインは `display:none` で矩形が 0 になり、
+   * 必ず「外」と判定される**——見えていない場所へは落とせない、という結果に
+   * なるが、狙いどおりである（落とし先が見えないドロップは成立しない）
+   */
+  useEffect(() => {
+    const inPane = (position: { x: number; y: number }): boolean => {
+      const pane = terminalPaneRef.current
+      if (pane === null) return false
+      // position は**物理ピクセル**。CSS ピクセルへ直してから矩形と比べる
+      const ratio = window.devicePixelRatio || 1
+      const x = position.x / ratio
+      const y = position.y / ratio
+      const rect = pane.getBoundingClientRect()
+      return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+    }
+
+    let unlisten: (() => void) | null = null
+    let disposed = false
+    void onDragDrop((payload) => {
+      if (payload.type === 'leave') {
+        setDropActive(false)
+        return
+      }
+      const inside = inPane(payload.position)
+      if (payload.type !== 'drop') {
+        // enter / over。**`over` に paths は無い**ので触らない
+        setDropActive(inside)
+        return
+      }
+      setDropActive(false)
+      if (!inside) return
+      const dir = projectDirRef.current
+      if (dir === null) return
+      if (payload.paths.length === 0) return
+      handoffRef.current(fileReferences(dir, payload.paths))
+    })
+      .then((fn) => {
+        // 解決までにアンマウントされていたら、その場で外す
+        if (disposed) {
+          fn()
+          return
+        }
+        unlisten = fn
+      })
+      .catch(() => {
+        // ドロップを受けられなくても他の動線（@ ボタン）は生きている。
+        // ここで画面を汚さない
+      })
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [])
+
+  /**
    * 同梱 Skill の配置（設計 決定10）。**フォルダ1つにつき1回**——Skill は
    * プロジェクトに属するもので、端末セッションの数とは関係が無い。
    * `projectDir` をキーにした effect にすることで、`openFolder` /
@@ -1240,7 +1312,9 @@ function App() {
               // 立ち上がる（設計 決定6）。畳む＝隠すだけ。
               // display は排他なので三項で切り替える（`hidden` と `flex` を
               // 並べてもどちらが勝つかは出力順まかせになる）
-              className={`${paneOpen ? 'flex' : 'hidden'} shrink-0 flex-col border-l border-rule`}
+              className={`${paneOpen ? 'flex' : 'hidden'} shrink-0 flex-col border-l ${
+                dropActive ? 'border-ink' : 'border-rule'
+              }`}
               style={{ width: displayPaneWidth }}
             >
               <TerminalPane
