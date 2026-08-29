@@ -50,6 +50,31 @@ export interface TerminalTabProps {
 // ソースに直接置かないため String.fromCharCode(27) で組み立てる
 const SHIFT_ENTER_SEQUENCE = `${String.fromCharCode(27)}\r`
 
+/**
+ * 差し込み（M28）を流すまでの「静穏」判定に使う時間（ミリ秒）。
+ *
+ * 実機の診断で確定した事実: `claude` は raw mode の初期化の一環として
+ * REPL の入力欄を作るより**前**に DECSET 2004（bracketed paste mode）を
+ * 有効にする。つまり 2004 を見た瞬間は「貼り付けを受け付ける準備ができた」
+ * ではなく、単に「端末の設定を済ませた」に過ぎない。2004 を見た後、
+ * 出力がこの時間途切れたら「描き終えて入力待ちになった」とみなして
+ * 保留を流す（出力が来るたびにこの時間へリセットする）。
+ * **実機で調整する可能性が高いので、値をここ1箇所に集める**
+ *（export しているのは TerminalTab.dom.test.tsx が同じ値を読むため——
+ * テスト側で数値を複製すると、ここを変えたときにテストだけ古い値のまま
+ * 残る）
+ */
+export const INSERTION_QUIET_MS = 500
+
+/**
+ * `spawn` 解決からここまで待っても静穏（`INSERTION_QUIET_MS`）が来なければ、
+ * 待たずに保留を流す上限（ミリ秒）。描画が止まらない・出力が途切れない
+ * アプリでも「いつまでも差し込まれない」を避けるための保険。
+ * 静穏を待つぶん時間がかかるようになったので、従来の5秒から延ばした
+ *（export の理由は INSERTION_QUIET_MS と同じ）
+ */
+export const INSERTION_MAX_WAIT_MS = 8000
+
 /** 例外を人に見せる文字列にする */
 const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err))
 
@@ -122,12 +147,16 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
    * まだ差し込んでいない保留の列（M28）。**実機で末尾のスペースが消える
    * 不具合の修正**——spawn 解決直後は claude の TUI がまだ立ち上がっておらず、
    * xterm が貼り付けを囲む条件（DECSET 2004 = bracketed paste mode）を
-   * 満たさない。ここでは差し込まず、xterm が 2004 を解析し終えるまで
-   * 待ってから差し込む（下の起動 effect の onData）。5秒たっても来なければ
-   * 従来どおり差し込む（保留し続けるのが一番悪い）。
+   * 満たさない。
    *
-   * **起動時の差し込み（`session.initialText`）だけでなく、まだ 2004 を
-   * 見ていない間に押された `insertion`（@ ボタン／ドロップ）もここへ積む。**
+   * **2004 を見ただけでも足りない**（実機診断で確定。`INSERTION_QUIET_MS`
+   * のコメント参照）。ここでは差し込まず、2004 を見た後に出力が
+   * `INSERTION_QUIET_MS` 途切れる（＝静穏＝描き終えて入力待ちになった）まで
+   * 待ってから差し込む（下の起動 effect の onData）。`INSERTION_MAX_WAIT_MS`
+   * たっても静穏が来なければ、待たずに差し込む（保留し続けるのが一番悪い）。
+   *
+   * **起動時の差し込み（`session.initialText`）だけでなく、まだ流していない
+   * 間に押された `insertion`（@ ボタン／ドロップ）もここへ積む。**
    * 差し込み口を1本にする M28 の設計に合わせ、待ち合わせも1箇所に揃える
    * （下の insertion effect）。先頭が `initialText`、その後ろに押された順で
    * `insertion` が並ぶ
@@ -135,12 +164,14 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   const pendingInsertionsRef = useRef<string[]>([])
 
   /**
-   * bracketed paste が使える状態になったか。xterm の `modes.bracketedPasteMode`
-   * が true になった、または5秒の上限に達したら true。**一度 true になったら
-   * 戻らない**——それ以降の `insertion` は保留せず即座に `term.paste()` する
+   * 保留の列を**もう流したか**。true の意味は「2004 を見た」ではなく
+   * 「`flushPendingInsertion` を実際に呼んだ＝受け取れる状態になった」——
+   * 2004 を見ただけでは入力欄がまだ無いことが実機診断で分かったため、
+   * insertion effect のゲート（即座に paste するか保留に積むか）は
+   * こちらを見る必要がある。**一度 true になったら戻らない**
    * （下の insertion effect）
    */
-  const bracketedPasteReadyRef = useRef(false)
+  const insertionFlushedRef = useRef(false)
 
   useEffect(() => {
     const host = hostRef.current
@@ -168,8 +199,17 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     // 起動時の差し込み（initialText）があれば列の先頭に置く。以後 insertion
     // effect が押された順で後ろへ積む
     pendingInsertionsRef.current = session.initialText === null ? [] : [session.initialText]
-    bracketedPasteReadyRef.current = false
-    let insertionTimer: ReturnType<typeof setTimeout> | null = null
+    insertionFlushedRef.current = false
+    // 静穏タイマー。2004 を見た後、出力が来るたびに INSERTION_QUIET_MS へ
+    // 張り直す。2004 を見る前は張らない（描画が始まる前の静けさで流さない）
+    let quietTimer: ReturnType<typeof setTimeout> | null = null
+    // 上限タイマー。spawn 解決から INSERTION_MAX_WAIT_MS たったら、静穏が
+    // 来ていなくても流す（描画が止まらないアプリでの無限待ちを防ぐ保険）
+    let capTimer: ReturnType<typeof setTimeout> | null = null
+    // 2004（bracketed paste mode）を既に見たか。**このマウント内だけで
+    // 使うローカル変数で足りる**——insertion effect が見るのは
+    // `insertionFlushedRef`（もう流したか）であって、この途中状態ではない
+    let sawBracketedPaste = false
 
     // TODO(M28診断): 原因が分かったら消す。ここは起動 effect の同期部分で、
     // StrictMode の二重マウントでは「捨てられる側」の `disposed` がまだ
@@ -186,15 +226,19 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     })
 
     /**
-     * 保留の列を順に差し込み、タイマーを解除する。**「2004 を見た」への
+     * 保留の列を順に差し込み、両方のタイマーを解除する。**「もう流した」への
      * 遷移も兼ねる**——以後 insertion effect は保留を積まず即座に paste する。
      * 二重に呼んでも無害（2回目は列が空なので何も paste しない）
      */
     const flushPendingInsertion = (): void => {
-      bracketedPasteReadyRef.current = true
-      if (insertionTimer !== null) {
-        clearTimeout(insertionTimer)
-        insertionTimer = null
+      insertionFlushedRef.current = true
+      if (quietTimer !== null) {
+        clearTimeout(quietTimer)
+        quietTimer = null
+      }
+      if (capTimer !== null) {
+        clearTimeout(capTimer)
+        capTimer = null
       }
       const queued = pendingInsertionsRef.current
       pendingInsertionsRef.current = []
@@ -309,11 +353,27 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
           // parser"）
           term.write(bytes, () => {
             if (disposed) return
-            if (bracketedPasteReadyRef.current) return
-            if (term.modes.bracketedPasteMode) {
+            // もう流し終えている（insertion effect は即座に paste する側へ
+            // 切り替わっている）ので、これ以上ここでやることは無い
+            if (insertionFlushedRef.current) return
+            if (!sawBracketedPaste && term.modes.bracketedPasteMode) {
+              sawBracketedPaste = true
               // TODO(M28診断): 原因が分かったら消す
-              cb.current.onError('M28診断: bracketed paste 有効を検出')
-              flushPendingInsertion()
+              cb.current.onError('M28診断: 2004 を検出。静穏待ち開始')
+            }
+            // **2004 を見る前は静穏タイマーを張らない**（描画が始まる前の
+            // 静けさで流さないため）。見た後は、出力が来るたびに
+            // INSERTION_QUIET_MS へ張り直す——このコールバック自体が
+            // 「出力が来た」ことの合図なので、検出した回もここで張る
+            if (sawBracketedPaste) {
+              if (quietTimer !== null) clearTimeout(quietTimer)
+              quietTimer = setTimeout(() => {
+                quietTimer = null
+                if (disposed) return
+                // TODO(M28診断): 原因が分かったら消す
+                cb.current.onError('M28診断: 静穏を確認、流す')
+                flushPendingInsertion()
+              }, INSERTION_QUIET_MS)
             }
           })
         },
@@ -323,16 +383,21 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         // になり、タブを閉じても kill が飛ばなくなる）
         onExit: (code) => {
           if (disposed) return
-          // 差し込む先がもう無い。タイマーだけ律儀に解除して保留の列を捨てる
+          // 差し込む先がもう無い。タイマーだけ律儀に両方とも解除して
+          // 保留の列を捨てる
           // TODO(M28診断): 原因が分かったら消す。捨てるものが実際にあった
           // ときだけ知らせる（空の保留を毎回「破棄」と言っても紛らわしい）
           if (pendingInsertionsRef.current.length > 0) {
             cb.current.onError('M28診断: 保留を破棄（終了）')
           }
           pendingInsertionsRef.current = []
-          if (insertionTimer !== null) {
-            clearTimeout(insertionTimer)
-            insertionTimer = null
+          if (quietTimer !== null) {
+            clearTimeout(quietTimer)
+            quietTimer = null
+          }
+          if (capTimer !== null) {
+            clearTimeout(capTimer)
+            capTimer = null
           }
           cb.current.onExited(session.id, `終了しました（コード ${code ?? '不明'}）`)
         },
@@ -350,25 +415,26 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         const queued = pendingRef.current
         pendingRef.current = []
         for (const data of queued) send(data)
-        // 起動時の差し込み（M28）は上の onData が bracketed paste の合図を
-        // 見て流す。**ここでは差し込まない**——ここは claude の TUI が
+        // 起動時の差し込み（M28）は上の onData が「2004 を見て、かつ静穏」の
+        // 合図を見て流す。**ここでは差し込まない**——ここは claude の TUI が
         // 立ち上がるより前で、囲まれずに1文字ずつ打たれたのと同じに見える
         // （@ のファイル検索が末尾のスペースを候補の確定として食う）。
-        // 代わりに、いつまでも来ない場合の上限だけをここで仕掛ける。
-        // **保留の列が空でも走らせる。** 2004 を見たかどうかは insertion
+        // 代わりに、いつまでも来ない場合の上限（INSERTION_MAX_WAIT_MS）だけを
+        // ここで仕掛ける。
+        // **保留の列が空でも走らせる。** もう流したかどうかは insertion
         // （@ ボタン／ドロップ）の待ち合わせにも使う1つの状態なので、
         // 起動時の差し込みが無いセッションでも「諦める」上限は要る——
         // さもないと後から来る insertion がいつまでも保留され続ける。
         // **`hidden` は見ない**（`fit()` と違い寸法を測らないので、隠れていても
         // 差し込んでよい）。`disposed` の判定は上の分岐で済んでいる
-        if (!bracketedPasteReadyRef.current) {
-          insertionTimer = setTimeout(() => {
-            insertionTimer = null
+        if (!insertionFlushedRef.current) {
+          capTimer = setTimeout(() => {
+            capTimer = null
             if (disposed) return
             // TODO(M28診断): 原因が分かったら消す
-            cb.current.onError('M28診断: 5秒の上限で流す')
+            cb.current.onError(`M28診断: ${INSERTION_MAX_WAIT_MS / 1000}秒の上限で流す`)
             flushPendingInsertion()
-          }, 5000)
+          }, INSERTION_MAX_WAIT_MS)
         }
         // 起動直後の PTY へ実寸を伝える。ここまでの fit()（隠れている間は
         // 測らない effect）は spawn 前——つまり ptyIdRef.current が null の
@@ -400,12 +466,16 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
 
     return () => {
       disposed = true
-      // 差し込みのタイマーは必ず解除する。解除し忘れると、5秒後に
-      // disposed 済みの Terminal へ paste() しようとする
+      // 差し込みのタイマーは両方とも必ず解除する。解除し忘れると、
+      // 静穏や上限の到達後に disposed 済みの Terminal へ paste() しようとする
       // （タイマー本体の disposed ガードで実害は無いが、掃除は cleanup の役目）
-      if (insertionTimer !== null) {
-        clearTimeout(insertionTimer)
-        insertionTimer = null
+      if (quietTimer !== null) {
+        clearTimeout(quietTimer)
+        quietTimer = null
+      }
+      if (capTimer !== null) {
+        clearTimeout(capTimer)
+        capTimer = null
       }
       // **自分の PTY を殺してから捨てる。** 台帳（App.tsx の
       // closeTerminalNow）も殺すが、`spawn` の解決と台帳への反映
@@ -432,13 +502,14 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
    * マウント時点で `insertion` が入っている経路は現状無いが、ここを守っておけば
    * 「二度差し込まれた」という追いにくい不具合の余地が消える
    *
-   * **即座に paste するのは 2004 を既に見ている（準備できている）ときだけ。**
-   * 起動中（約1秒）に `@` を押すと、起動時の差し込みと同じ理由で bracketed
-   * paste に囲まれないまま TUI の前に流れ、同じ症状（末尾のスペースが @ の
-   * 補完に食われる）が起きる。まだなら起動時の差し込みと同じ保留の列
-   * （`pendingInsertionsRef`）へ積み、2004 を見てから（起動 effect の
-   * flushPendingInsertion が）まとめて流す。**seq の重複排除を先に済ませて
-   * から**保留に積む——同じ指示を二度積まないため
+   * **即座に paste するのは、保留の列をもう流し終えている（`insertionFlushedRef`
+   * が true の）ときだけ。** 起動中（約1秒、その後の静穏待ちも含む）に `@`
+   * を押すと、起動時の差し込みと同じ理由で bracketed paste に囲まれないまま
+   * TUI の前に流れ、同じ症状（末尾のスペースが @ の補完に食われる）が起きる。
+   * まだなら起動時の差し込みと同じ保留の列（`pendingInsertionsRef`）へ積み、
+   * 2004 を見て静穏になってから（起動 effect の flushPendingInsertion が）
+   * まとめて流す。**seq の重複排除を先に済ませてから**保留に積む——同じ
+   * 指示を二度積まないため
    */
   const lastInsertedRef = useRef<number | null>(null)
   const insertionSeq = insertion?.seq ?? null
@@ -447,7 +518,7 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     if (term === null || insertion === null) return
     if (lastInsertedRef.current === insertion.seq) return
     lastInsertedRef.current = insertion.seq
-    if (bracketedPasteReadyRef.current) {
+    if (insertionFlushedRef.current) {
       // TODO(M28診断): 原因が分かったら消す
       onError(`M28診断: 即時 paste "${insertion.text}"`)
       term.paste(insertion.text)
@@ -518,11 +589,11 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
    *
    * **`preventDefault()` がすべての要。** 呼ばなければ WebView2 の既定メニューが出る
    *
-   * **ここは 2004 待ちのゲートに通さない。** 起動時の差し込みと `@`（insertion
-   * effect）は facet が勝手に送るものなので、準備できるまで待たせて構わない。
-   * 一方、右クリックは人が「いま貼る」と決めた操作で、5秒の上限まで黙って
-   * 遅らせる方が「消える」より悪い——だからここだけ `term.paste()` を即座に
-   * 呼ぶ（この非対称は意図したもの）
+   * **ここは 2004・静穏待ちのゲートに通さない。** 起動時の差し込みと `@`
+   *（insertion effect）は facet が勝手に送るものなので、準備できるまで
+   * 待たせて構わない。一方、右クリックは人が「いま貼る」と決めた操作で、
+   * `INSERTION_MAX_WAIT_MS` の上限まで黙って遅らせる方が「消える」より
+   * 悪い——だからここだけ `term.paste()` を即座に呼ぶ（この非対称は意図したもの）
    */
   const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>): void => {
     event.preventDefault()

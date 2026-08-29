@@ -87,7 +87,7 @@ class FakeResizeObserver {
 vi.stubGlobal('ResizeObserver', FakeResizeObserver)
 
 const { Terminal: TerminalMock } = await import('@xterm/xterm')
-const { TerminalTab } = await import('./TerminalTab')
+const { TerminalTab, INSERTION_QUIET_MS, INSERTION_MAX_WAIT_MS } = await import('./TerminalTab')
 
 // PTY からの出力バイト列。中身に意味は無い——bracketed paste が有効に
 // なったかどうかは `term.modes.bracketedPasteMode`（xterm が解析した結果）
@@ -98,11 +98,27 @@ const SOME_PTY_OUTPUT = new Uint8Array([0x61])
  * `term.modes.bracketedPasteMode` を true にしてから PTY 出力を1回流す。
  * TerminalTab は onData の callback（write が処理し終えた合図）の中で
  * modes を読むので、モードを立てるだけでは足りず、出力を流して
- * callback を発火させる必要がある
+ * callback を発火させる必要がある。
+ *
+ * **これだけでは流れない**（M28修正の核心）。2004 を検出しても静穏タイマーが
+ * 動き出すだけで、`INSERTION_QUIET_MS` 経つまで `term.paste()` は呼ばれない。
+ * 「もう流し終えた」状態まで進めたいテストは `enableBracketedPasteAndSettle`
+ * を使う
  */
 function enableBracketedPasteAndEmit(pty: ReturnType<typeof fakePty>): void {
   term.modes.bracketedPasteMode = true
   pty.emit(SOME_PTY_OUTPUT)
+}
+
+/**
+ * 2004 を検出させたうえで、静穏（`INSERTION_QUIET_MS`）を偽タイマーで
+ * 進めて「もう流し終えた」状態まで持っていく。**呼び出し側で
+ * `vi.useFakeTimers()` 済みであること**が前提——実タイマーで
+ * `INSERTION_QUIET_MS` 待つとテストが遅くなる
+ */
+async function enableBracketedPasteAndSettle(pty: ReturnType<typeof fakePty>): Promise<void> {
+  enableBracketedPasteAndEmit(pty)
+  await vi.advanceTimersByTimeAsync(INSERTION_QUIET_MS)
 }
 
 function session(over: Partial<TerminalSession> = {}): TerminalSession {
@@ -216,7 +232,14 @@ beforeEach(() => {
   // ので、前のテストの要素を持ち越さないようここで明示的に落とす
   hostEl = null
 })
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  // このファイルの一部のテストだけ vi.useFakeTimers() を使う（静穏・上限の
+  // タイマーを検証するため）。**テストごとに real へ戻す安全網をここへ
+  // 一括で置く**——個々のテストが戻し忘れても、次のテストへ偽タイマーが
+  // 漏れない（real のときに呼んでも無害）
+  vi.useRealTimers()
+})
 
 describe('TerminalTab', () => {
   it('マウントで PTY を1本起動し、running を知らせる', async () => {
@@ -698,26 +721,23 @@ describe('TerminalTab', () => {
     expect(writes).toEqual([`${String.fromCharCode(27)}\r`])
   })
 
-  describe('起動時の差し込み（M28 実機修正: bracketed paste が有効になってから流す）', () => {
-    // 実機で分かったこと: xterm が貼り付けを ESC[200~ … ESC[201~ で囲むのは
-    // アプリが DECSET 2004（bracketed paste mode）を送った後だけ。spawn 解決
-    // 直後は claude の TUI がまだ立ち上がっておらず、この条件を満たさない。
-    // 囲まれない貼り付けは1文字ずつ打たれたのと同じに見え、@ のファイル
-    // 検索ポップアップが末尾のスペースを候補の確定として食ってしまう
-    // （bug: 起動時の差し込みだけ末尾のスペースが消える）。
+  describe('起動時の差し込み（M28 実機修正: 2004 かつ出力が静まってから流す）', () => {
+    // 実機の診断で確定した事実: xterm が貼り付けを ESC[200~ … ESC[201~ で
+    // 囲むのはアプリが DECSET 2004（bracketed paste mode）を送った後だけ
+    // ——ここまでは正しかった。だが `claude` は raw mode の初期化の一環として
+    // REPL の入力欄を作るより**前**に 2004 を有効にするため、2004 を見た
+    // 瞬間はまだ「貼り付けを受け付ける準備ができた」ではなかった
+    // （term.paste() は呼ばれるのに Claude の入力欄に残らない不具合の原因）。
+    //
+    // **2004 を見た後、出力が INSERTION_QUIET_MS 途切れる（＝描き終えて
+    // 入力待ちになった）まで待ってから流す。** INSERTION_MAX_WAIT_MS たっても
+    // 静穏が来なければ、待たずに流す（保留し続けるのが一番悪い）。
     //
     // **判定は xterm のパーサ任せ**（term.modes.bracketedPasteMode）。
     // 以前は PTY の生バイト列から ESC[?2004h を自前で探していたが、
     // 実機では DEC private mode がアプリによって `CSI ? 1049 ; 2004 h` の
     // ようにまとめて送られることがあり、リテラル一致では取り逃がして
     // いた（起動時の差し込みが行われない不具合の原因）。
-
-    afterEach(() => {
-      // このブロックの1テストだけ偽タイマーを使う。**後始末を忘れると
-      // 他のテスト（xterm/ResizeObserver 側の非同期）を巻き込む**ので、
-      // 毎回 real timers へ戻す（既に real なら無害）
-      vi.useRealTimers()
-    })
 
     it('bracketedPasteMode が false のまま PTY 出力が来ても差し込まれない', async () => {
       const pty = fakePty()
@@ -729,24 +749,12 @@ describe('TerminalTab', () => {
       expect(term.paste).not.toHaveBeenCalled()
     })
 
-    it('bracketedPasteMode が true になった後に出力が来ると差し込まれる（1回だけ）', async () => {
+    // **ここが今回の修正の核心。** 2004 を見ただけ（静穏を待つ前）では
+    // 流れないことを主張する。以前はここで即座に term.paste() が呼ばれて
+    // いたが、それが「呼ばれているのに入力欄に残らない」不具合の原因だった
+    it('bracketedPasteMode が true になっただけでは流れない', async () => {
       const pty = fakePty()
       renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
-      await waitFor(() => expect(pty.spawned).toHaveLength(1))
-
-      enableBracketedPasteAndEmit(pty)
-
-      await waitFor(() => expect(term.paste).toHaveBeenCalledWith('@docs/a.json '))
-      expect(term.paste).toHaveBeenCalledTimes(1)
-
-      // モードが立ったまま出力が重ねて届いても、保留は最初の1回で使い切っている
-      pty.emit(SOME_PTY_OUTPUT)
-      expect(term.paste).toHaveBeenCalledTimes(1)
-    })
-
-    it('initialText が null なら bracketedPasteMode が true になっても差し込まれない', async () => {
-      const pty = fakePty()
-      renderTab({ ptyIo: pty.io })
       await waitFor(() => expect(pty.spawned).toHaveLength(1))
 
       enableBracketedPasteAndEmit(pty)
@@ -754,88 +762,157 @@ describe('TerminalTab', () => {
       expect(term.paste).not.toHaveBeenCalled()
     })
 
-    it('2004 が来ないまま5秒たったら、保留をそのまま差し込む（従来の挙動への縮退）', async () => {
+    it('2004 を見た後、INSERTION_QUIET_MS のあいだ出力が無ければ流れる', async () => {
+      const pty = fakePty()
+      vi.useFakeTimers()
+      renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
+      // spawn は setTimeout を使わないただの async 関数なので、偽タイマーの
+      // 下でもマイクロタスクの解決は進む。0ms 分だけ進めて spawn の解決
+      // （上限タイマーの起動）を確定させる
+      await vi.advanceTimersByTimeAsync(0)
+      expect(pty.spawned).toHaveLength(1)
+
+      await enableBracketedPasteAndSettle(pty)
+
+      expect(term.paste).toHaveBeenCalledWith('@docs/a.json ')
+      expect(term.paste).toHaveBeenCalledTimes(1)
+    })
+
+    it('INSERTION_QUIET_MS 経つ前に出力が来たら待ち直す（静穏タイマーがリセットされる）', async () => {
+      const pty = fakePty()
+      vi.useFakeTimers()
+      renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
+      await vi.advanceTimersByTimeAsync(0)
+
+      term.modes.bracketedPasteMode = true
+      pty.emit(SOME_PTY_OUTPUT) // t=0（静穏タイマーは t=INSERTION_QUIET_MS で発火する予定）
+      await vi.advanceTimersByTimeAsync(INSERTION_QUIET_MS - 200)
+
+      // 発火する前にもう一度出力が来る。タイマーは張り直され、
+      // ここからさらに INSERTION_QUIET_MS 経たないと流れない
+      pty.emit(SOME_PTY_OUTPUT) // t=INSERTION_QUIET_MS-200
+      await vi.advanceTimersByTimeAsync(INSERTION_QUIET_MS - 200)
+      // 最初の出力から見ればもう INSERTION_QUIET_MS 経っているが、
+      // リセットされているのでまだ流れていないはず
+      expect(term.paste).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(200)
+      expect(term.paste).toHaveBeenCalledWith('@docs/a.json ')
+      expect(term.paste).toHaveBeenCalledTimes(1)
+    })
+
+    it('2004 を見る前は、出力が途切れても流れない（静穏タイマーを張らないため）', async () => {
+      const pty = fakePty()
+      vi.useFakeTimers()
+      renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
+      await vi.advanceTimersByTimeAsync(0)
+
+      // bracketedPasteMode はまだ false のまま、出力だけが来る
+      pty.emit(SOME_PTY_OUTPUT)
+      await vi.advanceTimersByTimeAsync(INSERTION_QUIET_MS * 2)
+
+      expect(term.paste).not.toHaveBeenCalled()
+    })
+
+    it('initialText が null なら bracketedPasteMode が true になり静穏になっても差し込まれない', async () => {
+      const pty = fakePty()
+      vi.useFakeTimers()
+      renderTab({ ptyIo: pty.io })
+      await vi.advanceTimersByTimeAsync(0)
+
+      await enableBracketedPasteAndSettle(pty)
+
+      expect(term.paste).not.toHaveBeenCalled()
+    })
+
+    it('spawn 解決から INSERTION_MAX_WAIT_MS たったら、静穏が来ていなくても保留をそのまま差し込む', async () => {
       const pty = fakePty()
       vi.useFakeTimers()
       renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
 
       // spawn は setTimeout を使わないただの async 関数なので、偽タイマーの
       // 下でもマイクロタスクの解決は進む。0ms 分だけ進めて spawn の解決
-      // （5秒タイマーの起動）を確定させる
+      // （上限タイマーの起動）を確定させる
       await vi.advanceTimersByTimeAsync(0)
       expect(pty.spawned).toHaveLength(1)
       expect(term.paste).not.toHaveBeenCalled()
 
-      await vi.advanceTimersByTimeAsync(5000)
+      await vi.advanceTimersByTimeAsync(INSERTION_MAX_WAIT_MS)
 
       expect(term.paste).toHaveBeenCalledWith('@docs/a.json ')
       expect(term.paste).toHaveBeenCalledTimes(1)
     })
 
     // #13: `insertion`（@ ボタン／ドロップ）も起動時の差し込みと同じ保留の列を
-    // 使う。起動中（約1秒）に @ を押すと、直前まではここが素通りで
-    // `term.paste()` が即座に呼ばれており、起動時の差し込みと同じ症状
-    // （末尾のスペースが @ の補完に食われる）が再現していた
+    // 使う。起動中（約1秒、その後の静穏待ちも含む）に @ を押すと、直前まで
+    // はここが素通りで `term.paste()` が即座に呼ばれており、起動時の
+    // 差し込みと同じ症状（末尾のスペースが @ の補完に食われる）が
+    // 再現していた
 
-    it('準備前に来た insertion は保留され、bracketedPasteMode が true になってから paste される', async () => {
+    it('準備前に来た insertion は保留され、2004 を見て静穏になってから paste される', async () => {
       const pty = fakePty()
+      vi.useFakeTimers()
       const { rerender, props: base } = renderTab({ ptyIo: pty.io })
-      await waitFor(() => expect(pty.spawned).toHaveLength(1))
+      await vi.advanceTimersByTimeAsync(0)
 
       // まだ準備できていない。ここでは paste されない
       rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@a.json ' }} />)
       expect(term.paste).not.toHaveBeenCalled()
 
-      // 準備できたら、保留していた insertion がここで流れる
-      enableBracketedPasteAndEmit(pty)
-      await waitFor(() => expect(term.paste).toHaveBeenCalledWith('@a.json '))
+      // 2004 は見たが、まだ静穏していない。ここでも流れない
+      term.modes.bracketedPasteMode = true
+      pty.emit(SOME_PTY_OUTPUT)
+      expect(term.paste).not.toHaveBeenCalled()
+
+      // 静穏になったら、保留していた insertion がここで流れる
+      await vi.advanceTimersByTimeAsync(INSERTION_QUIET_MS)
+      expect(term.paste).toHaveBeenCalledWith('@a.json ')
       expect(term.paste).toHaveBeenCalledTimes(1)
     })
 
     it('initialText と、準備前に来た insertion の両方があるとき、initialText → insertion の順で paste される', async () => {
-      const pty = fakePty()
-      const { rerender, props: base } = renderTab({
-        ptyIo: pty.io,
-        session: session({ initialText: '@docs/a.json ' }),
-      })
-      await waitFor(() => expect(pty.spawned).toHaveLength(1))
-
-      // まだ準備できていない。起動時の差し込み（先頭）に続けて
-      // insertion（@ ボタン）が押される
-      rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@b.json ' }} />)
-      expect(term.paste).not.toHaveBeenCalled()
-
-      enableBracketedPasteAndEmit(pty)
-
-      // **押された順**——initialText が列の先頭、insertion がその後ろ
-      await waitFor(() => expect(term.paste).toHaveBeenCalledTimes(2))
-      expect(term.paste.mock.calls).toEqual([['@docs/a.json '], ['@b.json ']])
-    })
-
-    it('準備できた後の insertion は即座に paste される（従来どおり）', async () => {
-      const pty = fakePty()
-      const { rerender, props: base } = renderTab({ ptyIo: pty.io })
-      await waitFor(() => expect(pty.spawned).toHaveLength(1))
-
-      // 先に準備を済ませておく。以降の insertion は保留を経由しない
-      enableBracketedPasteAndEmit(pty)
-
-      rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@a.json ' }} />)
-      expect(term.paste).toHaveBeenCalledTimes(1)
-      expect(term.paste).toHaveBeenCalledWith('@a.json ')
-    })
-
-    it('2004 が来ないまま5秒たったら、initialText と insertion の列がまとめて paste される', async () => {
       const pty = fakePty()
       vi.useFakeTimers()
       const { rerender, props: base } = renderTab({
         ptyIo: pty.io,
         session: session({ initialText: '@docs/a.json ' }),
       })
+      await vi.advanceTimersByTimeAsync(0)
 
-      // spawn は setTimeout を使わないただの async 関数なので、偽タイマーの
-      // 下でもマイクロタスクの解決は進む。0ms 分だけ進めて spawn の解決
-      // （5秒タイマーの起動）を確定させる
+      // まだ準備できていない。起動時の差し込み（先頭）に続けて
+      // insertion（@ ボタン）が押される
+      rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@b.json ' }} />)
+      expect(term.paste).not.toHaveBeenCalled()
+
+      await enableBracketedPasteAndSettle(pty)
+
+      // **押された順**——initialText が列の先頭、insertion がその後ろ
+      expect(term.paste.mock.calls).toEqual([['@docs/a.json '], ['@b.json ']])
+    })
+
+    it('もう流し終えた後に来た insertion は即座に paste される', async () => {
+      const pty = fakePty()
+      vi.useFakeTimers()
+      const { rerender, props: base } = renderTab({ ptyIo: pty.io })
+      await vi.advanceTimersByTimeAsync(0)
+
+      // 先に流し終えておく（initialText が無いので何も paste されない）。
+      // 以降の insertion は保留を経由しない
+      await enableBracketedPasteAndSettle(pty)
+      expect(term.paste).not.toHaveBeenCalled()
+
+      rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@a.json ' }} />)
+      expect(term.paste).toHaveBeenCalledTimes(1)
+      expect(term.paste).toHaveBeenCalledWith('@a.json ')
+    })
+
+    it('spawn 解決から INSERTION_MAX_WAIT_MS たったら、initialText と insertion の列がまとめて paste される', async () => {
+      const pty = fakePty()
+      vi.useFakeTimers()
+      const { rerender, props: base } = renderTab({
+        ptyIo: pty.io,
+        session: session({ initialText: '@docs/a.json ' }),
+      })
       await vi.advanceTimersByTimeAsync(0)
       expect(pty.spawned).toHaveLength(1)
 
@@ -843,22 +920,43 @@ describe('TerminalTab', () => {
       rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@b.json ' }} />)
       expect(term.paste).not.toHaveBeenCalled()
 
-      await vi.advanceTimersByTimeAsync(5000)
+      await vi.advanceTimersByTimeAsync(INSERTION_MAX_WAIT_MS)
 
       // 押された順（initialText → insertion）でまとめて流れる
       expect(term.paste.mock.calls).toEqual([['@docs/a.json '], ['@b.json ']])
     })
+
+    it('onExit で保留を捨て、静穏・上限の両方のタイマーを解除する', async () => {
+      const pty = fakePty()
+      vi.useFakeTimers()
+      renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
+      await vi.advanceTimersByTimeAsync(0)
+
+      // 2004 を検出させ、静穏タイマー（と、spawn 解決時に張られた上限
+      // タイマー）の両方が生きている状態にする
+      term.modes.bracketedPasteMode = true
+      pty.emit(SOME_PTY_OUTPUT)
+
+      pty.exit(0)
+
+      // 両方のタイマーが解除されていれば、上限ぶん時間を進めても
+      // paste は呼ばれない（解除し忘れがあれば、どちらかのタイマーが
+      // 生き残ってここで誤って流れてしまう）
+      await vi.advanceTimersByTimeAsync(INSERTION_MAX_WAIT_MS)
+      expect(term.paste).not.toHaveBeenCalled()
+    })
   })
 
-  it('insertion.seq が変わったときだけ差し込む（2004 を見た後は即座に paste する）', async () => {
+  it('insertion.seq が変わったときだけ差し込む（もう流し終えた後は即座に paste する）', async () => {
     const pty = fakePty()
+    vi.useFakeTimers()
     const { rerender, props: base } = renderTab({ ptyIo: pty.io })
-    await waitFor(() => expect(pty.spawned).toHaveLength(1))
+    await vi.advanceTimersByTimeAsync(0)
     // **先に準備を済ませておく。** このテストの主張は「seq の重複排除」で
-    // あって「2004 待ちのゲート」ではない（ゲートは上の describe が見る）。
+    // あって「2004・静穏待ちのゲート」ではない（ゲートは上の describe が見る）。
     // 見せておかないと insertion effect が即座に paste せず保留へ積むだけに
     // なり、以降のアサーションが成り立たない
-    enableBracketedPasteAndEmit(pty)
+    await enableBracketedPasteAndSettle(pty)
 
     rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@a.json ' }} />)
     expect(term.paste).toHaveBeenCalledTimes(1)
@@ -876,21 +974,24 @@ describe('TerminalTab', () => {
 
   it('StrictMode の二重マウントでも起動時の差し込みは1回だけ', async () => {
     const pty = fakePtyMultiSpawn()
+    vi.useFakeTimers()
     render(
       <StrictMode>
         <TerminalTab {...tabProps({ ptyIo: pty.io, session: session({ initialText: '@a.json ' }) })} />
       </StrictMode>,
     )
-    await waitFor(() => expect(pty.issuedIds).toHaveLength(2))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(pty.issuedIds).toHaveLength(2)
 
-    // 両方に出力を流す（bracketedPasteMode は先に true にしておく）。
-    // **捨てられた側は disposed で弾かれ、生き残った側だけが流す**——
-    // onRunning を取っていないのでどちらが生存側かは区別できないが、
-    // 両方へ流しても1回にしかならないことがその証拠になる
+    // 両方に出力を流し、静穏になるまで進める（bracketedPasteMode は先に
+    // true にしておく）。**捨てられた側は disposed で弾かれ、生き残った
+    // 側だけが流す**——onRunning を取っていないのでどちらが生存側かは
+    // 区別できないが、両方へ流しても1回にしかならないことがその証拠になる
     term.modes.bracketedPasteMode = true
     for (const id of pty.issuedIds) pty.emit(id, SOME_PTY_OUTPUT)
+    await vi.advanceTimersByTimeAsync(INSERTION_QUIET_MS)
 
-    await waitFor(() => expect(term.paste).toHaveBeenCalledTimes(1))
+    expect(term.paste).toHaveBeenCalledTimes(1)
     expect(term.paste).toHaveBeenCalledWith('@a.json ')
   })
 
