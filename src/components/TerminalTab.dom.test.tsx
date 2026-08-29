@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, waitFor } from '@testing-library/react'
 import { StrictMode } from 'react'
+import type React from 'react'
 import type { PtyIo } from '@/core/terminal/pty-io'
 import type { TerminalSession } from '@/core/terminal/sessions'
 
@@ -9,6 +10,10 @@ import type { TerminalSession } from '@/core/terminal/sessions'
 const term = {
   open: vi.fn(),
   write: vi.fn(),
+  paste: vi.fn(),
+  hasSelection: vi.fn(() => false),
+  getSelection: vi.fn(() => ''),
+  clearSelection: vi.fn(),
   onData: vi.fn(),
   dispose: vi.fn(),
   loadAddon: vi.fn(),
@@ -67,6 +72,32 @@ const { TerminalTab } = await import('./TerminalTab')
 
 function session(over: Partial<TerminalSession> = {}): TerminalSession {
   return { id: 1, label: 'Claude 1', ptyId: null, status: 'starting', message: null, initialText: null, ...over }
+}
+
+type TabProps = React.ComponentProps<typeof TerminalTab>
+
+/**
+ * 既定の props を1箇所に集める。**props が増えるたびに全テストを触らずに済む**
+ * ようにするため（M28 で insertion / clipboardIo / onError が増える）。
+ * `rerender` するテストは、この戻り値を展開してから差分だけ上書きする
+ */
+function tabProps(over: Partial<TabProps> & { ptyIo: PtyIo }): TabProps {
+  return {
+    session: session(),
+    cwd: '/proj',
+    hidden: false,
+    dark: false,
+    insertion: null,
+    onRunning: vi.fn(),
+    onExited: vi.fn(),
+    onFailed: vi.fn(),
+    ...over,
+  }
+}
+
+function renderTab(over: Partial<TabProps> & { ptyIo: PtyIo }) {
+  const props = tabProps(over)
+  return { ...render(<TerminalTab {...props} />), props }
 }
 
 function fakePty() {
@@ -129,6 +160,8 @@ beforeEach(() => {
   term.cols = 80
   term.rows = 24
   term.options = {}
+  term.hasSelection.mockReturnValue(false)
+  term.getSelection.mockReturnValue('')
   FakeResizeObserver.instances = []
 })
 afterEach(cleanup)
@@ -137,36 +170,14 @@ describe('TerminalTab', () => {
   it('マウントで PTY を1本起動し、running を知らせる', async () => {
     const pty = fakePty()
     const onRunning = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, onRunning })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
     expect(pty.spawned).toEqual([{ cwd: '/proj', program: 'claude' }])
   })
 
   it('PTY の出力を xterm へそのまま渡す', async () => {
     const pty = fakePty()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={vi.fn()}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: pty.io })
     await waitFor(() => expect(pty.spawned).toHaveLength(1))
     const bytes = new Uint8Array([0xe3, 0x81, 0x82])
     pty.emit(bytes)
@@ -176,18 +187,7 @@ describe('TerminalTab', () => {
   it('子が終了したら exited を知らせる', async () => {
     const pty = fakePty()
     const onExited = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={vi.fn()}
-        onExited={onExited}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, onExited })
     await waitFor(() => expect(pty.spawned).toHaveLength(1))
     pty.exit(0)
     expect(onExited).toHaveBeenCalledWith(1, '終了しました（コード 0）')
@@ -199,18 +199,7 @@ describe('TerminalTab', () => {
       throw new Error('program not found')
     }
     const onFailed = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={vi.fn()}
-        onExited={vi.fn()}
-        onFailed={onFailed}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, onFailed })
     await waitFor(() =>
       expect(onFailed).toHaveBeenCalledWith(
         1,
@@ -240,18 +229,7 @@ describe('TerminalTab', () => {
       term.rows = 12
     })
     const onRunning = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, onRunning })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
     expect(pty.resized).toEqual([{ id: 7, cols: 45, rows: 12 }])
   })
@@ -261,18 +239,7 @@ describe('TerminalTab', () => {
     // ここで測って resize してはいけない（隠れている間は測らないという
     // 既存の原則と同じ）
     const pty = fakePty()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden
-        dark={false}
-        onRunning={vi.fn()}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, hidden: true })
     await waitFor(() => expect(pty.spawned).toHaveLength(1))
     expect(pty.resized).toEqual([])
   })
@@ -281,16 +248,11 @@ describe('TerminalTab', () => {
     // display:none の間は xterm が寸法を測れない（clientWidth が 0）。
     // ここで測ると開き直したときだけ表示が崩れる
     const pty = fakePty()
-    const props = {
-      session: session({ status: 'running', ptyId: 7 }),
-      cwd: '/proj',
+    const { rerender, props } = renderTab({
       ptyIo: pty.io,
-      dark: false,
-      onRunning: vi.fn(),
-      onExited: vi.fn(),
-      onFailed: vi.fn(),
-    }
-    const { rerender } = render(<TerminalTab {...props} hidden />)
+      session: session({ status: 'running', ptyId: 7 }),
+      hidden: true,
+    })
     await waitFor(() => expect(pty.spawned).toHaveLength(1))
     expect(fit.fit).not.toHaveBeenCalled()
 
@@ -301,18 +263,10 @@ describe('TerminalTab', () => {
 
   it('exited のときタブの中に文言を出す', () => {
     const pty = fakePty()
-    const { getByText } = render(
-      <TerminalTab
-        session={session({ status: 'exited', message: '終了しました（コード 0）' })}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={vi.fn()}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    const { getByText } = renderTab({
+      ptyIo: pty.io,
+      session: session({ status: 'exited', message: '終了しました（コード 0）' }),
+    })
     expect(getByText('終了しました（コード 0）')).toBeTruthy()
   })
 
@@ -322,18 +276,7 @@ describe('TerminalTab', () => {
     // ptyId を知らない。cleanup でも殺しておけばその窓が消える
     const pty = fakePty()
     const onRunning = vi.fn()
-    const { unmount } = render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    const { unmount } = renderTab({ ptyIo: pty.io, onRunning })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
     expect(pty.io.kill).not.toHaveBeenCalled()
 
@@ -351,16 +294,7 @@ describe('TerminalTab', () => {
     const onRunning = vi.fn()
     render(
       <StrictMode>
-        <TerminalTab
-          session={session()}
-          cwd="/proj"
-          ptyIo={pty.io}
-          hidden={false}
-          dark={false}
-          onRunning={onRunning}
-          onExited={vi.fn()}
-          onFailed={vi.fn()}
-        />
+        <TerminalTab {...tabProps({ ptyIo: pty.io, onRunning })} />
       </StrictMode>,
     )
 
@@ -389,16 +323,7 @@ describe('TerminalTab', () => {
     const onExited = vi.fn()
     render(
       <StrictMode>
-        <TerminalTab
-          session={session()}
-          cwd="/proj"
-          ptyIo={pty.io}
-          hidden={false}
-          dark={false}
-          onRunning={onRunning}
-          onExited={onExited}
-          onFailed={vi.fn()}
-        />
+        <TerminalTab {...tabProps({ ptyIo: pty.io, onRunning, onExited })} />
       </StrictMode>,
     )
 
@@ -423,18 +348,7 @@ describe('TerminalTab', () => {
   it('ペインの寸法が変わったら fit() を走らせ、桁数・行数が変わっていれば pty_resize を呼ぶ', async () => {
     const pty = fakePty()
     const onRunning = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, onRunning })
     // 表示中でマウントすると「隠れている間は測らない」effect の fit() に加え、
     // spawn 解決直後にも実寸で pty_resize が1回飛ぶ（指摘1の修正）。
     // ResizeObserver 由来の呼び出しだけを見たいので、起動が落ち着いた
@@ -461,18 +375,7 @@ describe('TerminalTab', () => {
   it('桁数・行数が変わらない通知では pty_resize を呼ばない', async () => {
     const pty = fakePty()
     const onRunning = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, onRunning })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
     fit.fit.mockClear()
     // 起動直後の resize（指摘1の修正）を含めない。ここで見たいのは
@@ -490,18 +393,7 @@ describe('TerminalTab', () => {
   it('寸法が 0 の通知では fit しない（隠れている間の通知を無視する）', async () => {
     const pty = fakePty()
     const onRunning = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, onRunning })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
     fit.fit.mockClear()
     // 起動直後の resize（指摘1の修正）を含めない。ここで見たいのは
@@ -518,18 +410,7 @@ describe('TerminalTab', () => {
   it('Shift+Enter で ESC+CR を書き込み、xterm の既定処理を止める', async () => {
     const pty = fakePty()
     const onRunning = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, onRunning })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
 
     const handler = term.attachCustomKeyEventHandler.mock.calls[0]?.[0] as (
@@ -555,18 +436,7 @@ describe('TerminalTab', () => {
   it('素の Enter では書き込まない（preventDefault も呼ばない）', async () => {
     const pty = fakePty()
     const onRunning = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, onRunning })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
 
     const handler = term.attachCustomKeyEventHandler.mock.calls[0]?.[0] as (
@@ -587,18 +457,7 @@ describe('TerminalTab', () => {
   it('Ctrl+Shift+Enter では書き込まない（修飾キーの取り違えを防ぐ、preventDefault も呼ばない）', async () => {
     const pty = fakePty()
     const onRunning = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, onRunning })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
 
     const handler = term.attachCustomKeyEventHandler.mock.calls[0]?.[0] as (
@@ -628,18 +487,7 @@ describe('TerminalTab', () => {
     )
     const onRunning = vi.fn()
     const onFailed = vi.fn()
-    const { unmount } = render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={onFailed}
-      />,
-    )
+    const { unmount } = renderTab({ ptyIo: pty.io, onRunning, onFailed })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
 
     // term.onData に登録されたコールバック（xterm からのキー入力を PTY へ
@@ -667,18 +515,7 @@ describe('TerminalTab', () => {
     })
     const onRunning = vi.fn()
     const onFailed = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={onFailed}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, onRunning, onFailed })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
 
     const registeredOnData = term.onData.mock.calls.at(-1)?.[0] as (data: string) => void
@@ -701,16 +538,7 @@ describe('TerminalTab', () => {
     const onFailed = vi.fn()
     render(
       <StrictMode>
-        <TerminalTab
-          session={session()}
-          cwd="/proj"
-          ptyIo={pty.io}
-          hidden={false}
-          dark={false}
-          onRunning={onRunning}
-          onExited={vi.fn()}
-          onFailed={onFailed}
-        />
+        <TerminalTab {...tabProps({ ptyIo: pty.io, onRunning, onFailed })} />
       </StrictMode>,
     )
 
@@ -764,18 +592,7 @@ describe('TerminalTab', () => {
       kill: vi.fn(async () => undefined),
     }
     const onRunning = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: io, onRunning })
 
     // **spawn の解決前に onData が登録されていること**が穴そのもの
     await waitFor(() => expect(term.onData).toHaveBeenCalled())
@@ -814,18 +631,7 @@ describe('TerminalTab', () => {
       kill: vi.fn(async () => undefined),
     }
     const onRunning = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: io, onRunning })
     await waitFor(() => expect(term.attachCustomKeyEventHandler).toHaveBeenCalled())
     const handler = term.attachCustomKeyEventHandler.mock.calls[0]?.[0] as (
       event: KeyboardEvent,
@@ -836,6 +642,49 @@ describe('TerminalTab', () => {
     release()
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
     expect(writes).toEqual([`${String.fromCharCode(27)}\r`])
+  })
+
+  it('起動時の差し込みを spawn 解決後に1回だけ流す', async () => {
+    const pty = fakePty()
+    renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
+    await waitFor(() => expect(term.paste).toHaveBeenCalledWith('@docs/a.json '))
+    expect(term.paste).toHaveBeenCalledTimes(1)
+  })
+
+  it('initialText が null なら何も差し込まない', async () => {
+    const pty = fakePty()
+    renderTab({ ptyIo: pty.io })
+    await waitFor(() => expect(pty.spawned).toHaveLength(1))
+    expect(term.paste).not.toHaveBeenCalled()
+  })
+
+  it('insertion.seq が変わったときだけ差し込む', async () => {
+    const pty = fakePty()
+    const { rerender, props: base } = renderTab({ ptyIo: pty.io })
+    await waitFor(() => expect(pty.spawned).toHaveLength(1))
+    rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@a.json ' }} />)
+    expect(term.paste).toHaveBeenCalledTimes(1)
+    expect(term.paste).toHaveBeenCalledWith('@a.json ')
+
+    // **同じ seq で再描画しても二度は流さない。** ここが「同じ指示が二度
+    // 実行されない」という主張そのもの
+    rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@a.json ' }} />)
+    expect(term.paste).toHaveBeenCalledTimes(1)
+
+    // **同じ text でも seq が進めば流す**（同じファイルを続けて2回渡す操作）
+    rerender(<TerminalTab {...base} insertion={{ seq: 2, text: '@a.json ' }} />)
+    expect(term.paste).toHaveBeenCalledTimes(2)
+  })
+
+  it('StrictMode の二重マウントでも起動時の差し込みは1回だけ', async () => {
+    const pty = fakePtyMultiSpawn()
+    render(
+      <StrictMode>
+        <TerminalTab {...tabProps({ ptyIo: pty.io, session: session({ initialText: '@a.json ' }) })} />
+      </StrictMode>,
+    )
+    // 捨てられた側は disposed で弾かれ、生き残った側だけが流す
+    await waitFor(() => expect(term.paste).toHaveBeenCalledTimes(1))
   })
 })
 
@@ -886,18 +735,7 @@ describe('端末の配色', () => {
     setTokens(LIGHT)
     const pty = fakePty()
     const onRunning = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, onRunning })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
 
     const options = (TerminalMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
@@ -912,16 +750,7 @@ describe('端末の配色', () => {
   it('ライトからダークへ切り替えると配色を渡し直す', async () => {
     setTokens(LIGHT)
     const pty = fakePty()
-    const props = {
-      session: session(),
-      cwd: '/proj',
-      ptyIo: pty.io,
-      hidden: false,
-      onRunning: vi.fn(),
-      onExited: vi.fn(),
-      onFailed: vi.fn(),
-    }
-    const { rerender } = render(<TerminalTab {...props} dark={false} />)
+    const { rerender, props } = renderTab({ ptyIo: pty.io, dark: false })
     await waitFor(() => expect(term.options.theme).toBeDefined())
     const light = (term.options.theme as { background: string }).background
 
@@ -937,18 +766,7 @@ describe('端末の配色', () => {
     setTokens({})
     const pty = fakePty()
     const onRunning = vi.fn()
-    render(
-      <TerminalTab
-        session={session()}
-        cwd="/proj"
-        ptyIo={pty.io}
-        hidden={false}
-        dark={false}
-        onRunning={onRunning}
-        onExited={vi.fn()}
-        onFailed={vi.fn()}
-      />,
-    )
+    renderTab({ ptyIo: pty.io, onRunning })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
 
     const options = (TerminalMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {

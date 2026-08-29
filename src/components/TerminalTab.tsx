@@ -27,6 +27,14 @@ export interface TerminalTabProps {
    * この値は「トークンを読み直す合図」としてだけ使う
    */
   dark: boolean
+  /**
+   * 動いているタブへの差し込み指示（M28）。**`seq` が変わったときだけ**流す。
+   * `seq` は App が持つ単調増加の連番で、同じ指示が二度実行されないための鍵。
+   *
+   * **`text` を effect の依存に入れないこと**——同じファイルを続けて2回渡す
+   * 操作で2回目が落ちる
+   */
+  insertion: { seq: number; text: string } | null
   onRunning: (id: number, ptyId: number) => void
   onExited: (id: number, message: string) => void
   onFailed: (id: number, message: string) => void
@@ -44,7 +52,7 @@ const readToken = (name: string): string =>
   getComputedStyle(document.documentElement).getPropertyValue(name)
 
 export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
-  const { session, cwd, ptyIo, hidden, dark, onRunning, onExited, onFailed } = props
+  const { session, cwd, ptyIo, hidden, dark, insertion, onRunning, onExited, onFailed } = props
   const hostRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -216,6 +224,11 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         const queued = pendingRef.current
         pendingRef.current = []
         for (const data of queued) send(data)
+        // 起動時の差し込み（M28）。**待ち行列の後**——起動待ちに打たれた文字より
+        // 先に参照を入れると、打った文字が参照の前へ出てしまう。
+        // **`hidden` は見ない**（`fit()` と違い寸法を測らないので、隠れていても
+        // 差し込んでよい）。`disposed` の判定は上の分岐で済んでいる
+        if (session.initialText !== null) term.paste(session.initialText)
         // 起動直後の PTY へ実寸を伝える。ここまでの fit()（隠れている間は
         // 測らない effect）は spawn 前——つまり ptyIdRef.current が null の
         // 間——に走っていることがあり、そのときは pty_resize を送れない。
@@ -277,6 +290,27 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     // `dark` は合図として依存に入れる。値は読まない
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dark])
+
+  /**
+   * 動いているタブへの差し込み（M28）。
+   *
+   * **消化済みの `seq` を ref で覚える。** effect の依存を `seq` だけにしても、
+   * StrictMode の二重マウントでは mount → cleanup → mount で2回走る。
+   * マウント時点で `insertion` が入っている経路は現状無いが、ここを守っておけば
+   * 「二度差し込まれた」という追いにくい不具合の余地が消える
+   */
+  const lastInsertedRef = useRef<number | null>(null)
+  const insertionSeq = insertion?.seq ?? null
+  useEffect(() => {
+    const term = termRef.current
+    if (term === null || insertion === null) return
+    if (lastInsertedRef.current === insertion.seq) return
+    lastInsertedRef.current = insertion.seq
+    term.paste(insertion.text)
+    // **依存は `seq` だけ。** `insertion` そのものを入れると、App が同じ内容で
+    // 作り直したオブジェクトでも走る。`text` を入れてもいけない（上の注釈）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [insertionSeq])
 
   // **隠れている間は測らない。** display:none では clientWidth が 0 になり、
   // ここで fit すると開き直したときだけ表示が崩れる（設計 決定6）

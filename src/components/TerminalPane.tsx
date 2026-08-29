@@ -96,6 +96,10 @@ export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
             ptyIo={ptyIo}
             hidden={!paneVisible || state.activeId !== session.id}
             dark={dark}
+            // Task 4 で宛先の振り分けに差し替わる暫定値。ここで props を
+            // 増やさないのは、振り分けの判断を `TerminalPane` に置くのが
+            // Task 4 の設計だから
+            insertion={null}
             onRunning={onRunning}
             onExited={onExited}
             onFailed={onFailed}
