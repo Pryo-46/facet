@@ -6,9 +6,19 @@ import type React from 'react'
 import type { PtyIo } from '@/core/terminal/pty-io'
 import type { TerminalSession } from '@/core/terminal/sessions'
 
+/**
+ * xterm が実際に描画先として受け取った要素。**クラス名で引かない**——
+ * `.min-h-0.flex-1` は外側のラッパにも一致し、掴む相手が並び順で決まってしまう。
+ * `term.open()` に渡る要素こそが「端末の中身」の定義そのもので、
+ * `onContextMenu` が付いているのもこの要素
+ */
+let hostEl: HTMLElement | null = null
+
 // xterm は canvas を使うので jsdom では動かない。まるごと差し替える
 const term = {
-  open: vi.fn(),
+  open: vi.fn((el: HTMLElement) => {
+    hostEl = el
+  }),
   write: vi.fn(),
   paste: vi.fn(),
   hasSelection: vi.fn(() => false),
@@ -76,6 +86,13 @@ function session(over: Partial<TerminalSession> = {}): TerminalSession {
 
 type TabProps = React.ComponentProps<typeof TerminalTab>
 
+function fakeClipboard(text = '') {
+  return {
+    readText: vi.fn(async () => text),
+    writeText: vi.fn(async () => undefined),
+  }
+}
+
 /**
  * 既定の props を1箇所に集める。**props が増えるたびに全テストを触らずに済む**
  * ようにするため（M28 で insertion / clipboardIo / onError が増える）。
@@ -88,6 +105,8 @@ function tabProps(over: Partial<TabProps> & { ptyIo: PtyIo }): TabProps {
     hidden: false,
     dark: false,
     insertion: null,
+    clipboardIo: fakeClipboard(),
+    onError: vi.fn(),
     onRunning: vi.fn(),
     onExited: vi.fn(),
     onFailed: vi.fn(),
@@ -163,6 +182,9 @@ beforeEach(() => {
   term.hasSelection.mockReturnValue(false)
   term.getSelection.mockReturnValue('')
   FakeResizeObserver.instances = []
+  // vi.clearAllMocks() は実装（term.open が hostEl へ代入する処理）を消さない
+  // ので、前のテストの要素を持ち越さないようここで明示的に落とす
+  hostEl = null
 })
 afterEach(cleanup)
 
@@ -685,6 +707,66 @@ describe('TerminalTab', () => {
     )
     // 捨てられた側は disposed で弾かれ、生き残った側だけが流す
     await waitFor(() => expect(term.paste).toHaveBeenCalledTimes(1))
+  })
+
+  it('選択があればコピーして選択を解除する（メニューは出さない）', async () => {
+    const pty = fakePty()
+    const clipboardIo = fakeClipboard()
+    term.hasSelection.mockReturnValue(true)
+    term.getSelection.mockReturnValue('選択したところ')
+    renderTab({ ptyIo: pty.io, clipboardIo })
+    await waitFor(() => expect(pty.spawned).toHaveLength(1))
+
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    const dispatched = hostEl?.dispatchEvent(event)
+
+    expect(dispatched).toBe(false) // preventDefault された＝既定メニューは出ない
+    await waitFor(() => expect(clipboardIo.writeText).toHaveBeenCalledWith('選択したところ'))
+    expect(term.clearSelection).toHaveBeenCalledTimes(1)
+    expect(clipboardIo.readText).not.toHaveBeenCalled()
+  })
+
+  it('選択が無ければクリップボードを貼り付ける', async () => {
+    const pty = fakePty()
+    const clipboardIo = fakeClipboard('貼るテキスト')
+    renderTab({ ptyIo: pty.io, clipboardIo })
+    await waitFor(() => expect(pty.spawned).toHaveLength(1))
+
+    hostEl?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+
+    await waitFor(() => expect(term.paste).toHaveBeenCalledWith('貼るテキスト'))
+    expect(clipboardIo.writeText).not.toHaveBeenCalled()
+  })
+
+  it('クリップボードが空なら何もしない', async () => {
+    const pty = fakePty()
+    const clipboardIo = fakeClipboard('')
+    renderTab({ ptyIo: pty.io, clipboardIo })
+    await waitFor(() => expect(pty.spawned).toHaveLength(1))
+
+    hostEl?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+
+    await waitFor(() => expect(clipboardIo.readText).toHaveBeenCalled())
+    expect(term.paste).not.toHaveBeenCalled()
+  })
+
+  it('コピーの失敗は握り潰さず onError へ出す（セッションは殺さない）', async () => {
+    const pty = fakePty()
+    const clipboardIo = fakeClipboard()
+    clipboardIo.writeText.mockRejectedValue(new Error('denied'))
+    term.hasSelection.mockReturnValue(true)
+    term.getSelection.mockReturnValue('x')
+    const onError = vi.fn()
+    const onFailed = vi.fn()
+    renderTab({ ptyIo: pty.io, clipboardIo, onError, onFailed })
+    await waitFor(() => expect(pty.spawned).toHaveLength(1))
+
+    hostEl?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+
+    await waitFor(() => expect(onError).toHaveBeenCalledWith('コピーできませんでした: denied'))
+    // **`onFailed` は呼ばない。** あれはセッションが死んだときの経路で、
+    // コピーの失敗でタブを「終了」扱いにしてはいけない
+    expect(onFailed).not.toHaveBeenCalled()
   })
 })
 

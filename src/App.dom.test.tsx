@@ -145,6 +145,11 @@ vi.mock('@/fs/clipboard', () => ({
   // テストから見たいので spy 化する（`clipboardHtmlConfig` で返す HTML を制御する）
   copyHtmlToClipboard: copyHtmlToClipboardMock,
   readClipboardHtml: readClipboardHtmlMock,
+  // 端末の右クリックのコピー／貼り付け（M28）。このファイルは TerminalPane を
+  // モック化していない配線テストなので、`TerminalPane` の必須 props として
+  // 実在だけ要る。挙動は TerminalTab.dom.test.tsx / TerminalPane.dom.test.tsx
+  // の担当
+  tauriClipboardIo: { readText: async () => '', writeText: async () => undefined },
 }))
 vi.mock('@/fs/pty', () => ({
   tauriPtyIo: {

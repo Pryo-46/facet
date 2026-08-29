@@ -71,7 +71,12 @@ import {
 } from '@/core/update-check'
 import { readAppVersion } from '@/fs/app-version'
 import { forceClose, interceptClose } from '@/fs/app-window'
-import { copyHtmlToClipboard, copyToClipboard, readClipboardHtml } from '@/fs/clipboard'
+import {
+  copyHtmlToClipboard,
+  copyToClipboard,
+  readClipboardHtml,
+  tauriClipboardIo,
+} from '@/fs/clipboard'
 import {
   allowProjectDir,
   askSaveMarkdownPath,
@@ -1202,6 +1207,8 @@ function App() {
                 dark={dark}
                 // Task 8 で本物の差し込み state に差し替わる暫定値
                 insertion={null}
+                clipboardIo={tauriClipboardIo}
+                onError={(message) => showToast({ message })}
                 onOpen={openTerminal}
                 onClose={closeTerminal}
                 onActivate={(id) => setTerminals((prev) => activateSession(prev, id))}

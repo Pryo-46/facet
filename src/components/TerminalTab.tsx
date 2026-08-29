@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
 import { buildTerminalTheme, TERMINAL_MIN_CONTRAST } from '@/core/terminal/theme'
+import type { ClipboardIo } from '@/core/terminal/clipboard-io'
 import { CLAUDE_ARGS, CLAUDE_PROGRAM, type PtyIo } from '@/core/terminal/pty-io'
 import type { TerminalSession } from '@/core/terminal/sessions'
 
@@ -35,6 +36,14 @@ export interface TerminalTabProps {
    * 操作で2回目が落ちる
    */
   insertion: { seq: number; text: string } | null
+  /** コピー／貼り付けの口。**額縁が注入する**（コンポーネントは `@/fs/` を知らない） */
+  clipboardIo: ClipboardIo
+  /**
+   * セッションを殺さない失敗の通知先（M28。App のトーストへ出る）。
+   * **`session.message` を使わないこと**——あれは `exited` / `failed` の欄で、
+   * コピーの失敗でタブを死んだ扱いにしてはいけない
+   */
+  onError: (message: string) => void
   onRunning: (id: number, ptyId: number) => void
   onExited: (id: number, message: string) => void
   onFailed: (id: number, message: string) => void
@@ -44,6 +53,9 @@ export interface TerminalTabProps {
 // ソースに直接置かないため String.fromCharCode(27) で組み立てる
 const SHIFT_ENTER_SEQUENCE = `${String.fromCharCode(27)}\r`
 
+/** 例外を人に見せる文字列にする */
+const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err))
+
 /**
  * 役割トークンを実行時に読む。**jsdom では空文字が返る**ので、テスト環境
  * では配色を渡さず xterm の既定に落ちる
@@ -52,7 +64,8 @@ const readToken = (name: string): string =>
   getComputedStyle(document.documentElement).getPropertyValue(name)
 
 export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
-  const { session, cwd, ptyIo, hidden, dark, insertion, onRunning, onExited, onFailed } = props
+  const { session, cwd, ptyIo, hidden, dark, insertion, clipboardIo } = props
+  const { onRunning, onExited, onFailed, onError } = props
   const hostRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -362,12 +375,43 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     return () => observer.disconnect()
   }, [ptyIo])
 
+  /**
+   * 端末の中の右クリック（M28）。**メニューは出さず1動作で済ませる**
+   *（Windows Terminal と同じ作法）。選択があればコピーして選択を解除、
+   * 無ければ貼り付ける。
+   *
+   * **`preventDefault()` がすべての要。** 呼ばなければ WebView2 の既定メニューが出る
+   */
+  const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>): void => {
+    event.preventDefault()
+    const term = termRef.current
+    if (term === null) return
+    if (term.hasSelection()) {
+      const selected = term.getSelection()
+      term.clearSelection()
+      void clipboardIo.writeText(selected).catch((err: unknown) => {
+        onError(`コピーできませんでした: ${errorText(err)}`)
+      })
+      return
+    }
+    void clipboardIo
+      .readText()
+      .then((text) => {
+        // 空は日常的な状態（クリップボードが空／テキストでない）。黙って何もしない
+        if (text === '') return
+        term.paste(text)
+      })
+      .catch((err: unknown) => {
+        onError(`貼り付けできませんでした: ${errorText(err)}`)
+      })
+  }
+
   return (
     <div className={`flex min-h-0 flex-1 flex-col ${hidden ? 'hidden' : ''}`}>
       {session.message !== null && (
         <p className="border-b border-rule px-3 py-2 text-base text-invalid">{session.message}</p>
       )}
-      <div ref={hostRef} className="min-h-0 flex-1" />
+      <div ref={hostRef} className="min-h-0 flex-1" onContextMenu={handleContextMenu} />
     </div>
   )
 }

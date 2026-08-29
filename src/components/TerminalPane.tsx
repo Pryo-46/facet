@@ -1,6 +1,7 @@
 import { Plus, X } from 'lucide-react'
 import { buttonBase } from '@/components/button-styles'
 import { TerminalTab } from '@/components/TerminalTab'
+import type { ClipboardIo } from '@/core/terminal/clipboard-io'
 import type { PtyIo } from '@/core/terminal/pty-io'
 import type { TerminalState } from '@/core/terminal/sessions'
 
@@ -28,6 +29,10 @@ export interface TerminalPaneProps {
    * `targetId` と一致しないタブには `null` を渡す
    */
   insertion: { targetId: number; seq: number; text: string } | null
+  /** コピー／貼り付けの口。`TerminalTab` へ中継するだけ（額縁が注入する） */
+  clipboardIo: ClipboardIo
+  /** セッションを殺さない失敗の通知先。`TerminalTab` へ中継するだけ（M28） */
+  onError: (message: string) => void
   onOpen: () => void
   onClose: (id: number) => void
   onActivate: (id: number) => void
@@ -38,7 +43,7 @@ export interface TerminalPaneProps {
 
 export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
   const { state, cwd, ptyIo, paneVisible, dark, insertion, onOpen, onClose, onActivate } = props
-  const { onRunning, onExited, onFailed } = props
+  const { clipboardIo, onError, onRunning, onExited, onFailed } = props
 
   return (
     <div
@@ -116,6 +121,8 @@ export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
             insertion={
               insertion !== null && insertion.targetId === session.id ? insertion : null
             }
+            clipboardIo={clipboardIo}
+            onError={onError}
             onRunning={onRunning}
             onExited={onExited}
             onFailed={onFailed}
