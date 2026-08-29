@@ -115,4 +115,26 @@ describe('ChoiceDialog', () => {
     setup()
     expect(screen.queryByRole('button', { name: 'キャンセル' })).toBe(null)
   })
+
+  it('onCancel を渡すと3ボタン分の幅に広げる（既定幅だと3ボタンが収まらない）', () => {
+    render(
+      <ChoiceDialog
+        open
+        title="取り込む"
+        description="どちらに取り込みますか。"
+        primaryLabel="このツリーを上書き"
+        secondaryLabel="新しいファイルに作る"
+        onPrimary={vi.fn()}
+        onSecondary={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('alertdialog').className).toContain('max-w-xl')
+  })
+
+  it('onCancel を渡さなければ幅は既定のまま（2ボタンで広げると間延びする）', () => {
+    setup()
+    const className = screen.getByRole('alertdialog').className
+    expect(className).not.toContain('max-w-xl')
+  })
 })

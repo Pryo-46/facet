@@ -61,6 +61,20 @@ export function ChoiceDialog(props: ChoiceDialogProps) {
           Esc は Radix が独自に拾うので明示的に止める。
           onCancel があるときだけ通す（無いダイアログは「決めるまで閉じない」既定を維持） */}
       <AlertDialogContent
+        // AlertDialogContent の既定幅（sm:max-w-sm＝384px）は ConfirmDialog を
+        // 想定した2ボタン用。onCancel を足して3ボタンになると収まらない
+        // （logic-tree M2 の取り込みダイアログで実機確認：「キャンセル」
+        // 「新しいファイルに作る」「このツリーを上書き」の3つ＋説明文）。
+        //
+        // 目安: ボタン文言 約24文字 × 16px（等幅の全角）＋ ボタンの左右
+        // padding（px-2.5×2×3ボタン＝60px）＋ ボタン間 gap-2×2＝16px ＋
+        // ダイアログの左右 padding（p-4×2＝32px）で約492px。安全マージンを
+        // 見て sm:max-w-xl（576px）まで広げる。
+        //
+        // ConfirmDialog は触らない。ChoiceDialog 自体も onCancel が無い
+        // 呼び出し（外部変更の衝突。2ボタン）では既定幅のまま——3ボタンに
+        // なる場面だけ広げないと、2ボタンの画面が無駄に間延びする。
+        className={props.onCancel !== undefined ? 'data-[size=default]:sm:max-w-xl' : undefined}
         onEscapeKeyDown={(event) => {
           if (props.onCancel === undefined) {
             event.preventDefault()
