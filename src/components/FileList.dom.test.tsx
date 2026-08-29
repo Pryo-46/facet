@@ -25,7 +25,7 @@ function setup(
   existingTypes: readonly (string | null)[] = files.map((f) => f.result.type),
   projectDir: string | null = 'C:\\proj',
 ) {
-  const handlers = { onSelect: vi.fn(), onCreate: vi.fn(), onDelete: vi.fn() }
+  const handlers = { onSelect: vi.fn(), onCreate: vi.fn(), onDelete: vi.fn(), onHandoff: vi.fn() }
   render(
     <FileList
       groups={groupFiles(files, appRegistry.list())}
@@ -119,6 +119,33 @@ describe('FileList', () => {
     const button = screen.getByRole('button', { name: '用語集（用語集.json） を削除' })
     // 文字を持たない＝アイコンだけ。名前が消えていないことは getByRole が保証している
     expect(button.textContent).toBe('')
+  })
+
+  it('@ ボタンでファイルを Claude Code へ渡す', () => {
+    const { onHandoff } = setup([file('用語集.json')])
+    fireEvent.click(
+      screen.getByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
+    )
+    expect(onHandoff).toHaveBeenCalledWith(expect.objectContaining({ name: '用語集.json' }))
+  })
+
+  it('@ ボタンは選択を動かさない（編集中のファイルを離れずに渡せることが要点）', () => {
+    const { onSelect } = setup([file('用語集.json')])
+    fireEvent.click(
+      screen.getByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
+    )
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('開けないファイルにも @ ボタンを出す（渡す先は Claude であって facet ではない）', () => {
+    setup([
+      file('壊れた.json', {
+        result: { status: 'rejected', type: null, title: null, reason: 'JSON として解釈できません', errors: [] },
+      }),
+    ])
+    expect(
+      screen.getByRole('button', { name: '壊れた.json を Claude Code に渡す' }),
+    ).not.toBeNull()
   })
 })
 

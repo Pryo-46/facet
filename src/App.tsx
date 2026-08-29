@@ -41,6 +41,7 @@ import type { ProjectFile } from '@/core/project-file'
 import { READING_GUIDE_FILENAME, syncReadingGuide } from '@/core/reading-guide'
 import { scanFolder } from '@/core/scan'
 import { BUNDLED_SKILLS, syncBundledSkills } from '@/core/skill-sync'
+import { fileReference } from '@/core/terminal/file-reference'
 import {
   activateSession,
   closeAll,
@@ -280,13 +281,52 @@ function App() {
     })[0] ?? paneWidth[0]
 
   /**
+   * いま選択しているファイルの参照。無ければ null。
+   * ペインを開く／タブを足すときの初期テキストになる（設計 §4.4）
+   */
+  const selectedReference = (): string | null =>
+    projectDir === null || selectedPath === null ? null : fileReference(projectDir, selectedPath)
+
+  /**
    * タブを1本足す。**Skill の同期はここでは行わない**——Skill はプロジェクトに
    * 属するものであって端末セッションに属するものではない。同期は
    * `projectDir` の effect（下の「同梱 Skill の配置」）がフォルダ1つにつき
    * 1回だけ走らせる。ここに置くと「＋ タブを追加」を押した回数だけ
    * 「消して置き直す」が起きる（sequence M4 の実機確認）
    */
-  const openTerminal = () => setTerminals((prev) => openSession(prev))
+  const openTerminal = (initialText?: string) =>
+    setTerminals((prev) => openSession(prev, initialText ?? selectedReference()))
+
+  /**
+   * 差し込み指示（M28）。**1つだけ持つ**——宛先の振り分けは `TerminalPane`、
+   * 同じ指示を二度実行しない保証は `seq` の単調増加（`TerminalTab` が消化条件に使う）
+   */
+  const [insertion, setInsertion] = useState<{
+    targetId: number
+    seq: number
+    text: string
+  } | null>(null)
+  const insertionSeq = useRef(0)
+
+  /**
+   * ファイルを Claude Code へ渡す（M28。一覧の `@` ボタンとエクスプローラからの
+   * ドロップが共有する）。**押した人がやりたいのは「渡すこと」**なので、ペインが
+   * 閉じていても・タブが1本も無くても、開いて起動するところまで面倒を見る
+   */
+  const handoffToTerminal = (text: string) => {
+    setPaneOpen(true)
+    // **`terminals` を直読みしない。** ドロップのリスナは1回しか張らないので、
+    // 最新の台帳は ref から読む（closeTerminalNow と同じ理由）
+    const active = terminalsRef.current.activeId
+    if (active === null) {
+      openTerminal(text)
+      return
+    }
+    // **採番は updater の外。** setState の updater は純粋でなければならない
+    //（StrictMode の二重実行で seq を余分に消費する。showToast の id と同じ理由）
+    const seq = ++insertionSeq.current
+    setInsertion({ targetId: active, seq, text })
+  }
 
   const closeTerminalNow = (id: number) => {
     // **updater の外で殺す。** setState の updater は純粋でなければならない
@@ -1085,6 +1125,10 @@ function App() {
               onSelect={(file) => void controller.selectFile(file.path)}
               onCreate={(module) => void controller.createNewFile(module)}
               onDelete={(file) => controller.requestDelete(file)}
+              onHandoff={(file) => {
+                if (projectDir === null) return
+                handoffToTerminal(fileReference(projectDir, file.path))
+              }}
             />
           </aside>
         )}
@@ -1205,11 +1249,10 @@ function App() {
                 ptyIo={tauriPtyIo}
                 paneVisible={paneOpen}
                 dark={dark}
-                // Task 8 で本物の差し込み state に差し替わる暫定値
-                insertion={null}
+                insertion={insertion}
                 clipboardIo={tauriClipboardIo}
                 onError={(message) => showToast({ message })}
-                onOpen={openTerminal}
+                onOpen={() => openTerminal()}
                 onClose={closeTerminal}
                 onActivate={(id) => setTerminals((prev) => activateSession(prev, id))}
                 onRunning={(id, ptyId) => setTerminals((prev) => markRunning(prev, id, ptyId))}

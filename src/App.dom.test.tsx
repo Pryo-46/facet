@@ -63,6 +63,7 @@ const {
   copyHtmlToClipboardMock,
   readClipboardHtmlMock,
   clipboardHtmlConfig,
+  pasted,
 } = vi.hoisted(() => {
   // `clipboardHtmlConfig` は下の `readClipboardHtmlMock` が参照するので、
   // オブジェクトリテラルの外（同じ関数スコープの変数）として先に作る——
@@ -106,6 +107,9 @@ const {
     copyHtmlToClipboardMock: vi.fn(async (_html: string, _altText: string) => undefined),
     clipboardHtmlConfig,
     readClipboardHtmlMock: vi.fn(async () => clipboardHtmlConfig.value),
+    // 差し込みを額縁レベルで観測するための口（M28）。**タブごとに別の xterm
+    // オブジェクトが返る**ので、`paste` の呼び出しはここへ積んで共有する
+    pasted: [] as string[],
   }
 })
 
@@ -215,6 +219,14 @@ vi.mock('@xterm/xterm', () => ({
     return {
       open: vi.fn(),
       write: vi.fn(),
+      // 差し込みを額縁レベルで観測するための口（M28）。**タブごとに別の
+      // オブジェクトが返るので、共有の配列へ積む**
+      paste: vi.fn((text: string) => {
+        pasted.push(text)
+      }),
+      hasSelection: vi.fn(() => false),
+      getSelection: vi.fn(() => ''),
+      clearSelection: vi.fn(),
       onData: vi.fn(),
       loadAddon: vi.fn(),
       dispose: vi.fn(),
@@ -282,6 +294,7 @@ afterEach(() => {
   ptyKillMock.mockClear()
   skillCalls.length = 0
   disk.clear()
+  pasted.length = 0
   writeProjectFileMock.mockClear()
   saveLastProjectDirMock.mockClear()
   restoreConfig.lastDir = null
@@ -1054,5 +1067,55 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
     // 押せていれば控えのために readClipboardHtml をもう一度呼ぶ（コントローラ側の
     // importFromExternal。src/core/app-controller.ts）。呼ばれていないので押せていない
     expect(readClipboardHtmlMock.mock.calls.length).toBe(callsBefore)
+  })
+})
+
+describe('Claude Code へファイルを渡す（M28）', () => {
+  const GLOSSARY_PATH = '/proj/用語集.json'
+
+  const putGlossary = () => {
+    disk.set(
+      GLOSSARY_PATH,
+      JSON.stringify({ schemaVersion: 1, type: 'glossary', title: '用語集', terms: [] }),
+    )
+  }
+
+  it('選択中のファイルの参照を持ってペインが開く', async () => {
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
+    // 選択の完了を待つ（名前の帯（M13）の openBand と同じ理由）。**選択は
+    // `selectFile` 経由で非同期に進む**ので、待たずに次のクリックへ進むと
+    // `selectedPath` がまだ null のまま「ペインを開く」を押すことになり、
+    // 参照無しで開いてしまう
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+    fireEvent.click(screen.getByRole('button', { name: 'Claude Code ペインを開く' }))
+
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']))
+  })
+
+  it('ファイルを選んでいなければ何も差し込まない', async () => {
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await screen.findByRole('button', { name: '用語集（用語集.json） を開く' })
+    fireEvent.click(screen.getByRole('button', { name: 'Claude Code ペインを開く' }))
+
+    // 起動は待つが、差し込みは起きない
+    await waitFor(() => expect(screen.getByRole('button', { name: 'タブを追加' })).not.toBeNull())
+    expect(pasted).toEqual([])
+  })
+
+  it('@ ボタンは、ペインが閉じていても開いて渡す', async () => {
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    // **ファイルを選ばずに** @ を押す。選択と無関係に渡せることが要点
+    fireEvent.click(
+      await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
+    )
+
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']))
   })
 })
