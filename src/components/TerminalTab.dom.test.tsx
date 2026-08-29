@@ -66,7 +66,7 @@ const { Terminal: TerminalMock } = await import('@xterm/xterm')
 const { TerminalTab } = await import('./TerminalTab')
 
 function session(over: Partial<TerminalSession> = {}): TerminalSession {
-  return { id: 1, label: 'Claude 1', ptyId: null, status: 'starting', message: null, ...over }
+  return { id: 1, label: 'Claude 1', ptyId: null, status: 'starting', message: null, initialText: null, ...over }
 }
 
 function fakePty() {

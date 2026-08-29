@@ -37,6 +37,16 @@ describe('openSession', () => {
     expect(s?.status).toBe('starting')
     expect(s?.ptyId).toBeNull()
   })
+
+  it('起動時に差し込む文字列を持てる', () => {
+    const s = openSession(emptyTerminalState, '@docs/a.json ').sessions[0]
+    expect(s?.initialText).toBe('@docs/a.json ')
+  })
+
+  it('省略したら null（ペインを開くだけのときは何も差し込まない）', () => {
+    const s = openSession(emptyTerminalState).sessions[0]
+    expect(s?.initialText).toBeNull()
+  })
 })
 
 describe('closeSession', () => {
