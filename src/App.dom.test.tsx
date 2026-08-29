@@ -64,6 +64,7 @@ const {
   readClipboardHtmlMock,
   clipboardHtmlConfig,
   pasted,
+  ptyDataMode,
 } = vi.hoisted(() => {
   // `clipboardHtmlConfig` は下の `readClipboardHtmlMock` が参照するので、
   // オブジェクトリテラルの外（同じ関数スコープの変数）として先に作る——
@@ -110,6 +111,11 @@ const {
     // 差し込みを額縁レベルで観測するための口（M28）。**タブごとに別の xterm
     // オブジェクトが返る**ので、`paste` の呼び出しはここへ積んで共有する
     pasted: [] as string[],
+    // 起動時の差し込み診断用（#8 調査）。**既定は 'sync'**——既存テストは
+    // すべて `spec.onData(2004バイト)` が spawn 内で同期に届く前提のまま
+    // 通したいので、書き換えるテストだけが 'async' にしてマイクロタスク越しに
+    // 届く実機寄りの順序（invoke が先に解決し、その後で 2004 が来る）を試す
+    ptyDataMode: { value: 'sync' as 'sync' | 'async' },
   }
 })
 
@@ -174,8 +180,16 @@ vi.mock('@/fs/pty', () => ({
       // 起動時の差し込み（M28）は、PTY の出力に ESC[?2004h（DECSET 2004。
       // bracketed paste の有効化）が現れてから流れる（実機修正）。この
       // フェイクは「どのタブへ差し込まれるか」という配線だけを見たいので、
-      // 実物の claude が送る合図を起動直後に送って詰まらせない
-      spec.onData(new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x30, 0x34, 0x68]))
+      // 実物の claude が送る合図を起動直後に送って詰まらせない。
+      // **既定（'sync'）は `spawn` の中で同期に届く**——`Channel.onmessage` が
+      // `invoke('pty_spawn')` の解決より先に届きうる（`src/fs/pty.ts` の
+      // コメント）という実機の一形態を模す。'async' はその逆——invoke が
+      // 先に解決し、2004 はマイクロタスクを挟んで後から届く——を模す
+      // （#8 調査。どちらの順でも `pendingInsertionsRef` は spawn 呼び出し前に
+      // 同期で用意されているので届く順に関係なく拾えるはず、という仮説の検証）
+      const send2004 = () => spec.onData(new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x30, 0x34, 0x68]))
+      if (ptyDataMode.value === 'async') void Promise.resolve().then(send2004)
+      else send2004()
       return id
     },
     write: async () => undefined,
@@ -308,6 +322,7 @@ afterEach(() => {
   skillCalls.length = 0
   disk.clear()
   pasted.length = 0
+  ptyDataMode.value = 'sync'
   writeProjectFileMock.mockClear()
   saveLastProjectDirMock.mockClear()
   restoreConfig.lastDir = null
@@ -1125,6 +1140,27 @@ describe('Claude Code へファイルを渡す（M28）', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
     // **ファイルを選ばずに** @ を押す。選択と無関係に渡せることが要点
+    fireEvent.click(
+      await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
+    )
+
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']))
+  })
+
+  it('（#8 調査）@ ボタンがタブを起こす場合でも、2004 が invoke の解決より後（マイクロタスク越し）に届く順で差し込まれる', async () => {
+    // 実機での報告: 「@ を押した結果として Claude の起動から始まったときは、
+    // 参照が挿入されない」。上のテスト（既定の 'sync' モード）は
+    // `spec.onData(2004)` が spawn の中で同期に届く順を模しており、それは
+    // 通っている。ここでは逆順——`src/fs/pty.ts` の実装が実際に持つ
+    // 「invoke('pty_spawn') が先に解決し、2004 はその後マイクロタスクを
+    // 挟んで Channel 経由で届く」という順——を模して、TerminalTab の
+    // `pendingInsertionsRef` が spawn 呼び出し**前**に同期で用意されている
+    // ことに変わりはないので、届く順が変わっても差し込まれるはず、という
+    // 仮説を検証する
+    ptyDataMode.value = 'async'
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
     fireEvent.click(
       await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
     )

@@ -57,8 +57,9 @@ const errorText = (err: unknown): string => (err instanceof Error ? err.message 
  * DECSET 2004（bracketed paste の有効化）。ESC[?2004h（バイトで
  * 0x1b 0x5b 0x3f 0x32 0x30 0x30 0x34 0x68）。xterm が貼り付けを
  * ESC[200~ … ESC[201~ で囲むのは、アプリがこれを送った後だけ
- * （node_modules/@xterm/xterm/lib/xterm.js）。起動時の差し込みは、
- * これが PTY の出力に現れるまで保留する（下の起動 effect）
+ * （node_modules/@xterm/xterm/lib/xterm.js）。起動時の差し込みと、
+ * まだこれを見ていない間に来た insertion（@ ボタン／ドロップ）は、
+ * これが PTY の出力に現れるまで保留する（下の起動 effect と insertion effect）
  */
 const BRACKETED_PASTE_ENABLE = new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x30, 0x34, 0x68])
 
@@ -158,14 +159,26 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   const pendingFontRef = useRef<string | null>(null)
 
   /**
-   * 起動時の差し込み（M28）で「まだ差し込んでいない保留」。**実機で末尾の
-   * スペースが消える不具合の修正**——spawn 解決直後は claude の TUI が
-   * まだ立ち上がっておらず、xterm が貼り付けを囲む条件（DECSET 2004）を
-   * 満たさない。ここでは差し込まず、PTY の出力に ESC[?2004h が現れてから
-   * 差し込む（起動 effect の onData）。5秒たっても来なければ従来どおり
-   * 差し込む（保留し続けるのが一番悪い）
+   * まだ差し込んでいない保留の列（M28）。**実機で末尾のスペースが消える
+   * 不具合の修正**——spawn 解決直後は claude の TUI がまだ立ち上がっておらず、
+   * xterm が貼り付けを囲む条件（DECSET 2004）を満たさない。ここでは差し込まず、
+   * PTY の出力に ESC[?2004h が現れてから差し込む（起動 effect の onData）。
+   * 5秒たっても来なければ従来どおり差し込む（保留し続けるのが一番悪い）。
+   *
+   * **起動時の差し込み（`session.initialText`）だけでなく、まだ 2004 を
+   * 見ていない間に押された `insertion`（@ ボタン／ドロップ）もここへ積む。**
+   * 差し込み口を1本にする M28 の設計に合わせ、待ち合わせも1箇所に揃える
+   * （下の insertion effect）。先頭が `initialText`、その後ろに押された順で
+   * `insertion` が並ぶ
    */
-  const pendingInsertionRef = useRef<string | null>(null)
+  const pendingInsertionsRef = useRef<string[]>([])
+
+  /**
+   * bracketed paste が使える状態になったか。ESC[?2004h を見た、または
+   * 5秒の上限に達したら true。**一度 true になったら戻らない**——それ以降の
+   * `insertion` は保留せず即座に `term.paste()` する（下の insertion effect）
+   */
+  const bracketedPasteReadyRef = useRef(false)
 
   useEffect(() => {
     const host = hostRef.current
@@ -189,23 +202,30 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
 
     let disposed = false
 
-    // このマウント（StrictMode では2回走りうる）の分の保留を用意する
-    pendingInsertionRef.current = session.initialText
+    // このマウント（StrictMode では2回走りうる）の分の保留を用意する。
+    // 起動時の差し込み（initialText）があれば列の先頭に置く。以後 insertion
+    // effect が押された順で後ろへ積む
+    pendingInsertionsRef.current = session.initialText === null ? [] : [session.initialText]
+    bracketedPasteReadyRef.current = false
     // 直前チャンクの末尾。ESC[?2004h はチャンクの境目で割れることがあるので、
     // 次のチャンクの先頭に前置してから探す（境界を跨いだ発生を落とさない）
     let insertionTail: Uint8Array<ArrayBufferLike> = new Uint8Array(0)
     let insertionTimer: ReturnType<typeof setTimeout> | null = null
 
-    /** 保留を差し込み、タイマーを解除する。二重に呼んでも無害（2回目は何もしない） */
+    /**
+     * 保留の列を順に差し込み、タイマーを解除する。**「2004 を見た」への
+     * 遷移も兼ねる**——以後 insertion effect は保留を積まず即座に paste する。
+     * 二重に呼んでも無害（2回目は列が空なので何も paste しない）
+     */
     const flushPendingInsertion = (): void => {
-      const text = pendingInsertionRef.current
-      if (text === null) return
-      pendingInsertionRef.current = null
+      bracketedPasteReadyRef.current = true
       if (insertionTimer !== null) {
         clearTimeout(insertionTimer)
         insertionTimer = null
       }
-      term.paste(text)
+      const queued = pendingInsertionsRef.current
+      pendingInsertionsRef.current = []
+      for (const text of queued) term.paste(text)
     }
 
     // 端末のフォントは Plex Mono（U1 決着。700 は ANSI 太字用に同梱済み）。
@@ -304,11 +324,14 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         onData: (bytes) => {
           if (disposed) return
           term.write(bytes)
-          // 起動時の差し込みの保留があるときだけ、bracketed paste が
-          // 有効になった合図（ESC[?2004h）を探す。見つかったらここで
-          // 差し込む——**この検出こそが「末尾のスペースが消える」不具合の
-          // 直し方そのもの**（ファイル冒頭のコメント参照）
-          if (pendingInsertionRef.current !== null) {
+          // まだ 2004 を見ていない間だけ、bracketed paste が有効になった
+          // 合図（ESC[?2004h）を探す。**保留の列が空でも走らせる**——起動時の
+          // 差し込みが無いセッションでも、後から来る insertion（@ ボタン／
+          // ドロップ）のために「見たか」を早く確定させておきたい。
+          // 見つかったらここで保留をまとめて差し込む——**この検出こそが
+          // 「末尾のスペースが消える」不具合の直し方そのもの**
+          // （ファイル冒頭のコメント参照）
+          if (!bracketedPasteReadyRef.current) {
             const combined = concatBytes(insertionTail, bytes)
             if (containsSequence(combined, BRACKETED_PASTE_ENABLE)) {
               flushPendingInsertion()
@@ -325,8 +348,8 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         // になり、タブを閉じても kill が飛ばなくなる）
         onExit: (code) => {
           if (disposed) return
-          // 差し込む先がもう無い。タイマーだけ律儀に解除して保留を捨てる
-          pendingInsertionRef.current = null
+          // 差し込む先がもう無い。タイマーだけ律儀に解除して保留の列を捨てる
+          pendingInsertionsRef.current = []
           if (insertionTimer !== null) {
             clearTimeout(insertionTimer)
             insertionTimer = null
@@ -352,9 +375,13 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         // 立ち上がるより前で、囲まれずに1文字ずつ打たれたのと同じに見える
         // （@ のファイル検索が末尾のスペースを候補の確定として食う）。
         // 代わりに、いつまでも来ない場合の上限だけをここで仕掛ける。
+        // **保留の列が空でも走らせる。** 2004 を見たかどうかは insertion
+        // （@ ボタン／ドロップ）の待ち合わせにも使う1つの状態なので、
+        // 起動時の差し込みが無いセッションでも「諦める」上限は要る——
+        // さもないと後から来る insertion がいつまでも保留され続ける。
         // **`hidden` は見ない**（`fit()` と違い寸法を測らないので、隠れていても
         // 差し込んでよい）。`disposed` の判定は上の分岐で済んでいる
-        if (pendingInsertionRef.current !== null) {
+        if (!bracketedPasteReadyRef.current) {
           insertionTimer = setTimeout(() => {
             insertionTimer = null
             if (disposed) return
@@ -422,6 +449,14 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
    * StrictMode の二重マウントでは mount → cleanup → mount で2回走る。
    * マウント時点で `insertion` が入っている経路は現状無いが、ここを守っておけば
    * 「二度差し込まれた」という追いにくい不具合の余地が消える
+   *
+   * **即座に paste するのは 2004 を既に見ている（準備できている）ときだけ。**
+   * 起動中（約1秒）に `@` を押すと、起動時の差し込みと同じ理由で bracketed
+   * paste に囲まれないまま TUI の前に流れ、同じ症状（末尾のスペースが @ の
+   * 補完に食われる）が起きる。まだなら起動時の差し込みと同じ保留の列
+   * （`pendingInsertionsRef`）へ積み、2004 を見てから（起動 effect の
+   * flushPendingInsertion が）まとめて流す。**seq の重複排除を先に済ませて
+   * から**保留に積む——同じ指示を二度積まないため
    */
   const lastInsertedRef = useRef<number | null>(null)
   const insertionSeq = insertion?.seq ?? null
@@ -430,7 +465,11 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     if (term === null || insertion === null) return
     if (lastInsertedRef.current === insertion.seq) return
     lastInsertedRef.current = insertion.seq
-    term.paste(insertion.text)
+    if (bracketedPasteReadyRef.current) {
+      term.paste(insertion.text)
+    } else {
+      pendingInsertionsRef.current.push(insertion.text)
+    }
     // **依存は `seq` だけ。** `insertion` そのものを入れると、App が同じ内容で
     // 作り直したオブジェクトでも走る。`text` を入れてもいけない（上の注釈）
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -492,6 +531,12 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
    * 無ければ貼り付ける。
    *
    * **`preventDefault()` がすべての要。** 呼ばなければ WebView2 の既定メニューが出る
+   *
+   * **ここは 2004 待ちのゲートに通さない。** 起動時の差し込みと `@`（insertion
+   * effect）は facet が勝手に送るものなので、準備できるまで待たせて構わない。
+   * 一方、右クリックは人が「いま貼る」と決めた操作で、5秒の上限まで黙って
+   * 遅らせる方が「消える」より悪い——だからここだけ `term.paste()` を即座に
+   * 呼ぶ（この非対称は意図したもの）
    */
   const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>): void => {
     event.preventDefault()

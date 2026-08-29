@@ -754,12 +754,95 @@ describe('TerminalTab', () => {
       expect(term.paste).toHaveBeenCalledWith('@docs/a.json ')
       expect(term.paste).toHaveBeenCalledTimes(1)
     })
+
+    // #13: `insertion`（@ ボタン／ドロップ）も起動時の差し込みと同じ保留の列を
+    // 使う。起動中（約1秒）に @ を押すと、直前まではここが素通りで
+    // `term.paste()` が即座に呼ばれており、起動時の差し込みと同じ症状
+    // （末尾のスペースが @ の補完に食われる）が再現していた
+
+    it('2004 より前に来た insertion は保留され、2004 が来てから paste される', async () => {
+      const pty = fakePty()
+      const { rerender, props: base } = renderTab({ ptyIo: pty.io })
+      await waitFor(() => expect(pty.spawned).toHaveLength(1))
+
+      // まだ 2004 を見ていない。ここでは paste されない
+      rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@a.json ' }} />)
+      expect(term.paste).not.toHaveBeenCalled()
+
+      // 2004 が来たら、保留していた insertion がここで流れる
+      pty.emit(BRACKETED_PASTE_BYTES)
+      await waitFor(() => expect(term.paste).toHaveBeenCalledWith('@a.json '))
+      expect(term.paste).toHaveBeenCalledTimes(1)
+    })
+
+    it('initialText と、2004 前に来た insertion の両方があるとき、initialText → insertion の順で paste される', async () => {
+      const pty = fakePty()
+      const { rerender, props: base } = renderTab({
+        ptyIo: pty.io,
+        session: session({ initialText: '@docs/a.json ' }),
+      })
+      await waitFor(() => expect(pty.spawned).toHaveLength(1))
+
+      // まだ 2004 を見ていない。起動時の差し込み（先頭）に続けて
+      // insertion（@ ボタン）が押される
+      rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@b.json ' }} />)
+      expect(term.paste).not.toHaveBeenCalled()
+
+      pty.emit(BRACKETED_PASTE_BYTES)
+
+      // **押された順**——initialText が列の先頭、insertion がその後ろ
+      await waitFor(() => expect(term.paste).toHaveBeenCalledTimes(2))
+      expect(term.paste.mock.calls).toEqual([['@docs/a.json '], ['@b.json ']])
+    })
+
+    it('2004 の後に来た insertion は即座に paste される（従来どおり）', async () => {
+      const pty = fakePty()
+      const { rerender, props: base } = renderTab({ ptyIo: pty.io })
+      await waitFor(() => expect(pty.spawned).toHaveLength(1))
+
+      // 先に 2004 を見せておく。以降の insertion は保留を経由しない
+      pty.emit(BRACKETED_PASTE_BYTES)
+
+      rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@a.json ' }} />)
+      expect(term.paste).toHaveBeenCalledTimes(1)
+      expect(term.paste).toHaveBeenCalledWith('@a.json ')
+    })
+
+    it('2004 が来ないまま5秒たったら、initialText と insertion の列がまとめて paste される', async () => {
+      const pty = fakePty()
+      vi.useFakeTimers()
+      const { rerender, props: base } = renderTab({
+        ptyIo: pty.io,
+        session: session({ initialText: '@docs/a.json ' }),
+      })
+
+      // spawn は setTimeout を使わないただの async 関数なので、偽タイマーの
+      // 下でもマイクロタスクの解決は進む。0ms 分だけ進めて spawn の解決
+      // （5秒タイマーの起動）を確定させる
+      await vi.advanceTimersByTimeAsync(0)
+      expect(pty.spawned).toHaveLength(1)
+
+      // まだ 2004 を見ていない間に insertion が押される
+      rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@b.json ' }} />)
+      expect(term.paste).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(5000)
+
+      // 押された順（initialText → insertion）でまとめて流れる
+      expect(term.paste.mock.calls).toEqual([['@docs/a.json '], ['@b.json ']])
+    })
   })
 
-  it('insertion.seq が変わったときだけ差し込む', async () => {
+  it('insertion.seq が変わったときだけ差し込む（2004 を見た後は即座に paste する）', async () => {
     const pty = fakePty()
     const { rerender, props: base } = renderTab({ ptyIo: pty.io })
     await waitFor(() => expect(pty.spawned).toHaveLength(1))
+    // **先に 2004 を見せておく。** このテストの主張は「seq の重複排除」で
+    // あって「2004 待ちのゲート」ではない（ゲートは下の describe が見る）。
+    // 見せておかないと insertion effect が即座に paste せず保留へ積むだけに
+    // なり、以降のアサーションが成り立たない
+    pty.emit(BRACKETED_PASTE_BYTES)
+
     rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@a.json ' }} />)
     expect(term.paste).toHaveBeenCalledTimes(1)
     expect(term.paste).toHaveBeenCalledWith('@a.json ')
