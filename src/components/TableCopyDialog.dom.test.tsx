@@ -110,3 +110,46 @@ describe('TableCopyDialog: コピーと記憶', () => {
     expect(onCopy).toHaveBeenCalledWith('default', expect.anything())
   })
 })
+
+describe('TableCopyDialog: 閉じ方と二重発火（M4 の罠）', () => {
+  it('コピーは onCopy を1回だけ呼び、onCancel は呼ばない', () => {
+    // AlertDialogAction の内部実装は Dialog.Close なので、onOpenChange を
+    // onCancel に配線した状態でクリックすると、preventDefault を怠れば
+    // onCopy と onCancel が同時に発火する（ConfirmDialog が踏んだ罠と同じ形）
+    const onCopy = vi.fn()
+    const onCancel = vi.fn()
+    render(<TableCopyDialog {...base} onCopy={onCopy} onCancel={onCancel} />)
+    fireEvent.click(screen.getByRole('button', { name: 'コピー' }))
+    expect(onCopy).toHaveBeenCalledTimes(1)
+    expect(onCancel).not.toHaveBeenCalled()
+  })
+
+  it('Esc は onCancel を呼び、onCopy は呼ばない', () => {
+    // open が制御下で onOpenChange の配線が無いと、Radix の Esc ハンドラは
+    // 素通りしてダイアログが閉じない（額縁の Esc も modalOpen で塞がれている
+    // ので、利用者はマウスでしか閉じられなくなる）
+    const onCopy = vi.fn()
+    const onCancel = vi.fn()
+    render(<TableCopyDialog {...base} onCopy={onCopy} onCancel={onCancel} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    expect(onCopy).not.toHaveBeenCalled()
+  })
+})
+
+describe('TableCopyDialog: 開き直し', () => {
+  it('開いている最中の変更は書き戻していなければ、閉じて開き直すとストアの値に戻る', () => {
+    const { rerender } = render(<TableCopyDialog {...base} onCopy={vi.fn()} onCancel={vi.fn()} />)
+    // 既定値は numbering: true。オフへ切り替えるが、まだ [コピー] は押していない
+    fireEvent.click(screen.getByRole('checkbox', { name: 'No 列を付ける' }))
+    expect(screen.getByRole('checkbox', { name: 'No 列を付ける' })).toHaveProperty('checked', false)
+
+    // 閉じて開き直す。props.variants は同じ配列参照だが、open の立ち上がりで
+    // ストアから読み直すことを見る（依存配列に variants だけを置く実装だと、
+    // ここでは変わらないので誤って通ってしまう）
+    rerender(<TableCopyDialog {...base} open={false} onCopy={vi.fn()} onCancel={vi.fn()} />)
+    rerender(<TableCopyDialog {...base} open onCopy={vi.fn()} onCancel={vi.fn()} />)
+
+    expect(screen.getByRole('checkbox', { name: 'No 列を付ける' })).toHaveProperty('checked', true)
+  })
+})

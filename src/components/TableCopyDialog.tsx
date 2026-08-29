@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Chip } from '@/components/Chip'
-import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
@@ -43,6 +44,14 @@ export interface TableCopyDialogProps {
  * **開いている間は呼び出し側が `KeyContext.modalOpen` を true にすること**
  *（rev 10章の境界規則。`ConfirmDialog` と同じ配線。額縁はモーダルキューの
  *  長さで判断しているので、この要求は自動的に満たされる）
+ *
+ * **Esc・オーバーレイクリックは `onCancel` に落とす**（`ConfirmDialog` と
+ * 同じ配線）。ここは「取り込み」のような宙ぶらりんが残る操作ではなく、
+ * キャンセルしても閉じるだけで今の状態がそのまま残る（`ChoiceDialog` の
+ * JSDoc が挙げる「Esc を許してよい場面」そのもの）。配線を怠ると、
+ * `open` が制御下で `onOpenChange` が無いまま Radix の Esc ハンドラが
+ * 素通りし——ダイアログは閉じず、額縁側の Esc ショートカットは
+ * `KeyContext.modalOpen` で塞がれたまま——マウスでしか閉じられなくなる
  */
 export function TableCopyDialog(props: TableCopyDialogProps) {
   const remembered = tableCopyPrefs.getSnapshot()
@@ -51,12 +60,18 @@ export function TableCopyDialog(props: TableCopyDialogProps) {
     resolveVariantId(props.variants, remembered.variantId),
   )
 
-  // 開き直すたびにストアの値から始める。**閉じている間の変更を持ち越さない**
+  // **`open` の立ち上がりでだけストアから読み直す。** 依存に `props.variants` を
+  // 置くだけだと、開いている最中に呼び出し側が新しい配列を渡した瞬間にも走り、
+  // 利用者が入力途中の設定が黙ってストアの値へ戻る。**部品の正しさを
+  // 呼び出し側のメモ化の作法に依存させない**
+  const wasOpen = useRef(false)
   useEffect(() => {
-    if (!props.open) return
-    const prefs = tableCopyPrefs.getSnapshot()
-    setOptions(prefs.options)
-    setVariantId(resolveVariantId(props.variants, prefs.variantId))
+    if (props.open && !wasOpen.current) {
+      const prefs = tableCopyPrefs.getSnapshot()
+      setOptions(prefs.options)
+      setVariantId(resolveVariantId(props.variants, prefs.variantId))
+    }
+    wasOpen.current = props.open
   }, [props.open, props.variants])
 
   const has = (id: TableOptionId): boolean => props.options.includes(id)
@@ -69,7 +84,13 @@ export function TableCopyDialog(props: TableCopyDialogProps) {
   }
 
   return (
-    <AlertDialog open={props.open}>
+    <AlertDialog
+      open={props.open}
+      onOpenChange={(next) => {
+        // Esc・オーバーレイクリックはどちらも「閉じる」に落ちてくる
+        if (!next) props.onCancel()
+      }}
+    >
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>表形式でコピー</AlertDialogTitle>
@@ -141,16 +162,13 @@ export function TableCopyDialog(props: TableCopyDialogProps) {
           )}
         </div>
 
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={props.onCancel}>
-            キャンセル
-          </Button>
-          {/* facet は塗りボタンを置かない（UI ノート D19）が、モーダルの主操作
-              だけは例外——`AlertDialogAction` を使う（conventions.test.ts）。
-              内部実装は Dialog.Close なので、クリックで onOpenChange も
-              発火しうる（ConfirmDialog が踏んだ M4 の罠と同じ形）。この
-              ダイアログには onOpenChange を渡していないので実害は無いが、
-              経路を copy() 一本にするため preventDefault で止めておく */}
+        <AlertDialogFooter>
+          <AlertDialogCancel>キャンセル</AlertDialogCancel>
+          {/* AlertDialogAction も内部実装は AlertDialogCancel と同じ Dialog.Close で、
+              クリックすると onOpenChange(false) も発火してしまう（Radix の仕様。
+              ConfirmDialog が踏んだ M4 の罠と同じ形）。onOpenChange を onCancel に
+              配線した今、これを止めないとコピーのたびに onCancel まで呼ばれる。
+              preventDefault で内部の close 発火を止め、経路を copy() 一本にする */}
           <AlertDialogAction
             onClick={(event) => {
               event.preventDefault()
@@ -159,7 +177,7 @@ export function TableCopyDialog(props: TableCopyDialogProps) {
           >
             コピー
           </AlertDialogAction>
-        </div>
+        </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   )
