@@ -7,6 +7,7 @@ import { checkGlossaryConsistency } from './consistency'
 import { GlossaryEditor } from './GlossaryEditor'
 import { glossaryToMarkdown } from './markdown'
 import { migrateGlossary } from './migrate'
+import { glossaryToTable } from './table'
 
 export const glossaryModule: ToolModule<GlossarySchemaVersion1> = {
   type: 'glossary',
@@ -22,6 +23,12 @@ export const glossaryModule: ToolModule<GlossarySchemaVersion1> = {
   outputs: [
     { id: 'default', label: 'Markdown', fileSuffix: '', toMarkdown: glossaryToMarkdown },
   ],
+  // 規約8: 表形式コピー（M29）。**読み手は1本**なのでダイアログに選択を出さない。
+  // 階層が無いので numberStyle も、親が無いので repeatParent も宣言しない
+  tableExport: {
+    options: ['numbering', 'showUndefined'],
+    variants: [{ id: 'default', label: '用語集', toTable: glossaryToTable }],
+  },
   // 用語集はハブなのでプロジェクトにつき1つ（rev 5章の単一性）
   singleton: true,
   migrate: migrateGlossary,

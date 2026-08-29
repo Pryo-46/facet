@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import type { JsonSchema } from './canonical'
 import type { ConsistencyIssue } from './consistency'
+import type { TableExport } from './table-export'
 
 export interface EditorProps<TData> {
   data: TData
@@ -126,6 +127,11 @@ export interface ToolModule<TData = unknown> {
    * 額縁はこの有無だけを見てボタンの活性を決める（ツールを名指ししない）
    */
   clipboardExchanges?: readonly ClipboardExchange<TData>[]
+  /**
+   * 規約8（任意）: 表形式コピー（M29）。**持たないツールは書かない。**
+   * 額縁はこの有無だけを見てボタンの活性を決める（ツールを名指ししない）
+   */
+  tableExport?: TableExport<TData>
   /** プロジェクト内に同 type のファイルを1つしか許さないか（コア横断検証が使う） */
   singleton: boolean
   /** 規約6: マイグレータ（旧 schemaVersion → 現行版。初版は恒等） */
