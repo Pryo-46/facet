@@ -941,9 +941,11 @@ describe('額縁の版番号', () => {
  *
  * このリポジトリは jest-dom を入れていないので `toBeDisabled()` / `toBeEnabled()`
  * は使わない。活性の検証は「クリックしてハンドラ（`copyHtmlToClipboardMock` /
- * `readClipboardHtmlMock`）が呼ばれたかどうか」で行う——disabled な button は
- * jsdom でも click イベントを発火しないので、これで押せる／押せないの両方を
- * 確かめられる
+ * `readClipboardHtmlMock`）が呼ばれたかどうか」で行う。**`ToolbarButton` は
+ * disabled 属性を使わない**（M29 フォローアップ。`disabled` はポインタイベントを
+ * 丸ごと落とし、押せない理由を説明する `title` のツールチップを道連れに殺すため）
+ * ので、押せないときも click イベント自体は発火する——押せないことは
+ * `onClick` がガードされて中の処理まで届かないことで確かめる
  */
 describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
   const GLOSSARY_PATH = '/proj/用語集.json'
@@ -996,9 +998,15 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
     const copyButton = screen.getByRole('button', { name: 'Miro へコピー' })
     const importButton = screen.getByRole('button', { name: 'Miro から取り込む' })
 
+    // 押せないことを二重に確かめる: aria-disabled が立っていること（理由は
+    // title で読める）と、クリックしても実際のハンドラまで届かないこと
+    expect(copyButton.getAttribute('aria-disabled')).toBe('true')
+    expect(copyButton.getAttribute('title')).toBe('このツールは外部ツールとの交換に対応していません')
     fireEvent.click(copyButton)
     expect(copyHtmlToClipboardMock).not.toHaveBeenCalled()
 
+    expect(importButton.getAttribute('aria-disabled')).toBe('true')
+    expect(importButton.getAttribute('title')).toBe('このツールは外部ツールとの交換に対応していません')
     fireEvent.click(importButton)
     expect(readClipboardHtmlMock).not.toHaveBeenCalled()
   })
@@ -1027,9 +1035,10 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
     await waitFor(() => expect(readClipboardHtmlMock).toHaveBeenCalled())
 
     const importButton = screen.getByRole('button', { name: 'Miro から取り込む' })
-    // disabled 属性が外れるまで待つ（jest-dom は入れていないので直接 DOM を見る。
-    // toBeEnabled() の代わり）
-    await waitFor(() => expect(importButton.hasAttribute('disabled')).toBe(false))
+    // aria-disabled が外れるまで待つ（jest-dom は入れていないので直接 DOM を見る。
+    // toBeEnabled() の代わり。ToolbarButton は disabled 属性を持たないので
+    // `hasAttribute('disabled')` では判定できない——M29 フォローアップ）
+    await waitFor(() => expect(importButton.getAttribute('aria-disabled')).toBeNull())
 
     // 押せるようになったことを「押して実際に取り込みが始まる」ところまで確かめる
     // （state が変わっただけで配線が繋がっていない、を弾く）
@@ -1051,8 +1060,12 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
     // （まだ読み終わっていないだけ、を「押せないまま」と取り違えないため）
     await waitFor(() => expect(readClipboardHtmlMock).toHaveBeenCalled())
 
+    const importButton = screen.getByRole('button', { name: 'Miro から取り込む' })
+    expect(importButton.getAttribute('aria-disabled')).toBe('true')
+    expect(importButton.getAttribute('title')).toBe('クリップボードに Miro のデータがありません')
+
     const callsBefore = readClipboardHtmlMock.mock.calls.length
-    fireEvent.click(screen.getByRole('button', { name: 'Miro から取り込む' }))
+    fireEvent.click(importButton)
     // 押せていれば控えのために readClipboardHtml をもう一度呼ぶ（コントローラ側の
     // importFromExternal。src/core/app-controller.ts）。呼ばれていないので押せていない
     expect(readClipboardHtmlMock.mock.calls.length).toBe(callsBefore)
@@ -1125,12 +1138,33 @@ describe('表形式でコピー（M29）', () => {
   it('ファイルを選んでいないとき、ボタンは出るが押せない', async () => {
     render(<App />)
     const button = screen.getByRole('button', { name: '表形式でコピー' })
-    // **押せないことそのものを確かめる。** `disabled` を外しても
-    // `controller.copyTable()` がファイル未選択で早期リターンするので、
-    // 下のクリック結果だけを見る書き方だと「押せない」を偽陽性で通してしまう
-    expect(button).toHaveProperty('disabled', true)
+    // **押せないことそのものを確かめる。** `controller.copyTable()` がファイル
+    // 未選択で早期リターンするので、下のクリック結果だけを見る書き方だと
+    // 「押せない」を偽陽性で通してしまう。`ToolbarButton` は disabled 属性を
+    // 使わない（M29 フォローアップ）ので、DOM の disabled が false のままで
+    // あることと、aria-disabled が立っていることの両方を確かめる
+    expect(button).toHaveProperty('disabled', false)
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    expect(button.getAttribute('title')).toBe('ファイルを選んでください')
     fireEvent.click(button)
     expect(screen.queryByRole('heading', { name: '表形式でコピー' })).toBeNull()
+  })
+
+  it('表形式コピーを持たないツール（シーケンス）を開くと、理由が変わって押せないまま', async () => {
+    // ファイルは選べている（canExport は true）が、`tableExport` を宣言していない
+    // ツールなので理由は「対応していません」側に切り替わる（M29 フォローアップ）
+    disk.set(
+      '/proj/シーケンス.json',
+      JSON.stringify({ schemaVersion: 1, type: 'sequence', title: 'シーケンス', actors: [], steps: [] }),
+    )
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'シーケンス（シーケンス.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    const button = screen.getByRole('button', { name: '表形式でコピー' })
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    expect(button.getAttribute('title')).toBe('このツールは表形式コピーに対応していません')
   })
 
   it('用語集を開くと押せて、設定ダイアログが開く', async () => {

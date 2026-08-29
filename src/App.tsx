@@ -7,6 +7,7 @@ import { FileHeader } from '@/components/FileHeader'
 import { EDITOR_MIN_WIDTH, PANE_MIN_WIDTH, PaneSplitter } from '@/components/PaneSplitter'
 import { TableCopyDialog } from '@/components/TableCopyDialog'
 import { TerminalPane } from '@/components/TerminalPane'
+import { ToolbarButton } from '@/components/ToolbarButton'
 import { buttonBase } from '@/components/button-styles'
 import { FileList } from '@/components/FileList'
 import { IssueBanner } from '@/components/IssueBanner'
@@ -796,6 +797,38 @@ function App() {
     }
   }, [exchange])
 
+  /**
+   * 出力ボタン4本の「押せない理由」（M29 フォローアップ）。人間が実機を触って
+   * 「どのボタンが今のツールで使えるのか、なぜ押せないのかが分からない」と
+   * 指摘したことに端を発する。**ファイル未選択を先に見る**——それが利用者にとって
+   * 次に取れる、動ける一手だから（「このツールは対応していません」を先に見せても
+   * 何もできない）。**活性の判断にモジュールの `type` を使わない**のは元の規約の
+   * ままで、ここでも `tableExport` / `exchange` の宣言の有無だけで決める。
+   * 文言はツールを名指ししない（「Miro」だけは、クリップボードの形式の名前として
+   * 元々の規約が名指しを許している）
+   */
+  const NO_FILE_REASON = 'ファイルを選んでください'
+  const exportMenuUnusable = !canExport ? NO_FILE_REASON : null
+  const tableCopyUnusable = !canExport
+    ? NO_FILE_REASON
+    : selectedModule?.tableExport === undefined
+      ? 'このツールは表形式コピーに対応していません'
+      : null
+  const miroCopyUnusable = !canExport
+    ? NO_FILE_REASON
+    : exchange === undefined
+      ? 'このツールは外部ツールとの交換に対応していません'
+      : null
+  // **`canExport` を見ない。** 取り込みはファイルを選んでいなくても、ロジック
+  // ツリーの新規作成前でも意味を持ちうる操作で、元から `canExport` に依存して
+  // いなかった（既存の設計をそのまま保つ）
+  const miroImportUnusable =
+    exchange === undefined
+      ? 'このツールは外部ツールとの交換に対応していません'
+      : !clipboardHasImport
+        ? 'クリップボードに Miro のデータがありません'
+        : null
+
   const runHistory = (kind: 'undo' | 'redo') => {
     const h = historyRef.current
     if (h === null || selectedPath === null || selectedModule === undefined) return
@@ -963,38 +996,34 @@ function App() {
           </Button>
           <ExportMenu
             outputs={selectedModule?.outputs ?? []}
-            disabled={!canExport}
+            unusable={exportMenuUnusable}
             onCopy={(profile) => void controller.copyMarkdown(profile)}
             onExport={(profile) => void controller.exportMarkdown(profile)}
           />
           {/* 表形式でコピー（規約8・M29）。**常に出す**——ExportMenu・Miro と
               同じ原則で、押せる／押せないだけを切り替える。活性の判断に
-              モジュールの type を使わない（`tableExport` の有無だけで決める） */}
-          <Button
-            variant="outline"
-            disabled={!canExport || selectedModule?.tableExport === undefined}
-            onClick={() => controller.copyTable()}
-          >
+              モジュールの type を使わない（`tableExport` の有無だけで決める）。
+              押せない理由は `tableCopyUnusable`（ToolbarButton の title で読める。
+              M29 フォローアップ） */}
+          <ToolbarButton unusable={tableCopyUnusable} onClick={() => controller.copyTable()}>
             表形式でコピー
-          </Button>
+          </ToolbarButton>
           {/* Miro 交換（規約7・logic-tree M3）。**常に出す**——ExportMenu と同じ
               原則で、押せる／押せないだけを切り替え、ボタン自体は消えたり
               出たりしない。文言に「Miro」と書いてよいが、活性の判断には
               モジュールの type を使わない（`exchange` の有無だけで決める） */}
-          <Button
-            variant="outline"
-            disabled={!canExport || exchange === undefined}
+          <ToolbarButton
+            unusable={miroCopyUnusable}
             onClick={() => exchange !== undefined && void controller.copyToExternal(exchange)}
           >
             Miro へコピー
-          </Button>
-          <Button
-            variant="outline"
-            disabled={exchange === undefined || !clipboardHasImport}
+          </ToolbarButton>
+          <ToolbarButton
+            unusable={miroImportUnusable}
             onClick={() => exchange !== undefined && void controller.importFromExternal(exchange)}
           >
             Miro から取り込む
-          </Button>
+          </ToolbarButton>
         </div>
         {/* **右端の3つを絶対に押し出さないこと。** 余白を食って右端へ寄せるのは
             `ml-auto` の仕事で、`shrink-0` がそれ以上の圧縮を止める。
