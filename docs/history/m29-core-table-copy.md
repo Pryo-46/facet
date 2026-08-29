@@ -47,7 +47,7 @@ M29 は計画12タスク（実装11本＋本ドキュメント）で、目的は
 3. **設定ダイアログのテストが1本、コメントで終わっていてアサーションが無かった**（Task 9, `src/components/TableCopyDialog.test.tsx` 相当）。「覚えている読み手がこのツールに無ければ先頭を選んでおく」というテストが、確認のコメントだけで実際の `expect` を持たなかった。**落ちようがないテストは無いより悪い**——後から読んだ人がその性質は守られていると誤解する。事前スキャンで指摘し、`resolveVariantId` が `'dev'` を `'default'` へ落とすことを `onCopy` の第1引数で検査するアサーションを足した。
 4. **計画が指示した `onVisibleIds` の設置場所（`App.tsx` の `const modalOpen = …` の近く）が TDZ の `ReferenceError` を起こした**（Task 11）。`useCallback` の依存配列が読む `controller` は、`modalOpen` の宣言時点ではまだ宣言されていない（`controller` は後続の `controllerRef.current` から作られる）。**計画に書いたコードは型検査を通っても実行時に落ちうる**——`tsc -b` は変数の初期化順序までは見ない。`const controller = controllerRef.current` の直後へ移動して解消した。コード・コメントの中身は不変で位置だけの変更。
 
-あわせて、Task 8 で `use-visible-ids.ts` の `ids.join(' ')` / `key.split(' ')` の区切り文字が、**エスケープ列ではなく生の NUL バイトとしてソースに埋まる**という事故が起きた（`git diff --numstat` が `- -`（バイナリ扱い）を返し、レビュアーがこのファイルの差分を読めなかった）。controller が独立に `od -c` で検証して本物の欠陥と確定させ、`0f2dbbc` でエスケープ表記に直した。**この計画（M29）は、CLAUDE.md がマイルストーン完了時の確認事項として挙げている「NUL バイト混入」を実際に一度踏んだ**——本書もコミット後に同じ検査（`git diff --numstat 3f6ff42..HEAD`）を通している。
+あわせて、Task 8 で `use-visible-ids.ts` の `ids.join()` / `key.split()` の区切り文字が、**U+0000 のエスケープ列ではなく生の NUL バイトとしてソースに埋まる**という事故が起きた（`git diff --numstat` が `- -`（バイナリ扱い）を返し、レビュアーがこのファイルの差分を読めなかった）。controller が独立に `od -c` で検証して本物の欠陥と確定させ、`0f2dbbc` でエスケープ表記に直した。**この計画（M29）は、CLAUDE.md がマイルストーン完了時の確認事項として挙げている「NUL バイト混入」を実際に一度踏んだ**——本書もコミット後に同じ検査（`git diff --numstat 3f6ff42..HEAD`）を通している。
 
 ---
 
