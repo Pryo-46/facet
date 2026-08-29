@@ -90,7 +90,7 @@ async fn move_to_trash(path: String) -> Result<(), String> {
 /// no readHtml()」と明記されている）。内部で使っている arboard は `Get::html()` を
 /// 持ち Windows 実装も入っているので、公開されていないだけのそれをここで通す。
 ///
-/// **判断もロジックも持たない**（rev 12章）。復号もパースも木の組み立ても TypeScript 側。
+/// **判断もロジックも持たない**（rev 7章）。復号もパースも木の組み立ても TypeScript 側。
 #[tauri::command]
 fn read_clipboard_html() -> Result<String, String> {
     arboard::Clipboard::new()
