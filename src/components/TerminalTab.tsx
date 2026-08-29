@@ -128,7 +128,6 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
 
   // コールバックは最新を ref から読む。**起動の effect は1回だけ**——
   // 依存に入れると props が変わるたびに端末がもう1本立つ。
-  // TODO(M28診断): 原因が分かったら消す。onError も乗せ、起動 effect の中
   // （disposed 経由の非同期コールバック）から最新の onError を読めるようにする
   const cb = useRef({ onRunning, onExited, onFailed, onError })
   cb.current = { onRunning, onExited, onFailed, onError }
@@ -211,20 +210,6 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     // `insertionFlushedRef`（もう流したか）であって、この途中状態ではない
     let sawBracketedPaste = false
 
-    // TODO(M28診断): 原因が分かったら消す。ここは起動 effect の同期部分で、
-    // StrictMode の二重マウントでは「捨てられる側」の `disposed` がまだ
-    // 立っていない（cleanup はこの後に走る）。マイクロタスク1つぶん遅らせて
-    // 呼べば、二重マウントの cleanup が先に走った後になるので、捨てられた側は
-    // disposed で弾ける（生き残った側の1件だけ出る）
-    queueMicrotask(() => {
-      if (disposed) return
-      cb.current.onError(
-        session.initialText === null
-          ? 'M28診断: 起動時の保留なし'
-          : `M28診断: 起動時の保留を用意 "${session.initialText}"`,
-      )
-    })
-
     /**
      * 保留の列を順に差し込み、両方のタイマーを解除する。**「もう流した」への
      * 遷移も兼ねる**——以後 insertion effect は保留を積まず即座に paste する。
@@ -243,8 +228,6 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
       const queued = pendingInsertionsRef.current
       pendingInsertionsRef.current = []
       for (const text of queued) {
-        // TODO(M28診断): 原因が分かったら消す
-        cb.current.onError(`M28診断: paste 実行 "${text}"`)
         term.paste(text)
       }
     }
@@ -358,8 +341,6 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
             if (insertionFlushedRef.current) return
             if (!sawBracketedPaste && term.modes.bracketedPasteMode) {
               sawBracketedPaste = true
-              // TODO(M28診断): 原因が分かったら消す
-              cb.current.onError('M28診断: 2004 を検出。静穏待ち開始')
             }
             // **2004 を見る前は静穏タイマーを張らない**（描画が始まる前の
             // 静けさで流さないため）。見た後は、出力が来るたびに
@@ -370,8 +351,6 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
               quietTimer = setTimeout(() => {
                 quietTimer = null
                 if (disposed) return
-                // TODO(M28診断): 原因が分かったら消す
-                cb.current.onError('M28診断: 静穏を確認、流す')
                 flushPendingInsertion()
               }, INSERTION_QUIET_MS)
             }
@@ -385,11 +364,6 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
           if (disposed) return
           // 差し込む先がもう無い。タイマーだけ律儀に両方とも解除して
           // 保留の列を捨てる
-          // TODO(M28診断): 原因が分かったら消す。捨てるものが実際にあった
-          // ときだけ知らせる（空の保留を毎回「破棄」と言っても紛らわしい）
-          if (pendingInsertionsRef.current.length > 0) {
-            cb.current.onError('M28診断: 保留を破棄（終了）')
-          }
           pendingInsertionsRef.current = []
           if (quietTimer !== null) {
             clearTimeout(quietTimer)
@@ -431,8 +405,6 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
           capTimer = setTimeout(() => {
             capTimer = null
             if (disposed) return
-            // TODO(M28診断): 原因が分かったら消す
-            cb.current.onError(`M28診断: ${INSERTION_MAX_WAIT_MS / 1000}秒の上限で流す`)
             flushPendingInsertion()
           }, INSERTION_MAX_WAIT_MS)
         }
@@ -519,12 +491,8 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     if (lastInsertedRef.current === insertion.seq) return
     lastInsertedRef.current = insertion.seq
     if (insertionFlushedRef.current) {
-      // TODO(M28診断): 原因が分かったら消す
-      onError(`M28診断: 即時 paste "${insertion.text}"`)
       term.paste(insertion.text)
     } else {
-      // TODO(M28診断): 原因が分かったら消す
-      onError(`M28診断: 保留に積んだ "${insertion.text}"`)
       pendingInsertionsRef.current.push(insertion.text)
     }
     // **依存は `seq` だけ。** `insertion` そのものを入れると、App が同じ内容で
