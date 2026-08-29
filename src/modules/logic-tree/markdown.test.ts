@@ -103,7 +103,7 @@ describe('logicTreeToMarkdown', () => {
     expect(md).toContain('- ひとつだけ')
   })
 
-  it('改行を含む文言は図では空白に畳み、箇条書きでは残す', () => {
+  it('改行を含む文言は図では空白に畳み、箇条書きでは <br> に変える', () => {
     const multiline: LogicTreeSchemaVersion1 = {
       ...TREE,
       nodes: [{ id: 'node_aaaaaaaaaa', parentId: null, text: '上\n下' }],
@@ -111,5 +111,22 @@ describe('logicTreeToMarkdown', () => {
     const md = logicTreeToMarkdown(multiline)
     // mermaid のラベルは1行でないと壊れる
     expect(md).toContain('n1["上 下"]')
+    // 箇条書き側はそのまま出すと構造が壊れるので <br> に変える（表のセルと同じ扱い）
+    expect(md).toContain('- 上<br>下')
+  })
+
+  it('箇条書きの改行をそのまま出すと Markdown の見出しが注入されうるので <br> にする', () => {
+    // NodeBox.tsx の Shift+Enter や Miro の複数段落の取り込みで実際に生まれる値
+    const injected: LogicTreeSchemaVersion1 = {
+      ...TREE,
+      nodes: [
+        { id: 'node_aaaaaaaaaa', parentId: null, text: '親' },
+        { id: 'node_bbbbbbbbbb', parentId: 'node_aaaaaaaaaa', text: '上\n## 注入された見出し\n孫のように見える行' },
+      ],
+    }
+    const md = logicTreeToMarkdown(injected)
+    expect(md).toContain('- 上<br>## 注入された見出し<br>孫のように見える行')
+    // 改行をそのまま出していれば生まれていたはずの独立した見出し行が無い
+    expect(md).not.toMatch(/^## 注入された見出し$/m)
   })
 })

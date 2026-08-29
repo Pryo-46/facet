@@ -19,9 +19,25 @@ import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
 
 const UNDEFINED_TEXT = '（未定義）'
 
-/** 箇条書き側の文言。空なら（未定義） */
+/**
+ * 箇条書き側の文言。空なら（未定義）。改行は `<br>` に変える。
+ *
+ * **改行は異常な入力ではない。** `NodeBox.tsx` は `multiline` の `CellInput` で
+ * Shift+Enter による改行を許しており、スキーマも「ユーザーが明示的に入れた
+ * 改行だけが文言の一部」として認めている。Miro から取り込んだ複数段落ノードも
+ * `stripMiroText` が `\n` に変換して持ち込む——踏んで当然の値である。
+ *
+ * **そのまま出すと箇条書きの構造が壊れる。** 改行の直後は `- ` を持たない
+ * 生の Markdown 行になり、最悪 `## ` から始まる見出しが注入される
+ * （`markdown-table.ts` の `escapeCell` / `headingText` が警告している危険と同じ）。
+ *
+ * **空白へは畳まない。** mermaid のラベル（`mermaidLabel`）は1行制約があるので
+ * 空白に畳むしかないが、箇条書き側にその制約は無い。`escapeCell`（表のセル）が
+ * 同じ理由で `<br>` を選んでいるのに倣い、段落の区切りという情報を失わずに残す
+ */
 function bulletLabel(text: string): string {
-  return text === '' ? UNDEFINED_TEXT : text
+  if (text === '') return UNDEFINED_TEXT
+  return text.replace(/\r\n|\r|\n/g, '<br>')
 }
 
 /**

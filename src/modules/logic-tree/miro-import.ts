@@ -37,9 +37,8 @@ export function stripMiroText(html: string): string {
 
 export type MiroImportResult = { ok: true; nodes: TreeNode[] } | { ok: false; reason: string }
 
-/** Miro のオブジェクト1件から、必要な値だけ取り出した形 */
+/** Miro のオブジェクト1件から、必要な値だけ取り出した形。キーは Map の key（index）が持つ */
 interface MiroNode {
-  index: number
   text: string
   y: number
 }
@@ -91,7 +90,7 @@ export function miroPayloadToNodes(payload: unknown): MiroImportResult {
       const text = typeof json.text === 'string' ? stripMiroText(json.text) : ''
       const pos = json._position as { offsetPx?: { y?: unknown } } | null | undefined
       const y = typeof pos?.offsetPx?.y === 'number' ? pos.offsetPx.y : 0
-      nodes.set(index, { index, text, y })
+      nodes.set(index, { text, y })
     } else if (widgetType(o) === 'line') {
       const from = (json.primary as { widgetIndex?: unknown } | undefined)?.widgetIndex
       const to = (json.secondary as { widgetIndex?: unknown } | undefined)?.widgetIndex
