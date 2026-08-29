@@ -9,6 +9,9 @@ import type { ModalRequest } from './modal-queue'
 import { computeIssues, type ProjectFile } from './project-file'
 import type { AnyToolModule, ClipboardExchange, ModuleRegistry, OutputProfile } from './registry'
 import { toProjectFile, type ScanResult } from './scan'
+import type { TableOptions, VisibleRows } from './table-export'
+import { tableToHtml } from './table-html'
+import { tableToTsv } from './table-tsv'
 import type { ToastItem } from './toasts'
 
 /**
@@ -120,6 +123,10 @@ export interface AppController {
   copyMarkdown(profile: OutputProfile<unknown>): Promise<void>
   /** 選択中ファイルの Markdown を .md として書き出す（rev 8章） */
   exportMarkdown(profile: OutputProfile<unknown>): Promise<void>
+  /** 表形式コピーの設定ダイアログを出す（規約8。M29） */
+  copyTable(): void
+  /** エディタからの「画面に出ている行」の報告（M29） */
+  setVisibleIds(ids: VisibleRows, total: number | null): void
   /** 選択中のデータを外部ツールの形式でクリップボードへ（logic-tree M3） */
   copyToExternal(exchange: ClipboardExchange<unknown>): Promise<void>
   /** クリップボードから外部ツールの形式を取り込む（logic-tree M3） */
@@ -156,6 +163,12 @@ export function createAppController(
   let saver: AutoSaver | null = null
   let projectDir: string | null = null
   let selectedPath: string | null = null
+  /**
+   * 画面に出ている行の ID 集合と全行数（M29）。エディタが報告する。
+   * **null / null ＝「絞り込みなし・件数不明」**（絞り込みを持たないツール）
+   */
+  let visibleIds: VisibleRows = null
+  let visibleTotal: number | null = null
   /** ディスクの既知内容の台帳。自己書き込み除外の要（rev 3章） */
   const knownDisk = createKnownDisk()
   /** selectFile / openFolder の直列化トークン。後続が始まったら先行の結果を捨てる */
@@ -281,6 +294,10 @@ export function createAppController(
 
   const selectFile = async (path: string): Promise<void> => {
     const token = ++selectSeq
+    // **前のファイルの絞り込みを持ち越さない。** 新しいエディタが報告するまで
+    // 全件として扱う（listOnly・壊れたファイルは誰も報告しない）
+    visibleIds = null
+    visibleTotal = null
     if (!(await closeCurrentFile())) return
     try {
       // 選択時に必ずディスクから読み直す（走査時キャッシュを編集の起点にすると、
@@ -777,17 +794,21 @@ export function createAppController(
    * 整合性エラー（レベル2の赤）があるまま出力しようとしたときの確認の本文。
    *
    * **未定義には出さない。** 未定義は出力に `（未定義）` として残すのが規約で、
-   * 正常な「まだ決めていない」状態である。確認を挟むのは赤だけ
+   * 正常な「まだ決めていない」状態である。確認を挟むのは赤だけ。
+   *
+   * **`OutputProfile` ではなく `describeIssueEffect` だけを取る**（M29）——
+   * 表形式コピーには `OutputProfile` が無く（`TableVariant` は `toMarkdown` も
+   * `fileSuffix` も持たない）、必要なのはこの1つだけだった
    */
   const exportConfirmDescription = (
     issues: readonly ConsistencyIssue[],
-    profile: OutputProfile<unknown>,
+    describeIssueEffect: ((issues: readonly ConsistencyIssue[]) => string) | undefined,
   ): string => {
     const shown = issues.slice(0, ISSUE_PREVIEW_LIMIT).map((i) => `・${i.message}`)
     const rest = issues.length - shown.length
     if (rest > 0) shown.push(`・ほか ${rest} 件`)
     const effect =
-      profile.describeIssueEffect?.(issues) ??
+      describeIssueEffect?.(issues) ??
       'このまま出力すると、指摘のある箇所もそのまま出力に含まれます。'
     return [`このファイルには整合性エラーが ${issues.length} 件あります。`, shown.join('\n'), effect].join(
       '\n\n',
@@ -805,20 +826,81 @@ export function createAppController(
       kind: 'confirm',
       key: 'export',
       title: '整合性エラーのあるファイルを出力します',
-      description: exportConfirmDescription(doc.issues, profile),
+      description: exportConfirmDescription(doc.issues, profile.describeIssueEffect),
       confirmLabel: '出力する',
       onConfirm: run,
     })
     return false
   }
 
+  /**
+   * トーストに付ける件数（M29）。**報告の無いツールでは何も付けない**——
+   * ロジックツリーの行は葉の数であって「ノード 12 件」ではなく、
+   * 数え方を説明せずに数字を出すと誤読される
+   */
+  const countSuffix = (): string => {
+    if (visibleTotal === null) return ''
+    if (visibleIds === null) return `（${visibleTotal} 件）`
+    return `（${visibleTotal} 件中 ${visibleIds.size} 件）`
+  }
+
+  const setVisibleIds = (ids: VisibleRows, total: number | null): void => {
+    visibleIds = ids
+    visibleTotal = total
+  }
+
+  const copyTable = (): void => {
+    const doc = currentDocument()
+    const tableExport = doc?.module.tableExport
+    if (doc === null || tableExport === undefined) return
+    host.showModal({
+      kind: 'tableCopy',
+      // **`export` を共有する。** 出力の確認は同時に1つでよく、押し直しで
+      // 積み上がらない（Markdown の確認と同じ family）
+      key: 'export',
+      warning:
+        doc.issues.length === 0
+          ? null
+          : exportConfirmDescription(doc.issues, doc.module.outputs[0]?.describeIssueEffect),
+      options: tableExport.options,
+      variants: tableExport.variants.map((v) => ({ id: v.id, label: v.label })),
+      onCopy: (variantId, options) => doCopyTable(variantId, options),
+    })
+  }
+
+  const doCopyTable = async (variantId: string, options: TableOptions): Promise<void> => {
+    // **ダイアログを出す前のスナップショットで作らない**（`doExportMarkdown` と
+    // 同じ理由。ダイアログが開いている間に外部変更の取り込みが走ると、
+    // 取り込み前の内容を出す）
+    const doc = currentDocument()
+    const variant = doc?.module.tableExport?.variants.find((v) => v.id === variantId)
+    if (doc === null || variant === undefined) return
+    try {
+      const table = variant.toTable(doc.data, options, visibleIds)
+      await io.copyHtml(tableToHtml(table), tableToTsv(table))
+      host.setBanner('io', null)
+      host.showToast({
+        key: 'export',
+        message: `表をクリップボードにコピーしました${countSuffix()}`,
+      })
+    } catch (err) {
+      host.setBanner('io', `クリップボードにコピーできませんでした: ${describeError(err)}`)
+    }
+  }
+
   const doCopyMarkdown = async (profile: OutputProfile<unknown>): Promise<void> => {
     const doc = currentDocument()
     if (doc === null) return
     try {
-      await io.copyText(profile.toMarkdown(doc.data))
+      // **コピーは絞り込みに追従する**（M29）。書き出し（`doExportMarkdown`）は
+      // 全件のまま——クリップボードは「今見ているものを持っていく」一時的な動線だが、
+      // ファイルは成果物であり、絞り込んだままの .md は一見完全な顔で Git に残る
+      await io.copyText(profile.toMarkdown(doc.data, visibleIds))
       host.setBanner('io', null)
-      host.showToast({ key: 'export', message: 'Markdown をクリップボードにコピーしました' })
+      host.showToast({
+        key: 'export',
+        message: `Markdown をクリップボードにコピーしました${countSuffix()}`,
+      })
     } catch (err) {
       host.setBanner('io', `クリップボードにコピーできませんでした: ${describeError(err)}`)
     }
@@ -971,6 +1053,8 @@ export function createAppController(
     requestClose,
     copyMarkdown,
     exportMarkdown,
+    copyTable,
+    setVisibleIds,
     copyToExternal,
     importFromExternal,
     dispose() {

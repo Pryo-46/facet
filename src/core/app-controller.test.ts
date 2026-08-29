@@ -7,6 +7,7 @@ import { pushModal, type ModalRequest } from './modal-queue'
 import type { ProjectFile } from './project-file'
 import { createRegistry, type AnyToolModule, type ClipboardExchange, type ModuleRegistry } from './registry'
 import { scanFolder } from './scan'
+import type { TableOptions, VisibleRows } from './table-export'
 import type { ToastItem } from './toasts'
 
 // ---- テスト用のモジュール（用語集の代わり。スキーマは最小限） ----
@@ -1442,5 +1443,231 @@ describe('クリップボード交換（logic-tree M3）', () => {
       // recordEdit（＝host.getEditingData が読む値）も同じ内容に揃っている
       expect(h.document()).toEqual(entry.result.data)
     })
+  })
+})
+
+// ---- 表形式コピー（M29） ----
+
+interface TableCall {
+  options: TableOptions
+  visible: VisibleRows | undefined
+}
+
+/** 呼ばれた引数を `calls` へ記録するだけの `tableExport` を持つモジュール差し替え */
+function tableModuleOver(calls: TableCall[]): Partial<AnyToolModule> {
+  return {
+    tableExport: {
+      options: ['numbering', 'showUndefined'],
+      variants: [
+        {
+          id: 'default',
+          label: 'ノート',
+          toTable: (d: { title: string }, options: TableOptions, visible?: VisibleRows) => {
+            calls.push({ options, visible })
+            return { header: ['題名'], rows: [[d.title]] }
+          },
+        },
+      ],
+    },
+  }
+}
+
+const OPTS: TableOptions = {
+  numbering: true,
+  numberStyle: 'path',
+  repeatParent: false,
+  showUndefined: true,
+}
+
+/** 開いている表形式コピーのダイアログで[コピー]を押す */
+async function pressCopy(
+  h: ReturnType<typeof createHarness>,
+  variantId = 'default',
+  options: TableOptions = OPTS,
+): Promise<void> {
+  const request = h.modals()[0]
+  if (request?.kind !== 'tableCopy') throw new Error('表形式コピーのダイアログが開いていない')
+  await request.onCopy(variantId, options)
+}
+
+describe('copyTable（M29）', () => {
+  it('tableExport を持つファイルで設定ダイアログを出す', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') }, {}, tableModuleOver([]))
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.controller.copyTable()
+    const request = h.modals()[0]
+    expect(request?.kind).toBe('tableCopy')
+    expect(request?.kind === 'tableCopy' && request.variants).toEqual([
+      { id: 'default', label: 'ノート' },
+    ])
+  })
+
+  it('tableExport を持たないモジュールでは何も出さない（ツールを名指ししない）', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.controller.copyTable()
+    expect(h.modals()).toEqual([])
+  })
+
+  it('ファイルを選んでいなければ何も出さない', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') }, {}, tableModuleOver([]))
+    await h.controller.openFolder(DIR)
+    h.controller.copyTable()
+    expect(h.modals()).toEqual([])
+  })
+
+  it('赤が無ければ warning は null', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') }, {}, tableModuleOver([]))
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.controller.copyTable()
+    const request = h.modals()[0]
+    expect(request?.kind === 'tableCopy' && request.warning).toBeNull()
+  })
+
+  it('赤があるとき warning に件数・指摘・汎用文が入る', async () => {
+    const issue: ConsistencyIssue = {
+      rule: 'duplicate-id',
+      message: 'ノートの ID が重複しています: note_X',
+      locations: [],
+    }
+    const h = createHarness({ [p('a.json')]: note('A') }, {}, {
+      ...tableModuleOver([]),
+      checkConsistency: () => [issue],
+    })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.controller.copyTable()
+    const request = h.modals()[0]
+    const warning = request?.kind === 'tableCopy' ? request.warning : null
+    expect(warning).toContain('整合性エラーが 1 件')
+    expect(warning).toContain('ノートの ID が重複しています: note_X')
+    // note モジュールは describeIssueEffect を持たないので汎用文になる
+    expect(warning).toContain('指摘のある箇所もそのまま出力に含まれます')
+  })
+
+  it('onCopy で HTML と TSV の両方をクリップボードへ載せる', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') }, {}, tableModuleOver([]))
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.controller.copyTable()
+    await pressCopy(h)
+    expect(h.io.copyHtml).toHaveBeenCalledWith(
+      '<table><thead><tr><th>題名</th></tr></thead><tbody><tr><td>A</td></tr></tbody></table>',
+      '題名\nA',
+    )
+    expect(h.toasts().at(-1)?.message).toContain('表をクリップボードにコピーしました')
+  })
+
+  it('ダイアログで選んだ設定がそのまま toTable へ渡る', async () => {
+    const calls: TableCall[] = []
+    const h = createHarness({ [p('a.json')]: note('A') }, {}, tableModuleOver(calls))
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.controller.copyTable()
+    await pressCopy(h, 'default', { ...OPTS, numbering: false })
+    expect(calls.at(-1)?.options.numbering).toBe(false)
+  })
+
+  it('ダイアログを開いている間にファイルが変わったら古いデータを出さない', async () => {
+    const h = createHarness(
+      { [p('a.json')]: note('A'), [p('b.json')]: note('B') },
+      {},
+      tableModuleOver([]),
+    )
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.controller.copyTable()
+    const request = h.modals()[0]
+    await h.controller.selectFile(p('b.json'))
+    if (request?.kind === 'tableCopy') await request.onCopy('default', OPTS)
+    const html = (h.io.copyHtml as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
+      | string
+      | undefined
+    expect(html).not.toContain('<td>A</td>')
+  })
+
+  it('コピーの失敗はバナーに出す', async () => {
+    const copyHtml = vi.fn<(html: string, altText: string) => Promise<void>>()
+      .mockRejectedValue(new Error('denied'))
+    const h = createHarness({ [p('a.json')]: note('A') }, { copyHtml }, tableModuleOver([]))
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.controller.copyTable()
+    await pressCopy(h)
+    expect(h.banners().io).toContain('クリップボードにコピーできませんでした')
+  })
+})
+
+describe('絞り込みの反映（M29）', () => {
+  /** `toMarkdown` の引数を覗くためのモジュール差し替え */
+  function markdownSpy(toMarkdown: (d: unknown, visible?: VisibleRows) => string) {
+    return { outputs: [{ id: 'default', label: 'Markdown', fileSuffix: '', toMarkdown }] }
+  }
+
+  it('setVisibleIds した ID 集合が toMarkdown へ渡る', async () => {
+    const toMarkdown = vi.fn<(d: unknown, visible?: VisibleRows) => string>().mockReturnValue('md')
+    const h = createHarness({ [p('a.json')]: note('A') }, {}, markdownSpy(toMarkdown))
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    const ids = new Set(['note_x'])
+    h.controller.setVisibleIds(ids, 42)
+    await h.controller.copyMarkdown(firstOutput(h))
+    expect(toMarkdown.mock.calls.at(-1)?.[1]).toBe(ids)
+  })
+
+  it('トーストは絞り込みありなら「N 件中 M 件」', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.controller.setVisibleIds(new Set(['x', 'y']), 42)
+    await h.controller.copyMarkdown(firstOutput(h))
+    expect(h.toasts().at(-1)?.message).toContain('（42 件中 2 件）')
+  })
+
+  it('トーストは絞り込みなしなら「N 件」', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.controller.setVisibleIds(null, 42)
+    await h.controller.copyMarkdown(firstOutput(h))
+    expect(h.toasts().at(-1)?.message).toContain('（42 件）')
+  })
+
+  it('件数を報告しないツールではトーストに件数を付けない', async () => {
+    const h = createHarness({ [p('a.json')]: note('A') })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    await h.controller.copyMarkdown(firstOutput(h))
+    expect(h.toasts().at(-1)?.message).toBe('Markdown をクリップボードにコピーしました')
+  })
+
+  it('**書き出しは絞り込みを渡さない**（成果物が部分的にならない）', async () => {
+    const toMarkdown = vi.fn<(d: unknown, visible?: VisibleRows) => string>().mockReturnValue('md')
+    const h = createHarness(
+      { [p('a.json')]: note('A') },
+      { askSavePath: async () => 'C:\\out\\a.md' },
+      markdownSpy(toMarkdown),
+    )
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.controller.setVisibleIds(new Set(['note_x']), 42)
+    await h.controller.exportMarkdown(firstOutput(h))
+    expect(toMarkdown.mock.calls.at(-1)?.[1]).toBeUndefined()
+  })
+
+  it('selectFile で報告がリセットされる（前のファイルの絞り込みを持ち越さない）', async () => {
+    // note モジュールは singleton なので、a.json / b.json を両方とも note のまま
+    // 開くと「単一性違反」の赤が立ち、この観点とは無関係な guardIssues の確認が
+    // 割り込む。ここで見たいのは絞り込みの持ち越しだけなので、それ以外の赤を消す
+    const h = createHarness({ [p('a.json')]: note('A'), [p('b.json')]: note('B') }, {}, { singleton: false })
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+    h.controller.setVisibleIds(new Set(['x']), 42)
+    await h.controller.selectFile(p('b.json'))
+    await h.controller.copyMarkdown(firstOutput(h))
+    expect(h.toasts().at(-1)?.message).toBe('Markdown をクリップボードにコピーしました')
   })
 })
