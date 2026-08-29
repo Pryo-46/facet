@@ -64,6 +64,7 @@ const {
   copyHtmlToClipboardMock,
   readClipboardHtmlMock,
   clipboardHtmlConfig,
+  copyTextMock,
 } = vi.hoisted(() => {
   // `clipboardHtmlConfig` は下の `readClipboardHtmlMock` が参照するので、
   // オブジェクトリテラルの外（同じ関数スコープの変数）として先に作る——
@@ -107,6 +108,10 @@ const {
     copyHtmlToClipboardMock: vi.fn(async (_html: string, _altText: string) => undefined),
     clipboardHtmlConfig,
     readClipboardHtmlMock: vi.fn(async () => clipboardHtmlConfig.value),
+    // Markdown の平文コピー（`AppIo.copyText` → `copyToClipboard`）専用の spy（M29）。
+    // 絞り込みがコピーへ追従することを確かめるには、コピーされた文字列そのものを
+    // 見る必要があるので、他の spy と同じ理由でモック化する
+    copyTextMock: vi.fn(async (_text: string) => undefined),
   }
 })
 
@@ -141,7 +146,7 @@ vi.mock('@/fs/app-window', () => ({
   forceClose: async () => undefined,
 }))
 vi.mock('@/fs/clipboard', () => ({
-  copyToClipboard: async () => undefined,
+  copyToClipboard: copyTextMock,
   // Miro 等とのクリップボード交換（logic-tree M3、Task 9）。呼ばれたかどうかを
   // テストから見たいので spy 化する（`clipboardHtmlConfig` で返す HTML を制御する）
   copyHtmlToClipboard: copyHtmlToClipboardMock,
@@ -294,6 +299,7 @@ afterEach(() => {
   copyHtmlToClipboardMock.mockClear()
   readClipboardHtmlMock.mockClear()
   clipboardHtmlConfig.value = ''
+  copyTextMock.mockClear()
 })
 /**
  * **止めたままの同期を次のテストへ持ち越さない（レビュー指摘）。**
@@ -1119,6 +1125,10 @@ describe('表形式でコピー（M29）', () => {
   it('ファイルを選んでいないとき、ボタンは出るが押せない', async () => {
     render(<App />)
     const button = screen.getByRole('button', { name: '表形式でコピー' })
+    // **押せないことそのものを確かめる。** `disabled` を外しても
+    // `controller.copyTable()` がファイル未選択で早期リターンするので、
+    // 下のクリック結果だけを見る書き方だと「押せない」を偽陽性で通してしまう
+    expect(button).toHaveProperty('disabled', true)
     fireEvent.click(button)
     expect(screen.queryByRole('heading', { name: '表形式でコピー' })).toBeNull()
   })
@@ -1198,5 +1208,26 @@ describe('表形式でコピー（M29）', () => {
     expect(tsv).not.toContain('受注')
     // **No は振り直さない**（データ配列の位置のまま）
     expect(tsv).toContain('2\t与信')
+  })
+
+  // 設計 §5: 表形式コピーだけでなく、Markdown のコピーも絞り込みに追従するように
+  // 変えた（書き出しは変えない）。表側は上のテストで額縁レベルまで通しで
+  // 確かめているが、Markdown 側はコントローラのテストにしか無いので、
+  // ここに1本足して額縁までの配線ごと固定する
+  it('Markdown をコピーすると絞り込みに追従する', async () => {
+    putGlossaryWithTwoTerms()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    // 2件目だけに当たる語で絞り込む（表形式コピーのテストと同じ固定データ）
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '与信' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Markdown をコピー' }))
+
+    await waitFor(() => expect(copyTextMock).toHaveBeenCalled())
+    const [md] = copyTextMock.mock.calls.at(-1)!
+    expect(md).toContain('与信')
+    expect(md).not.toContain('受注')
   })
 })

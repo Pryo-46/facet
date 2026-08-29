@@ -9,7 +9,14 @@
  * 同じ層の任意拡張として足す。**宣言しないツールの規約の点数は増えない**
  */
 
-/** 表1枚。**header と rows は同じ列数であること**（崩れると貼り先でセルがずれる） */
+/**
+ * 表1枚。**header と rows は同じ列数であること**（崩れると貼り先でセルがずれる）。
+ *
+ * **これは producer（`TableVariant.toTable`）の責務であり、`tableToTsv` /
+ * `tableToHtml` は検査しない。** 今のところ全ての producer が構造的に列数を
+ * 揃えているので実害は無いが、4本目のツールを足す作者はこの JSDoc 以外に
+ * 頼れるものが無い——ずれた `Table` を渡しても、実行時には気付けない
+ */
 export interface Table {
   header: readonly string[]
   rows: readonly (readonly string[])[]
@@ -84,6 +91,11 @@ export interface TableExport<TData> {
    * 読み手ごとの出し分け。**1本ならダイアログに読み手の選択を出さない**
    *（`ExportMenu` が「プロファイルが1本のときはドロップダウンを出さない」と
    *  している原則と同じ。選択肢が1つしかない選択は何も選ばせない）
+   *
+   * **非空のタプル型にしてある。** `variants: []` を宣言できてしまうと、
+   * `resolveVariantId` が `''` を返し、ダイアログが `onCopy('', …)` を呼び、
+   * `doCopyTable` が対象を見つけられず無言で終わる——押せるが何も起きない
+   * ボタンという、説明のつかない壊れ方になる。型で先に閉じる
    */
-  variants: readonly TableVariant<TData>[]
+  variants: readonly [TableVariant<TData>, ...TableVariant<TData>[]]
 }

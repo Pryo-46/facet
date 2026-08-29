@@ -861,20 +861,43 @@ export function createAppController(
       warning:
         doc.issues.length === 0
           ? null
-          : exportConfirmDescription(doc.issues, doc.module.outputs[0]?.describeIssueEffect),
+          : // **`undefined` を渡す。** 表形式コピーには `OutputProfile` が無く、
+            // どの出力の文面かを選べる立場にない——`doc.module.outputs[0]` のような
+            // 任意の1本を選ぶと、そのツールの他の出力だけが `describeIssueEffect` を
+            // 実装したとき、選んだ読み手と無関係な文面が出る（規約5 が避けている
+            // 「読み手によって説明が変わる」状態そのもの）。ツール固有の文面が
+            // 要るようになったら、規約8 自身のスロットとして足すこと
+            exportConfirmDescription(doc.issues, undefined),
       options: tableExport.options,
       variants: tableExport.variants.map((v) => ({ id: v.id, label: v.label })),
-      onCopy: (variantId, options) => doCopyTable(variantId, options),
+      // **開いた時点の path を持たせる。** `doCopyTable` 側でこの path と
+      // 「押されたときの現在地」を突き合わせ、対象が変わっていないかを確かめる
+      onCopy: (variantId, options) => doCopyTable(doc.path, variantId, options),
     })
   }
 
-  const doCopyTable = async (variantId: string, options: TableOptions): Promise<void> => {
+  const doCopyTable = async (
+    openedForPath: string,
+    variantId: string,
+    options: TableOptions,
+  ): Promise<void> => {
     // **ダイアログを出す前のスナップショットで作らない**（`doExportMarkdown` と
     // 同じ理由。ダイアログが開いている間に外部変更の取り込みが走ると、
-    // 取り込み前の内容を出す）
+    // 取り込み前の内容を出す）。ただし「変わっていないか」は path で確かめる
+    // ——`doExportMarkdown` の `fresh.path !== doc.path` と同じ発想
     const doc = currentDocument()
     const variant = doc?.module.tableExport?.variants.find((v) => v.id === variantId)
-    if (doc === null || variant === undefined) return
+    // **ここに来るのは必ずダイアログ経由**（`copyTable` が有効な doc を確かめてから
+    // 開く）ので、`doc === null` は「そもそも選んでいない」ではなく「無くなった」を
+    // 意味する。path 不一致・variant 消失も同じ「対象が失われた」の3態であり、
+    // `doExportMarkdown` も3条件を1つのトーストにまとめている（区別する意味が無い）
+    if (doc === null || doc.path !== openedForPath || variant === undefined) {
+      host.showToast({
+        key: 'export',
+        message: '表をコピーしませんでした（設定を選んでいる間に対象が変わりました）',
+      })
+      return
+    }
     try {
       const table = variant.toTable(doc.data, options, visibleIds)
       await io.copyHtml(tableToHtml(table), tableToTsv(table))

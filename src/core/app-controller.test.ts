@@ -1583,10 +1583,15 @@ describe('copyTable（M29）', () => {
     const request = h.modals()[0]
     await h.controller.selectFile(p('b.json'))
     if (request?.kind === 'tableCopy') await request.onCopy('default', OPTS)
-    const html = (h.io.copyHtml as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
-      | string
-      | undefined
-    expect(html).not.toContain('<td>A</td>')
+    // A の古い内容はもちろん、無言で切り替わった B の内容も出さない——
+    // ダイアログが向いていたのは A で、押した時点の path が違えば何も書かない
+    expect(h.io.copyHtml).not.toHaveBeenCalled()
+    // **無音にしない。** ここで何も言わないと、ダイアログは閉じているので
+    // 利用者はコピーが成功したと思い込み、クリップボードの古い内容を貼ってしまう
+    // （`doExportMarkdown` の「対象が変わりました」と同じ理由）
+    expect(h.toasts().at(-1)?.message).toBe(
+      '表をコピーしませんでした（設定を選んでいる間に対象が変わりました）',
+    )
   })
 
   it('コピーの失敗はバナーに出す', async () => {

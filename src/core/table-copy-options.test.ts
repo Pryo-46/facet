@@ -58,7 +58,7 @@ describe('resolveVariantId', () => {
     expect(resolveVariantId(variants, 'default')).toBe('support')
   })
 
-  it('一覧が空なら空文字（規約8 を宣言しないツールでは呼ばれないが、型では守れない）', () => {
+  it('一覧が空なら空文字（`TableExport.variants` 側は非空タプル型で閉じたが、こちらはより一般の配列を受け取る関数なので、その場合も守る）', () => {
     expect(resolveVariantId([], 'dev')).toBe('')
   })
 })

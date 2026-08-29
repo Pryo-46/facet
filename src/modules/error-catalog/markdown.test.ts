@@ -223,6 +223,12 @@ describe('errorCatalogToMarkdown: 絞り込み（M29）', () => {
   })
 
   it('visible を渡さなければ従来どおり全件', () => {
-    expect(errorCatalogToMarkdown(data, fields)).toBe(errorCatalogToMarkdown(data, fields, null))
+    // 等価性だけでは「絞り込んで空にする実装」でも通ってしまう
+    // （`f(data)` と `f(data, null)` がどちらも空文字になり一致するため）。
+    // 両方のエラーが実際に出力へ含まれることまで確かめる
+    const md = errorCatalogToMarkdown(data, fields)
+    expect(md).toBe(errorCatalogToMarkdown(data, fields, null))
+    expect(md).toContain('| A |')
+    expect(md).toContain('| B |')
   })
 })
