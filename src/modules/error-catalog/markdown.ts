@@ -1,4 +1,5 @@
 import { dividerRow, documentHeading, escapeCell, headingText, row } from '@/core/markdown-table'
+import type { VisibleRows } from '@/core/table-export'
 import type { ErrorCatalogSchemaVersion1, ErrorEntry } from '@/types/error-catalog'
 import errorCatalogSchema from '../../../schemas/error-catalog.schema.json'
 import { NO_COLUMN_LABEL } from './columns'
@@ -40,11 +41,15 @@ function value(entry: ErrorEntry, field: ErrorField): string {
 export function errorCatalogToMarkdown(
   data: ErrorCatalogSchemaVersion1,
   fields: readonly ErrorField[],
+  visible?: VisibleRows,
 ): string {
   // enum 順のグループを先に作っておくことで、出力順が enum の定義順に固定される。
   // 値ではなく配列位置を持つ——No がデータ配列の位置だから
   const groups = new Map<string, number[]>(LEVEL_ORDER.map((level) => [level, []]))
   data.errors.forEach((entry, index) => {
+    // **絞り込みはここで効かせる**（M29）。**配列位置（index）は元のまま持つ**
+    // ——No を振り直すと画面の No と食い違い、口頭で指す目印として使えなくなる
+    if (visible != null && !visible.has(entry.id)) return
     const group = groups.get(entry.resolutionLevel)
     // enum に無い値（将来の拡張版を古いアプリで開いた等）は末尾へ足す。
     // 落とすと「出力に出ないエラー」が黙って生まれる

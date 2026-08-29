@@ -5,6 +5,8 @@
  * 出したまま OS の × を押すと「破棄して閉じる」の要求に上書きされる、など。
  * M5 で外部変更の二択が3人目の生産者になるのでキューにした（M4 の申し送り）
  */
+import type { TableOptionId, TableOptions } from './table-export'
+
 export type ModalRequest =
   | {
       kind: 'confirm'
@@ -30,6 +32,21 @@ export type ModalRequest =
        * それは額縁の `shiftModal` が既にやっている
        */
       cancelLabel?: string
+    }
+  | {
+      /**
+       * 表形式コピーの設定ダイアログ（M29）。**`confirm` / `choice` と違い、
+       * 本文に入力要素を持つ。** 額縁の `modalOpen`（キューの長さ）が自動的に
+       * true になるので、操作言語もこれで止まる
+       */
+      kind: 'tableCopy'
+      key?: string
+      /** 整合性エラーの説明。null なら警告を出さない */
+      warning: string | null
+      options: readonly TableOptionId[]
+      /** **`TableVariant` そのものを載せない**——コアのモーダル型を TData で汚さない */
+      variants: readonly { id: string; label: string }[]
+      onCopy: (variantId: string, options: TableOptions) => void | Promise<void>
     }
 
 export function pushModal(

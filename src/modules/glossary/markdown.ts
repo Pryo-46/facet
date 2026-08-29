@@ -1,4 +1,5 @@
 import { dividerRow, documentHeading, escapeCell, headingText, row } from '@/core/markdown-table'
+import type { VisibleRows } from '@/core/table-export'
 import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
 import glossarySchema from '../../../schemas/glossary.schema.json'
 import { FIELD_LABELS, FIELD_ORDER } from './fields'
@@ -33,10 +34,16 @@ function termRow(term: Term): string {
   ])
 }
 
-export function glossaryToMarkdown(data: GlossarySchemaVersion1): string {
+export function glossaryToMarkdown(
+  data: GlossarySchemaVersion1,
+  visible?: VisibleRows,
+): string {
   // enum 順のグループを先に作っておくことで、出力順が enum の定義順に固定される
   const groups = new Map<string, Term[]>(KIND_ORDER.map((kind) => [kind, []]))
   for (const term of data.terms) {
+    // **絞り込みはここで効かせる**（M29）。空になったグループは下の
+    // `terms.length === 0` で見出しごと落ちる
+    if (visible != null && !visible.has(term.id)) continue
     const group = groups.get(term.kind)
     // enum に無い kind（将来の拡張版を古いアプリで開いた等）は末尾へ足す。
     // 落とすと「出力に出ない用語」が黙って生まれる

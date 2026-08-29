@@ -179,3 +179,56 @@ describe('空欄とエスケープ', () => {
     expect(md.split('\n').filter((l) => l.includes('C:\\\\Users\\\\bin'))).toHaveLength(1)
   })
 })
+
+describe('errorCatalogToMarkdown: 絞り込み（M29）', () => {
+  const data = {
+    schemaVersion: 1 as const,
+    type: 'errorCatalog' as const,
+    title: 'T',
+    errors: [
+      {
+        id: 'error_aaaaaaaaaa', name: 'A', occurrence: 'o', resolutionLevel: 'support' as const,
+        causeForSupport: 'c', causeForSpec: 'c', userAction: 'u', supportAction: 's',
+        engineerAction: 'e', notes: '',
+      },
+      {
+        id: 'error_bbbbbbbbbb', name: 'B', occurrence: 'o', resolutionLevel: 'support' as const,
+        causeForSupport: 'c', causeForSpec: 'c', userAction: 'u', supportAction: 's',
+        engineerAction: 'e', notes: '',
+      },
+    ],
+  }
+  const fields = ['name'] as const
+
+  it('visible を渡すと、その ID のエラーだけを出す', () => {
+    const md = errorCatalogToMarkdown(data, fields, new Set(['error_bbbbbbbbbb']))
+    expect(md).toContain('| B |')
+    expect(md).not.toContain('| A |')
+  })
+
+  it('**絞り込んでも No を振り直さない**（画面の No と食い違わせない）', () => {
+    const md = errorCatalogToMarkdown(data, fields, new Set(['error_bbbbbbbbbb']))
+    expect(md).toContain('| 2 | B |')
+    expect(md).not.toContain('| 1 | B |')
+  })
+
+  it('絞り込みで空になった解決レベルのグループは見出しごと消える', () => {
+    const mixed = {
+      ...data,
+      errors: [data.errors[0], { ...data.errors[1], resolutionLevel: 'user' as const }],
+    }
+    const md = errorCatalogToMarkdown(mixed, fields, new Set(['error_bbbbbbbbbb']))
+    expect(md).not.toContain('### サポート対応')
+    expect(md).toContain('### ユーザー対応')
+  })
+
+  it('visible を渡さなければ従来どおり全件', () => {
+    // 等価性だけでは「絞り込んで空にする実装」でも通ってしまう
+    // （`f(data)` と `f(data, null)` がどちらも空文字になり一致するため）。
+    // 両方のエラーが実際に出力へ含まれることまで確かめる
+    const md = errorCatalogToMarkdown(data, fields)
+    expect(md).toBe(errorCatalogToMarkdown(data, fields, null))
+    expect(md).toContain('| A |')
+    expect(md).toContain('| B |')
+  })
+})

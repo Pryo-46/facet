@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ErrorCatalogSchemaVersion1, ErrorEntry } from '@/types/error-catalog'
 import { errorColumnWidths, RESIZE_STEP } from './column-widths'
 import { PROFILE_COLUMNS } from './columns'
@@ -314,5 +314,84 @@ describe('ErrorCatalogEditor: モーダル表示中', () => {
     renderEditor(twoErrors, true)
     fireEvent.keyDown(screen.getByLabelText('エラー名（No.1）'), { key: 'Enter' })
     expect(screen.getAllByLabelText(/^エラー名（/)).toHaveLength(2)
+  })
+})
+
+describe('ErrorCatalogEditor: 表示中の行の報告（M29）', () => {
+  // twoErrors には resolutionLevel が support の行が無いため、この観点専用に
+  // 用意する（既存フィクスチャは他のテストの件数の前提になっているので変えない）
+  const data = catalog([
+    entry({ id: 'error_AAAAAAAAAA', name: 'ログインできない' }),
+    entry({ id: 'error_BBBBBBBBBB', name: '保存に失敗する', resolutionLevel: 'support' }),
+  ])
+
+  it('絞り込みが無ければ ids に null と全件数を渡す', () => {
+    const onVisibleIds = vi.fn()
+    render(
+      <ErrorCatalogEditor
+        data={data}
+        onChange={vi.fn()}
+        issues={[]}
+        modalOpen={false}
+        onVisibleIds={onVisibleIds}
+      />,
+    )
+    expect(onVisibleIds).toHaveBeenLastCalledWith(null, data.errors.length)
+  })
+
+  it('検索すると、表示中の ID 集合と全件数を渡す', () => {
+    const onVisibleIds = vi.fn()
+    render(
+      <ErrorCatalogEditor
+        data={data}
+        onChange={vi.fn()}
+        issues={[]}
+        modalOpen={false}
+        onVisibleIds={onVisibleIds}
+      />,
+    )
+    fireEvent.change(screen.getByRole('searchbox'), {
+      target: { value: data.errors[1].name },
+    })
+    const [ids, total] = onVisibleIds.mock.calls.at(-1)!
+    expect(total).toBe(data.errors.length)
+    expect([...ids]).toEqual([data.errors[1].id])
+  })
+
+  it('絞り込んで0件になったら空集合を渡す（null に落とさない）', () => {
+    const onVisibleIds = vi.fn()
+    render(
+      <ErrorCatalogEditor
+        data={data}
+        onChange={vi.fn()}
+        issues={[]}
+        modalOpen={false}
+        onVisibleIds={onVisibleIds}
+      />,
+    )
+    fireEvent.change(screen.getByRole('searchbox'), {
+      target: { value: 'まったく一致しない語' },
+    })
+    const [ids] = onVisibleIds.mock.calls.at(-1)!
+    expect(ids).not.toBeNull()
+    expect(ids.size).toBe(0)
+  })
+
+  it('**解決レベルのチップで絞っても報告する**（検索文字列だけが絞り込みではない）', () => {
+    const onVisibleIds = vi.fn()
+    render(
+      <ErrorCatalogEditor
+        data={data}
+        onChange={vi.fn()}
+        issues={[]}
+        modalOpen={false}
+        onVisibleIds={onVisibleIds}
+      />,
+    )
+    // 「解決レベルで絞り込む」グループの中のチップを1つ押す
+    const group = screen.getByRole('group', { name: '解決レベルで絞り込む' })
+    fireEvent.click(within(group).getByRole('button', { name: 'サポート対応' }))
+    const [ids] = onVisibleIds.mock.calls.at(-1)!
+    expect(ids).not.toBeNull()
   })
 })

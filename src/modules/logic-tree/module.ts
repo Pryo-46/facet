@@ -9,6 +9,7 @@ import { LogicTreeEditor } from './LogicTreeEditor'
 import { logicTreeToMarkdown } from './markdown'
 import { migrateLogicTree } from './migrate'
 import { miroMindmapExchange } from './miro'
+import { logicTreeToTable } from './table'
 
 export const logicTreeModule: ToolModule<LogicTreeSchemaVersion1> = {
   type: 'logicTree',
@@ -27,6 +28,12 @@ export const logicTreeModule: ToolModule<LogicTreeSchemaVersion1> = {
   // 規約7（任意）: Miro のマインドマップとのクリップボード交換（M2）。
   // **他のツールは宣言しない**——額縁はこの有無でボタンの活性を決める
   clipboardExchanges: [miroMindmapExchange],
+  // 規約8: 表形式コピー（M29）。**読み手は1本**。木なので numberStyle と
+  // repeatParent を宣言する——階層を列に展開する唯一のツールである
+  tableExport: {
+    options: ['numbering', 'numberStyle', 'repeatParent', 'showUndefined'],
+    variants: [{ id: 'default', label: 'ロジックツリー', toTable: logicTreeToTable }],
+  },
   // プロジェクトにロジックツリーは何本あってもよい（用語集と違いハブではない）
   singleton: false,
   migrate: migrateLogicTree,

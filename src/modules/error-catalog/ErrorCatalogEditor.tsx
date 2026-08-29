@@ -16,6 +16,7 @@ import { altModifierLabel, currentPlatform } from '@/core/keyboard/platform'
 import { buildErrorMarks, cellFace, CELL_FACE_CLASS } from '@/core/list-editor/cell-face'
 import { stepField } from '@/core/list-editor/field-step'
 import { cellId, useListRows } from '@/core/list-editor/use-list-rows'
+import { useVisibleIdsReport } from '@/core/list-editor/use-visible-ids'
 import { newId } from '@/core/new-id'
 import type { EditorProps } from '@/core/registry'
 import type { ErrorCatalogSchemaVersion1, ErrorEntry } from '@/types/error-catalog'
@@ -74,6 +75,7 @@ export function ErrorCatalogEditor({
   onChange,
   issues,
   modalOpen,
+  onVisibleIds,
 }: EditorProps<ErrorCatalogSchemaVersion1>) {
   // 表示プロファイルはエディタの state。切り替えてもデータは動かない（履歴も積まない）。
   // App は key={selected.path} でエディタを作り直すので、ファイルを切り替えると既定へ戻る
@@ -128,6 +130,13 @@ export function ErrorCatalogEditor({
   // 導出表示中（検索・フィルタ適用中）は並び替えを止める（session-notes 2-5）
   const derivedView = isDerivedView(filter)
   const reorderEnabled = !derivedView
+
+  // 画面に出ている行を額縁へ知らせる（M29）。実装は共通フックが持つ
+  useVisibleIdsReport(
+    derivedView ? visible.map((i) => data.errors[i].id) : null,
+    data.errors.length,
+    onVisibleIds,
+  )
 
   /** 表示中の並びで n 番目の行の指定セルへフォーカスする */
   const focusVisible = (visiblePos: number, field: ErrorField): boolean => {
