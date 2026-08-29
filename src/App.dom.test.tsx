@@ -2,6 +2,7 @@
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { encodeMiroClipboard } from '@/modules/logic-tree/miro-codec'
 
 /**
  * 額縁レベルの DOM テスト。**このファイルが守っているのは1点だけ**——
@@ -59,36 +60,54 @@ const {
   updateConfig,
   installMock,
   versionConfig,
-} = vi.hoisted(() => ({
-  closeState: { callback: null as (() => Promise<boolean>) | null },
-  killAllPtysMock: vi.fn(async () => undefined),
-  requestCloseOverride: { value: null as boolean | null },
-  ptyKillMock: vi.fn(async () => undefined),
-  ptyExitHandlers: new Map<number, (code: number | null) => void>(),
-  skillCalls: [] as string[],
-  pickedFolder: { value: '/proj' },
-  syncGate: { promise: null as Promise<void> | null, release: null as (() => void) | null },
-  syncReadingGuideMock: vi.fn(async () => undefined),
-  disk: new Map<string, string>(),
-  writeProjectFileMock: vi.fn(async (_path: string, _text: string) => undefined),
-  saveLastProjectDirMock: vi.fn(async (_dir: string) => undefined),
-  // 起動時復元専用の可変状態。既定は「復元対象パス無し」——このファイルの
-  // 既存テストはどれも起動時復元を前提にしていないので、既定を変えない
-  restoreConfig: { lastDir: null as string | null, exists: false, allowError: null as Error | null },
-  allowProjectDirCalls: [] as string[],
-  // 自動アップデート専用の可変状態（M19）。**既定は「更新なし」**——
-  // 既存テストはどれも更新を前提にしていないので、既定を変えない
-  updateConfig: {
-    available: null as { version: string } | null,
-    checkError: null as Error | null,
-  },
-  installMock: vi.fn(
-    async (_onProgress: (chunk: number, total: number | null) => void) => undefined,
-  ),
-  // 額縁の版番号専用の可変状態。**既定は「取れる」**——額縁に必ず出るものなので、
-  // 取れない既定にすると全テストが「取得に失敗した画面」を見ることになる
-  versionConfig: { value: '9.9.9', error: null as Error | null },
-}))
+  copyHtmlToClipboardMock,
+  readClipboardHtmlMock,
+  clipboardHtmlConfig,
+} = vi.hoisted(() => {
+  // `clipboardHtmlConfig` は下の `readClipboardHtmlMock` が参照するので、
+  // オブジェクトリテラルの外（同じ関数スコープの変数）として先に作る——
+  // リテラル内では兄弟プロパティを名前で参照できない
+  const clipboardHtmlConfig = { value: '' }
+  return {
+    closeState: { callback: null as (() => Promise<boolean>) | null },
+    killAllPtysMock: vi.fn(async () => undefined),
+    requestCloseOverride: { value: null as boolean | null },
+    ptyKillMock: vi.fn(async () => undefined),
+    ptyExitHandlers: new Map<number, (code: number | null) => void>(),
+    skillCalls: [] as string[],
+    pickedFolder: { value: '/proj' },
+    syncGate: { promise: null as Promise<void> | null, release: null as (() => void) | null },
+    syncReadingGuideMock: vi.fn(async () => undefined),
+    disk: new Map<string, string>(),
+    writeProjectFileMock: vi.fn(async (_path: string, _text: string) => undefined),
+    saveLastProjectDirMock: vi.fn(async (_dir: string) => undefined),
+    // 起動時復元専用の可変状態。既定は「復元対象パス無し」——このファイルの
+    // 既存テストはどれも起動時復元を前提にしていないので、既定を変えない
+    restoreConfig: { lastDir: null as string | null, exists: false, allowError: null as Error | null },
+    allowProjectDirCalls: [] as string[],
+    // 自動アップデート専用の可変状態（M19）。**既定は「更新なし」**——
+    // 既存テストはどれも更新を前提にしていないので、既定を変えない
+    updateConfig: {
+      available: null as { version: string } | null,
+      checkError: null as Error | null,
+    },
+    installMock: vi.fn(
+      async (_onProgress: (chunk: number, total: number | null) => void) => undefined,
+    ),
+    // 額縁の版番号専用の可変状態。**既定は「取れる」**——額縁に必ず出るものなので、
+    // 取れない既定にすると全テストが「取得に失敗した画面」を見ることになる
+    versionConfig: { value: '9.9.9', error: null as Error | null },
+    // Miro のクリップボード交換専用の可変状態（logic-tree M3、Task 9）。
+    // `copyHtmlToClipboardMock` / `readClipboardHtmlMock` を spy 化するのは、
+    // ボタンの活性を「クリックしてハンドラが呼ばれたか」で確かめるため
+    //（jest-dom を入れていないので toBeDisabled/toBeEnabled は使わない）。
+    // `clipboardHtmlConfig` は readClipboardHtmlMock が返す HTML をテストから
+    // 差し替える口。既定は空文字（HTML 無し＝取り込み不可）
+    copyHtmlToClipboardMock: vi.fn(async (_html: string, _altText: string) => undefined),
+    clipboardHtmlConfig,
+    readClipboardHtmlMock: vi.fn(async () => clipboardHtmlConfig.value),
+  }
+})
 
 vi.mock('@/fs/project-fs', () => ({
   // **`pickedFolder.value` を `'/proj'` に固定し直さないこと**——フォルダ切替
@@ -120,7 +139,13 @@ vi.mock('@/fs/app-window', () => ({
   },
   forceClose: async () => undefined,
 }))
-vi.mock('@/fs/clipboard', () => ({ copyToClipboard: async () => undefined }))
+vi.mock('@/fs/clipboard', () => ({
+  copyToClipboard: async () => undefined,
+  // Miro 等とのクリップボード交換（logic-tree M3、Task 9）。呼ばれたかどうかを
+  // テストから見たいので spy 化する（`clipboardHtmlConfig` で返す HTML を制御する）
+  copyHtmlToClipboard: copyHtmlToClipboardMock,
+  readClipboardHtml: readClipboardHtmlMock,
+}))
 vi.mock('@/fs/pty', () => ({
   tauriPtyIo: {
     // spec 全体（program/args/cwd/cols/rows/onData/onExit）のうち、ここでは
@@ -265,6 +290,9 @@ afterEach(() => {
   versionConfig.error = null
   restoreUserAgent?.()
   restoreUserAgent = null
+  copyHtmlToClipboardMock.mockClear()
+  readClipboardHtmlMock.mockClear()
+  clipboardHtmlConfig.value = ''
 })
 /**
  * **止めたままの同期を次のテストへ持ち越さない（レビュー指摘）。**
@@ -895,5 +923,131 @@ describe('額縁の版番号', () => {
     expect(screen.queryByText(/^v\d/)).toBeNull()
     expect(consoleError).toHaveBeenCalled()
     consoleError.mockRestore()
+  })
+})
+
+/**
+ * 額縁の Miro 交換の配線（logic-tree M3、Task 9）。**額縁はツールを名指ししない**
+ * ——ボタンの活性は選択中モジュールが `clipboardExchanges` を宣言しているかどうか
+ * だけで決まる（ロジックツリー以外は宣言しない）。ボタン自体は ExportMenu と同じ
+ * 原則で常に出す（消えたり出たりしない）。
+ *
+ * このリポジトリは jest-dom を入れていないので `toBeDisabled()` / `toBeEnabled()`
+ * は使わない。活性の検証は「クリックしてハンドラ（`copyHtmlToClipboardMock` /
+ * `readClipboardHtmlMock`）が呼ばれたかどうか」で行う——disabled な button は
+ * jsdom でも click イベントを発火しないので、これで押せる／押せないの両方を
+ * 確かめられる
+ */
+describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
+  const GLOSSARY_PATH = '/proj/用語集.json'
+  const LOGIC_TREE_PATH = '/proj/木.json'
+
+  const putGlossary = () => {
+    disk.set(
+      GLOSSARY_PATH,
+      JSON.stringify({ schemaVersion: 1, type: 'glossary', title: '用語集', terms: [] }),
+    )
+  }
+  const putLogicTree = () => {
+    disk.set(
+      LOGIC_TREE_PATH,
+      JSON.stringify({
+        schemaVersion: 1,
+        type: 'logicTree',
+        title: '木',
+        nodes: [{ id: 'node_Aaaaaaaaa1', parentId: null, text: 'ルート' }],
+      }),
+    )
+  }
+
+  /** Miro が実際に貼ってくる形と同じ器に、最小限の木（ノード1件）を積んだ HTML */
+  const validMiroHtml = encodeMiroClipboard(
+    {
+      data: {
+        objects: [
+          {
+            'ns:mindmap': true,
+            widgetData: {
+              type: 'text',
+              json: { text: 'ノード', _position: { offsetPx: { y: 0 } } },
+            },
+          },
+        ],
+      },
+    },
+    ['ノード'],
+  )
+
+  it('Miro のボタンは常に出ていて、ロジックツリー以外では押せない', async () => {
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    // 常に出ている（ExportMenu と同じ原則。用語集を開いていてもボタン自体は消えない）
+    const copyButton = screen.getByRole('button', { name: 'Miro へコピー' })
+    const importButton = screen.getByRole('button', { name: 'Miro から取り込む' })
+
+    fireEvent.click(copyButton)
+    expect(copyHtmlToClipboardMock).not.toHaveBeenCalled()
+
+    fireEvent.click(importButton)
+    expect(readClipboardHtmlMock).not.toHaveBeenCalled()
+  })
+
+  it('ロジックツリーを開くと「Miro へコピー」が押せる', async () => {
+    putLogicTree()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '木（木.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Miro へコピー' }))
+    await waitFor(() => expect(copyHtmlToClipboardMock).toHaveBeenCalled())
+  })
+
+  it('「Miro から取り込む」はクリップボードに Miro のデータがあるときだけ押せる', async () => {
+    putLogicTree()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '木（木.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    // クリップボードに Miro のデータを置いてからフォーカスを送る（ポーリングはしない設計）
+    clipboardHtmlConfig.value = validMiroHtml
+    window.dispatchEvent(new Event('focus'))
+    await waitFor(() => expect(readClipboardHtmlMock).toHaveBeenCalled())
+
+    const importButton = screen.getByRole('button', { name: 'Miro から取り込む' })
+    // disabled 属性が外れるまで待つ（jest-dom は入れていないので直接 DOM を見る。
+    // toBeEnabled() の代わり）
+    await waitFor(() => expect(importButton.hasAttribute('disabled')).toBe(false))
+
+    // 押せるようになったことを「押して実際に取り込みが始まる」ところまで確かめる
+    // （state が変わっただけで配線が繋がっていない、を弾く）
+    fireEvent.click(importButton)
+    expect(await screen.findByText('Miro のマインドマップを取り込む')).toBeTruthy()
+  })
+
+  it('クリップボードが Miro のデータでなければ取り込みは押せないまま', async () => {
+    putLogicTree()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '木（木.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    clipboardHtmlConfig.value = '<p>ちがう</p>'
+    readClipboardHtmlMock.mockClear()
+    window.dispatchEvent(new Event('focus'))
+    // フォーカス契機の読み取りが実際に走ったことを確かめてから押せないことを見る
+    // （まだ読み終わっていないだけ、を「押せないまま」と取り違えないため）
+    await waitFor(() => expect(readClipboardHtmlMock).toHaveBeenCalled())
+
+    const callsBefore = readClipboardHtmlMock.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: 'Miro から取り込む' }))
+    // 押せていれば控えのために readClipboardHtml をもう一度呼ぶ（コントローラ側の
+    // importFromExternal。src/core/app-controller.ts）。呼ばれていないので押せていない
+    expect(readClipboardHtmlMock.mock.calls.length).toBe(callsBefore)
   })
 })

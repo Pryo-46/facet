@@ -5,7 +5,7 @@ import { serialize, type JsonSchema } from './canonical'
 import type { ConsistencyIssue } from './consistency'
 import { pushModal, type ModalRequest } from './modal-queue'
 import type { ProjectFile } from './project-file'
-import { createRegistry, type AnyToolModule, type ModuleRegistry } from './registry'
+import { createRegistry, type AnyToolModule, type ClipboardExchange, type ModuleRegistry } from './registry'
 import { scanFolder } from './scan'
 import type { ToastItem } from './toasts'
 
@@ -195,6 +195,8 @@ function createHarness(
     },
     join: async (dir, name) => `${dir}\\${name}`,
     copyText: async () => { log.push('copyText') },
+    copyHtml: vi.fn<(html: string, altText: string) => Promise<void>>().mockResolvedValue(undefined),
+    readClipboardHtml: vi.fn<() => Promise<string>>().mockResolvedValue(''),
     askSavePath: async () => null,
     forceClose: async () => { log.push('forceClose') },
     createSaver: savers.factory,
@@ -206,6 +208,10 @@ function createHarness(
     setProjectDir: () => {},
     setSelectedPath: (path) => { selectedPath = path; log.push(`setSelectedPath:${path ?? 'null'}`) },
     setDocument: (data) => { document = data; log.push('setDocument') },
+    // 履歴を保ったまま積む（logic-tree M3）。この偽物は past/future を模していないので
+    // 「document が更新される」ところだけ setDocument と同じに見えるが、
+    // ログの種別（'recordEdit' vs 'setDocument'）でどちらの経路を通ったかは区別できる
+    recordEdit: (data) => { document = data; log.push('recordEdit') },
     setBanner: (kind, message) => { banners[kind] = message },
     showToast: (toast) => { toasts.push(toast); log.push('toast') },
     dismissToast: (key) => { log.push(`dismissToast:${key}`) },
@@ -606,6 +612,10 @@ describe('externalChange（外部変更の検知）', () => {
     expect(h.document()).toMatchObject({ body: '外部が書いた' })
     // setDocument＝履歴の作り直し。取り込みごとに必ず1回通ること
     expect(h.log.filter((l) => l === 'setDocument').length).toBeGreaterThan(0)
+    // recordEdit（logic-tree M3）は履歴を保つ口なので、履歴を破棄すべきこの経路には
+    // 混ざらない——setDocument と recordEdit を混同すると Ctrl+Z がディスクの内容を
+    // 無言で巻き戻す事故になる（AppHost の JSDoc）
+    expect(h.log).not.toContain('recordEdit')
     expect(h.toasts().at(-1)?.message).toContain('外部の変更を読み込みました')
   })
 
@@ -1284,5 +1294,153 @@ describe('interleaving（走査・選択の直列化ガード）', () => {
     expect(h.selectedPath()).toBeNull()
     expect(h.document()).toBeNull()
     expect(h.banners().io).toBeNull()
+  })
+})
+
+// ---- クリップボード交換（logic-tree M3） ----
+
+/**
+ * テスト用の ClipboardExchange。判断は固定の振る舞いで代用する
+ *（本物は src/modules/logic-tree/miro.ts。ここでは往復のロジックは検証しない——
+ * それは miro.ts 側のテストの仕事で、ここが検証するのは「順序」だけ）。
+ * `fromClipboard` が返すデータの type を noteModule に合わせているのは、
+ * このファイルのハーネスが登録しているモジュールが note だけのため
+ */
+function fakeExchange(): ClipboardExchange<unknown> {
+  return {
+    id: 'fake-exchange',
+    label: '外部ツール',
+    toClipboard: () => ({ html: '<html-of-exchange>', text: '<text-of-exchange>' }),
+    canImport: (html) => html === '<miro-html>',
+    fromClipboard: (html, title) =>
+      html === '<miro-html>'
+        ? { ok: true, data: { schemaVersion: 1, type: 'note', title, body: '', nodes: [{}, {}] } }
+        : { ok: false, reason: '外部ツールのデータとして読めませんでした。' },
+  }
+}
+
+describe('クリップボード交換（logic-tree M3）', () => {
+  async function openNote(h: Harness): Promise<void> {
+    await h.controller.openFolder(DIR)
+    await h.controller.selectFile(p('a.json'))
+  }
+
+  describe('copyToExternal', () => {
+    it('exchange の html と text をそのまま書き込む', async () => {
+      const h = createHarness({ [p('a.json')]: note('A') })
+      await openNote(h)
+      await h.controller.copyToExternal(fakeExchange())
+      expect(h.io.copyHtml).toHaveBeenCalledWith('<html-of-exchange>', '<text-of-exchange>')
+    })
+
+    it('成功をトーストで知らせる', async () => {
+      const h = createHarness({ [p('a.json')]: note('A') })
+      await openNote(h)
+      await h.controller.copyToExternal(fakeExchange())
+      expect(h.toasts().at(-1)?.message).toContain('コピーしました')
+    })
+
+    it('編集中データが無ければ何もしない（ファイル未選択・開けないファイルなど）', async () => {
+      const h = createHarness()
+      await h.controller.copyToExternal(fakeExchange())
+      expect(h.io.copyHtml).not.toHaveBeenCalled()
+    })
+
+    it('失敗はバナーに出す', async () => {
+      const copyHtml = vi.fn<(html: string, altText: string) => Promise<void>>().mockRejectedValue(new Error('denied'))
+      const h = createHarness({ [p('a.json')]: note('A') }, { copyHtml })
+      await openNote(h)
+      await h.controller.copyToExternal(fakeExchange())
+      expect(h.banners().io).toContain('コピーできませんでした')
+    })
+  })
+
+  describe('importFromExternal', () => {
+    it('押した時点でクリップボードを読み直す（活性状態は「ウィンドウがアクティブになった時点」のスナップショットなので信用しない）', async () => {
+      const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<miro-html>')
+      const h = createHarness({ [p('a.json')]: note('A') }, { readClipboardHtml })
+      await openNote(h)
+      await h.controller.importFromExternal(fakeExchange())
+      expect(readClipboardHtml).toHaveBeenCalledTimes(1)
+    })
+
+    it('取り込めないときバナーに理由を出し、ダイアログを出さない', async () => {
+      const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<p>ちがう</p>')
+      const h = createHarness({ [p('a.json')]: note('A') }, { readClipboardHtml })
+      await openNote(h)
+      await h.controller.importFromExternal(fakeExchange())
+      expect(h.modals()).toEqual([])
+      expect(h.banners().io).toContain('読めませんでした')
+    })
+
+    it('取り込めるとき三択のダイアログを出す（上書き／新しいファイル／キャンセル）', async () => {
+      const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<miro-html>')
+      const h = createHarness({ [p('a.json')]: note('A') }, { readClipboardHtml })
+      await openNote(h)
+      await h.controller.importFromExternal(fakeExchange())
+      expect(h.modals().length).toBe(1)
+      const modal = h.modals()[0]
+      expect(modal.kind).toBe('choice')
+      if (modal.kind !== 'choice') throw new Error('choice を期待した')
+      expect(modal.cancelLabel).toBeDefined()
+    })
+
+    it('選択中のファイルが無ければ何もしない（クリップボードも読まない）', async () => {
+      const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<miro-html>')
+      const h = createHarness({}, { readClipboardHtml })
+      await h.controller.importFromExternal(fakeExchange())
+      expect(readClipboardHtml).not.toHaveBeenCalled()
+      expect(h.modals()).toEqual([])
+    })
+
+    it('「上書き」を選ぶと recordEdit と applyEdit の両方を通る（片方だけだと保存されるが表示されない／表示されるが保存されない、のどちらかになる）', async () => {
+      const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<miro-html>')
+      const h = createHarness({ [p('a.json')]: note('A') }, { readClipboardHtml })
+      await openNote(h)
+      await h.controller.importFromExternal(fakeExchange())
+      const modal = h.modals()[0]
+      if (modal.kind !== 'choice') throw new Error('choice を期待した')
+      const setDocumentCallsBefore = h.log.filter((l) => l === 'setDocument').length
+      await modal.onPrimary()
+      // applyEdit は host.setDocument を呼ばない経路（一覧の差し替えと自動保存だけ）。
+      // 呼ばれているなら selectFile 等の別経路を誤って通っている
+      expect(h.log.filter((l) => l === 'setDocument').length).toBe(setDocumentCallsBefore)
+      // recordEdit＝履歴を保ったまま積む経路（額縁の onChange と同じ）。
+      // これが無いと applyEdit だけではエディタの表示（history.present）が
+      // 更新されない（file 一覧と自動保存の更新に留まるため）
+      expect(h.log.filter((l) => l === 'recordEdit').length).toBe(1)
+      const expected = { schemaVersion: 1, type: 'note', title: 'A', body: '', nodes: [{}, {}] }
+      expect(h.document()).toEqual(expected)
+      const entry = h.files().find((f) => f.path === p('a.json'))
+      expect(entry?.result.status).toBe('editable')
+      if (entry?.result.status !== 'editable') throw new Error('editable を期待した')
+      expect(entry.result.data).toEqual(expected)
+    })
+
+    it('「新しいファイルに作る」を選ぶとファイルを作ってから recordEdit と applyEdit の両方で中身を差し替える', async () => {
+      const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<miro-html>')
+      const h = createHarness({ [p('a.json')]: note('A') }, { readClipboardHtml })
+      await openNote(h)
+      await h.controller.importFromExternal(fakeExchange())
+      const modal = h.modals()[0]
+      if (modal.kind !== 'choice') throw new Error('choice を期待した')
+      await modal.onSecondary()
+      expect(h.log.some((l) => l.startsWith('write:'))).toBe(true) // createNewFile が通った
+      // createNewFile → selectFile が雛形で setDocument（履歴の作り直し）を通した後、
+      // recordEdit が取り込みデータで積み直している——ここが無いと画面が雛形のまま残る
+      expect(h.log.filter((l) => l === 'recordEdit').length).toBe(1)
+      const created = h.selectedPath()
+      expect(created).not.toBeNull()
+      expect(created).not.toBe(p('a.json'))
+      const entry = h.files().find((f) => f.path === created)
+      expect(entry?.result.status).toBe('editable')
+      if (entry?.result.status !== 'editable') throw new Error('editable を期待した')
+      expect((entry.result.data as { nodes: unknown[] }).nodes).toEqual([{}, {}])
+      // 新規側の title は、額縁が決めたファイル名（拡張子なし）に合わせる
+      //（新規作成が「ファイル名＝title」で作るのと揃える）
+      expect((entry.result.data as { title: string }).title).toBe(entry.name.replace(/\.json$/i, ''))
+      // recordEdit（＝host.getEditingData が読む値）も同じ内容に揃っている
+      expect(h.document()).toEqual(entry.result.data)
+    })
   })
 })

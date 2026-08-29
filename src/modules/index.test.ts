@@ -10,4 +10,12 @@ describe('モジュール登録', () => {
       expect(module.icon, `${module.type} に icon が無い`).toBeDefined()
     }
   })
+
+  it('クリップボード交換を宣言するのはロジックツリーだけ（M2）', () => {
+    const declared = appRegistry
+      .list()
+      .filter((m) => (m.clipboardExchanges?.length ?? 0) > 0)
+      .map((m) => m.type)
+    expect(declared).toEqual(['logicTree'])
+  })
 })

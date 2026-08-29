@@ -55,4 +55,86 @@ describe('ChoiceDialog', () => {
     expect(onSecondary).not.toHaveBeenCalled()
     expect(screen.getByRole('heading', { name: '外部でファイルが変更されました' })).not.toBeNull()
   })
+
+  it('onCancel を渡すとキャンセルのボタンが既定文言（「キャンセル」）で出て、押すと呼ばれる', () => {
+    const onCancel = vi.fn()
+    render(
+      <ChoiceDialog
+        open
+        title="取り込む"
+        description="どちらに取り込みますか。"
+        primaryLabel="上書き"
+        secondaryLabel="新規"
+        onPrimary={vi.fn()}
+        onSecondary={vi.fn()}
+        onCancel={onCancel}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }))
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancelLabel を渡すと文言を上書きできる', () => {
+    const onCancel = vi.fn()
+    render(
+      <ChoiceDialog
+        open
+        title="取り込む"
+        description="どちらに取り込みますか。"
+        primaryLabel="上書き"
+        secondaryLabel="新規"
+        cancelLabel="やめる"
+        onPrimary={vi.fn()}
+        onSecondary={vi.fn()}
+        onCancel={onCancel}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'やめる' }))
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('onCancel を渡すと Esc でも呼ばれる', () => {
+    const onCancel = vi.fn()
+    render(
+      <ChoiceDialog
+        open
+        title="取り込む"
+        description="どちらに取り込みますか。"
+        primaryLabel="上書き"
+        secondaryLabel="新規"
+        onPrimary={vi.fn()}
+        onSecondary={vi.fn()}
+        onCancel={onCancel}
+      />,
+    )
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('onCancel を渡さなければキャンセルは出ない（既存の挙動）', () => {
+    setup()
+    expect(screen.queryByRole('button', { name: 'キャンセル' })).toBe(null)
+  })
+
+  it('onCancel を渡すと3ボタン分の幅に広げる（既定幅だと3ボタンが収まらない）', () => {
+    render(
+      <ChoiceDialog
+        open
+        title="取り込む"
+        description="どちらに取り込みますか。"
+        primaryLabel="このツリーを上書き"
+        secondaryLabel="新しいファイルに作る"
+        onPrimary={vi.fn()}
+        onSecondary={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    )
+    expect(screen.getByRole('alertdialog').className).toContain('max-w-xl')
+  })
+
+  it('onCancel を渡さなければ幅は既定のまま（2ボタンで広げると間延びする）', () => {
+    setup()
+    const className = screen.getByRole('alertdialog').className
+    expect(className).not.toContain('max-w-xl')
+  })
 })

@@ -41,6 +41,10 @@ portable-pty = "0.9.0"
 # PTY の出力を Channel へ載せるため。生バイトを JSON の数値配列で送ると
 # 4倍に膨らむので base64 の文字列にする（デコードは xterm 側）
 base64 = "0.23.1"
+# クリップボードの HTML 読み取り（logic-tree M3）。
+# tauri-plugin-clipboard-manager が内部で使っているが JS へ公開していないので、
+# 自前コマンドで通す。**推移依存に頼らない**——プラグインの更新で黙って消えるため
+arboard = "3.6"
 
 # 自動アップデート（M19）。**デスクトップ限定**——updater / process は
 # モバイル向けターゲットに存在しない。lib.rs 側も #[cfg(desktop)] で囲う
