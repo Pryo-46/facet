@@ -20,8 +20,8 @@ const outputs: readonly OutputProfile<ErrorCatalogSchemaVersion1>[] = PROFILES.m
   id: profile.id,
   label: profile.label,
   fileSuffix: profile.fileSuffix,
-  toMarkdown: (data: ErrorCatalogSchemaVersion1) =>
-    errorCatalogToMarkdown(data, markdownFields(profile)),
+  toMarkdown: (data: ErrorCatalogSchemaVersion1, visible?: VisibleRows) =>
+    errorCatalogToMarkdown(data, markdownFields(profile), visible),
 }))
 
 /**

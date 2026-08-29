@@ -163,3 +163,48 @@ describe('glossaryToMarkdown', () => {
     expect(md).not.toMatch(/^# /m)
   })
 })
+
+describe('glossaryToMarkdown: 絞り込み（M29）', () => {
+  it('visible を渡すと、その ID の用語だけを出す', () => {
+    // 既存のテストが使っているデータの形に合わせて2件用意すること
+    const data: GlossarySchemaVersion1 = {
+      schemaVersion: 1 as const,
+      type: 'glossary' as const,
+      title: 'T',
+      terms: [
+        { id: 'term_aaaaaaaaaa', name: '受注', kind: 'event', definition: 'd', aliases: [], notes: '' },
+        { id: 'term_bbbbbbbbbb', name: '与信', kind: 'event', definition: 'd', aliases: [], notes: '' },
+      ],
+    }
+    const md = glossaryToMarkdown(data, new Set(['term_bbbbbbbbbb']))
+    expect(md).toContain('与信')
+    expect(md).not.toContain('受注')
+  })
+
+  it('絞り込みで空になった種別グループは見出しごと消える', () => {
+    const data: GlossarySchemaVersion1 = {
+      schemaVersion: 1 as const,
+      type: 'glossary' as const,
+      title: 'T',
+      terms: [
+        { id: 'term_aaaaaaaaaa', name: '受注', kind: 'event', definition: 'd', aliases: [], notes: '' },
+        { id: 'term_bbbbbbbbbb', name: '画面A', kind: 'screen', definition: 'd', aliases: [], notes: '' },
+      ],
+    }
+    const md = glossaryToMarkdown(data, new Set(['term_bbbbbbbbbb']))
+    expect(md).not.toContain('### イベント')
+    expect(md).toContain('### 画面')
+  })
+
+  it('visible を渡さなければ従来どおり全件（既存の呼び出しが1文字も変わらない）', () => {
+    const data: GlossarySchemaVersion1 = {
+      schemaVersion: 1 as const,
+      type: 'glossary' as const,
+      title: 'T',
+      terms: [
+        { id: 'term_aaaaaaaaaa', name: '受注', kind: 'event', definition: 'd', aliases: [], notes: '' },
+      ],
+    }
+    expect(glossaryToMarkdown(data)).toBe(glossaryToMarkdown(data, null))
+  })
+})

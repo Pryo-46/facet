@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import type { JsonSchema } from './canonical'
 import type { ConsistencyIssue } from './consistency'
-import type { TableExport } from './table-export'
+import type { TableExport, VisibleRows } from './table-export'
 
 export interface EditorProps<TData> {
   data: TData
@@ -41,9 +41,14 @@ export interface OutputProfile<TData> {
   /**
    * NotePM 等へ貼る Markdown を返す。額縁がクリップボードへのコピーと
    * `.md` 書き出しの両方に使うので、**副作用を持たない純関数**であること
-   *（ファイルにもクリップボードにも触らない）
+   *（ファイルにもクリップボードにも触らない）。
+   *
+   * `visible` は画面に出ている行の ID 集合（M29）。**任意引数なので、
+   * 絞り込みを持たないツールの出力関数は1文字も変えなくてよい**——
+   * 受け取らなければ無視される。**額縁が先にデータを間引く形にはしない**
+   *（No が振り直されて画面と食い違う。`VisibleRows` の JSDoc を参照）
    */
-  toMarkdown: (data: TData) => string
+  toMarkdown: (data: TData, visible?: VisibleRows) => string
   /**
    * 整合性エラー（レベル2の赤）があるまま出力しようとしたとき、
    * **出力に何が起きるか**を述べる1文。額縁の確認ダイアログが本文の末尾に足す。
