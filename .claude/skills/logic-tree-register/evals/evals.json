@@ -1,0 +1,40 @@
+{
+  "skill_name": "logic-tree-register",
+  "evals": [
+    {
+      "id": 0,
+      "name": "new-tree-from-theme",
+      "prompt": "採用管理の話をしています。応募者が選考の途中で離脱するのはどんなときか、ケースを洗い出しておきたいです。プロジェクトフォルダは <PROJECT_DIR> です。",
+      "expected_output": "<PROJECT_DIR> に type=logicTree の JSON が1つ作られる。ルートが1つだけで、ルートの text が問いの形になっている。すべての id が node_ ＋英数字10文字。ファイルは正規形（キー順・LF・末尾改行）で、nodes の配列が DFS 行きがけ順に並んでいる。type=issueTree のファイルは作られていない。",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "transcribe-conversation",
+      "prompt": "さっきの打ち合わせで、応募が書類選考に進まない原因を3つ挙げました。応募フォームの送信に失敗した場合、添付書類の形式が対象外だった場合、同じ求人に重複応募した場合です。これをツリーにしてください。プロジェクトフォルダは <PROJECT_DIR> です。",
+      "expected_output": "type=logicTree の JSON が1つ作られる。会話に出た3つの原因が枝として入っており、会話に出ていない原因（例: 選考担当の見落とし、応募資格の不一致）を AI が足していない。ルートは会話の主題を問いの形にしたもの1つだけ。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "route-to-logic-tree",
+      "prompt": "決済のバッチが夜間に失敗することがあります。どんなときに失敗するのか、パターンを整理しておきたいです。プロジェクトフォルダは <PROJECT_DIR> です。",
+      "expected_output": "type=logicTree の JSON が作られる。type=issueTree の JSON は作られていない（「整理」「パターン」は課題ツリーではなくロジックツリーの担当）。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "defer-to-issue-tree",
+      "prompt": "適性検査サービスの連携について PoC をやります。何を確かめるべきか、仮説を立てて整理しておきたいです。プロジェクトフォルダは <PROJECT_DIR> です。",
+      "expected_output": "type=logicTree の JSON が作られていない。仮説・検証を伴う整理は課題ツリー（issue-tree-register）の担当なので、そちらへ譲っている（issueTree の JSON が作られるか、課題ツリーの Skill を使う旨を伝えている）。",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "append-to-existing",
+      "prompt": "<PROJECT_DIR> の「応募が書類選考に進まないケース」の木に、応募そのものが成立しない場合として「添付書類の形式・サイズが対象外だった」を足してください。",
+      "expected_output": "既存の 応募が書類選考に進まないケース.json が更新される（2つ目のファイルを作らない）。node_Aa1Bb2Cc3D / node_Ee4Ff5Gg6H / node_Ii7Jj8Kk9L の id と text が1バイトも変わらず、title も変わらない。足されたノードの parentId が node_Ee4Ff5Gg6H で、id は新しく採番された node_ ＋英数字10文字。",
+      "files": ["fixtures/existing-project/応募が書類選考に進まないケース.json"]
+    }
+  ]
+}
