@@ -4,7 +4,7 @@ import { escapeMermaidLabel } from '@/core/mermaid'
 import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
 
 /**
- * ロジックツリーの Markdown 出力（モジュール規約5。logic-tree M2）。
+ * ロジックツリーの Markdown 出力（モジュール規約5。logic-tree M3）。
  *
  * **プロファイルは1本で、図と箇条書きを縦に並べる。** rev 6章のプロファイルは
  * 「読み手による出し分け」の軸であり、形式（図／箇条書き）の軸を混ぜると、後から

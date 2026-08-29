@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "logic-tree.schema.json",
+  "title": "ロジックツリー (logicTree) schemaVersion 1",
+  "description": "仕様整理ツール詰め合わせのロジックツリーファイル。1ファイル＝1本の木（単一ルート）。ノードの位置・幅・折りたたみ状態は持たない——図はこのデータから毎回導出する（rev 3章）。キーの正規順序は本スキーマの properties 記載順とする。",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "description": "スキーマの版。logicTree の初版は 1。アプリは検証前にこの値を読み、未知の新版は「一覧表示のみ・編集不可」として扱う。",
+      "const": 1
+    },
+    "type": {
+      "description": "ツール種別。ロジックツリーは logicTree 固定。",
+      "const": "logicTree"
+    },
+    "title": {
+      "description": "表示名。プロジェクトのファイル一覧に使う。",
+      "type": "string"
+    },
+    "nodes": {
+      "description": "ノードの配列。親子関係は parentId が持ち、配列順は「同じ親を持つノードどうしの並び順（＝兄弟順）」の正である。アプリは編集のたびに配列を DFS 行きがけ順へ整える（兄弟の相対順は変えない）ので、上から読むと木の形が追える。",
+      "type": "array",
+      "items": { "$ref": "#/$defs/treeNode" }
+    }
+  },
+  "required": ["schemaVersion", "type", "title", "nodes"],
+  "additionalProperties": false,
+  "$defs": {
+    "treeNode": {
+      "description": "ノード1件。全キー常在（欠損でなく空の値で「未記入」を表現する）。",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "不変ID。プレフィクス node_ ＋ nanoid（英数字62文字カスタムアルファベット）10文字固定。連番禁止。",
+          "type": "string",
+          "pattern": "^node_[A-Za-z0-9]{10}$"
+        },
+        "parentId": {
+          "description": "親ノードのID。ルートは null。単一ルートであること・循環が無いこと・参照先が実在することはスキーマでは表せないため、整合性検証（レベル2）で受け止める。",
+          "type": ["string", "null"],
+          "pattern": "^node_[A-Za-z0-9]{10}$"
+        },
+        "text": {
+          "description": "ノードの文言。空文字＝「未記入」。空を許すのは、追加した直後の状態がそのままファイルに載りうるため（空を禁じると、打ち終わる前の自動保存がレベル1違反ファイルを作る）。表示上の折り返しはデータに持たない——アプリ内の表示都合であり、ユーザーが明示的に入れた改行（\n）だけが文言の一部である。",
+          "type": "string"
+        }
+      },
+      "required": ["id", "parentId", "text"],
+      "additionalProperties": false
+    }
+  }
+}

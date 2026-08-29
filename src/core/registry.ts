@@ -56,7 +56,7 @@ export interface OutputProfile<TData> {
 }
 
 /**
- * 規約7（任意）: 外部ツールとのクリップボード交換（logic-tree M2）。
+ * 規約7（任意）: 外部ツールとのクリップボード交換（logic-tree M3）。
  *
  * **規約5（`OutputProfile`）に乗せない理由**: あちらは「Markdown を返す純関数」と
  * `.md` 書き出しを前提にしている。Miro 交換は出力が HTML とプレーンテキストの2つで、

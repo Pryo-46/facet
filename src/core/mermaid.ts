@@ -1,6 +1,6 @@
 /**
  * Mermaid のラベルに共通するエスケープ（全ツール共通・コア。sequence-m3 で
- * open-issues に記録し、logic-tree の出力を作る logic-tree-m2 で引き上げた）。
+ * open-issues に記録し、logic-tree の出力を作る logic-tree-m3 で引き上げた）。
  *
  * **置き場は当初モジュール内（`sequence/mermaid.ts`）だった。** design-notes 論点11 の
  * 「先に出力を実装した側が正規化関数を1本立て、後発がそれに乗る」という決着どおり、

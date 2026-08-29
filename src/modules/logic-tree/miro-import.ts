@@ -4,7 +4,7 @@ import type { TreeNode } from '@/types/logic-tree'
 /**
  * Miro の JSON をロジックツリーへ。**この層は器を知らない**（復号済みの値を受ける）。
  *
- * 詳細は docs/superpowers/plans/2026-08-29-logic-tree-m2-miro-clipboard-design.md
+ * 詳細は docs/superpowers/plans/2026-08-29-logic-tree-m3-miro-clipboard-design.md
  */
 
 const ENTITIES: ReadonlyMap<string, string> = new Map([

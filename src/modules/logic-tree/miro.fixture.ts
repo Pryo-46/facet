@@ -21,7 +21,7 @@
  * 入っている＝ボードで作った順）。木はエッジから復元し、兄弟順は y 座標で決めること。
  *
  * 設計と観測の詳細:
- * docs/superpowers/plans/2026-08-29-logic-tree-m2-miro-clipboard-design.md
+ * docs/superpowers/plans/2026-08-29-logic-tree-m3-miro-clipboard-design.md
  */
 export const MIRO_MINDMAP_CF_HTML_BASE64 =
   "VmVyc2lvbjowLjkNClN0YXJ0SFRNTDowMDAwMDAwMTA1DQpFbmRIVE1MOjAwMDAwMDk3NjgNClN0YXJ0RnJhZ21lbnQ6MDAwMDAw" +

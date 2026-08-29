@@ -328,7 +328,7 @@ describe('shouldDescendSkillDir', () => {
 })
 
 describe('BUNDLED_SKILLS', () => {
-  it('ユーザーのデータを作る Skill が4本とも載っている', () => {
+  it('ユーザーのデータを作る Skill が5本とも載っている', () => {
     // アプリが置き直さない Skill は、プロジェクトフォルダで claude を起動した
     // ユーザーには存在しない。ここから漏れると Skill が黙って使えなくなる
     expect([...BUNDLED_SKILLS]).toEqual([
@@ -336,6 +336,7 @@ describe('BUNDLED_SKILLS', () => {
       'error-catalog-register',
       'sequence-register',
       'issue-tree-register',
+      'logic-tree-register',
     ])
   })
 

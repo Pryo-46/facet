@@ -120,7 +120,7 @@ const appIo: AppIo = {
   trash: moveFileToTrash,
   join: joinPath,
   copyText: copyToClipboard,
-  // Miro 等とのクリップボード交換（logic-tree M2）。コントローラが押下時に使う
+  // Miro 等とのクリップボード交換（logic-tree M3）。コントローラが押下時に使う
   copyHtml: copyHtmlToClipboard,
   readClipboardHtml,
   askSavePath: askSaveMarkdownPath,
@@ -537,7 +537,7 @@ function App() {
       setSelectedPath,
       // **これが Undo 履歴の破棄そのもの**（外部変更の取り込み時。rev 3章）
       setDocument: (data) => setHistory(data === null ? null : createHistory(data)),
-      // 履歴を保ったまま積む（クリップボード取り込みの上書き・logic-tree M2）。
+      // 履歴を保ったまま積む（クリップボード取り込みの上書き・logic-tree M3）。
       // エディタの onChange と同じ形——mergeKey に null を渡すのは「独立した履歴」の意味
       recordEdit: (data) =>
         setHistory((h) => (h === null ? h : record(h, data, null, Date.now()))),
@@ -745,13 +745,13 @@ function App() {
   // コントローラ側でも同じ条件を確認しているが、UI はそれを押せる／押せないの形で見せる
   const canExport = selectedModule !== undefined && editingData !== null
 
-  // 外部ツールとのクリップボード交換（規約7・logic-tree M2）。**額縁はツールを
+  // 外部ツールとのクリップボード交換（規約7・logic-tree M3）。**額縁はツールを
   // 名指ししない**——活性の判断はすべて選択中モジュールが宣言しているかどうかで決める
   const exchange = selectedModule?.clipboardExchanges?.[0]
   const [clipboardHasImport, setClipboardHasImport] = useState(false)
 
   /**
-   * ウィンドウがアクティブになったらクリップボードを1回だけ見る（logic-tree M2）。
+   * ウィンドウがアクティブになったらクリップボードを1回だけ見る（logic-tree M3）。
    *
    * **ポーリングはしない。** Miro のデータが載る瞬間は「Miro でコピーして facet に
    * 戻ってくる瞬間」なので、フォーカスを得たときに読めば足りる。常時ポーリングは
@@ -956,7 +956,7 @@ function App() {
             onCopy={(profile) => void controller.copyMarkdown(profile)}
             onExport={(profile) => void controller.exportMarkdown(profile)}
           />
-          {/* Miro 交換（規約7・logic-tree M2）。**常に出す**——ExportMenu と同じ
+          {/* Miro 交換（規約7・logic-tree M3）。**常に出す**——ExportMenu と同じ
               原則で、押せる／押せないだけを切り替え、ボタン自体は消えたり
               出たりしない。文言に「Miro」と書いてよいが、活性の判断には
               モジュールの type を使わない（`exchange` の有無だけで決める） */}
@@ -1245,7 +1245,7 @@ function App() {
         cancelLabel={head?.kind === 'choice' ? head.cancelLabel : undefined}
         // **`cancelLabel` を持つ要求のときだけ渡す。** 常に渡すと、外部変更の
         // 二択（`cancelLabel` を持たない）でも Esc が効くようになり、「決めるまで
-        // 閉じない」という M5 の決着が壊れる（logic-tree M2 の取り込みの二択だけが
+        // 閉じない」という M5 の決着が壊れる（logic-tree M3 の取り込みの二択だけが
         // `cancelLabel` を持つ）
         onCancel={
           head?.kind === 'choice' && head.cancelLabel !== undefined

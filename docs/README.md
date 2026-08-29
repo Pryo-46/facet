@@ -78,6 +78,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [issue-tree-m1](history/issue-tree-m1-editor.md) | 課題ツリーエディタ（ステータスを持たない追記型イベント列） | 課題ツリー |
 | [issue-tree-m2](history/issue-tree-m2-register-skill.md) | 課題ツリー登録 Skill（会話→ JSON）とお手本 | 課題ツリー・コア |
 | [issue-tree-m3](history/issue-tree-m3-overview-ui.md) | 課題ツリーの俯瞰 UI と語彙（箱は課題だけ・仮説は行・判断は1つ） | 課題ツリー・コア（初の schemaVersion 移行）・デザイン |
+| [logic-tree-m2](history/logic-tree-m2-register-skill.md) | ロジックツリー登録 Skill（会話→ JSON）と flat-tree の分割 | ロジックツリー・コア |
 
 ## ツールが増えたとき
 
@@ -96,6 +97,6 @@ docs/open-issues.md                                    ← ツール横断で1�
 
 ## リポジトリ内の他の「正」
 
-- `schemas/*.schema.json` — 各ツールのデータ形式の**正**。型（`src/types/*.ts`）はここから生成する。**コピーを作らない**（Skill 側も同じ実体を読む）
-- `.claude/skills/` — AI 側の実装。**2種類ある**——ユーザーのデータを作るもの（用語集・エラーカタログ・シーケンス・課題ツリー。アプリと**正規形が完全一致**していなければならない。`src/core/skill-sync.ts` の `BUNDLED_SKILLS` に載り、プロジェクトフォルダへコピーされる）と、アプリ自身のソースを触るもの（`palette-retheme`。配色の差し替え。同梱しない）
+- `schemas/*.schema.json` — 各ツールのデータ形式の**正**。型（`src/types/*.ts`）はここから生成する。**同梱 Skill はこれのバイト一致コピーを持つ**——登録 Skill 5本すべてが `.claude/skills/<Skill名>/schemas/` に写しを同梱する（当初は「コピーを作らない」としていたが、sequence-m4・M15 で改めた。アプリが配布するのは `.claude/skills/` だけで、リポジトリの `schemas/` は出荷先に届かない）。**正が2つになる不安は、バイト一致をテストが強制することで引き受ける**（`src/core/skill-schema-copy.test.ts`。ズレた瞬間に赤くなる）。経緯は [`overview-rev.md`](overview-rev.md) 4章
+- `.claude/skills/` — AI 側の実装。**2種類ある**——ユーザーのデータを作るもの（用語集・エラーカタログ・シーケンス・課題ツリー・ロジックツリー。アプリと**正規形が完全一致**していなければならない。`src/core/skill-sync.ts` の `BUNDLED_SKILLS` に載り、プロジェクトフォルダへコピーされる）と、アプリ自身のソースを触るもの（`palette-retheme`。配色の差し替え。同梱しない）
 - `../CLAUDE.md` — 作業のしかた（worktree の使い方、マイルストーン完了時に触る場所）

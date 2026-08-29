@@ -1,4 +1,4 @@
-# ロジックツリー M2: Miro のマインドマップとのクリップボード交換 実装計画
+# ロジックツリー M3: Miro のマインドマップとのクリップボード交換 実装計画
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** TypeScript / React 19 / Vite / Vitest / Tauri 2 / Rust（`arboard` 3.6.1）
 
-**Spec:** `docs/superpowers/plans/2026-08-29-logic-tree-m2-miro-clipboard-design.md`
+**Spec:** `docs/superpowers/plans/2026-08-29-logic-tree-m3-miro-clipboard-design.md`
 
 ## Global Constraints
 
@@ -160,11 +160,11 @@ Expected: FAIL（`Failed to resolve import "./miro-codec"`）
 /**
  * Miro のクリップボード形式の**器**（CF_HTML と data-meta）。木のことは知らない。
  *
- * 器と木を分けてあるのは、**器の不具合が木のテストでは見えない**ため。M2 の調査では
+ * 器と木を分けてあるのは、**器の不具合が木のテストでは見えない**ため。M3 の調査では
  * 閉じタグの欠落に3回の実機実験を費やした——復号は末尾の余分を黙って捨てるので通り、
  * 往復テストも通ってしまう。だから器のテストは**原本のバイト列と照合する**。
  *
- * 形式の詳細は docs/superpowers/plans/2026-08-29-logic-tree-m2-miro-clipboard-design.md
+ * 形式の詳細は docs/superpowers/plans/2026-08-29-logic-tree-m3-miro-clipboard-design.md
  */
 
 const OPEN = '<--(miro-data-v1)'
@@ -340,7 +340,7 @@ import type { LogicTreeSchemaVersion1, TreeNode } from '@/types/logic-tree'
 /**
  * Miro の JSON をロジックツリーへ。**この層は器を知らない**（復号済みの値を受ける）。
  *
- * 詳細は docs/superpowers/plans/2026-08-29-logic-tree-m2-miro-clipboard-design.md
+ * 詳細は docs/superpowers/plans/2026-08-29-logic-tree-m3-miro-clipboard-design.md
  */
 
 const ENTITIES: ReadonlyMap<string, string> = new Map([
@@ -850,7 +850,7 @@ import type { LogicTreeSchemaVersion1, TreeNode } from '@/types/logic-tree'
 /**
  * ロジックツリー → Miro の JSON。**この層は器を知らない**（値を組むだけ）。
  *
- * 決定と根拠は docs/superpowers/plans/2026-08-29-logic-tree-m2-miro-clipboard-design.md の
+ * 決定と根拠は docs/superpowers/plans/2026-08-29-logic-tree-m3-miro-clipboard-design.md の
  * 4章。要点だけ:
  *
  * - **autoLayout: true かつ座標も出す。** 座標が無いと兄弟の順序が壊れ（Miro が勝手に
@@ -1161,7 +1161,7 @@ Expected: FAIL（`Failed to resolve import "./miro"`）
 
 ```ts
 /**
- * 規約7（任意）: 外部ツールとのクリップボード交換（logic-tree M2）。
+ * 規約7（任意）: 外部ツールとのクリップボード交換（logic-tree M3）。
  *
  * **規約5（`OutputProfile`）に乗せない理由**: あちらは「Markdown を返す純関数」と
  * `.md` 書き出しを前提にしている。Miro 交換は出力が HTML とプレーンテキストの2つで、
@@ -1258,7 +1258,7 @@ import { miroMindmapExchange } from './miro'
 ```
 
 ```ts
-  // 規約7（任意）: Miro のマインドマップとのクリップボード交換（M2）。
+  // 規約7（任意）: Miro のマインドマップとのクリップボード交換（M3）。
   // **他のツールは宣言しない**——額縁はこの有無でボタンの活性を決める
   clipboardExchanges: [miroMindmapExchange],
 ```
@@ -1286,7 +1286,7 @@ Expected: PASS（`miro.test.ts` 6件を含む）／ tsc はエラーなし
 他4ツールが宣言していないことも押さえる。`src/modules/index.test.ts` に追記:
 
 ```ts
-  it('クリップボード交換を宣言するのはロジックツリーだけ（M2）', () => {
+  it('クリップボード交換を宣言するのはロジックツリーだけ（M3）', () => {
     const declared = appRegistry
       .list()
       .filter((m) => (m.clipboardExchanges?.length ?? 0) > 0)
@@ -1445,7 +1445,7 @@ import { documentHeading } from '@/core/markdown-table'
 import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
 
 /**
- * ロジックツリーの Markdown 出力（モジュール規約5。logic-tree M2）。
+ * ロジックツリーの Markdown 出力（モジュール規約5。logic-tree M3）。
  *
  * **プロファイルは1本で、図と箇条書きを縦に並べる。** rev 6章のプロファイルは
  * 「読み手による出し分け」の軸であり、形式（図／箇条書き）の軸を混ぜると、後から
@@ -1535,7 +1535,7 @@ import { logicTreeToMarkdown } from './markdown'
 `outputs: []` を置き換える:
 
 ```ts
-  // 規約5: M1 で 0 本だった出力を M2 で1本にした。
+  // 規約5: M1 で 0 本だった出力を M3 で1本にした。
   // **図と箇条書きを1本にまとめる**——形式の軸でプロファイルを割らない（rev 6章）
   outputs: [
     { id: 'default', label: 'Markdown', fileSuffix: '', toMarkdown: logicTreeToMarkdown },
@@ -1596,7 +1596,7 @@ EOF
 `src-tauri/Cargo.toml` の `[dependencies]` に:
 
 ```toml
-# クリップボードの HTML 読み取り（logic-tree M2）。
+# クリップボードの HTML 読み取り（logic-tree M3）。
 # tauri-plugin-clipboard-manager が内部で使っているが JS へ公開していないので、
 # 自前コマンドで通す。**推移依存に頼らない**——プラグインの更新で黙って消えるため
 arboard = "3.6"
@@ -1613,7 +1613,7 @@ Expected: エラーなし（既に依存グラフにあるのでダウンロー�
 `src-tauri/src/lib.rs` に:
 
 ```rust
-/// クリップボードの HTML を読む（logic-tree M2）。
+/// クリップボードの HTML を読む（logic-tree M3）。
 ///
 /// `tauri-plugin-clipboard-manager` は **HTML の読み取り API を持たない**
 /// （型定義に「we can read html data only as a string so there's just readText(),
@@ -1651,7 +1651,7 @@ Expected: エラーなし
 
 を、こう置き換える:
 
-> `clipboard-manager:allow-write-text` は Markdown 出力のコピーのため（M6）、`clipboard-manager:allow-write-html` は Miro のマインドマップとしてのコピーのため（logic-tree M2）。**プラグインの読み取り権限は与えない**——HTML の読み取りはプラグインに API が無く、自前コマンド `read_clipboard_html`（arboard）を通すため。
+> `clipboard-manager:allow-write-text` は Markdown 出力のコピーのため（M6）、`clipboard-manager:allow-write-html` は Miro のマインドマップとしてのコピーのため（logic-tree M3）。**プラグインの読み取り権限は与えない**——HTML の読み取りはプラグインに API が無く、自前コマンド `read_clipboard_html`（arboard）を通すため。
 
 - [ ] **Step 4: `src/fs/clipboard.ts` を書く**
 
@@ -1671,7 +1671,7 @@ export async function copyToClipboard(text: string): Promise<void> {
 }
 
 /**
- * HTML としてクリップボードへ書く（Miro のマインドマップ。logic-tree M2）。
+ * HTML としてクリップボードへ書く（Miro のマインドマップ。logic-tree M3）。
  *
  * `altText` を渡すのは、**HTML だけを載せると他アプリに貼れなくなる**ため。
  * Miro 自身も両方を載せている
@@ -1681,7 +1681,7 @@ export async function copyHtmlToClipboard(html: string, altText: string): Promis
 }
 
 /**
- * クリップボードの HTML を読む（logic-tree M2）。
+ * クリップボードの HTML を読む（logic-tree M3）。
  *
  * **プラグインには読み取り API が無い**ので、Rust の自前コマンドを通す
  *（`src-tauri/src/lib.rs` の `read_clipboard_html`）。HTML が載っていないときは
@@ -1861,7 +1861,7 @@ Expected: FAIL（`cancelLabel` が型エラー、またはボタンが見つか�
    * 既定（渡さない）が「キャンセルも Esc も無い」なのは、外部変更の衝突では
    * どちらの選択にも副作用があり、決めないまま閉じると宙ぶらりんが残るため
    * （JSDoc の上の段落を参照）。**取り込みのように「やめる」が正しい選択に
-   * なりうる場面でだけ渡す**（logic-tree M2）
+   * なりうる場面でだけ渡す**（logic-tree M3）
    */
   onCancel?: () => void
   /** キャンセルのボタンの文言。onCancel を渡すときだけ意味がある */
@@ -1908,7 +1908,7 @@ Expected: FAIL（`cancelLabel` が型エラー、またはボタンが見つか�
 
 ```ts
       /**
-       * **任意。** 渡すとキャンセルのボタンが出る（logic-tree M2）。
+       * **任意。** 渡すとキャンセルのボタンが出る（logic-tree M3）。
        * `onCancel` は持たせない——キャンセルは「キューから外す」以上のことをせず、
        * それは額縁の `shiftModal` が既にやっている
        */
@@ -1964,7 +1964,7 @@ EOF
 `src/core/app-controller.test.ts` に追記（既存のテストのモックの組み方をそのまま使うこと）:
 
 ```ts
-describe('クリップボード交換（logic-tree M2）', () => {
+describe('クリップボード交換（logic-tree M3）', () => {
   it('copyToExternal は exchange の html と text をそのまま書き込む', async () => {
     // ロジックツリーのファイルを開いた状態を作り
     await controller.copyToExternal(exchange)
@@ -2024,9 +2024,9 @@ Expected: FAIL（`controller.copyToExternal is not a function`）
 
 ```ts
   copyText: (text: string) => Promise<void>
-  /** HTML としてコピーする。altText は他アプリに貼るための平文（logic-tree M2） */
+  /** HTML としてコピーする。altText は他アプリに貼るための平文（logic-tree M3） */
   copyHtml: (html: string, altText: string) => Promise<void>
-  /** クリップボードの HTML。載っていなければ空文字（logic-tree M2） */
+  /** クリップボードの HTML。載っていなければ空文字（logic-tree M3） */
   readClipboardHtml: () => Promise<string>
 ```
 
@@ -2036,7 +2036,7 @@ Expected: FAIL（`controller.copyToExternal is not a function`）
 
 ```ts
   /**
-   * 選択中のデータを外部ツールの形式でクリップボードへ（logic-tree M2）。
+   * 選択中のデータを外部ツールの形式でクリップボードへ（logic-tree M3）。
    * **判断はモジュールが持ち、ここは順序だけ**を持つ
    */
   const copyToExternal = async (exchange: ClipboardExchange<unknown>): Promise<void> => {
@@ -2052,7 +2052,7 @@ Expected: FAIL（`controller.copyToExternal is not a function`）
   }
 
   /**
-   * クリップボードから取り込む（logic-tree M2）。
+   * クリップボードから取り込む（logic-tree M3）。
    *
    * **押された時点で読み直す。** ボタンの活性はウィンドウがアクティブになった時点の
    * スナップショットで、その後ユーザーが別のものをコピーしている可能性がある。
@@ -2198,7 +2198,7 @@ Expected: FAIL（ボタンが見つからない）
   const [clipboardHasImport, setClipboardHasImport] = useState(false)
 
   /**
-   * ウィンドウがアクティブになったらクリップボードを1回だけ見る（logic-tree M2）。
+   * ウィンドウがアクティブになったらクリップボードを1回だけ見る（logic-tree M3）。
    *
    * **ポーリングはしない。** Miro のデータが載る瞬間は「Miro でコピーして facet に
    * 戻ってくる瞬間」なので、フォーカスを得たときに読めば足りる。常時ポーリングは
@@ -2369,7 +2369,7 @@ git status --short          # 空になること
 ## Task 11: 文書の更新（マイルストーン完了の3箇所）
 
 **Files:**
-- Create: `docs/history/logic-tree-m2-miro-clipboard.md`
+- Create: `docs/history/logic-tree-m3-miro-clipboard.md`
 - Modify: `docs/open-issues.md`
 - Modify: `docs/overview-rev.md`
 
@@ -2377,7 +2377,7 @@ CLAUDE.md の「マイルストーン完了時に触る3箇所」に従う。**r
 
 - [ ] **Step 1: 申し送りを書く**
 
-`docs/history/logic-tree-m2-miro-clipboard.md` に、そのとき何が起きたかを書く。以後変えない。含めるもの:
+`docs/history/logic-tree-m3-miro-clipboard.md` に、そのとき何が起きたかを書く。以後変えない。含めるもの:
 
 - Miro のクリップボード形式（設計文書の付録を指す。**転記して二重に持たない**）
 - 実験11回の記録（設計文書にある。同上）
@@ -2416,7 +2416,7 @@ cd src-tauri && cargo test && cd ..
 ```bash
 git add docs/
 git commit -m "$(cat <<'EOF'
-docs(logic-tree): M2 の申し送りを書き、残件と rev を更新する
+docs(logic-tree): M3 の申し送りを書き、残件と rev を更新する
 
 rev 12章のクリップボードの記述（読み取り権限は与えない）を、自前コマンドで
 読むようになった実態に合わせた。プラグインの読み取り権限は依然として与えない。

@@ -97,7 +97,7 @@ const {
     // 額縁の版番号専用の可変状態。**既定は「取れる」**——額縁に必ず出るものなので、
     // 取れない既定にすると全テストが「取得に失敗した画面」を見ることになる
     versionConfig: { value: '9.9.9', error: null as Error | null },
-    // Miro のクリップボード交換専用の可変状態（logic-tree M2、Task 9）。
+    // Miro のクリップボード交換専用の可変状態（logic-tree M3、Task 9）。
     // `copyHtmlToClipboardMock` / `readClipboardHtmlMock` を spy 化するのは、
     // ボタンの活性を「クリックしてハンドラが呼ばれたか」で確かめるため
     //（jest-dom を入れていないので toBeDisabled/toBeEnabled は使わない）。
@@ -141,7 +141,7 @@ vi.mock('@/fs/app-window', () => ({
 }))
 vi.mock('@/fs/clipboard', () => ({
   copyToClipboard: async () => undefined,
-  // Miro 等とのクリップボード交換（logic-tree M2、Task 9）。呼ばれたかどうかを
+  // Miro 等とのクリップボード交換（logic-tree M3、Task 9）。呼ばれたかどうかを
   // テストから見たいので spy 化する（`clipboardHtmlConfig` で返す HTML を制御する）
   copyHtmlToClipboard: copyHtmlToClipboardMock,
   readClipboardHtml: readClipboardHtmlMock,
@@ -927,7 +927,7 @@ describe('額縁の版番号', () => {
 })
 
 /**
- * 額縁の Miro 交換の配線（logic-tree M2、Task 9）。**額縁はツールを名指ししない**
+ * 額縁の Miro 交換の配線（logic-tree M3、Task 9）。**額縁はツールを名指ししない**
  * ——ボタンの活性は選択中モジュールが `clipboardExchanges` を宣言しているかどうか
  * だけで決まる（ロジックツリー以外は宣言しない）。ボタン自体は ExportMenu と同じ
  * 原則で常に出す（消えたり出たりしない）。
@@ -938,7 +938,7 @@ describe('額縁の版番号', () => {
  * jsdom でも click イベントを発火しないので、これで押せる／押せないの両方を
  * 確かめられる
  */
-describe('額縁の Miro 交換の配線（logic-tree M2）', () => {
+describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
   const GLOSSARY_PATH = '/proj/用語集.json'
   const LOGIC_TREE_PATH = '/proj/木.json'
 

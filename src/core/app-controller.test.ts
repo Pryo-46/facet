@@ -208,7 +208,7 @@ function createHarness(
     setProjectDir: () => {},
     setSelectedPath: (path) => { selectedPath = path; log.push(`setSelectedPath:${path ?? 'null'}`) },
     setDocument: (data) => { document = data; log.push('setDocument') },
-    // 履歴を保ったまま積む（logic-tree M2）。この偽物は past/future を模していないので
+    // 履歴を保ったまま積む（logic-tree M3）。この偽物は past/future を模していないので
     // 「document が更新される」ところだけ setDocument と同じに見えるが、
     // ログの種別（'recordEdit' vs 'setDocument'）でどちらの経路を通ったかは区別できる
     recordEdit: (data) => { document = data; log.push('recordEdit') },
@@ -612,7 +612,7 @@ describe('externalChange（外部変更の検知）', () => {
     expect(h.document()).toMatchObject({ body: '外部が書いた' })
     // setDocument＝履歴の作り直し。取り込みごとに必ず1回通ること
     expect(h.log.filter((l) => l === 'setDocument').length).toBeGreaterThan(0)
-    // recordEdit（logic-tree M2）は履歴を保つ口なので、履歴を破棄すべきこの経路には
+    // recordEdit（logic-tree M3）は履歴を保つ口なので、履歴を破棄すべきこの経路には
     // 混ざらない——setDocument と recordEdit を混同すると Ctrl+Z がディスクの内容を
     // 無言で巻き戻す事故になる（AppHost の JSDoc）
     expect(h.log).not.toContain('recordEdit')
@@ -1297,7 +1297,7 @@ describe('interleaving（走査・選択の直列化ガード）', () => {
   })
 })
 
-// ---- クリップボード交換（logic-tree M2） ----
+// ---- クリップボード交換（logic-tree M3） ----
 
 /**
  * テスト用の ClipboardExchange。判断は固定の振る舞いで代用する
@@ -1319,7 +1319,7 @@ function fakeExchange(): ClipboardExchange<unknown> {
   }
 }
 
-describe('クリップボード交換（logic-tree M2）', () => {
+describe('クリップボード交換（logic-tree M3）', () => {
   async function openNote(h: Harness): Promise<void> {
     await h.controller.openFolder(DIR)
     await h.controller.selectFile(p('a.json'))

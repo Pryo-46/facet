@@ -83,7 +83,7 @@ async fn move_to_trash(path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?
 }
 
-/// クリップボードの HTML を読む（logic-tree M2）。
+/// クリップボードの HTML を読む（logic-tree M3）。
 ///
 /// `tauri-plugin-clipboard-manager` は **HTML の読み取り API を持たない**
 /// （型定義に「we can read html data only as a string so there's just readText(),

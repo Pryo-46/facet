@@ -23,7 +23,7 @@ export interface ChoiceDialogProps {
    * 既定（渡さない）が「キャンセルも Esc も無い」なのは、外部変更の衝突では
    * どちらの選択にも副作用があり、決めないまま閉じると宙ぶらりんが残るため
    * （下の JSDoc を参照）。**取り込みのようにキャンセルが正しい選択に
-   * なりうる場面でだけ渡す**（logic-tree M2）
+   * なりうる場面でだけ渡す**（logic-tree M3）
    */
   onCancel?: () => void
   /** キャンセルのボタンの文言。onCancel を渡すときだけ意味がある。既定は「キャンセル」 */
@@ -40,7 +40,7 @@ export interface ChoiceDialogProps {
  * 最も押しやすいキーになってしまう。だから既定では明示的な選択だけを受ける。
  *
  * **`onCancel` は任意の逃げ道。** 渡したときだけキャンセルのボタンと Esc が
- * 有効になる（logic-tree M2、`ChoiceDialogProps.onCancel` 参照）。上の理由が
+ * 有効になる（logic-tree M3、`ChoiceDialogProps.onCancel` 参照）。上の理由が
  * 消えたわけではないので既定は変えていない——「不便だから全部にキャンセルを
  * 付ける」という判断はしないこと。渡すのは、キャンセルしても宙ぶらりんが
  * 残らない場面（例: 外部データの取り込み。やめても今の状態がそのまま残る
@@ -63,7 +63,7 @@ export function ChoiceDialog(props: ChoiceDialogProps) {
       <AlertDialogContent
         // AlertDialogContent の既定幅（sm:max-w-sm＝384px）は ConfirmDialog を
         // 想定した2ボタン用。onCancel を足して3ボタンになると収まらない
-        // （logic-tree M2 の取り込みダイアログで実機確認：「キャンセル」
+        // （logic-tree M3 の取り込みダイアログで実機確認：「キャンセル」
         // 「新しいファイルに作る」「このツリーを上書き」の3つ＋説明文）。
         //
         // 目安: ボタン文言 約24文字 × 16px（等幅の全角）＋ ボタンの左右

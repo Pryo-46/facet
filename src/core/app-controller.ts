@@ -59,9 +59,9 @@ export interface AppIo {
   trash: (path: string) => Promise<void>
   join: (dir: string, name: string) => Promise<string>
   copyText: (text: string) => Promise<void>
-  /** HTML としてコピーする。altText は他アプリに貼るための平文（logic-tree M2） */
+  /** HTML としてコピーする。altText は他アプリに貼るための平文（logic-tree M3） */
   copyHtml: (html: string, altText: string) => Promise<void>
-  /** クリップボードの HTML。載っていなければ空文字（logic-tree M2） */
+  /** クリップボードの HTML。載っていなければ空文字（logic-tree M3） */
   readClipboardHtml: () => Promise<string>
   /** 保存先を尋ねる。null＝キャンセル */
   askSavePath: (defaultPath: string) => Promise<string | null>
@@ -82,7 +82,7 @@ export interface AppHost {
    */
   setDocument: (data: unknown | null) => void
   /**
-   * 編集を履歴へ積む（額縁の `onChange` と同じ経路。logic-tree M2）。
+   * 編集を履歴へ積む（額縁の `onChange` と同じ経路。logic-tree M3）。
    *
    * **`setDocument` と混同しないこと。** あちらは履歴を作り直す＝Undo 履歴の破棄で、
    * 外部変更の取り込みのように「元に戻せてはいけない」場面のもの。こちらは
@@ -120,9 +120,9 @@ export interface AppController {
   copyMarkdown(profile: OutputProfile<unknown>): Promise<void>
   /** 選択中ファイルの Markdown を .md として書き出す（rev 8章） */
   exportMarkdown(profile: OutputProfile<unknown>): Promise<void>
-  /** 選択中のデータを外部ツールの形式でクリップボードへ（logic-tree M2） */
+  /** 選択中のデータを外部ツールの形式でクリップボードへ（logic-tree M3） */
   copyToExternal(exchange: ClipboardExchange<unknown>): Promise<void>
-  /** クリップボードから外部ツールの形式を取り込む（logic-tree M2） */
+  /** クリップボードから外部ツールの形式を取り込む（logic-tree M3） */
   importFromExternal(exchange: ClipboardExchange<unknown>): Promise<void>
   /** アンマウント時。**flush しない**（失敗で復元された pending を捨てないため） */
   dispose(): void
@@ -872,7 +872,7 @@ export function createAppController(
   }
 
   /**
-   * 選択中のデータを外部ツールの形式でクリップボードへ（logic-tree M2）。
+   * 選択中のデータを外部ツールの形式でクリップボードへ（logic-tree M3）。
    * **判断は `exchange`（`ClipboardExchange`）が持ち、ここは順序だけ**を持つ
    */
   const copyToExternal = async (exchange: ClipboardExchange<unknown>): Promise<void> => {
@@ -888,7 +888,7 @@ export function createAppController(
   }
 
   /**
-   * クリップボードから取り込む（logic-tree M2）。
+   * クリップボードから取り込む（logic-tree M3）。
    *
    * **押された時点で読み直す。** ボタンの活性はウィンドウがアクティブになった時点の
    * スナップショットで、その後ユーザーが別のものをコピーしている可能性がある。

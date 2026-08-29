@@ -5,7 +5,7 @@
  * 閉じタグの欠落に3回の実機実験を費やした——復号は末尾の余分を黙って捨てるので通り、
  * 往復テストも通ってしまう。だから器のテストは**原本のバイト列と照合する**。
  *
- * 形式の詳細は docs/superpowers/plans/2026-08-29-logic-tree-m2-miro-clipboard-design.md
+ * 形式の詳細は docs/superpowers/plans/2026-08-29-logic-tree-m3-miro-clipboard-design.md
  */
 
 const OPEN = '<--(miro-data-v1)'

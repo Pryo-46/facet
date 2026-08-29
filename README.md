@@ -154,7 +154,7 @@ facet は **AI をアプリに組み込まない。** API も呼ばないし、�
 
 ### 同梱の Skill
 
-プロジェクトフォルダを開くと、`.claude/skills/` に登録用 Skill が4本置かれる（`glossary-term-register` / `error-catalog-register` / `sequence-register` / `issue-tree-register`）。**会話でヒアリングしながらデータを組み立てる** ためのもので、ID の採番・スキーマ検証・正規形での書き出しは同梱スクリプトが行う。手書きの JSON が混ざらない。
+プロジェクトフォルダを開くと、`.claude/skills/` に登録用 Skill が5本置かれる（`glossary-term-register` / `error-catalog-register` / `sequence-register` / `issue-tree-register` / `logic-tree-register`）。**会話でヒアリングしながらデータを組み立てる** ためのもので、ID の採番・スキーマ検証・正規形での書き出しは同梱スクリプトが行う。手書きの JSON が混ざらない。
 
 各 Skill は初回だけ `npm install` が要る（手順は Skill 自身に書いてある）。
 

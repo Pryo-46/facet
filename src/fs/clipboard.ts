@@ -13,7 +13,7 @@ export async function copyToClipboard(text: string): Promise<void> {
 }
 
 /**
- * HTML としてクリップボードへ書く（Miro のマインドマップ。logic-tree M2）。
+ * HTML としてクリップボードへ書く（Miro のマインドマップ。logic-tree M3）。
  *
  * `altText` を渡すのは、**HTML だけを載せると他アプリに貼れなくなる**ため。
  * Miro 自身も両方を載せている
@@ -23,7 +23,7 @@ export async function copyHtmlToClipboard(html: string, altText: string): Promis
 }
 
 /**
- * クリップボードの HTML を読む（logic-tree M2）。
+ * クリップボードの HTML を読む（logic-tree M3）。
  *
  * **プラグインには読み取り API が無い**ので、Rust の自前コマンドを通す
  *（`src-tauri/src/lib.rs` の `read_clipboard_html`）。HTML が載っていないときは
