@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const writeText = vi.fn<(text: string) => Promise<void>>()
 const writeHtml = vi.fn<(html: string, altText?: string) => Promise<void>>()
-vi.mock('@tauri-apps/plugin-clipboard-manager', () => ({ writeText, writeHtml }))
+const readText = vi.fn<() => Promise<string>>()
+vi.mock('@tauri-apps/plugin-clipboard-manager', () => ({ writeText, writeHtml, readText }))
 
 const invoke = vi.fn<(cmd: string) => Promise<unknown>>()
 vi.mock('@tauri-apps/api/core', () => ({ invoke }))
 
-const { copyToClipboard, copyHtmlToClipboard, readClipboardHtml } = await import('./clipboard')
+const { copyToClipboard, copyHtmlToClipboard, readClipboardHtml, readClipboardText, tauriClipboardIo } =
+  await import('./clipboard')
 
 describe('copyToClipboard', () => {
   beforeEach(() => {
@@ -58,5 +60,38 @@ describe('readClipboardHtml', () => {
     // arboard は HTML が無いときエラーを返す。**それは異常ではなく日常的な状態**
     invoke.mockRejectedValue(new Error('ClipboardNotSupported'))
     await expect(readClipboardHtml()).resolves.toBe('')
+  })
+})
+
+describe('readClipboardText', () => {
+  beforeEach(() => {
+    readText.mockReset()
+  })
+
+  it('プラグインの readText の結果をそのまま返す', async () => {
+    readText.mockResolvedValue('こんにちは')
+    await expect(readClipboardText()).resolves.toBe('こんにちは')
+  })
+
+  it('テキストが載っていなければ空文字（投げない）', async () => {
+    // プラグインはテキストが無いとエラーを返す。**それは異常ではなく日常的な状態**
+    //（readClipboardHtml と同じ扱い）
+    readText.mockRejectedValue(new Error('ClipboardNotSupported'))
+    await expect(readClipboardText()).resolves.toBe('')
+  })
+})
+
+describe('tauriClipboardIo', () => {
+  beforeEach(() => {
+    readText.mockReset()
+    writeText.mockReset()
+    writeText.mockResolvedValue(undefined)
+  })
+
+  it('読み書きの両方をプラグインへ繋ぐ', async () => {
+    readText.mockResolvedValue('x')
+    await expect(tauriClipboardIo.readText()).resolves.toBe('x')
+    await tauriClipboardIo.writeText('y')
+    expect(writeText).toHaveBeenCalledWith('y')
   })
 })

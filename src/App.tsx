@@ -43,6 +43,7 @@ import type { ProjectFile } from '@/core/project-file'
 import { READING_GUIDE_FILENAME, syncReadingGuide } from '@/core/reading-guide'
 import { scanFolder } from '@/core/scan'
 import { BUNDLED_SKILLS, syncBundledSkills } from '@/core/skill-sync'
+import { fileReference, fileReferences } from '@/core/terminal/file-reference'
 import {
   activateSession,
   closeAll,
@@ -73,7 +74,13 @@ import {
 } from '@/core/update-check'
 import { readAppVersion } from '@/fs/app-version'
 import { forceClose, interceptClose } from '@/fs/app-window'
-import { copyHtmlToClipboard, copyToClipboard, readClipboardHtml } from '@/fs/clipboard'
+import {
+  copyHtmlToClipboard,
+  copyToClipboard,
+  readClipboardHtml,
+  tauriClipboardIo,
+} from '@/fs/clipboard'
+import { onDragDrop } from '@/fs/drag-drop'
 import {
   allowProjectDir,
   askSaveMarkdownPath,
@@ -230,6 +237,8 @@ function App() {
   // window リスナーはマウント時に1回しか張らないので、最新値は ref から読む
   //（**state 直読みに「簡潔化」しないこと**。常に初期値になる）
   const terminalPaneRef = useRef<HTMLElement | null>(null)
+  /** エクスプローラからファイルを持ってこられている最中か（M28。設計 §6.3） */
+  const [dropActive, setDropActive] = useState(false)
 
   /**
    * `splitRef`（サイドバーを含まない、エディタ＋ペインの区間）の実測幅
@@ -277,13 +286,61 @@ function App() {
     })[0] ?? paneWidth[0]
 
   /**
+   * いま選択しているファイルの参照。無ければ null。
+   * ペインを開く／タブを足すときの初期テキストになる（設計 §4.4）
+   */
+  const selectedReference = (): string | null =>
+    projectDir === null || selectedPath === null ? null : fileReference(projectDir, selectedPath)
+
+  /**
    * タブを1本足す。**Skill の同期はここでは行わない**——Skill はプロジェクトに
    * 属するものであって端末セッションに属するものではない。同期は
    * `projectDir` の effect（下の「同梱 Skill の配置」）がフォルダ1つにつき
    * 1回だけ走らせる。ここに置くと「＋ タブを追加」を押した回数だけ
    * 「消して置き直す」が起きる（sequence M4 の実機確認）
    */
-  const openTerminal = () => setTerminals((prev) => openSession(prev))
+  const openTerminal = (initialText?: string) =>
+    setTerminals((prev) => openSession(prev, initialText ?? selectedReference()))
+
+  /**
+   * 差し込み指示（M28）。**1つだけ持つ**——宛先の振り分けは `TerminalPane`、
+   * 同じ指示を二度実行しない保証は `seq` の単調増加（`TerminalTab` が消化条件に使う）
+   */
+  const [insertion, setInsertion] = useState<{
+    targetId: number
+    seq: number
+    text: string
+  } | null>(null)
+  const insertionSeq = useRef(0)
+
+  /**
+   * ファイルを Claude Code へ渡す（M28。一覧の `@` ボタンとエクスプローラからの
+   * ドロップが共有する）。**押した人がやりたいのは「渡すこと」**なので、ペインが
+   * 閉じていても・タブが1本も無くても、開いて起動するところまで面倒を見る
+   */
+  const handoffToTerminal = (text: string) => {
+    setPaneOpen(true)
+    // **`terminals` を直読みしない。** ドロップのリスナは1回しか張らないので、
+    // 最新の台帳は ref から読む（closeTerminalNow と同じ理由）
+    //
+    // **「実行中のタブが無い」も「タブが無い」と同じ扱いにする。**
+    // markExited / markFailed はセッションを台帳に残し activeId も指したままにするので、
+    // activeId の null 判定だけでは死んだ PTY へ書きに行ってしまう（pty_write が
+    // 「その端末はもうありません」で拒否し、タブの文言が受け渡しと無関係な
+    // 書き込み失敗に化ける）。押した人がやりたいのは「渡すこと」なので、新しく起こす
+    const active =
+      terminalsRef.current.sessions.find(
+        (s) => s.id === terminalsRef.current.activeId && isSessionRunning(s),
+      ) ?? null
+    if (active === null) {
+      openTerminal(text)
+      return
+    }
+    // **採番は updater の外。** setState の updater は純粋でなければならない
+    //（StrictMode の二重実行で seq を余分に消費する。showToast の id と同じ理由）
+    const seq = ++insertionSeq.current
+    setInsertion({ targetId: active.id, seq, text })
+  }
 
   const closeTerminalNow = (id: number) => {
     // **updater の外で殺す。** setState の updater は純粋でなければならない
@@ -323,6 +380,12 @@ function App() {
     )
   }
   const [projectDir, setProjectDir] = useState<string | null>(null)
+  // window リスナーはマウント時に1回しか張らないので、最新値は ref から読む
+  //（terminalPaneRef の隣のコメントと同じ理由）
+  const projectDirRef = useRef(projectDir)
+  projectDirRef.current = projectDir
+  const handoffRef = useRef(handoffToTerminal)
+  handoffRef.current = handoffToTerminal
   const [files, setFiles] = useState<ProjectFile[]>([])
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   // 編集中データは履歴の present が正（Undo/Redo で入れ替わる。ファイル単位・
@@ -570,10 +633,9 @@ function App() {
   const toggleTheme = () => {
     const next = !dark
     setDark(next)
-    // **この DOM 書き込みを `useEffect` へ移さないこと。** 端末の配色は
-    // `TerminalTab` の `[dark]` effect が `palette.css` のトークンを読み直す
-    // ことで追従するが、**子の effect は親の effect より先に走る**ので、
-    // ここを effect へ移すと端末だけ1回ぶん古い配色を読む
+    // アプリ本体の面・文字を切り替える。**端末（TerminalTab）は追従しない**
+    // ——M28 の人間の判断で常にダーク固定にしたため（端末は facet の面
+    // ではなく「端末の面」）
     document.documentElement.classList.toggle('dark', next)
   }
 
@@ -866,6 +928,74 @@ function App() {
   }, [])
 
   /**
+   * エクスプローラからのドロップ（M28）。
+   *
+   * **HTML5 の D&D は使わない。** Tauri の `dragDropEnabled` は既定で `true` で、
+   * その状態では Windows の HTML5 D&D が効かない（両立しない）。facet は HTML5
+   * D&D を1箇所も使っていない（仕切りもキャンバスもポインタイベント）ので、
+   * 既定のまま Tauri のイベントを受ける方が得（設計 §6.1）。
+   *
+   * **イベントはウィンドウ全体で発火する**ので、位置がペインの矩形の中に
+   * あるときだけ受ける。**畳んでいるペインは `display:none` で矩形が 0 になり、
+   * 必ず「外」と判定される**——見えていない場所へは落とせない、という結果に
+   * なるが、狙いどおりである（落とし先が見えないドロップは成立しない）
+   */
+  useEffect(() => {
+    const inPane = (position: { x: number; y: number }): boolean => {
+      const pane = terminalPaneRef.current
+      if (pane === null) return false
+      // position は**物理ピクセル**。CSS ピクセルへ直してから矩形と比べる
+      const ratio = window.devicePixelRatio || 1
+      const x = position.x / ratio
+      const y = position.y / ratio
+      const rect = pane.getBoundingClientRect()
+      // **矩形が潰れていたら「外」。** 畳んだペインは display:none で全部 0 になり、
+      // 両端を含む比較だと (0,0) の1点だけが一致してしまう（ウィンドウ左上隅への
+      // ドロップでペインが開く）。「見えていないペインはドロップ先になれない」を
+      // 創発的な性質ではなく明示の規則として書く
+      if (rect.width === 0 || rect.height === 0) return false
+      return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+    }
+
+    let unlisten: (() => void) | null = null
+    let disposed = false
+    void onDragDrop((payload) => {
+      if (payload.type === 'leave') {
+        setDropActive(false)
+        return
+      }
+      const inside = inPane(payload.position)
+      if (payload.type !== 'drop') {
+        // enter / over。**`over` に paths は無い**ので触らない
+        setDropActive(inside)
+        return
+      }
+      setDropActive(false)
+      if (!inside) return
+      const dir = projectDirRef.current
+      if (dir === null) return
+      if (payload.paths.length === 0) return
+      handoffRef.current(fileReferences(dir, payload.paths))
+    })
+      .then((fn) => {
+        // 解決までにアンマウントされていたら、その場で外す
+        if (disposed) {
+          fn()
+          return
+        }
+        unlisten = fn
+      })
+      .catch(() => {
+        // ドロップを受けられなくても他の動線（@ ボタン）は生きている。
+        // ここで画面を汚さない
+      })
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [])
+
+  /**
    * 同梱 Skill の配置（設計 決定10）。**フォルダ1つにつき1回**——Skill は
    * プロジェクトに属するもので、端末セッションの数とは関係が無い。
    * `projectDir` をキーにした effect にすることで、`openFolder` /
@@ -1135,6 +1265,10 @@ function App() {
               onSelect={(file) => void controller.selectFile(file.path)}
               onCreate={(module) => void controller.createNewFile(module)}
               onDelete={(file) => controller.requestDelete(file)}
+              onHandoff={(file) => {
+                if (projectDir === null) return
+                handoffToTerminal(fileReference(projectDir, file.path))
+              }}
             />
           </aside>
         )}
@@ -1247,7 +1381,9 @@ function App() {
               // 立ち上がる（設計 決定6）。畳む＝隠すだけ。
               // display は排他なので三項で切り替える（`hidden` と `flex` を
               // 並べてもどちらが勝つかは出力順まかせになる）
-              className={`${paneOpen ? 'flex' : 'hidden'} shrink-0 flex-col border-l border-rule`}
+              className={`${paneOpen ? 'flex' : 'hidden'} shrink-0 flex-col border-l ${
+                dropActive ? 'border-ink' : 'border-rule'
+              }`}
               style={{ width: displayPaneWidth }}
             >
               <TerminalPane
@@ -1255,8 +1391,10 @@ function App() {
                 cwd={projectDir}
                 ptyIo={tauriPtyIo}
                 paneVisible={paneOpen}
-                dark={dark}
-                onOpen={openTerminal}
+                insertion={insertion}
+                clipboardIo={tauriClipboardIo}
+                onError={(message) => showToast({ message })}
+                onOpen={() => openTerminal()}
                 onClose={closeTerminal}
                 onActivate={(id) => setTerminals((prev) => activateSession(prev, id))}
                 onRunning={(id, ptyId) => setTerminals((prev) => markRunning(prev, id, ptyId))}

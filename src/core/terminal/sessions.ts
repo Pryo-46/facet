@@ -17,6 +17,13 @@ export interface TerminalSession {
   readonly status: SessionStatus
   /** exited / failed のときタブの中に出す文言。それ以外は null */
   readonly message: string | null
+  /**
+   * 起動直後に1回だけ差し込む文字列。無ければ null（M28）。
+   *
+   * **`insertion` の仕組み（`TerminalTab` の props）には乗せない。** あちらは
+   * 「動いているタブへ差し込む」もので、ここは **PTY がまだ無い**段階の話
+   */
+  readonly initialText: string | null
 }
 
 export interface TerminalState {
@@ -32,13 +39,22 @@ export const emptyTerminalState: TerminalState = {
   nextSeq: 1,
 }
 
-export function openSession(state: TerminalState): TerminalState {
+/**
+ * タブを1本足す。`initialText` は起動直後に1回だけ差し込む文字列。
+ * **省略可能にしてある**——ペインを開くだけの経路（何も渡さない）が既存の
+ * 呼び出しのまま動くようにするため
+ */
+export function openSession(
+  state: TerminalState,
+  initialText: string | null = null,
+): TerminalState {
   const session: TerminalSession = {
     id: state.nextSeq,
     label: `Claude ${state.nextSeq}`,
     ptyId: null,
     status: 'starting',
     message: null,
+    initialText,
   }
   return {
     sessions: [...state.sessions, session],

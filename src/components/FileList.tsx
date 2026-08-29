@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { Folder, Plus, Trash2 } from 'lucide-react'
+import { AtSign, Folder, Plus, Trash2 } from 'lucide-react'
 import { Badge } from './Badge'
 import { buttonBase } from '@/components/button-styles'
 import type { FileGroup } from '@/core/file-grouping'
@@ -27,6 +27,11 @@ export interface FileListProps {
   onSelect: (file: ProjectFile) => void
   onCreate: (module: AnyToolModule) => void
   onDelete: (file: ProjectFile) => void
+  /**
+   * そのファイルを Claude Code ペインへ渡す（M28）。**選択は動かさない**——
+   * 編集中のファイルを開いたまま別のファイルを渡せることが、この動線の要点
+   */
+  onHandoff: (file: ProjectFile) => void
 }
 
 /**
@@ -44,6 +49,7 @@ function FileRow(props: {
   selected: boolean
   onSelect: () => void
   onDelete: () => void
+  onHandoff: () => void
 }) {
   const { file } = props
   const label = displayTitle(file)
@@ -85,6 +91,20 @@ function FileRow(props: {
             <Badge variant="invalid" className="ml-1">{file.issues.length}</Badge>
           )}
         </span>
+      </button>
+      {/* Claude Code へ渡す（M28）。**選択状態は動かさない**——編集中のファイルを
+          開いたまま、別のファイルを渡せるのがこのボタンの存在理由。
+          開けない・編集不可のファイルにも出す——渡す先は Claude であって
+          facet ではないので、facet が開けないことは渡せない理由にならない
+          （削除ボタンと同じ判断） */}
+      <button
+        type="button"
+        aria-label={`${fullName} を Claude Code に渡す`}
+        title={`${fullName} を Claude Code に渡す`}
+        className={`${buttonBase} shrink-0 px-3 text-ink-muted hover:bg-canvas hover:text-ink`}
+        onClick={props.onHandoff}
+      >
+        <AtSign aria-hidden className="size-4" />
       </button>
       {/* 開けない・編集不可のファイルにも削除を出す——単一性違反の解消には
           「壊れている方の用語集を消す」が必要で、そこを塞ぐと外部エディタを
@@ -201,6 +221,7 @@ export function FileList(props: FileListProps) {
                     selected={file.path === props.selectedPath}
                     onSelect={() => props.onSelect(file)}
                     onDelete={() => props.onDelete(file)}
+                    onHandoff={() => props.onHandoff(file)}
                   />
                 ))}
               </ul>

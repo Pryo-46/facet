@@ -2,18 +2,21 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
-import { buildTerminalTheme, TERMINAL_MIN_CONTRAST } from '@/core/terminal/theme'
+import { buildTerminalTheme, TERMINAL_MIN_CONTRAST, type TerminalTheme } from '@/core/terminal/theme'
+import type { ClipboardIo } from '@/core/terminal/clipboard-io'
 import { CLAUDE_ARGS, CLAUDE_PROGRAM, type PtyIo } from '@/core/terminal/pty-io'
 import type { TerminalSession } from '@/core/terminal/sessions'
 
 /**
  * 端末タブ1本。xterm 1個と PTY 1本が対応する。
  *
- * **面・文字・カーソル・選択は facet の役割トークンから流し込む**（M17）。
- * 色値はソースに現れない——`palette.css` のトークンを実行時に読んで
- * 変換する（`src/core/terminal/theme.ts`。conventions.test.ts）。
- * **ANSI の16色は xterm の既定のまま**で、ライトの面での読みやすさは
- * `minimumContrastRatio` に任せる（理由は theme.ts）
+ * **面・文字・カーソル・選択は常にダーク固定**（M28 実機確認）。端末は
+ * facet の面ではなく「端末の面」で、ライトのアプリの中でも黒いままの方が
+ * 読みやすいという人間の判断——M17 の「端末も facet の役割トークンに
+ * 合わせる」を反転した。色そのものの出所は変えない——`palette.css` の
+ * `.dark` が持つ値を実行時に読んで変換する（`src/core/terminal/theme.ts`。
+ * conventions.test.ts）。**ANSI の16色は xterm の既定のまま**で、
+ * 読みやすさは `minimumContrastRatio` に任せる（理由は theme.ts）
  */
 
 export interface TerminalTabProps {
@@ -23,10 +26,21 @@ export interface TerminalTabProps {
   /** 畳んでいる／非アクティブ。**アンマウントはしない**（設計 決定6） */
   hidden: boolean
   /**
-   * ダーク表示か。**色そのものは渡さない**——色は `palette.css` が持ち、
-   * この値は「トークンを読み直す合図」としてだけ使う
+   * 動いているタブへの差し込み指示（M28）。**`seq` が変わったときだけ**流す。
+   * `seq` は App が持つ単調増加の連番で、同じ指示が二度実行されないための鍵。
+   *
+   * **`text` を effect の依存に入れないこと**——同じファイルを続けて2回渡す
+   * 操作で2回目が落ちる
    */
-  dark: boolean
+  insertion: { seq: number; text: string } | null
+  /** コピー／貼り付けの口。**額縁が注入する**（コンポーネントは `@/fs/` を知らない） */
+  clipboardIo: ClipboardIo
+  /**
+   * セッションを殺さない失敗の通知先（M28。App のトーストへ出る）。
+   * **`session.message` を使わないこと**——あれは `exited` / `failed` の欄で、
+   * コピーの失敗でタブを死んだ扱いにしてはいけない
+   */
+  onError: (message: string) => void
   onRunning: (id: number, ptyId: number) => void
   onExited: (id: number, message: string) => void
   onFailed: (id: number, message: string) => void
@@ -37,14 +51,66 @@ export interface TerminalTabProps {
 const SHIFT_ENTER_SEQUENCE = `${String.fromCharCode(27)}\r`
 
 /**
- * 役割トークンを実行時に読む。**jsdom では空文字が返る**ので、テスト環境
- * では配色を渡さず xterm の既定に落ちる
+ * 差し込み（M28）を流すまでの「静穏」判定に使う時間（ミリ秒）。
+ *
+ * 実機の診断で確定した事実: `claude` は raw mode の初期化の一環として
+ * REPL の入力欄を作るより**前**に DECSET 2004（bracketed paste mode）を
+ * 有効にする。つまり 2004 を見た瞬間は「貼り付けを受け付ける準備ができた」
+ * ではなく、単に「端末の設定を済ませた」に過ぎない。2004 を見た後、
+ * 出力がこの時間途切れたら「描き終えて入力待ちになった」とみなして
+ * 保留を流す（出力が来るたびにこの時間へリセットする）。
+ * **実機で調整する可能性が高いので、値をここ1箇所に集める**
+ *（export しているのは TerminalTab.dom.test.tsx が同じ値を読むため——
+ * テスト側で数値を複製すると、ここを変えたときにテストだけ古い値のまま
+ * 残る）
  */
-const readToken = (name: string): string =>
-  getComputedStyle(document.documentElement).getPropertyValue(name)
+export const INSERTION_QUIET_MS = 500
+
+/**
+ * `spawn` 解決からここまで待っても静穏（`INSERTION_QUIET_MS`）が来なければ、
+ * 待たずに保留を流す上限（ミリ秒）。描画が止まらない・出力が途切れない
+ * アプリでも「いつまでも差し込まれない」を避けるための保険。
+ * 静穏を待つぶん時間がかかるようになったので、従来の5秒から延ばした
+ *（export の理由は INSERTION_QUIET_MS と同じ）
+ */
+export const INSERTION_MAX_WAIT_MS = 8000
+
+/** 例外を人に見せる文字列にする */
+const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err))
+
+/**
+ * 端末の配色を**ダーク側の役割トークン固定**で作る（M28 実機確認）。
+ * `palette.css` は `.dark` クラスでダーク値を再定義しており、カスタム
+ * プロパティは継承するので、`.dark` を付けた要素からは、アプリがライトの
+ * ときでもダーク側の値が読める。読む先は非表示の使い捨て要素——`document.body`
+ * へ一時的に付けて `getComputedStyle` で読み、読み終わったら外す
+ *（残すと DOM に見えない要素が溜まる）。
+ *
+ * **`buildTerminalTheme` の呼び出し1回につき要素を1つで済ませる。**
+ * `buildTerminalTheme` は渡した関数をトークンの数だけ複数回呼ぶので、
+ * ここでラップして要素の生成・破棄を1回にまとめる（トークンごとに
+ * 作り直さない）。
+ *
+ * **jsdom では `getComputedStyle` がトークンを解決せず空文字を返す**ので
+ * `buildTerminalTheme` は null を返し、xterm の既定に落ちる
+ *（この既存の挙動は変えない）
+ */
+const buildDarkTerminalTheme = (): TerminalTheme | null => {
+  const probe = document.createElement('div')
+  probe.className = 'dark'
+  probe.style.display = 'none'
+  document.body.appendChild(probe)
+  try {
+    const readToken = (name: string): string => getComputedStyle(probe).getPropertyValue(name)
+    return buildTerminalTheme(readToken)
+  } finally {
+    document.body.removeChild(probe)
+  }
+}
 
 export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
-  const { session, cwd, ptyIo, hidden, dark, onRunning, onExited, onFailed } = props
+  const { session, cwd, ptyIo, hidden, insertion, clipboardIo } = props
+  const { onRunning, onExited, onFailed, onError } = props
   const hostRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -75,14 +141,56 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   // fit() をまとめて行う
   const pendingFontRef = useRef<string | null>(null)
 
+  /**
+   * まだ差し込んでいない保留の列（M28）。**実機で末尾のスペースが消える
+   * 不具合の修正**——spawn 解決直後は claude の TUI がまだ立ち上がっておらず、
+   * xterm が貼り付けを囲む条件（DECSET 2004 = bracketed paste mode）を
+   * 満たさない。
+   *
+   * **2004 を見ただけでも足りない**（実機診断で確定。`INSERTION_QUIET_MS`
+   * のコメント参照）。ここでは差し込まず、2004 を見た後に出力が
+   * `INSERTION_QUIET_MS` 途切れる（＝静穏＝描き終えて入力待ちになった）まで
+   * 待ってから差し込む（下の起動 effect の onData）。`INSERTION_MAX_WAIT_MS`
+   * たっても静穏が来なければ、待たずに差し込む（保留し続けるのが一番悪い）。
+   *
+   * **起動時の差し込み（`session.initialText`）だけでなく、まだ流していない
+   * 間に押された `insertion`（@ ボタン／ドロップ）もここへ積む。**
+   * 差し込み口を1本にする M28 の設計に合わせ、待ち合わせも1箇所に揃える
+   * （下の insertion effect）。先頭が `initialText`、その後ろに押された順で
+   * `insertion` が並ぶ
+   */
+  const pendingInsertionsRef = useRef<string[]>([])
+
+  /**
+   * 保留の列を**もう流したか**。true の意味は「2004 を見た」ではなく
+   * 「`flushPendingInsertion` を実際に呼んだ＝受け取れる状態になった」——
+   * 2004 を見ただけでは入力欄がまだ無いことが実機診断で分かったため、
+   * insertion effect のゲート（即座に paste するか保留に積むか）は
+   * こちらを見る必要がある。**一度 true になったら戻らない**
+   * （下の insertion effect）
+   */
+  const insertionFlushedRef = useRef(false)
+
+  /**
+   * 差し込み effect（下）が消化済みの `seq` を覚える重複排除の ref。
+   * **マウントを跨いで生き残る**一方、`pendingInsertionsRef` は新しいマウント
+   * のたびに作り直される（起動 effect）。ここを戻し忘れると、StrictMode で
+   * 捨てられた側が積んだテキストは新しい列から消えるのに、こちらは同じ
+   * `seq` を「消化済み」のまま覚えていて、新しい effect は重複排除で
+   * 早期 return する——**一度も差し込まれない**（列を導入する前は逆に
+   * 「二度差し込まれる」危険だった。危険の質が変わったので、起動 effect が
+   * 列を作り直す隣でこれも null に戻し、対称を保つ）
+   */
+  const lastInsertedRef = useRef<number | null>(null)
+
   useEffect(() => {
     const host = hostRef.current
     if (host === null) return
-    const initialTheme = buildTerminalTheme(readToken)
+    const initialTheme = buildDarkTerminalTheme()
     const term = new Terminal({
       convertEol: false,
       fontSize: 13,
-      // 16色は xterm の既定のまま。ライトの面でも読める濃さへ xterm 自身に
+      // 16色は xterm の既定のまま。ダークの面で読める濃さへ xterm 自身に
       // 寄せさせる（core/terminal/theme.ts）
       minimumContrastRatio: TERMINAL_MIN_CONTRAST,
       // 読めなければ渡さない。**空の theme を渡さないこと**——xterm の既定を
@@ -96,6 +204,46 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     fitRef.current = fit
 
     let disposed = false
+
+    // このマウント（StrictMode では2回走りうる）の分の保留を用意する。
+    // 起動時の差し込み（initialText）があれば列の先頭に置く。以後 insertion
+    // effect が押された順で後ろへ積む
+    pendingInsertionsRef.current = session.initialText === null ? [] : [session.initialText]
+    insertionFlushedRef.current = false
+    // 列を作り直す隣で lastInsertedRef も戻す（対称性の理由は宣言側のコメント）
+    lastInsertedRef.current = null
+    // 静穏タイマー。2004 を見た後、出力が来るたびに INSERTION_QUIET_MS へ
+    // 張り直す。2004 を見る前は張らない（描画が始まる前の静けさで流さない）
+    let quietTimer: ReturnType<typeof setTimeout> | null = null
+    // 上限タイマー。spawn 解決から INSERTION_MAX_WAIT_MS たったら、静穏が
+    // 来ていなくても流す（描画が止まらないアプリでの無限待ちを防ぐ保険）
+    let capTimer: ReturnType<typeof setTimeout> | null = null
+    // 2004（bracketed paste mode）を既に見たか。**このマウント内だけで
+    // 使うローカル変数で足りる**——insertion effect が見るのは
+    // `insertionFlushedRef`（もう流したか）であって、この途中状態ではない
+    let sawBracketedPaste = false
+
+    /**
+     * 保留の列を順に差し込み、両方のタイマーを解除する。**「もう流した」への
+     * 遷移も兼ねる**——以後 insertion effect は保留を積まず即座に paste する。
+     * 二重に呼んでも無害（2回目は列が空なので何も paste しない）
+     */
+    const flushPendingInsertion = (): void => {
+      insertionFlushedRef.current = true
+      if (quietTimer !== null) {
+        clearTimeout(quietTimer)
+        quietTimer = null
+      }
+      if (capTimer !== null) {
+        clearTimeout(capTimer)
+        capTimer = null
+      }
+      const queued = pendingInsertionsRef.current
+      pendingInsertionsRef.current = []
+      for (const text of queued) {
+        term.paste(text)
+      }
+    }
 
     // 端末のフォントは Plex Mono（U1 決着。700 は ANSI 太字用に同梱済み）。
     // **読み込みが済んでから fontFamily を入れる**——xterm はセル寸法を
@@ -192,7 +340,34 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         // PTY が出力を出しても、既に dispose 済みの Terminal へ書かない
         onData: (bytes) => {
           if (disposed) return
-          term.write(bytes)
+          // **xterm のパーサに聞く。** 自前でバイト列を探さない——DEC private
+          // mode はアプリが `CSI ? 1049 ; 2004 h` のようにパラメータをまとめて
+          // 送ることがあり、`ESC[?2004h` のリテラル一致では取り逃がす
+          //（実機で起動時の差し込みが行われない不具合の原因）。
+          // **callback を使う。** write は非同期で、解析が済むまで modes は
+          // 更新されない（typings: "fires when the data was processed by the
+          // parser"）
+          term.write(bytes, () => {
+            if (disposed) return
+            // もう流し終えている（insertion effect は即座に paste する側へ
+            // 切り替わっている）ので、これ以上ここでやることは無い
+            if (insertionFlushedRef.current) return
+            if (!sawBracketedPaste && term.modes.bracketedPasteMode) {
+              sawBracketedPaste = true
+            }
+            // **2004 を見る前は静穏タイマーを張らない**（描画が始まる前の
+            // 静けさで流さないため）。見た後は、出力が来るたびに
+            // INSERTION_QUIET_MS へ張り直す——このコールバック自体が
+            // 「出力が来た」ことの合図なので、検出した回もここで張る
+            if (sawBracketedPaste) {
+              if (quietTimer !== null) clearTimeout(quietTimer)
+              quietTimer = setTimeout(() => {
+                quietTimer = null
+                if (disposed) return
+                flushPendingInsertion()
+              }, INSERTION_QUIET_MS)
+            }
+          })
         },
         // **disposed で守る**——捨てられた側の PTY の終了イベントが遅れて
         // 届いても、生きている側のセッションを「終了済み」にしてはいけない
@@ -200,6 +375,23 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         // になり、タブを閉じても kill が飛ばなくなる）
         onExit: (code) => {
           if (disposed) return
+          // 差し込む先がもう無い。タイマーだけ律儀に両方とも解除して
+          // 保留の列を捨てる。**「もう流した」も真にする**——これを付けないと、
+          // 終了後に insertion effect が来たとき保留の列へ黙って積まれ、流す
+          // 主体（両タイマー）はもう居ないので何も起きない。それは
+          // このマイルストーンが実機で8回戦った「差し込みが無言で消える」
+          // 症状そのものなので、黙って消えるより term.paste() が死んだ PTY へ
+          // の書き込み失敗として画面に出る方へ倒す
+          pendingInsertionsRef.current = []
+          insertionFlushedRef.current = true
+          if (quietTimer !== null) {
+            clearTimeout(quietTimer)
+            quietTimer = null
+          }
+          if (capTimer !== null) {
+            clearTimeout(capTimer)
+            capTimer = null
+          }
           cb.current.onExited(session.id, `終了しました（コード ${code ?? '不明'}）`)
         },
       })
@@ -216,6 +408,25 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         const queued = pendingRef.current
         pendingRef.current = []
         for (const data of queued) send(data)
+        // 起動時の差し込み（M28）は上の onData が「2004 を見て、かつ静穏」の
+        // 合図を見て流す。**ここでは差し込まない**——ここは claude の TUI が
+        // 立ち上がるより前で、囲まれずに1文字ずつ打たれたのと同じに見える
+        // （@ のファイル検索が末尾のスペースを候補の確定として食う）。
+        // 代わりに、いつまでも来ない場合の上限（INSERTION_MAX_WAIT_MS）だけを
+        // ここで仕掛ける。
+        // **保留の列が空でも走らせる。** もう流したかどうかは insertion
+        // （@ ボタン／ドロップ）の待ち合わせにも使う1つの状態なので、
+        // 起動時の差し込みが無いセッションでも「諦める」上限は要る——
+        // さもないと後から来る insertion がいつまでも保留され続ける。
+        // **`hidden` は見ない**（`fit()` と違い寸法を測らないので、隠れていても
+        // 差し込んでよい）。`disposed` の判定は上の分岐で済んでいる
+        if (!insertionFlushedRef.current) {
+          capTimer = setTimeout(() => {
+            capTimer = null
+            if (disposed) return
+            flushPendingInsertion()
+          }, INSERTION_MAX_WAIT_MS)
+        }
         // 起動直後の PTY へ実寸を伝える。ここまでの fit()（隠れている間は
         // 測らない effect）は spawn 前——つまり ptyIdRef.current が null の
         // 間——に走っていることがあり、そのときは pty_resize を送れない。
@@ -236,8 +447,10 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
       })
       .catch((err: unknown) => {
         if (disposed) return
-        // 起動できなかったので、溜まった入力は行き先が無い
+        // 起動できなかったので、溜まった入力は行き先が無い。差し込みの列
+        // （initialText / insertion）も同じ理由で行き先が無いので、同様に捨てる
         pendingRef.current = []
+        pendingInsertionsRef.current = []
         cb.current.onFailed(
           session.id,
           `Claude Code を起動できませんでした: ${err instanceof Error ? err.message : String(err)}`,
@@ -246,6 +459,17 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
 
     return () => {
       disposed = true
+      // 差し込みのタイマーは両方とも必ず解除する。解除し忘れると、
+      // 静穏や上限の到達後に disposed 済みの Terminal へ paste() しようとする
+      // （タイマー本体の disposed ガードで実害は無いが、掃除は cleanup の役目）
+      if (quietTimer !== null) {
+        clearTimeout(quietTimer)
+        quietTimer = null
+      }
+      if (capTimer !== null) {
+        clearTimeout(capTimer)
+        capTimer = null
+      }
       // **自分の PTY を殺してから捨てる。** 台帳（App.tsx の
       // closeTerminalNow）も殺すが、`spawn` の解決と台帳への反映
       //（onRunning）の隙間で閉じられると台帳は ptyId を知らない。
@@ -264,19 +488,38 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   }, [])
 
   /**
-   * ライト／ダークの切り替えに追従する。**色の入れ替えは CSS 側で起きる**
-   * ので、ここは「読み直して xterm へ渡し直す」だけ。`dark` はその合図で、
-   * 値そのものは使わない（起動 effect より後に走るので、マウント時は
-   * 同じ配色をもう一度渡すことになるが実害は無い）
+   * 動いているタブへの差し込み（M28）。
+   *
+   * **`lastInsertedRef`（消化済みの `seq` を覚える重複排除の ref）の宣言と、
+   * マウントを跨ぐ危険についての注記は上（起動 effect の直前）。** ここでは
+   * effect の依存を `seq` だけにする理由だけ書く——StrictMode の二重マウント
+   * では mount → cleanup → mount で2回走るので、依存を `seq` だけにしても
+   * この ref による重複排除が要る
+   *
+   * **即座に paste するのは、保留の列をもう流し終えている（`insertionFlushedRef`
+   * が true の）ときだけ。** 起動中（約1秒、その後の静穏待ちも含む）に `@`
+   * を押すと、起動時の差し込みと同じ理由で bracketed paste に囲まれないまま
+   * TUI の前に流れ、同じ症状（末尾のスペースが @ の補完に食われる）が起きる。
+   * まだなら起動時の差し込みと同じ保留の列（`pendingInsertionsRef`）へ積み、
+   * 2004 を見て静穏になってから（起動 effect の flushPendingInsertion が）
+   * まとめて流す。**seq の重複排除を先に済ませてから**保留に積む——同じ
+   * 指示を二度積まないため
    */
+  const insertionSeq = insertion?.seq ?? null
   useEffect(() => {
     const term = termRef.current
-    if (term === null) return
-    const theme = buildTerminalTheme(readToken)
-    if (theme !== null) term.options.theme = theme
-    // `dark` は合図として依存に入れる。値は読まない
+    if (term === null || insertion === null) return
+    if (lastInsertedRef.current === insertion.seq) return
+    lastInsertedRef.current = insertion.seq
+    if (insertionFlushedRef.current) {
+      term.paste(insertion.text)
+    } else {
+      pendingInsertionsRef.current.push(insertion.text)
+    }
+    // **依存は `seq` だけ。** `insertion` そのものを入れると、App が同じ内容で
+    // 作り直したオブジェクトでも走る。`text` を入れてもいけない（上の注釈）
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dark])
+  }, [insertionSeq])
 
   // **隠れている間は測らない。** display:none では clientWidth が 0 になり、
   // ここで fit すると開き直したときだけ表示が崩れる（設計 決定6）
@@ -328,12 +571,53 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     return () => observer.disconnect()
   }, [ptyIo])
 
+  /**
+   * 端末の中の右クリック（M28）。**メニューは出さず1動作で済ませる**
+   *（Windows Terminal と同じ作法）。選択があればコピーして選択を解除、
+   * 無ければ貼り付ける。
+   *
+   * **`preventDefault()` がすべての要。** 呼ばなければ WebView2 の既定メニューが出る
+   *
+   * **ここは 2004・静穏待ちのゲートに通さない。** 起動時の差し込みと `@`
+   *（insertion effect）は facet が勝手に送るものなので、準備できるまで
+   * 待たせて構わない。一方、右クリックは人が「いま貼る」と決めた操作で、
+   * `INSERTION_MAX_WAIT_MS` の上限まで黙って遅らせる方が「消える」より
+   * 悪い——だからここだけ `term.paste()` を即座に呼ぶ（この非対称は意図したもの）
+   */
+  const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>): void => {
+    event.preventDefault()
+    const term = termRef.current
+    if (term === null) return
+    if (term.hasSelection()) {
+      const selected = term.getSelection()
+      void clipboardIo
+        .writeText(selected)
+        // **成功してから選択を外す。** 先に外すと、失敗したときに
+        // やり直すための選択が消えている（設計 §7.1 の順）
+        .then(() => term.clearSelection())
+        .catch((err: unknown) => {
+          onError(`コピーできませんでした: ${errorText(err)}`)
+        })
+      return
+    }
+    void clipboardIo
+      .readText()
+      .then((text) => {
+        // 空は日常的な状態（クリップボードが空／テキストでない）。黙って何もしない
+        if (text === '') return
+        term.paste(text)
+      })
+      .catch((err: unknown) => {
+        onError(`貼り付けできませんでした: ${errorText(err)}`)
+      })
+  }
+
   return (
     <div className={`flex min-h-0 flex-1 flex-col ${hidden ? 'hidden' : ''}`}>
       {session.message !== null && (
         <p className="border-b border-rule px-3 py-2 text-base text-invalid">{session.message}</p>
       )}
-      <div ref={hostRef} className="min-h-0 flex-1" />
+      <div ref={hostRef} className="min-h-0 flex-1" onContextMenu={handleContextMenu} />
     </div>
   )
 }

@@ -3,6 +3,12 @@ import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { encodeMiroClipboard } from '@/modules/logic-tree/miro-codec'
+// 差し込みの静穏タイマー（TerminalTab.tsx）を実時間で待つテストがあるため、
+// waitFor の既定タイムアウト（testing-library 既定 1000ms）と数値の関係が
+// 暗黙に噛み合っている。定数を複製せずここから読む（重複させると
+// INSERTION_QUIET_MS を上げた人がこのファイルを見落とす——
+// TerminalTab.dom.test.tsx も同じ理由で同じ定数を import している）
+import { INSERTION_QUIET_MS } from '@/components/TerminalTab'
 import { tableCopyPrefs } from '@/core/table-copy-options'
 import { UNSUPPORTED_REASON } from '@/components/ToolbarButton'
 
@@ -65,6 +71,8 @@ const {
   copyHtmlToClipboardMock,
   readClipboardHtmlMock,
   clipboardHtmlConfig,
+  pasted,
+  ptyDataMode,
   copyTextMock,
 } = vi.hoisted(() => {
   // `clipboardHtmlConfig` は下の `readClipboardHtmlMock` が参照するので、
@@ -109,6 +117,14 @@ const {
     copyHtmlToClipboardMock: vi.fn(async (_html: string, _altText: string) => undefined),
     clipboardHtmlConfig,
     readClipboardHtmlMock: vi.fn(async () => clipboardHtmlConfig.value),
+    // 差し込みを額縁レベルで観測するための口（M28）。**タブごとに別の xterm
+    // オブジェクトが返る**ので、`paste` の呼び出しはここへ積んで共有する
+    pasted: [] as string[],
+    // 起動時の差し込み診断用（#8 調査）。**既定は 'sync'**——既存テストは
+    // すべて `spec.onData(2004バイト)` が spawn 内で同期に届く前提のまま
+    // 通したいので、書き換えるテストだけが 'async' にしてマイクロタスク越しに
+    // 届く実機寄りの順序（invoke が先に解決し、その後で 2004 が来る）を試す
+    ptyDataMode: { value: 'sync' as 'sync' | 'async' },
     // Markdown の平文コピー（`AppIo.copyText` → `copyToClipboard`）専用の spy（M29）。
     // 絞り込みがコピーへ追従することを確かめるには、コピーされた文字列そのものを
     // 見る必要があるので、他の spy と同じ理由でモック化する
@@ -152,15 +168,41 @@ vi.mock('@/fs/clipboard', () => ({
   // テストから見たいので spy 化する（`clipboardHtmlConfig` で返す HTML を制御する）
   copyHtmlToClipboard: copyHtmlToClipboardMock,
   readClipboardHtml: readClipboardHtmlMock,
+  // 端末の右クリックのコピー／貼り付け（M28）。このファイルは TerminalPane を
+  // モック化していない配線テストなので、`TerminalPane` の必須 props として
+  // 実在だけ要る。挙動は TerminalTab.dom.test.tsx / TerminalPane.dom.test.tsx
+  // の担当
+  tauriClipboardIo: { readText: async () => '', writeText: async () => undefined },
+}))
+// エクスプローラからのドロップ（M28）。jsdom には Tauri のグローバルが無いので、
+// 購読は何もしない関数に差し替える（このファイルのテストはドロップを主張しない）
+vi.mock('@/fs/drag-drop', () => ({
+  onDragDrop: async () => () => undefined,
 }))
 vi.mock('@/fs/pty', () => ({
   tauriPtyIo: {
     // spec 全体（program/args/cwd/cols/rows/onData/onExit）のうち、ここでは
     // `onExit` だけ捕まえる。連番の ptyId を振るのは既存テストの前提
     //（呼び出し引数の中身は見ない）を崩さないため
-    spawn: async (spec: { onExit: (code: number | null) => void }) => {
+    spawn: async (spec: {
+      onData: (bytes: Uint8Array) => void
+      onExit: (code: number | null) => void
+    }) => {
       const id = ptyExitHandlers.size + 1
       ptyExitHandlers.set(id, spec.onExit)
+      // 起動時の差し込み（M28）は、PTY の出力に ESC[?2004h（DECSET 2004。
+      // bracketed paste の有効化）が現れてから流れる（実機修正）。この
+      // フェイクは「どのタブへ差し込まれるか」という配線だけを見たいので、
+      // 実物の claude が送る合図を起動直後に送って詰まらせない。
+      // **既定（'sync'）は `spawn` の中で同期に届く**——`Channel.onmessage` が
+      // `invoke('pty_spawn')` の解決より先に届きうる（`src/fs/pty.ts` の
+      // コメント）という実機の一形態を模す。'async' はその逆——invoke が
+      // 先に解決し、2004 はマイクロタスクを挟んで後から届く——を模す
+      // （#8 調査。どちらの順でも `pendingInsertionsRef` は spawn 呼び出し前に
+      // 同期で用意されているので届く順に関係なく拾えるはず、という仮説の検証）
+      const send2004 = () => spec.onData(new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x30, 0x34, 0x68]))
+      if (ptyDataMode.value === 'async') void Promise.resolve().then(send2004)
+      else send2004()
       return id
     },
     write: async () => undefined,
@@ -212,15 +254,45 @@ vi.mock('@/core/app-controller', async (orig) => {
 // **アロー関数ではなく function式にすること**——TerminalTab は `new Terminal(...)`
 // と `new FitAddon()` の形で呼ぶ。アロー関数は construct できないため、
 // `vi.fn(() => ({...}))` のまま `new` すると「is not a constructor」で落ちる
+// DECSET 2004（bracketed paste の有効化）。ESC[?2004h。実物の xterm は
+// これをパーサで解析して `modes.bracketedPasteMode` を立てる
+// （node_modules/@xterm/xterm/typings/xterm.d.ts の IModes）。ここは
+// xterm 自体をモックしているので、その解析を最小限だけ模す——このファイルは
+// 「どのタブへ差し込まれるか」という配線を見るテストで、TerminalTab 自身の
+// 判定ロジックは TerminalTab.dom.test.tsx が別途見る
+const BRACKETED_PASTE_ENABLE_BYTES = new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x30, 0x34, 0x68])
+const looksLikeBracketedPasteEnable = (data: Uint8Array): boolean =>
+  data.length === BRACKETED_PASTE_ENABLE_BYTES.length &&
+  data.every((byte, i) => byte === BRACKETED_PASTE_ENABLE_BYTES[i])
+
 vi.mock('@xterm/xterm', () => ({
   Terminal: vi.fn(function Terminal() {
+    const modes = { bracketedPasteMode: false }
     return {
       open: vi.fn(),
-      write: vi.fn(),
+      // 実物の write は非同期で、パーサが処理し終えてから callback を呼ぶ
+      // （typings: "fires when the data was processed by the parser"）。
+      // ここでは同期に呼びつつ、渡されたバイト列が DECSET 2004 なら
+      // 解析済みとして modes を立ててから呼ぶ
+      write: vi.fn((data: Uint8Array | string, callback?: () => void) => {
+        if (data instanceof Uint8Array && looksLikeBracketedPasteEnable(data)) {
+          modes.bracketedPasteMode = true
+        }
+        callback?.()
+      }),
+      // 差し込みを額縁レベルで観測するための口（M28）。**タブごとに別の
+      // オブジェクトが返るので、共有の配列へ積む**
+      paste: vi.fn((text: string) => {
+        pasted.push(text)
+      }),
+      hasSelection: vi.fn(() => false),
+      getSelection: vi.fn(() => ''),
+      clearSelection: vi.fn(),
       onData: vi.fn(),
       loadAddon: vi.fn(),
       dispose: vi.fn(),
       attachCustomKeyEventHandler: vi.fn(),
+      modes,
       cols: 80,
       rows: 24,
     }
@@ -284,6 +356,8 @@ afterEach(() => {
   ptyKillMock.mockClear()
   skillCalls.length = 0
   disk.clear()
+  pasted.length = 0
+  ptyDataMode.value = 'sync'
   writeProjectFileMock.mockClear()
   saveLastProjectDirMock.mockClear()
   restoreConfig.lastDir = null
@@ -1074,6 +1148,146 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
     // 押せていれば控えのために readClipboardHtml をもう一度呼ぶ（コントローラ側の
     // importFromExternal。src/core/app-controller.ts）。呼ばれていないので押せていない
     expect(readClipboardHtmlMock.mock.calls.length).toBe(callsBefore)
+  })
+})
+
+describe('Claude Code へファイルを渡す（M28）', () => {
+  const GLOSSARY_PATH = '/proj/用語集.json'
+
+  const putGlossary = () => {
+    disk.set(
+      GLOSSARY_PATH,
+      JSON.stringify({ schemaVersion: 1, type: 'glossary', title: '用語集', terms: [] }),
+    )
+  }
+
+  it('選択中のファイルの参照を持ってペインが開く', async () => {
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
+    // 選択の完了を待つ（名前の帯（M13）の openBand と同じ理由）。**選択は
+    // `selectFile` 経由で非同期に進む**ので、待たずに次のクリックへ進むと
+    // `selectedPath` がまだ null のまま「ペインを開く」を押すことになり、
+    // 参照無しで開いてしまう
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+    fireEvent.click(screen.getByRole('button', { name: 'Claude Code ペインを開く' }))
+
+    // 静穏タイマー（INSERTION_QUIET_MS）が発火するまで待つ。waitFor の既定
+    // タイムアウト（1000ms）に収まる保証は無いので明示的に広げる
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']), {
+      timeout: INSERTION_QUIET_MS + 1000,
+    })
+  })
+
+  it('ファイルを選んでいなければ何も差し込まない', async () => {
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await screen.findByRole('button', { name: '用語集（用語集.json） を開く' })
+    fireEvent.click(screen.getByRole('button', { name: 'Claude Code ペインを開く' }))
+
+    // 起動は待つが、差し込みは起きない
+    await waitFor(() => expect(screen.getByRole('button', { name: 'タブを追加' })).not.toBeNull())
+    expect(pasted).toEqual([])
+  })
+
+  it('@ ボタンは、ペインが閉じていても開いて渡す', async () => {
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    // **ファイルを選ばずに** @ を押す。選択と無関係に渡せることが要点
+    fireEvent.click(
+      await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
+    )
+
+    // 静穏タイマー（INSERTION_QUIET_MS）が発火するまで待つ。waitFor の既定
+    // タイムアウト（1000ms）に収まる保証は無いので明示的に広げる
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']), {
+      timeout: INSERTION_QUIET_MS + 1000,
+    })
+  })
+
+  it('（#8 調査）@ ボタンがタブを起こす場合でも、2004 が invoke の解決より後（マイクロタスク越し）に届く順で差し込まれる', async () => {
+    // 実機での報告: 「@ を押した結果として Claude の起動から始まったときは、
+    // 参照が挿入されない」。上のテスト（既定の 'sync' モード）は
+    // `spec.onData(2004)` が spawn の中で同期に届く順を模しており、それは
+    // 通っている。ここでは逆順——`src/fs/pty.ts` の実装が実際に持つ
+    // 「invoke('pty_spawn') が先に解決し、2004 はその後マイクロタスクを
+    // 挟んで Channel 経由で届く」という順——を模して、TerminalTab の
+    // `pendingInsertionsRef` が spawn 呼び出し**前**に同期で用意されている
+    // ことに変わりはないので、届く順が変わっても差し込まれるはず、という
+    // 仮説を検証する
+    ptyDataMode.value = 'async'
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
+    )
+
+    // 静穏タイマー（INSERTION_QUIET_MS）が発火するまで待つ。waitFor の既定
+    // タイムアウト（1000ms）に収まる保証は無いので明示的に広げる
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']), {
+      timeout: INSERTION_QUIET_MS + 1000,
+    })
+  })
+
+  it('動いているタブがあれば、@ は新しいタブを作らずそのタブへ差し込む（会話中の差し込み）', async () => {
+    // App レベルで「会話中の差し込み」経路（insertionSeq → targetId: active.id）が
+    // 一度も走っていなかった（最終レビュー指摘）。ペインを開いてタブを1本
+    // 立ててから @ を押し、既存タブへの insertion 経由で差し込まれることを見る
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    const toggle = await screen.findByRole('button', { name: 'Claude Code ペインを開く' })
+    await waitFor(() => expect(toggle.hasAttribute('disabled')).toBe(false))
+    fireEvent.click(toggle)
+    await screen.findByRole('button', { name: 'Claude 1' })
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
+    )
+
+    // 静穏タイマー（INSERTION_QUIET_MS）が発火するまで待つ。waitFor の既定
+    // タイムアウト（1000ms）に収まる保証は無いので明示的に広げる
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']), {
+      timeout: INSERTION_QUIET_MS + 1000,
+    })
+    // 新しいタブは立たない。動いている Claude 1 へ差し込まれただけ
+    expect(screen.queryByRole('button', { name: 'Claude 2' })).toBeNull()
+  })
+
+  it('終了済みのタブがアクティブなときに @ を押すと、死んだ PTY へは書きに行かず新しいタブを起こす', async () => {
+    // handoffToTerminal は activeId === null かどうかで「タブが無い」を判定
+    // していたが、markExited / markFailed はセッションを台帳に残し activeId も
+    // 指したままにするので、終了済みのタブがアクティブなときに死んだ PTY へ
+    // 書きに行ってしまっていた（最終レビュー指摘）
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    const toggle = await screen.findByRole('button', { name: 'Claude Code ペインを開く' })
+    await waitFor(() => expect(toggle.hasAttribute('disabled')).toBe(false))
+    fireEvent.click(toggle)
+    await screen.findByRole('button', { name: 'Claude 1' })
+
+    // Claude 1 を自然終了させる。activeId はそのまま Claude 1 を指し続ける
+    act(() => {
+      ptyExitHandlers.get(1)?.(0)
+    })
+    await screen.findByText('終了しました（コード 0）')
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
+    )
+
+    // 新しいタブ（Claude 2）が立って、そちらへ差し込まれる
+    await screen.findByRole('button', { name: 'Claude 2' })
+    // 静穏タイマー（INSERTION_QUIET_MS）が発火するまで待つ。waitFor の既定
+    // タイムアウト（1000ms）に収まる保証は無いので明示的に広げる
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']), {
+      timeout: INSERTION_QUIET_MS + 1000,
+    })
   })
 })
 

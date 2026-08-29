@@ -4,10 +4,21 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { PtyIo } from '@/core/terminal/pty-io'
 import { emptyTerminalState, openSession } from '@/core/terminal/sessions'
 
-// タブの中身は Task 4 で固定済み。ここではタブバーの配線だけを見る
 vi.mock('./TerminalTab', () => ({
-  TerminalTab: ({ session, hidden }: { session: { label: string }; hidden: boolean }) => (
-    <div data-testid={`tab-body-${session.label}`} data-hidden={String(hidden)} />
+  TerminalTab: ({
+    session,
+    hidden,
+    insertion,
+  }: {
+    session: { label: string }
+    hidden: boolean
+    insertion: { seq: number; text: string } | null
+  }) => (
+    <div
+      data-testid={`tab-body-${session.label}`}
+      data-hidden={String(hidden)}
+      data-insertion={insertion === null ? '' : `${insertion.seq}:${insertion.text}`}
+    />
   ),
 }))
 
@@ -20,7 +31,9 @@ const ptyIo: PtyIo = {
   kill: vi.fn(async () => undefined),
 }
 
-function setup(state = openSession(emptyTerminalState)) {
+function setup(state = openSession(emptyTerminalState), insertion = null as
+  | { targetId: number; seq: number; text: string }
+  | null) {
   const handlers = {
     onOpen: vi.fn(),
     onClose: vi.fn(),
@@ -29,7 +42,18 @@ function setup(state = openSession(emptyTerminalState)) {
     onExited: vi.fn(),
     onFailed: vi.fn(),
   }
-  render(<TerminalPane state={state} cwd="/proj" ptyIo={ptyIo} paneVisible dark={false} {...handlers} />)
+  render(
+    <TerminalPane
+      state={state}
+      cwd="/proj"
+      ptyIo={ptyIo}
+      paneVisible
+      insertion={insertion}
+      clipboardIo={{ readText: vi.fn(async () => ''), writeText: vi.fn(async () => undefined) }}
+      onError={vi.fn()}
+      {...handlers}
+    />,
+  )
   return handlers
 }
 
@@ -91,10 +115,29 @@ describe('TerminalPane', () => {
         cwd="/proj"
         ptyIo={ptyIo}
         paneVisible={false}
-        dark={false}
+        insertion={null}
+        clipboardIo={{ readText: vi.fn(async () => ''), writeText: vi.fn(async () => undefined) }}
+        onError={vi.fn()}
         {...handlers}
       />,
     )
     expect(screen.getByTestId('tab-body-Claude 1').dataset['hidden']).toBe('true')
+  })
+
+  it('差し込みは宛先のタブにだけ渡す', () => {
+    const two = openSession(openSession(emptyTerminalState))
+    const second = two.sessions[1]?.id ?? 0
+    setup(two, { targetId: second, seq: 3, text: '@a.json ' })
+    expect(screen.getByTestId('tab-body-Claude 1').dataset.insertion).toBe('')
+    expect(screen.getByTestId('tab-body-Claude 2').dataset.insertion).toBe('3:@a.json ')
+  })
+
+  it('ペインの中では OS の既定メニューを出さない', () => {
+    setup()
+    // タブバーを含むペイン全体で既定メニューを止める。**ここでは何も起こさない**
+    //（貼り付けは端末の中だけ。TerminalTab の担当）
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+    const dispatched = screen.getByRole('button', { name: 'タブを追加' }).dispatchEvent(event)
+    expect(dispatched).toBe(false) // preventDefault された
   })
 })

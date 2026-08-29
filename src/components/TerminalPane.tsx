@@ -1,14 +1,17 @@
 import { Plus, X } from 'lucide-react'
 import { buttonBase } from '@/components/button-styles'
 import { TerminalTab } from '@/components/TerminalTab'
+import type { ClipboardIo } from '@/core/terminal/clipboard-io'
 import type { PtyIo } from '@/core/terminal/pty-io'
 import type { TerminalState } from '@/core/terminal/sessions'
 
 /**
  * 端末ペインの枠とタブバー。
  *
- * **枠も端末の中も facet の役割トークンに合わせる**（M17。ANSI の16色
- * だけは xterm の既定のまま。理由は `src/core/terminal/theme.ts`）
+ * **枠（タブバー・余白）は facet の役割トークンに合わせる**（M17）。
+ * **端末の中身だけはダーク固定**（M28 実機確認。`TerminalTab` 参照）——
+ * 端末は facet の面ではなく「端末の面」という人間の判断で、`dark` の
+ * 中継はここには無い
  */
 
 export interface TerminalPaneProps {
@@ -21,8 +24,15 @@ export interface TerminalPaneProps {
    * 「見えているか」は props で受け取る
    */
   paneVisible: boolean
-  /** ダーク表示か。`TerminalTab` へ中継するだけ（配色の読み直しの合図） */
-  dark: boolean
+  /**
+   * 差し込み指示（M28）。App が**1つだけ**持ち、ここで宛先のタブへ振り分ける。
+   * `targetId` と一致しないタブには `null` を渡す
+   */
+  insertion: { targetId: number; seq: number; text: string } | null
+  /** コピー／貼り付けの口。`TerminalTab` へ中継するだけ（額縁が注入する） */
+  clipboardIo: ClipboardIo
+  /** セッションを殺さない失敗の通知先。`TerminalTab` へ中継するだけ（M28） */
+  onError: (message: string) => void
   onOpen: () => void
   onClose: (id: number) => void
   onActivate: (id: number) => void
@@ -32,11 +42,23 @@ export interface TerminalPaneProps {
 }
 
 export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
-  const { state, cwd, ptyIo, paneVisible, dark, onOpen, onClose, onActivate } = props
-  const { onRunning, onExited, onFailed } = props
+  const { state, cwd, ptyIo, paneVisible, insertion, onOpen, onClose, onActivate } = props
+  const { clipboardIo, onError, onRunning, onExited, onFailed } = props
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface">
+    <div
+      className="flex min-h-0 min-w-0 flex-1 flex-col bg-surface"
+      /*
+       * **ペインの中では OS の既定メニューを出さない**（M28）。ここが受けるのは
+       * タブバーと余白の分で、**止めるだけで何も起こさない**——タブバーで
+       * 右クリックして貼り付けが起きるのはおかしい。端末の中身は `TerminalTab`
+       * が先に拾ってコピー／貼り付けへ割り当てる（バブリングで両方が
+       * `preventDefault` を呼ぶが無害）。
+       * **アプリ全体では止めない**（人間の裁定）——エディタ側のテキスト欄では
+       * OS のメニューからの貼り付けが使えたままになる
+       */
+      onContextMenu={(event) => event.preventDefault()}
+    >
       {/*
        * role="tablist"/"tab" は名乗らない。スクリーンリーダー利用者は考慮しない
        * という依頼者判断のもと、対応する tabpanel も矢印キー移動も持たない
@@ -95,7 +117,11 @@ export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
             cwd={cwd}
             ptyIo={ptyIo}
             hidden={!paneVisible || state.activeId !== session.id}
-            dark={dark}
+            insertion={
+              insertion !== null && insertion.targetId === session.id ? insertion : null
+            }
+            clipboardIo={clipboardIo}
+            onError={onError}
             onRunning={onRunning}
             onExited={onExited}
             onFailed={onFailed}
