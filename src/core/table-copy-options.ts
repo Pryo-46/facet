@@ -33,7 +33,7 @@ export interface TableCopyPrefsStore {
  * テストの `beforeEach` で `reset()` を呼ぶこと
  */
 export function createTableCopyPrefsStore(): TableCopyPrefsStore {
-  const initial: TableCopyPrefs = { options: DEFAULT_TABLE_OPTIONS, variantId: '' }
+  const initial: TableCopyPrefs = { options: { ...DEFAULT_TABLE_OPTIONS }, variantId: '' }
   // **同一参照を返し続けること。** useSyncExternalStore は getSnapshot が
   // 毎回新しいオブジェクトを返すと無限ループする
   let current: TableCopyPrefs = initial

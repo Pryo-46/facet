@@ -33,13 +33,13 @@ export type VisibleRows = ReadonlySet<string> | null
  */
 export interface TableOptions {
   /** No 列を付ける */
-  numbering: boolean
+  readonly numbering: boolean
   /** No の形式。'serial' = 1, 2, 3… / 'path' = 1-1-1 */
-  numberStyle: 'serial' | 'path'
+  readonly numberStyle: 'serial' | 'path'
   /** 親の文言を毎行くり返す */
-  repeatParent: boolean
+  readonly repeatParent: boolean
   /** 未記入を（未定義）と出す */
-  showUndefined: boolean
+  readonly showUndefined: boolean
 }
 
 export type TableOptionId = keyof TableOptions
