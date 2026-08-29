@@ -80,6 +80,10 @@ vi.stubGlobal('ResizeObserver', FakeResizeObserver)
 const { Terminal: TerminalMock } = await import('@xterm/xterm')
 const { TerminalTab } = await import('./TerminalTab')
 
+// DECSET 2004（bracketed paste の有効化）。ESC[?2004h。TerminalTab.tsx が
+// 起動時の差し込みを保留する条件そのもの（変更Aの本体）
+const BRACKETED_PASTE_BYTES = new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x30, 0x34, 0x68])
+
 function session(over: Partial<TerminalSession> = {}): TerminalSession {
   return { id: 1, label: 'Claude 1', ptyId: null, status: 'starting', message: null, initialText: null, ...over }
 }
@@ -103,7 +107,6 @@ function tabProps(over: Partial<TabProps> & { ptyIo: PtyIo }): TabProps {
     session: session(),
     cwd: '/proj',
     hidden: false,
-    dark: false,
     insertion: null,
     clipboardIo: fakeClipboard(),
     onError: vi.fn(),
@@ -150,12 +153,16 @@ function fakePtyMultiSpawn() {
   // spawn ごとの onExit を ID 別に持っておく。捨てられた側の onExit を
   // テストから明示的に呼べるようにするため
   const onExits = new Map<number, (code: number | null) => void>()
+  // spawn ごとの onData も ID 別に持っておく。**捨てられた側へ流しても
+  // 差し込まれないこと**（disposed で弾かれること）を突く経路に使う
+  const onDatas = new Map<number, (b: Uint8Array) => void>()
   let nextId = 100
   const io: PtyIo = {
     spawn: async (spec) => {
       const id = nextId++
       issuedIds.push(id)
       onExits.set(id, spec.onExit)
+      onDatas.set(id, spec.onData)
       return id
     },
     write: vi.fn(async () => undefined),
@@ -169,6 +176,7 @@ function fakePtyMultiSpawn() {
     issuedIds,
     killedIds,
     exit: (id: number, code: number | null) => onExits.get(id)?.(code),
+    emit: (id: number, b: Uint8Array) => onDatas.get(id)?.(b),
   }
 }
 
@@ -666,18 +674,86 @@ describe('TerminalTab', () => {
     expect(writes).toEqual([`${String.fromCharCode(27)}\r`])
   })
 
-  it('起動時の差し込みを spawn 解決後に1回だけ流す', async () => {
-    const pty = fakePty()
-    renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
-    await waitFor(() => expect(term.paste).toHaveBeenCalledWith('@docs/a.json '))
-    expect(term.paste).toHaveBeenCalledTimes(1)
-  })
+  describe('起動時の差し込み（M28 実機修正: bracketed paste が有効になってから流す）', () => {
+    // 実機で分かったこと: xterm が貼り付けを ESC[200~ … ESC[201~ で囲むのは
+    // アプリが DECSET 2004（ESC[?2004h）を送った後だけ。spawn 解決直後は
+    // claude の TUI がまだ立ち上がっておらず、この条件を満たさない。
+    // 囲まれない貼り付けは1文字ずつ打たれたのと同じに見え、@ のファイル
+    // 検索ポップアップが末尾のスペースを候補の確定として食ってしまう
+    // （bug: 起動時の差し込みだけ末尾のスペースが消える）。
 
-  it('initialText が null なら何も差し込まない', async () => {
-    const pty = fakePty()
-    renderTab({ ptyIo: pty.io })
-    await waitFor(() => expect(pty.spawned).toHaveLength(1))
-    expect(term.paste).not.toHaveBeenCalled()
+    afterEach(() => {
+      // このブロックの1テストだけ偽タイマーを使う。**後始末を忘れると
+      // 他のテスト（xterm/ResizeObserver 側の非同期）を巻き込む**ので、
+      // 毎回 real timers へ戻す（既に real なら無害）
+      vi.useRealTimers()
+    })
+
+    it('spawn が解決しただけでは差し込まれない', async () => {
+      const pty = fakePty()
+      renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
+      await waitFor(() => expect(pty.spawned).toHaveLength(1))
+      expect(term.paste).not.toHaveBeenCalled()
+    })
+
+    it('ESC[?2004h を含むバイト列を流すと差し込まれる（1回だけ）', async () => {
+      const pty = fakePty()
+      renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
+      await waitFor(() => expect(pty.spawned).toHaveLength(1))
+
+      pty.emit(BRACKETED_PASTE_BYTES)
+
+      await waitFor(() => expect(term.paste).toHaveBeenCalledWith('@docs/a.json '))
+      expect(term.paste).toHaveBeenCalledTimes(1)
+
+      // 2004 が重ねて届いても、保留は最初の1回で使い切っている
+      pty.emit(BRACKETED_PASTE_BYTES)
+      expect(term.paste).toHaveBeenCalledTimes(1)
+    })
+
+    it('シーケンスが2つのチャンクに割れていても差し込まれる（境界跨ぎの検出）', async () => {
+      const pty = fakePty()
+      renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
+      await waitFor(() => expect(pty.spawned).toHaveLength(1))
+
+      // ESC[?2004h を「ESC[?20」「04h」の2チャンクに分けて流す。前のチャンクの
+      // 末尾を覚えておかないと、どちらのチャンク単体にも完全な8バイトが
+      // 現れないため見落とす
+      pty.emit(BRACKETED_PASTE_BYTES.slice(0, 5))
+      expect(term.paste).not.toHaveBeenCalled()
+      pty.emit(BRACKETED_PASTE_BYTES.slice(5))
+
+      await waitFor(() => expect(term.paste).toHaveBeenCalledWith('@docs/a.json '))
+      expect(term.paste).toHaveBeenCalledTimes(1)
+    })
+
+    it('initialText が null なら 2004 が来ても差し込まれない', async () => {
+      const pty = fakePty()
+      renderTab({ ptyIo: pty.io })
+      await waitFor(() => expect(pty.spawned).toHaveLength(1))
+
+      pty.emit(BRACKETED_PASTE_BYTES)
+
+      expect(term.paste).not.toHaveBeenCalled()
+    })
+
+    it('2004 が来ないまま5秒たったら、保留をそのまま差し込む（従来の挙動への縮退）', async () => {
+      const pty = fakePty()
+      vi.useFakeTimers()
+      renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
+
+      // spawn は setTimeout を使わないただの async 関数なので、偽タイマーの
+      // 下でもマイクロタスクの解決は進む。0ms 分だけ進めて spawn の解決
+      // （5秒タイマーの起動）を確定させる
+      await vi.advanceTimersByTimeAsync(0)
+      expect(pty.spawned).toHaveLength(1)
+      expect(term.paste).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(5000)
+
+      expect(term.paste).toHaveBeenCalledWith('@docs/a.json ')
+      expect(term.paste).toHaveBeenCalledTimes(1)
+    })
   })
 
   it('insertion.seq が変わったときだけ差し込む', async () => {
@@ -705,8 +781,15 @@ describe('TerminalTab', () => {
         <TerminalTab {...tabProps({ ptyIo: pty.io, session: session({ initialText: '@a.json ' }) })} />
       </StrictMode>,
     )
-    // 捨てられた側は disposed で弾かれ、生き残った側だけが流す
+    await waitFor(() => expect(pty.issuedIds).toHaveLength(2))
+
+    // 両方に 2004 を流す。**捨てられた側は disposed で弾かれ、生き残った側
+    // だけが流す**——onRunning を取っていないのでどちらが生存側かは
+    // 区別できないが、両方へ流しても1回にしかならないことがその証拠になる
+    for (const id of pty.issuedIds) pty.emit(id, BRACKETED_PASTE_BYTES)
+
     await waitFor(() => expect(term.paste).toHaveBeenCalledTimes(1))
+    expect(term.paste).toHaveBeenCalledWith('@a.json ')
   })
 
   it('選択があればコピーして選択を解除する（メニューは出さない）', async () => {
@@ -775,14 +858,18 @@ describe('TerminalTab', () => {
   })
 })
 
-describe('端末の配色', () => {
+describe('端末の配色（M28: ダーク固定）', () => {
   /**
    * jsdom は `palette.css` を読まないので `getPropertyValue` は空文字を返す。
-   * ルート要素への問い合わせだけを差し替え、**他の要素は実物へ委ねる**
+   * `TerminalTab` は `.dark` を付けた使い捨て要素から読むので、その要素への
+   * 問い合わせだけを差し替える。**`documentElement`（アプリの明暗の
+   * 切り替え先）への問い合わせは別の値で差し替え、他の要素は実物へ委ねる**
    *（testing-library の内部も getComputedStyle を使うため、丸ごと
-   * 差し替えるとクエリが壊れる）
+   * 差し替えるとクエリが壊れる）。documentElement 側を変えても結果が
+   * 変わらないことが、「`.dark` の要素だけを読んでいる」ことの証拠になる
    */
-  const tokens: Record<string, string> = {}
+  let darkTokens: Record<string, string> = {}
+  let rootTokens: Record<string, string> = {}
   let spy: { mockRestore: () => void } | null = null
 
   const LIGHT: Record<string, string> = {
@@ -796,30 +883,34 @@ describe('端末の配色', () => {
     '--surface-muted': 'oklch(0.27 0 0)',
   }
 
-  const setTokens = (next: Record<string, string>): void => {
-    for (const key of Object.keys(tokens)) delete tokens[key]
-    Object.assign(tokens, next)
-  }
-
   beforeEach(() => {
+    darkTokens = {}
+    rootTokens = {}
     const real = window.getComputedStyle.bind(window)
     spy = vi.spyOn(window, 'getComputedStyle').mockImplementation(((
       element: Element,
       pseudo?: string | null,
-    ) =>
-      element === document.documentElement
-        ? ({
-            getPropertyValue: (name: string) => tokens[name] ?? '',
-          } as unknown as CSSStyleDeclaration)
-        : real(element, pseudo)) as typeof window.getComputedStyle)
+    ) => {
+      if (element instanceof HTMLElement && element.classList.contains('dark')) {
+        return {
+          getPropertyValue: (name: string) => darkTokens[name] ?? '',
+        } as unknown as CSSStyleDeclaration
+      }
+      if (element === document.documentElement) {
+        return {
+          getPropertyValue: (name: string) => rootTokens[name] ?? '',
+        } as unknown as CSSStyleDeclaration
+      }
+      return real(element, pseudo)
+    }) as typeof window.getComputedStyle)
   })
   afterEach(() => {
     spy?.mockRestore()
     spy = null
   })
 
-  it('マウント時に役割トークンから配色を作って xterm へ渡す', async () => {
-    setTokens(LIGHT)
+  it('マウント時に .dark 側の役割トークンから配色を作って xterm へ渡す', async () => {
+    darkTokens = DARK
     const pty = fakePty()
     const onRunning = vi.fn()
     renderTab({ ptyIo: pty.io, onRunning })
@@ -829,28 +920,62 @@ describe('端末の配色', () => {
       minimumContrastRatio?: number
       theme?: { background?: string }
     }
-    // 16色は xterm の既定のまま。ライトの面でも読める濃さへ寄せさせる
+    // 16色は xterm の既定のまま。読めない濃さは minimumContrastRatio に任せる
     expect(options.minimumContrastRatio).toBe(4.5)
     expect(options.theme?.background).toMatch(/^#[0-9a-f]{6}$/)
+
+    // 読み取り用の使い捨て要素を残さない（残すと DOM に見えない要素が溜まる）
+    expect(document.body.querySelectorAll('.dark')).toHaveLength(0)
   })
 
-  it('ライトからダークへ切り替えると配色を渡し直す', async () => {
-    setTokens(LIGHT)
-    const pty = fakePty()
-    const { rerender, props } = renderTab({ ptyIo: pty.io, dark: false })
-    await waitFor(() => expect(term.options.theme).toBeDefined())
-    const light = (term.options.theme as { background: string }).background
+  /**
+   * xterm の Terminal はコンストラクタへ渡した `theme` をそのまま保持する
+   * わけではない（このファイルのモックはコンストラクタ引数を無視する）ので、
+   * `new Terminal(options)` に渡った引数そのもの
+   *（`TerminalMock.mock.calls[callIndex][0]`）を見て確かめる
+   */
+  const constructedBackground = (callIndex: number): string | undefined => {
+    const options = (TerminalMock as unknown as ReturnType<typeof vi.fn>).mock.calls[
+      callIndex
+    ]?.[0] as { theme?: { background?: string } }
+    return options.theme?.background
+  }
 
-    setTokens(DARK)
-    rerender(<TerminalTab {...props} dark />)
+  it('documentElement（アプリの明暗）を変えても配色は変わらない（.dark の要素だけを読む）', async () => {
+    darkTokens = DARK
+    rootTokens = LIGHT
+    const pty1 = fakePty()
+    const { unmount } = renderTab({ ptyIo: pty1.io })
+    await waitFor(() => expect(pty1.spawned).toHaveLength(1))
+    unmount()
 
-    await waitFor(() =>
-      expect((term.options.theme as { background: string }).background).not.toBe(light),
-    )
+    // documentElement 側だけ変える。**darkTokens は変えていない**
+    rootTokens = DARK
+    const pty2 = fakePty()
+    renderTab({ ptyIo: pty2.io })
+    await waitFor(() => expect(pty2.spawned).toHaveLength(1))
+
+    expect(constructedBackground(1)).toBe(constructedBackground(0))
+    expect(constructedBackground(0)).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
+  it('.dark 側のトークンを変えると配色も変わる（読んでいる先がそこである証拠）', async () => {
+    darkTokens = DARK
+    const pty1 = fakePty()
+    const { unmount } = renderTab({ ptyIo: pty1.io })
+    await waitFor(() => expect(pty1.spawned).toHaveLength(1))
+    unmount()
+
+    darkTokens = LIGHT
+    const pty2 = fakePty()
+    renderTab({ ptyIo: pty2.io })
+    await waitFor(() => expect(pty2.spawned).toHaveLength(1))
+
+    expect(constructedBackground(1)).not.toBe(constructedBackground(0))
   })
 
   it('トークンが読めなければ配色を渡さない（xterm の既定に任せる）', async () => {
-    setTokens({})
+    darkTokens = {}
     const pty = fakePty()
     const onRunning = vi.fn()
     renderTab({ ptyIo: pty.io, onRunning })

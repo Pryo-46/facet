@@ -48,7 +48,6 @@ function setup(state = openSession(emptyTerminalState), insertion = null as
       cwd="/proj"
       ptyIo={ptyIo}
       paneVisible
-      dark={false}
       insertion={insertion}
       clipboardIo={{ readText: vi.fn(async () => ''), writeText: vi.fn(async () => undefined) }}
       onError={vi.fn()}
@@ -116,7 +115,6 @@ describe('TerminalPane', () => {
         cwd="/proj"
         ptyIo={ptyIo}
         paneVisible={false}
-        dark={false}
         insertion={null}
         clipboardIo={{ readText: vi.fn(async () => ''), writeText: vi.fn(async () => undefined) }}
         onError={vi.fn()}

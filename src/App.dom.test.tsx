@@ -165,9 +165,17 @@ vi.mock('@/fs/pty', () => ({
     // spec 全体（program/args/cwd/cols/rows/onData/onExit）のうち、ここでは
     // `onExit` だけ捕まえる。連番の ptyId を振るのは既存テストの前提
     //（呼び出し引数の中身は見ない）を崩さないため
-    spawn: async (spec: { onExit: (code: number | null) => void }) => {
+    spawn: async (spec: {
+      onData: (bytes: Uint8Array) => void
+      onExit: (code: number | null) => void
+    }) => {
       const id = ptyExitHandlers.size + 1
       ptyExitHandlers.set(id, spec.onExit)
+      // 起動時の差し込み（M28）は、PTY の出力に ESC[?2004h（DECSET 2004。
+      // bracketed paste の有効化）が現れてから流れる（実機修正）。この
+      // フェイクは「どのタブへ差し込まれるか」という配線だけを見たいので、
+      // 実物の claude が送る合図を起動直後に送って詰まらせない
+      spec.onData(new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x30, 0x34, 0x68]))
       return id
     },
     write: async () => undefined,

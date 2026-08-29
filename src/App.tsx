@@ -621,10 +621,9 @@ function App() {
   const toggleTheme = () => {
     const next = !dark
     setDark(next)
-    // **この DOM 書き込みを `useEffect` へ移さないこと。** 端末の配色は
-    // `TerminalTab` の `[dark]` effect が `palette.css` のトークンを読み直す
-    // ことで追従するが、**子の effect は親の effect より先に走る**ので、
-    // ここを effect へ移すと端末だけ1回ぶん古い配色を読む
+    // アプリ本体の面・文字を切り替える。**端末（TerminalTab）は追従しない**
+    // ——M28 の人間の判断で常にダーク固定にしたため（端末は facet の面
+    // ではなく「端末の面」）
     document.documentElement.classList.toggle('dark', next)
   }
 
@@ -1336,7 +1335,6 @@ function App() {
                 cwd={projectDir}
                 ptyIo={tauriPtyIo}
                 paneVisible={paneOpen}
-                dark={dark}
                 insertion={insertion}
                 clipboardIo={tauriClipboardIo}
                 onError={(message) => showToast({ message })}

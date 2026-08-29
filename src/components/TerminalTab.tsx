@@ -2,7 +2,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
-import { buildTerminalTheme, TERMINAL_MIN_CONTRAST } from '@/core/terminal/theme'
+import { buildTerminalTheme, TERMINAL_MIN_CONTRAST, type TerminalTheme } from '@/core/terminal/theme'
 import type { ClipboardIo } from '@/core/terminal/clipboard-io'
 import { CLAUDE_ARGS, CLAUDE_PROGRAM, type PtyIo } from '@/core/terminal/pty-io'
 import type { TerminalSession } from '@/core/terminal/sessions'
@@ -10,11 +10,13 @@ import type { TerminalSession } from '@/core/terminal/sessions'
 /**
  * 端末タブ1本。xterm 1個と PTY 1本が対応する。
  *
- * **面・文字・カーソル・選択は facet の役割トークンから流し込む**（M17）。
- * 色値はソースに現れない——`palette.css` のトークンを実行時に読んで
- * 変換する（`src/core/terminal/theme.ts`。conventions.test.ts）。
- * **ANSI の16色は xterm の既定のまま**で、ライトの面での読みやすさは
- * `minimumContrastRatio` に任せる（理由は theme.ts）
+ * **面・文字・カーソル・選択は常にダーク固定**（M28 実機確認）。端末は
+ * facet の面ではなく「端末の面」で、ライトのアプリの中でも黒いままの方が
+ * 読みやすいという人間の判断——M17 の「端末も facet の役割トークンに
+ * 合わせる」を反転した。色そのものの出所は変えない——`palette.css` の
+ * `.dark` が持つ値を実行時に読んで変換する（`src/core/terminal/theme.ts`。
+ * conventions.test.ts）。**ANSI の16色は xterm の既定のまま**で、
+ * 読みやすさは `minimumContrastRatio` に任せる（理由は theme.ts）
  */
 
 export interface TerminalTabProps {
@@ -23,11 +25,6 @@ export interface TerminalTabProps {
   ptyIo: PtyIo
   /** 畳んでいる／非アクティブ。**アンマウントはしない**（設計 決定6） */
   hidden: boolean
-  /**
-   * ダーク表示か。**色そのものは渡さない**——色は `palette.css` が持ち、
-   * この値は「トークンを読み直す合図」としてだけ使う
-   */
-  dark: boolean
   /**
    * 動いているタブへの差し込み指示（M28）。**`seq` が変わったときだけ**流す。
    * `seq` は App が持つ単調増加の連番で、同じ指示が二度実行されないための鍵。
@@ -57,14 +54,78 @@ const SHIFT_ENTER_SEQUENCE = `${String.fromCharCode(27)}\r`
 const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err))
 
 /**
- * 役割トークンを実行時に読む。**jsdom では空文字が返る**ので、テスト環境
- * では配色を渡さず xterm の既定に落ちる
+ * DECSET 2004（bracketed paste の有効化）。ESC[?2004h（バイトで
+ * 0x1b 0x5b 0x3f 0x32 0x30 0x30 0x34 0x68）。xterm が貼り付けを
+ * ESC[200~ … ESC[201~ で囲むのは、アプリがこれを送った後だけ
+ * （node_modules/@xterm/xterm/lib/xterm.js）。起動時の差し込みは、
+ * これが PTY の出力に現れるまで保留する（下の起動 effect）
  */
-const readToken = (name: string): string =>
-  getComputedStyle(document.documentElement).getPropertyValue(name)
+const BRACKETED_PASTE_ENABLE = new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x30, 0x34, 0x68])
+
+/** `needle` の長さ − 1 バイトだけ前置して境界跨ぎを拾うための、直前チャンク末尾の切り出し */
+const tailBytes = (
+  bytes: Uint8Array<ArrayBufferLike>,
+  length: number,
+): Uint8Array<ArrayBufferLike> => (bytes.length <= length ? bytes : bytes.slice(bytes.length - length))
+
+const concatBytes = (
+  a: Uint8Array<ArrayBufferLike>,
+  b: Uint8Array<ArrayBufferLike>,
+): Uint8Array<ArrayBufferLike> => {
+  const out = new Uint8Array(a.length + b.length)
+  out.set(a, 0)
+  out.set(b, a.length)
+  return out
+}
+
+/** `haystack` が `needle` を部分列として含むか（バイト列の単純な総当たり探索） */
+const containsSequence = (haystack: Uint8Array<ArrayBufferLike>, needle: Uint8Array<ArrayBufferLike>): boolean => {
+  if (needle.length === 0 || haystack.length < needle.length) return false
+  for (let i = 0; i <= haystack.length - needle.length; i++) {
+    let matched = true
+    for (let j = 0; j < needle.length; j++) {
+      if (haystack[i + j] !== needle[j]) {
+        matched = false
+        break
+      }
+    }
+    if (matched) return true
+  }
+  return false
+}
+
+/**
+ * 端末の配色を**ダーク側の役割トークン固定**で作る（M28 実機確認）。
+ * `palette.css` は `.dark` クラスでダーク値を再定義しており、カスタム
+ * プロパティは継承するので、`.dark` を付けた要素からは、アプリがライトの
+ * ときでもダーク側の値が読める。読む先は非表示の使い捨て要素——`document.body`
+ * へ一時的に付けて `getComputedStyle` で読み、読み終わったら外す
+ *（残すと DOM に見えない要素が溜まる）。
+ *
+ * **`buildTerminalTheme` の呼び出し1回につき要素を1つで済ませる。**
+ * `buildTerminalTheme` は渡した関数をトークンの数だけ複数回呼ぶので、
+ * ここでラップして要素の生成・破棄を1回にまとめる（トークンごとに
+ * 作り直さない）。
+ *
+ * **jsdom では `getComputedStyle` がトークンを解決せず空文字を返す**ので
+ * `buildTerminalTheme` は null を返し、xterm の既定に落ちる
+ *（この既存の挙動は変えない）
+ */
+const buildDarkTerminalTheme = (): TerminalTheme | null => {
+  const probe = document.createElement('div')
+  probe.className = 'dark'
+  probe.style.display = 'none'
+  document.body.appendChild(probe)
+  try {
+    const readToken = (name: string): string => getComputedStyle(probe).getPropertyValue(name)
+    return buildTerminalTheme(readToken)
+  } finally {
+    document.body.removeChild(probe)
+  }
+}
 
 export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
-  const { session, cwd, ptyIo, hidden, dark, insertion, clipboardIo } = props
+  const { session, cwd, ptyIo, hidden, insertion, clipboardIo } = props
   const { onRunning, onExited, onFailed, onError } = props
   const hostRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -96,10 +157,20 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   // fit() をまとめて行う
   const pendingFontRef = useRef<string | null>(null)
 
+  /**
+   * 起動時の差し込み（M28）で「まだ差し込んでいない保留」。**実機で末尾の
+   * スペースが消える不具合の修正**——spawn 解決直後は claude の TUI が
+   * まだ立ち上がっておらず、xterm が貼り付けを囲む条件（DECSET 2004）を
+   * 満たさない。ここでは差し込まず、PTY の出力に ESC[?2004h が現れてから
+   * 差し込む（起動 effect の onData）。5秒たっても来なければ従来どおり
+   * 差し込む（保留し続けるのが一番悪い）
+   */
+  const pendingInsertionRef = useRef<string | null>(null)
+
   useEffect(() => {
     const host = hostRef.current
     if (host === null) return
-    const initialTheme = buildTerminalTheme(readToken)
+    const initialTheme = buildDarkTerminalTheme()
     const term = new Terminal({
       convertEol: false,
       fontSize: 13,
@@ -117,6 +188,25 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     fitRef.current = fit
 
     let disposed = false
+
+    // このマウント（StrictMode では2回走りうる）の分の保留を用意する
+    pendingInsertionRef.current = session.initialText
+    // 直前チャンクの末尾。ESC[?2004h はチャンクの境目で割れることがあるので、
+    // 次のチャンクの先頭に前置してから探す（境界を跨いだ発生を落とさない）
+    let insertionTail: Uint8Array<ArrayBufferLike> = new Uint8Array(0)
+    let insertionTimer: ReturnType<typeof setTimeout> | null = null
+
+    /** 保留を差し込み、タイマーを解除する。二重に呼んでも無害（2回目は何もしない） */
+    const flushPendingInsertion = (): void => {
+      const text = pendingInsertionRef.current
+      if (text === null) return
+      pendingInsertionRef.current = null
+      if (insertionTimer !== null) {
+        clearTimeout(insertionTimer)
+        insertionTimer = null
+      }
+      term.paste(text)
+    }
 
     // 端末のフォントは Plex Mono（U1 決着。700 は ANSI 太字用に同梱済み）。
     // **読み込みが済んでから fontFamily を入れる**——xterm はセル寸法を
@@ -214,6 +304,20 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         onData: (bytes) => {
           if (disposed) return
           term.write(bytes)
+          // 起動時の差し込みの保留があるときだけ、bracketed paste が
+          // 有効になった合図（ESC[?2004h）を探す。見つかったらここで
+          // 差し込む——**この検出こそが「末尾のスペースが消える」不具合の
+          // 直し方そのもの**（ファイル冒頭のコメント参照）
+          if (pendingInsertionRef.current !== null) {
+            const combined = concatBytes(insertionTail, bytes)
+            if (containsSequence(combined, BRACKETED_PASTE_ENABLE)) {
+              flushPendingInsertion()
+            } else {
+              // 次のチャンクとの継ぎ目のために末尾を覚えておく
+              // （必要なのはシーケンスの長さ − 1 バイトぶんだけ）
+              insertionTail = tailBytes(combined, BRACKETED_PASTE_ENABLE.length - 1)
+            }
+          }
         },
         // **disposed で守る**——捨てられた側の PTY の終了イベントが遅れて
         // 届いても、生きている側のセッションを「終了済み」にしてはいけない
@@ -221,6 +325,12 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         // になり、タブを閉じても kill が飛ばなくなる）
         onExit: (code) => {
           if (disposed) return
+          // 差し込む先がもう無い。タイマーだけ律儀に解除して保留を捨てる
+          pendingInsertionRef.current = null
+          if (insertionTimer !== null) {
+            clearTimeout(insertionTimer)
+            insertionTimer = null
+          }
           cb.current.onExited(session.id, `終了しました（コード ${code ?? '不明'}）`)
         },
       })
@@ -237,11 +347,20 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         const queued = pendingRef.current
         pendingRef.current = []
         for (const data of queued) send(data)
-        // 起動時の差し込み（M28）。**待ち行列の後**——起動待ちに打たれた文字より
-        // 先に参照を入れると、打った文字が参照の前へ出てしまう。
+        // 起動時の差し込み（M28）は上の onData が bracketed paste の合図を
+        // 見て流す。**ここでは差し込まない**——ここは claude の TUI が
+        // 立ち上がるより前で、囲まれずに1文字ずつ打たれたのと同じに見える
+        // （@ のファイル検索が末尾のスペースを候補の確定として食う）。
+        // 代わりに、いつまでも来ない場合の上限だけをここで仕掛ける。
         // **`hidden` は見ない**（`fit()` と違い寸法を測らないので、隠れていても
         // 差し込んでよい）。`disposed` の判定は上の分岐で済んでいる
-        if (session.initialText !== null) term.paste(session.initialText)
+        if (pendingInsertionRef.current !== null) {
+          insertionTimer = setTimeout(() => {
+            insertionTimer = null
+            if (disposed) return
+            flushPendingInsertion()
+          }, 5000)
+        }
         // 起動直後の PTY へ実寸を伝える。ここまでの fit()（隠れている間は
         // 測らない effect）は spawn 前——つまり ptyIdRef.current が null の
         // 間——に走っていることがあり、そのときは pty_resize を送れない。
@@ -272,6 +391,13 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
 
     return () => {
       disposed = true
+      // 差し込みのタイマーは必ず解除する。解除し忘れると、5秒後に
+      // disposed 済みの Terminal へ paste() しようとする
+      // （タイマー本体の disposed ガードで実害は無いが、掃除は cleanup の役目）
+      if (insertionTimer !== null) {
+        clearTimeout(insertionTimer)
+        insertionTimer = null
+      }
       // **自分の PTY を殺してから捨てる。** 台帳（App.tsx の
       // closeTerminalNow）も殺すが、`spawn` の解決と台帳への反映
       //（onRunning）の隙間で閉じられると台帳は ptyId を知らない。
@@ -288,21 +414,6 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     // タブごと作り直される（設計 決定12）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  /**
-   * ライト／ダークの切り替えに追従する。**色の入れ替えは CSS 側で起きる**
-   * ので、ここは「読み直して xterm へ渡し直す」だけ。`dark` はその合図で、
-   * 値そのものは使わない（起動 effect より後に走るので、マウント時は
-   * 同じ配色をもう一度渡すことになるが実害は無い）
-   */
-  useEffect(() => {
-    const term = termRef.current
-    if (term === null) return
-    const theme = buildTerminalTheme(readToken)
-    if (theme !== null) term.options.theme = theme
-    // `dark` は合図として依存に入れる。値は読まない
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dark])
 
   /**
    * 動いているタブへの差し込み（M28）。
