@@ -79,6 +79,7 @@ facet は「人間は構造化された UI で入力し、ツールが網羅性�
 | [issue-tree-m2](history/issue-tree-m2-register-skill.md) | 課題ツリー登録 Skill（会話→ JSON）とお手本 | 課題ツリー・コア |
 | [issue-tree-m3](history/issue-tree-m3-overview-ui.md) | 課題ツリーの俯瞰 UI と語彙（箱は課題だけ・仮説は行・判断は1つ） | 課題ツリー・コア（初の schemaVersion 移行）・デザイン |
 | [logic-tree-m2](history/logic-tree-m2-register-skill.md) | ロジックツリー登録 Skill（会話→ JSON）と flat-tree の分割 | ロジックツリー・コア |
+| [logic-tree-m3](history/logic-tree-m3-miro-clipboard.md) | Miro のマインドマップとのクリップボード交換と Markdown 出力 | ロジックツリー・コア |
 
 ## ツールが増えたとき
 
