@@ -45,17 +45,21 @@ export const UNSUPPORTED_REASON = 'このツールは対応していません'
  *
  * ホバーで見た目が変わらないようにする。**important 修飾（`!`）は使わない。**
  * `Button` は `cn()`（`src/lib/utils.ts` の `twMerge(clsx(...))`）でクラスを
- * 合成しており、**同じ modifier（`hover:` / `dark:hover:`）× 同じ CSS プロパティの
- * 組み合わせは、後に書いた方が前を消す**——`text-ink-faint` が `outline` 変種の
- * `border-border` ではなく `border-rule-muted` の色で出るのも、まさにこの
- * 重複排除のおかげ。ここでの `hover:bg-transparent` / `hover:text-ink-faint` /
+ * 合成しており、**twMerge は modifier チェーン（`hover:` / `dark:hover:` などの
+ * 前置き部分）が完全に一致するクラス同士でだけ重複排除する**——一致した組の中で
+ * 同じ CSS プロパティを取り合えば、後に書いた方が前を消す。`border-rule-muted` が
+ * `outline` 変種の `border-border`（modifier 無し同士）を消して勝つのも、まさに
+ * この重複排除のおかげ。ここでの `hover:bg-transparent` / `hover:text-ink-faint` /
  * `dark:hover:bg-transparent` も同じ理屈で `hover:bg-muted` / `hover:text-foreground` /
  * `dark:hover:bg-input/50` をクラス一覧から消し去るので、生成 CSS 側で
  * 特異性を争う場面がそもそも生まれない。**`!` を付けると twMerge はそれを別グループ
  * として重複排除の対象から外してしまい**、負けるはずの `hover:bg-muted` 等が
  * 死んだクラスとして残ってしまう（レビュー指摘。実際に `tailwind-merge` を
- * 通して確かめた）。**twMerge が見分けられないのは、bare のクラスと `dark:` 付き
- * クラスの組み合わせだけ**——上の `dark:border-rule-muted` を別出しした理由と同じ
+ * 通して確かめた）。**modifier チェーンが完全一致しない組は、twMerge には
+ * 重複と見えない**——bare の `border-rule-muted` と `dark:border-input` は
+ * チェーンが違う（無し vs `dark:`）ので消し合わず、両方生き残ってしまう。
+ * 上で `dark:border-rule-muted` を別出しで書いたのは、まさにこのケースに
+ * 当たったため
  *
  * フォーカスは殺さない——`aria-disabled` は `disabled` と違ってタブ移動の対象から
  * 外れない。キーボードで辿り着けて、スクリーンリーダーがラベルと状態を読み上げる。

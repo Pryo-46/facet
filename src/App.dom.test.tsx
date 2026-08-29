@@ -1003,6 +1003,10 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
     // title で読める）と、クリックしても実際のハンドラまで届かないこと
     expect(copyButton.getAttribute('aria-disabled')).toBe('true')
     expect(copyButton.getAttribute('title')).toBe(UNSUPPORTED_REASON)
+    // 定数（UNSUPPORTED_REASON）を経由するアサーションだけだと、定数の値そのものが
+    // 誤って変わっても緑のまま通ってしまう。実際に画面へ出る文言を最低1箇所は
+    // リテラルで固定する（レビュー指摘）
+    expect(copyButton.getAttribute('title')).toBe('このツールは対応していません')
     fireEvent.click(copyButton)
     expect(copyHtmlToClipboardMock).not.toHaveBeenCalled()
 

@@ -72,6 +72,10 @@ describe('ExportMenu: 出力できるファイルを選んでいないとき', (
     const button = screen.getByRole('button', { name: 'Markdown をコピー' })
     expect(button.getAttribute('aria-disabled')).toBe('true')
     expect(button.getAttribute('title')).toBe(UNSUPPORTED_REASON)
+    // 定数（UNSUPPORTED_REASON）を経由するアサーションだけだと、定数の値そのものが
+    // 誤って変わっても緑のまま通ってしまう。実際に画面へ出る文言を最低1箇所は
+    // リテラルで固定する（レビュー指摘）
+    expect(button.getAttribute('title')).toBe('このツールは対応していません')
     fireEvent.click(button)
     expect(onCopy).not.toHaveBeenCalled()
   })
