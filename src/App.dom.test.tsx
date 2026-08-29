@@ -1051,3 +1051,144 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
     expect(readClipboardHtmlMock.mock.calls.length).toBe(callsBefore)
   })
 })
+
+describe('表形式でコピー（M29）', () => {
+  const GLOSSARY_PATH = '/proj/用語集.json'
+  const LOGIC_TREE_PATH = '/proj/木.json'
+
+  const putGlossary = () => {
+    disk.set(
+      GLOSSARY_PATH,
+      JSON.stringify({ schemaVersion: 1, type: 'glossary', title: '用語集', terms: [] }),
+    )
+  }
+  const putLogicTree = () => {
+    disk.set(
+      LOGIC_TREE_PATH,
+      JSON.stringify({
+        schemaVersion: 1,
+        type: 'logicTree',
+        title: '木',
+        nodes: [{ id: 'node_Aaaaaaaaa1', parentId: null, text: 'ルート' }],
+      }),
+    )
+  }
+  /**
+   * 絞り込みのテスト専用。`putGlossary()` は terms が空なので流用できない
+   * （既存のヘルパは他のテストが件数を前提にしているため変えない）。
+   * `受注`／`与信` は `modules/glossary/table.test.ts` の固定データと同じ
+   * 組み合わせ——「与信」で絞ると1件だけに当たることが保証されている
+   */
+  const putGlossaryWithTwoTerms = () => {
+    disk.set(
+      GLOSSARY_PATH,
+      JSON.stringify({
+        schemaVersion: 1,
+        type: 'glossary',
+        title: '用語集',
+        terms: [
+          {
+            id: 'term_aaaaaaaaaa',
+            name: '受注',
+            kind: 'event',
+            definition: '顧客からの注文を受け付けること',
+            aliases: ['受注登録', 'オーダー'],
+            notes: '',
+          },
+          {
+            id: 'term_bbbbbbbbbb',
+            name: '与信',
+            kind: 'undecided',
+            definition: '',
+            aliases: [],
+            notes: 'メモ',
+          },
+        ],
+      }),
+    )
+  }
+
+  it('ファイルを選んでいないとき、ボタンは出るが押せない', async () => {
+    render(<App />)
+    const button = screen.getByRole('button', { name: '表形式でコピー' })
+    fireEvent.click(button)
+    expect(screen.queryByRole('heading', { name: '表形式でコピー' })).toBeNull()
+  })
+
+  it('用語集を開くと押せて、設定ダイアログが開く', async () => {
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    fireEvent.click(screen.getByRole('button', { name: '表形式でコピー' }))
+    expect(await screen.findByRole('checkbox', { name: 'No 列を付ける' })).toBeTruthy()
+    // 用語集は読み手が1本なので選択を出さない
+    expect(screen.queryByRole('group', { name: '読み手' })).toBeNull()
+  })
+
+  it('ロジックツリーでは階層番号の選択と親のくり返しが出る', async () => {
+    putLogicTree()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '木（木.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    fireEvent.click(screen.getByRole('button', { name: '表形式でコピー' }))
+    expect(await screen.findByRole('radio', { name: '階層番号（1-1-1）' })).toBeTruthy()
+    expect(screen.getByRole('checkbox', { name: '親の文言を毎行くり返す' })).toBeTruthy()
+  })
+
+  it('[コピー]でクリップボードへ HTML と TSV が載る', async () => {
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    fireEvent.click(screen.getByRole('button', { name: '表形式でコピー' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'コピー' }))
+
+    await waitFor(() => expect(copyHtmlToClipboardMock).toHaveBeenCalled())
+    const [html, tsv] = copyHtmlToClipboardMock.mock.calls.at(-1)!
+    expect(html).toContain('<th>名称</th>')
+    expect(tsv).toContain('名称\t種別')
+  })
+
+  it('[キャンセル]で閉じ、クリップボードに何も載らない', async () => {
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    fireEvent.click(screen.getByRole('button', { name: '表形式でコピー' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'キャンセル' }))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('checkbox', { name: 'No 列を付ける' })).toBeNull(),
+    )
+    expect(copyHtmlToClipboardMock).not.toHaveBeenCalled()
+  })
+
+  it('絞り込んでからコピーすると、絞り込み後の行だけが載り No は元のまま', async () => {
+    putGlossaryWithTwoTerms()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    // 2件目だけに当たる語で絞り込む
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '与信' } })
+    fireEvent.click(screen.getByRole('button', { name: '表形式でコピー' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'コピー' }))
+
+    await waitFor(() => expect(copyHtmlToClipboardMock).toHaveBeenCalled())
+    const [, tsv] = copyHtmlToClipboardMock.mock.calls.at(-1)!
+    expect(tsv).toContain('与信')
+    expect(tsv).not.toContain('受注')
+    // **No は振り直さない**（データ配列の位置のまま）
+    expect(tsv).toContain('2\t与信')
+  })
+})

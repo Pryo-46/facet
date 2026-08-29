@@ -5,6 +5,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ExportMenu } from '@/components/ExportMenu'
 import { FileHeader } from '@/components/FileHeader'
 import { EDITOR_MIN_WIDTH, PANE_MIN_WIDTH, PaneSplitter } from '@/components/PaneSplitter'
+import { TableCopyDialog } from '@/components/TableCopyDialog'
 import { TerminalPane } from '@/components/TerminalPane'
 import { buttonBase } from '@/components/button-styles'
 import { FileList } from '@/components/FileList'
@@ -553,6 +554,16 @@ function App() {
   }
   const controller = controllerRef.current
 
+  /**
+   * エディタからの「画面に出ている行」の報告をコントローラへ渡す（M29）。
+   * **`useCallback` で参照を固定すること**——エディタ側は依存配列に入れており、
+   * 毎レンダー新しい関数を渡すと報告の `useEffect` が毎レンダー走る
+   */
+  const onVisibleIds = useCallback(
+    (ids: ReadonlySet<string> | null, total: number) => controller.setVisibleIds(ids, total),
+    [controller],
+  )
+
   const editingData = history === null ? null : history.present
 
   const toggleTheme = () => {
@@ -956,6 +967,16 @@ function App() {
             onCopy={(profile) => void controller.copyMarkdown(profile)}
             onExport={(profile) => void controller.exportMarkdown(profile)}
           />
+          {/* 表形式でコピー（規約8・M29）。**常に出す**——ExportMenu・Miro と
+              同じ原則で、押せる／押せないだけを切り替える。活性の判断に
+              モジュールの type を使わない（`tableExport` の有無だけで決める） */}
+          <Button
+            variant="outline"
+            disabled={!canExport || selectedModule?.tableExport === undefined}
+            onClick={() => controller.copyTable()}
+          >
+            表形式でコピー
+          </Button>
           {/* Miro 交換（規約7・logic-tree M3）。**常に出す**——ExportMenu と同じ
               原則で、押せる／押せないだけを切り替え、ボタン自体は消えたり
               出たりしない。文言に「Miro」と書いてよいが、活性の判断には
@@ -1163,6 +1184,7 @@ function App() {
                   data={editingData}
                   issues={selected.issues}
                   modalOpen={modalOpen}
+                  onVisibleIds={onVisibleIds}
                   onChange={(next: unknown, mergeKey?: string | null) => {
                     setHistory((h) => (h === null ? h : record(h, next, mergeKey ?? null, Date.now())))
                     controller.applyEdit(selected.path, selectedModule, next)
@@ -1252,6 +1274,18 @@ function App() {
             ? () => setModals((prev) => shiftModal(prev))
             : undefined
         }
+      />
+      <TableCopyDialog
+        open={head?.kind === 'tableCopy'}
+        warning={head?.kind === 'tableCopy' ? head.warning : null}
+        options={head?.kind === 'tableCopy' ? head.options : []}
+        variants={head?.kind === 'tableCopy' ? head.variants : []}
+        onCopy={(variantId, options) => {
+          const request = head
+          setModals(shiftModal)
+          if (request?.kind === 'tableCopy') void request.onCopy(variantId, options)
+        }}
+        onCancel={() => setModals(shiftModal)}
       />
     </main>
   )
