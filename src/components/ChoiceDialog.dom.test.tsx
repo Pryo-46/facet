@@ -56,7 +56,25 @@ describe('ChoiceDialog', () => {
     expect(screen.getByRole('heading', { name: '外部でファイルが変更されました' })).not.toBeNull()
   })
 
-  it('onCancel を渡すとキャンセルのボタンが出て、押すと呼ばれる', () => {
+  it('onCancel を渡すとキャンセルのボタンが既定文言（「キャンセル」）で出て、押すと呼ばれる', () => {
+    const onCancel = vi.fn()
+    render(
+      <ChoiceDialog
+        open
+        title="取り込む"
+        description="どちらに取り込みますか。"
+        primaryLabel="上書き"
+        secondaryLabel="新規"
+        onPrimary={vi.fn()}
+        onSecondary={vi.fn()}
+        onCancel={onCancel}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }))
+    expect(onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('cancelLabel を渡すと文言を上書きできる', () => {
     const onCancel = vi.fn()
     render(
       <ChoiceDialog
@@ -84,7 +102,6 @@ describe('ChoiceDialog', () => {
         description="どちらに取り込みますか。"
         primaryLabel="上書き"
         secondaryLabel="新規"
-        cancelLabel="やめる"
         onPrimary={vi.fn()}
         onSecondary={vi.fn()}
         onCancel={onCancel}
@@ -96,6 +113,6 @@ describe('ChoiceDialog', () => {
 
   it('onCancel を渡さなければキャンセルは出ない（既存の挙動）', () => {
     setup()
-    expect(screen.queryByRole('button', { name: 'やめる' })).toBe(null)
+    expect(screen.queryByRole('button', { name: 'キャンセル' })).toBe(null)
   })
 })

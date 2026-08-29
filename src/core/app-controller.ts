@@ -929,7 +929,7 @@ export function createAppController(
       primaryLabel: 'このツリーを上書き',
       secondaryLabel: '新しいファイルに作る',
       // キャンセルは額縁の shiftModal が処理するので、ここに onCancel は要らない
-      cancelLabel: 'やめる',
+      cancelLabel: 'キャンセル',
       onPrimary: () => {
         // **履歴へ積む＋applyEdit の両方が要る**（独立した履歴。Ctrl+Z 一発で
         // 戻せるので、二段階の確認は要らない）。recordEdit が無いと表示が

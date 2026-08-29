@@ -1,6 +1,7 @@
 import {
   AlertDialog,
   AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -21,11 +22,11 @@ export interface ChoiceDialogProps {
    *
    * 既定（渡さない）が「キャンセルも Esc も無い」なのは、外部変更の衝突では
    * どちらの選択にも副作用があり、決めないまま閉じると宙ぶらりんが残るため
-   * （下の JSDoc を参照）。**取り込みのように「やめる」が正しい選択に
+   * （下の JSDoc を参照）。**取り込みのようにキャンセルが正しい選択に
    * なりうる場面でだけ渡す**（logic-tree M2）
    */
   onCancel?: () => void
-  /** キャンセルのボタンの文言。onCancel を渡すときだけ意味がある */
+  /** キャンセルのボタンの文言。onCancel を渡すときだけ意味がある。既定は「キャンセル」 */
   cancelLabel?: string
 }
 
@@ -48,8 +49,8 @@ export interface ChoiceDialogProps {
  * **開いている間は呼び出し側が KeyContext.modalOpen を true にすること**
  *（配線点は3箇所。ConfirmDialog と同じ。rev 10章の境界規則）。
  *
- * 両ボタンで preventDefault してから handler を呼ぶ——Radix の
- * AlertDialogAction は内部が Dialog.Close なので、放っておくと
+ * どのボタンも preventDefault してから handler を呼ぶ——Radix の
+ * AlertDialogAction/AlertDialogCancel は内部が Dialog.Close なので、放っておくと
  * onOpenChange も発火する（M4 で踏んだ罠）。
  * 見た目は shadcn の既定トークンのままで、役割トークンへの寄せは M7
  */
@@ -75,15 +76,20 @@ export function ChoiceDialog(props: ChoiceDialogProps) {
         </AlertDialogHeader>
         <AlertDialogFooter>
           {props.onCancel !== undefined && (
-            <AlertDialogAction
-              variant="ghost"
+            <AlertDialogCancel
               onClick={(event) => {
+                // AlertDialogCancel も内部実装は Dialog.Close で、放っておくと
+                // onOpenChange 相当の close 要求が発火する。ChoiceDialog は
+                // onOpenChange を渡していない（内部からの close 要求を全部無視する
+                // 設計）ので、そのままでは何も起きず onCancel も呼ばれない。
+                // preventDefault で内部の close 発火を止め、経路を onCancel 一本にする
+                // （ConfirmDialog の AlertDialogAction と同じ罠。M4 で踏んだ）
                 event.preventDefault()
                 props.onCancel?.()
               }}
             >
-              {props.cancelLabel ?? 'やめる'}
-            </AlertDialogAction>
+              {props.cancelLabel ?? 'キャンセル'}
+            </AlertDialogCancel>
           )}
           <AlertDialogAction
             variant="outline"

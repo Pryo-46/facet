@@ -1373,7 +1373,7 @@ describe('クリップボード交換（logic-tree M2）', () => {
       expect(h.banners().io).toContain('読めませんでした')
     })
 
-    it('取り込めるとき三択のダイアログを出す（上書き／新しいファイル／やめる）', async () => {
+    it('取り込めるとき三択のダイアログを出す（上書き／新しいファイル／キャンセル）', async () => {
       const readClipboardHtml = vi.fn<() => Promise<string>>().mockResolvedValue('<miro-html>')
       const h = createHarness({ [p('a.json')]: note('A') }, { readClipboardHtml })
       await openNote(h)
