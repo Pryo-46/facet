@@ -945,6 +945,32 @@ describe('TerminalTab', () => {
       await vi.advanceTimersByTimeAsync(INSERTION_MAX_WAIT_MS)
       expect(term.paste).not.toHaveBeenCalled()
     })
+
+    it('アンマウント（待っている最中にタブを閉じる／フォルダを切り替える）で保留を捨て、静穏・上限の両方のタイマーを解除する', async () => {
+      // 上のテストは onExit（PTY 側の自然終了）を突く。上限が最大
+      // INSERTION_MAX_WAIT_MS（8秒）ある以上、待っている最中にタブを閉じる
+      // ／フォルダを切り替える（＝cleanup が走る）方が実機で最も踏まれやすい
+      // 経路だが、対応するテストが無かった（最終レビュー指摘）
+      const pty = fakePty()
+      vi.useFakeTimers()
+      const { unmount } = renderTab({
+        ptyIo: pty.io,
+        session: session({ initialText: '@docs/a.json ' }),
+      })
+      await vi.advanceTimersByTimeAsync(0)
+
+      // 2004 を検出させ、静穏タイマー（と、spawn 解決時に張られた上限
+      // タイマー）の両方が生きている状態にする
+      term.modes.bracketedPasteMode = true
+      pty.emit(SOME_PTY_OUTPUT)
+
+      unmount()
+
+      // 両方のタイマーが解除されていれば、上限ぶん時間を進めても
+      // paste は呼ばれない
+      await vi.advanceTimersByTimeAsync(INSERTION_MAX_WAIT_MS)
+      expect(term.paste).not.toHaveBeenCalled()
+    })
   })
 
   it('insertion.seq が変わったときだけ差し込む（もう流し終えた後は即座に paste する）', async () => {

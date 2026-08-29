@@ -127,10 +127,9 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   const pendingRef = useRef<string[]>([])
 
   // コールバックは最新を ref から読む。**起動の effect は1回だけ**——
-  // 依存に入れると props が変わるたびに端末がもう1本立つ。
-  // （disposed 経由の非同期コールバック）から最新の onError を読めるようにする
-  const cb = useRef({ onRunning, onExited, onFailed, onError })
-  cb.current = { onRunning, onExited, onFailed, onError }
+  // 依存に入れると props が変わるたびに端末がもう1本立つ
+  const cb = useRef({ onRunning, onExited, onFailed })
+  cb.current = { onRunning, onExited, onFailed }
 
   // spawn が解決した時点の hidden を知るための ref。起動 effect は1回しか
   // 走らないので、クロージャに閉じ込めた hidden は古い値のままになる
@@ -172,6 +171,18 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
    */
   const insertionFlushedRef = useRef(false)
 
+  /**
+   * 差し込み effect（下）が消化済みの `seq` を覚える重複排除の ref。
+   * **マウントを跨いで生き残る**一方、`pendingInsertionsRef` は新しいマウント
+   * のたびに作り直される（起動 effect）。ここを戻し忘れると、StrictMode で
+   * 捨てられた側が積んだテキストは新しい列から消えるのに、こちらは同じ
+   * `seq` を「消化済み」のまま覚えていて、新しい effect は重複排除で
+   * 早期 return する——**一度も差し込まれない**（列を導入する前は逆に
+   * 「二度差し込まれる」危険だった。危険の質が変わったので、起動 effect が
+   * 列を作り直す隣でこれも null に戻し、対称を保つ）
+   */
+  const lastInsertedRef = useRef<number | null>(null)
+
   useEffect(() => {
     const host = hostRef.current
     if (host === null) return
@@ -179,7 +190,7 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     const term = new Terminal({
       convertEol: false,
       fontSize: 13,
-      // 16色は xterm の既定のまま。ライトの面でも読める濃さへ xterm 自身に
+      // 16色は xterm の既定のまま。ダークの面で読める濃さへ xterm 自身に
       // 寄せさせる（core/terminal/theme.ts）
       minimumContrastRatio: TERMINAL_MIN_CONTRAST,
       // 読めなければ渡さない。**空の theme を渡さないこと**——xterm の既定を
@@ -199,6 +210,8 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     // effect が押された順で後ろへ積む
     pendingInsertionsRef.current = session.initialText === null ? [] : [session.initialText]
     insertionFlushedRef.current = false
+    // 列を作り直す隣で lastInsertedRef も戻す（対称性の理由は宣言側のコメント）
+    lastInsertedRef.current = null
     // 静穏タイマー。2004 を見た後、出力が来るたびに INSERTION_QUIET_MS へ
     // 張り直す。2004 を見る前は張らない（描画が始まる前の静けさで流さない）
     let quietTimer: ReturnType<typeof setTimeout> | null = null
@@ -363,8 +376,14 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         onExit: (code) => {
           if (disposed) return
           // 差し込む先がもう無い。タイマーだけ律儀に両方とも解除して
-          // 保留の列を捨てる
+          // 保留の列を捨てる。**「もう流した」も真にする**——これを付けないと、
+          // 終了後に insertion effect が来たとき保留の列へ黙って積まれ、流す
+          // 主体（両タイマー）はもう居ないので何も起きない。それは
+          // このマイルストーンが実機で8回戦った「差し込みが無言で消える」
+          // 症状そのものなので、黙って消えるより term.paste() が死んだ PTY へ
+          // の書き込み失敗として画面に出る方へ倒す
           pendingInsertionsRef.current = []
+          insertionFlushedRef.current = true
           if (quietTimer !== null) {
             clearTimeout(quietTimer)
             quietTimer = null
@@ -428,8 +447,10 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
       })
       .catch((err: unknown) => {
         if (disposed) return
-        // 起動できなかったので、溜まった入力は行き先が無い
+        // 起動できなかったので、溜まった入力は行き先が無い。差し込みの列
+        // （initialText / insertion）も同じ理由で行き先が無いので、同様に捨てる
         pendingRef.current = []
+        pendingInsertionsRef.current = []
         cb.current.onFailed(
           session.id,
           `Claude Code を起動できませんでした: ${err instanceof Error ? err.message : String(err)}`,
@@ -469,10 +490,11 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   /**
    * 動いているタブへの差し込み（M28）。
    *
-   * **消化済みの `seq` を ref で覚える。** effect の依存を `seq` だけにしても、
-   * StrictMode の二重マウントでは mount → cleanup → mount で2回走る。
-   * マウント時点で `insertion` が入っている経路は現状無いが、ここを守っておけば
-   * 「二度差し込まれた」という追いにくい不具合の余地が消える
+   * **`lastInsertedRef`（消化済みの `seq` を覚える重複排除の ref）の宣言と、
+   * マウントを跨ぐ危険についての注記は上（起動 effect の直前）。** ここでは
+   * effect の依存を `seq` だけにする理由だけ書く——StrictMode の二重マウント
+   * では mount → cleanup → mount で2回走るので、依存を `seq` だけにしても
+   * この ref による重複排除が要る
    *
    * **即座に paste するのは、保留の列をもう流し終えている（`insertionFlushedRef`
    * が true の）ときだけ。** 起動中（約1秒、その後の静穏待ちも含む）に `@`
@@ -483,7 +505,6 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
    * まとめて流す。**seq の重複排除を先に済ませてから**保留に積む——同じ
    * 指示を二度積まないため
    */
-  const lastInsertedRef = useRef<number | null>(null)
   const insertionSeq = insertion?.seq ?? null
   useEffect(() => {
     const term = termRef.current

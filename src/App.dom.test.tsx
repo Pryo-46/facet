@@ -3,6 +3,12 @@ import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { encodeMiroClipboard } from '@/modules/logic-tree/miro-codec'
+// 差し込みの静穏タイマー（TerminalTab.tsx）を実時間で待つテストがあるため、
+// waitFor の既定タイムアウト（testing-library 既定 1000ms）と数値の関係が
+// 暗黙に噛み合っている。定数を複製せずここから読む（重複させると
+// INSERTION_QUIET_MS を上げた人がこのファイルを見落とす——
+// TerminalTab.dom.test.tsx も同じ理由で同じ定数を import している）
+import { INSERTION_QUIET_MS } from '@/components/TerminalTab'
 
 /**
  * 額縁レベルの DOM テスト。**このファイルが守っているのは1点だけ**——
@@ -1142,7 +1148,11 @@ describe('Claude Code へファイルを渡す（M28）', () => {
     await screen.findByRole('textbox', { name: 'ファイルの名前' })
     fireEvent.click(screen.getByRole('button', { name: 'Claude Code ペインを開く' }))
 
-    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']))
+    // 静穏タイマー（INSERTION_QUIET_MS）が発火するまで待つ。waitFor の既定
+    // タイムアウト（1000ms）に収まる保証は無いので明示的に広げる
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']), {
+      timeout: INSERTION_QUIET_MS + 1000,
+    })
   })
 
   it('ファイルを選んでいなければ何も差し込まない', async () => {
@@ -1166,7 +1176,11 @@ describe('Claude Code へファイルを渡す（M28）', () => {
       await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
     )
 
-    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']))
+    // 静穏タイマー（INSERTION_QUIET_MS）が発火するまで待つ。waitFor の既定
+    // タイムアウト（1000ms）に収まる保証は無いので明示的に広げる
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']), {
+      timeout: INSERTION_QUIET_MS + 1000,
+    })
   })
 
   it('（#8 調査）@ ボタンがタブを起こす場合でも、2004 が invoke の解決より後（マイクロタスク越し）に届く順で差し込まれる', async () => {
@@ -1187,7 +1201,11 @@ describe('Claude Code へファイルを渡す（M28）', () => {
       await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
     )
 
-    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']))
+    // 静穏タイマー（INSERTION_QUIET_MS）が発火するまで待つ。waitFor の既定
+    // タイムアウト（1000ms）に収まる保証は無いので明示的に広げる
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']), {
+      timeout: INSERTION_QUIET_MS + 1000,
+    })
   })
 
   it('動いているタブがあれば、@ は新しいタブを作らずそのタブへ差し込む（会話中の差し込み）', async () => {
@@ -1206,7 +1224,11 @@ describe('Claude Code へファイルを渡す（M28）', () => {
       await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
     )
 
-    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']))
+    // 静穏タイマー（INSERTION_QUIET_MS）が発火するまで待つ。waitFor の既定
+    // タイムアウト（1000ms）に収まる保証は無いので明示的に広げる
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']), {
+      timeout: INSERTION_QUIET_MS + 1000,
+    })
     // 新しいタブは立たない。動いている Claude 1 へ差し込まれただけ
     expect(screen.queryByRole('button', { name: 'Claude 2' })).toBeNull()
   })
@@ -1236,6 +1258,10 @@ describe('Claude Code へファイルを渡す（M28）', () => {
 
     // 新しいタブ（Claude 2）が立って、そちらへ差し込まれる
     await screen.findByRole('button', { name: 'Claude 2' })
-    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']))
+    // 静穏タイマー（INSERTION_QUIET_MS）が発火するまで待つ。waitFor の既定
+    // タイムアウト（1000ms）に収まる保証は無いので明示的に広げる
+    await waitFor(() => expect(pasted).toEqual(['@用語集.json ']), {
+      timeout: INSERTION_QUIET_MS + 1000,
+    })
   })
 })
