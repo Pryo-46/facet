@@ -241,11 +241,32 @@ vi.mock('@/core/app-controller', async (orig) => {
 // **アロー関数ではなく function式にすること**——TerminalTab は `new Terminal(...)`
 // と `new FitAddon()` の形で呼ぶ。アロー関数は construct できないため、
 // `vi.fn(() => ({...}))` のまま `new` すると「is not a constructor」で落ちる
+// DECSET 2004（bracketed paste の有効化）。ESC[?2004h。実物の xterm は
+// これをパーサで解析して `modes.bracketedPasteMode` を立てる
+// （node_modules/@xterm/xterm/typings/xterm.d.ts の IModes）。ここは
+// xterm 自体をモックしているので、その解析を最小限だけ模す——このファイルは
+// 「どのタブへ差し込まれるか」という配線を見るテストで、TerminalTab 自身の
+// 判定ロジックは TerminalTab.dom.test.tsx が別途見る
+const BRACKETED_PASTE_ENABLE_BYTES = new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x30, 0x34, 0x68])
+const looksLikeBracketedPasteEnable = (data: Uint8Array): boolean =>
+  data.length === BRACKETED_PASTE_ENABLE_BYTES.length &&
+  data.every((byte, i) => byte === BRACKETED_PASTE_ENABLE_BYTES[i])
+
 vi.mock('@xterm/xterm', () => ({
   Terminal: vi.fn(function Terminal() {
+    const modes = { bracketedPasteMode: false }
     return {
       open: vi.fn(),
-      write: vi.fn(),
+      // 実物の write は非同期で、パーサが処理し終えてから callback を呼ぶ
+      // （typings: "fires when the data was processed by the parser"）。
+      // ここでは同期に呼びつつ、渡されたバイト列が DECSET 2004 なら
+      // 解析済みとして modes を立ててから呼ぶ
+      write: vi.fn((data: Uint8Array | string, callback?: () => void) => {
+        if (data instanceof Uint8Array && looksLikeBracketedPasteEnable(data)) {
+          modes.bracketedPasteMode = true
+        }
+        callback?.()
+      }),
       // 差し込みを額縁レベルで観測するための口（M28）。**タブごとに別の
       // オブジェクトが返るので、共有の配列へ積む**
       paste: vi.fn((text: string) => {
@@ -258,6 +279,7 @@ vi.mock('@xterm/xterm', () => ({
       loadAddon: vi.fn(),
       dispose: vi.fn(),
       attachCustomKeyEventHandler: vi.fn(),
+      modes,
       cols: 80,
       rows: 24,
     }

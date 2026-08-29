@@ -19,7 +19,11 @@ const term = {
   open: vi.fn((el: HTMLElement) => {
     hostEl = el
   }),
-  write: vi.fn(),
+  // 実物の write は非同期（typings: "fires when the data was processed by
+  // the parser"）だが、テストでは同期的に callback を呼べば十分——
+  // callback 経由で modes.bracketedPasteMode を読む TerminalTab 側の
+  // 待ち合わせを、非同期のタイミングを気にせず検証できる
+  write: vi.fn((_data: unknown, callback?: () => void) => callback?.()),
   paste: vi.fn(),
   hasSelection: vi.fn(() => false),
   getSelection: vi.fn(() => ''),
@@ -31,6 +35,11 @@ const term = {
   // xterm の `options` は書き換え可能で（typings/xterm.d.ts の
   // `options: ITerminalOptions`）、配色の差し替えはここへ代入する
   options: {} as Record<string, unknown>,
+  // xterm が解析済みの DEC private mode を公開する場所
+  // （typings/xterm.d.ts の `modes: IModes`）。テストから
+  // `term.modes.bracketedPasteMode` を直接切り替えて、2004 を
+  // 「見た」状態を模す
+  modes: { bracketedPasteMode: false },
   cols: 80,
   rows: 24,
 }
@@ -80,9 +89,21 @@ vi.stubGlobal('ResizeObserver', FakeResizeObserver)
 const { Terminal: TerminalMock } = await import('@xterm/xterm')
 const { TerminalTab } = await import('./TerminalTab')
 
-// DECSET 2004（bracketed paste の有効化）。ESC[?2004h。TerminalTab.tsx が
-// 起動時の差し込みを保留する条件そのもの（変更Aの本体）
-const BRACKETED_PASTE_BYTES = new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x30, 0x34, 0x68])
+// PTY からの出力バイト列。中身に意味は無い——bracketed paste が有効に
+// なったかどうかは `term.modes.bracketedPasteMode`（xterm が解析した結果）
+// で判定するので、ここでは「何かデータが来た」ことを表せれば十分
+const SOME_PTY_OUTPUT = new Uint8Array([0x61])
+
+/**
+ * `term.modes.bracketedPasteMode` を true にしてから PTY 出力を1回流す。
+ * TerminalTab は onData の callback（write が処理し終えた合図）の中で
+ * modes を読むので、モードを立てるだけでは足りず、出力を流して
+ * callback を発火させる必要がある
+ */
+function enableBracketedPasteAndEmit(pty: ReturnType<typeof fakePty>): void {
+  term.modes.bracketedPasteMode = true
+  pty.emit(SOME_PTY_OUTPUT)
+}
 
 function session(over: Partial<TerminalSession> = {}): TerminalSession {
   return { id: 1, label: 'Claude 1', ptyId: null, status: 'starting', message: null, initialText: null, ...over }
@@ -187,6 +208,7 @@ beforeEach(() => {
   term.cols = 80
   term.rows = 24
   term.options = {}
+  term.modes.bracketedPasteMode = false
   term.hasSelection.mockReturnValue(false)
   term.getSelection.mockReturnValue('')
   FakeResizeObserver.instances = []
@@ -211,7 +233,9 @@ describe('TerminalTab', () => {
     await waitFor(() => expect(pty.spawned).toHaveLength(1))
     const bytes = new Uint8Array([0xe3, 0x81, 0x82])
     pty.emit(bytes)
-    expect(term.write).toHaveBeenCalledWith(bytes)
+    // **第1引数（実際に書き込むバイト列）が変わっていないことが要**。
+    // callback を渡すようになっても、画面に出る中身は今までどおり
+    expect(term.write).toHaveBeenCalledWith(bytes, expect.any(Function))
   })
 
   it('子が終了したら exited を知らせる', async () => {
@@ -676,11 +700,17 @@ describe('TerminalTab', () => {
 
   describe('起動時の差し込み（M28 実機修正: bracketed paste が有効になってから流す）', () => {
     // 実機で分かったこと: xterm が貼り付けを ESC[200~ … ESC[201~ で囲むのは
-    // アプリが DECSET 2004（ESC[?2004h）を送った後だけ。spawn 解決直後は
-    // claude の TUI がまだ立ち上がっておらず、この条件を満たさない。
+    // アプリが DECSET 2004（bracketed paste mode）を送った後だけ。spawn 解決
+    // 直後は claude の TUI がまだ立ち上がっておらず、この条件を満たさない。
     // 囲まれない貼り付けは1文字ずつ打たれたのと同じに見え、@ のファイル
     // 検索ポップアップが末尾のスペースを候補の確定として食ってしまう
     // （bug: 起動時の差し込みだけ末尾のスペースが消える）。
+    //
+    // **判定は xterm のパーサ任せ**（term.modes.bracketedPasteMode）。
+    // 以前は PTY の生バイト列から ESC[?2004h を自前で探していたが、
+    // 実機では DEC private mode がアプリによって `CSI ? 1049 ; 2004 h` の
+    // ようにまとめて送られることがあり、リテラル一致では取り逃がして
+    // いた（起動時の差し込みが行われない不具合の原因）。
 
     afterEach(() => {
       // このブロックの1テストだけ偽タイマーを使う。**後始末を忘れると
@@ -689,50 +719,37 @@ describe('TerminalTab', () => {
       vi.useRealTimers()
     })
 
-    it('spawn が解決しただけでは差し込まれない', async () => {
+    it('bracketedPasteMode が false のまま PTY 出力が来ても差し込まれない', async () => {
       const pty = fakePty()
       renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
       await waitFor(() => expect(pty.spawned).toHaveLength(1))
+
+      pty.emit(SOME_PTY_OUTPUT)
+
       expect(term.paste).not.toHaveBeenCalled()
     })
 
-    it('ESC[?2004h を含むバイト列を流すと差し込まれる（1回だけ）', async () => {
+    it('bracketedPasteMode が true になった後に出力が来ると差し込まれる（1回だけ）', async () => {
       const pty = fakePty()
       renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
       await waitFor(() => expect(pty.spawned).toHaveLength(1))
 
-      pty.emit(BRACKETED_PASTE_BYTES)
+      enableBracketedPasteAndEmit(pty)
 
       await waitFor(() => expect(term.paste).toHaveBeenCalledWith('@docs/a.json '))
       expect(term.paste).toHaveBeenCalledTimes(1)
 
-      // 2004 が重ねて届いても、保留は最初の1回で使い切っている
-      pty.emit(BRACKETED_PASTE_BYTES)
+      // モードが立ったまま出力が重ねて届いても、保留は最初の1回で使い切っている
+      pty.emit(SOME_PTY_OUTPUT)
       expect(term.paste).toHaveBeenCalledTimes(1)
     })
 
-    it('シーケンスが2つのチャンクに割れていても差し込まれる（境界跨ぎの検出）', async () => {
-      const pty = fakePty()
-      renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
-      await waitFor(() => expect(pty.spawned).toHaveLength(1))
-
-      // ESC[?2004h を「ESC[?20」「04h」の2チャンクに分けて流す。前のチャンクの
-      // 末尾を覚えておかないと、どちらのチャンク単体にも完全な8バイトが
-      // 現れないため見落とす
-      pty.emit(BRACKETED_PASTE_BYTES.slice(0, 5))
-      expect(term.paste).not.toHaveBeenCalled()
-      pty.emit(BRACKETED_PASTE_BYTES.slice(5))
-
-      await waitFor(() => expect(term.paste).toHaveBeenCalledWith('@docs/a.json '))
-      expect(term.paste).toHaveBeenCalledTimes(1)
-    })
-
-    it('initialText が null なら 2004 が来ても差し込まれない', async () => {
+    it('initialText が null なら bracketedPasteMode が true になっても差し込まれない', async () => {
       const pty = fakePty()
       renderTab({ ptyIo: pty.io })
       await waitFor(() => expect(pty.spawned).toHaveLength(1))
 
-      pty.emit(BRACKETED_PASTE_BYTES)
+      enableBracketedPasteAndEmit(pty)
 
       expect(term.paste).not.toHaveBeenCalled()
     })
@@ -760,22 +777,22 @@ describe('TerminalTab', () => {
     // `term.paste()` が即座に呼ばれており、起動時の差し込みと同じ症状
     // （末尾のスペースが @ の補完に食われる）が再現していた
 
-    it('2004 より前に来た insertion は保留され、2004 が来てから paste される', async () => {
+    it('準備前に来た insertion は保留され、bracketedPasteMode が true になってから paste される', async () => {
       const pty = fakePty()
       const { rerender, props: base } = renderTab({ ptyIo: pty.io })
       await waitFor(() => expect(pty.spawned).toHaveLength(1))
 
-      // まだ 2004 を見ていない。ここでは paste されない
+      // まだ準備できていない。ここでは paste されない
       rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@a.json ' }} />)
       expect(term.paste).not.toHaveBeenCalled()
 
-      // 2004 が来たら、保留していた insertion がここで流れる
-      pty.emit(BRACKETED_PASTE_BYTES)
+      // 準備できたら、保留していた insertion がここで流れる
+      enableBracketedPasteAndEmit(pty)
       await waitFor(() => expect(term.paste).toHaveBeenCalledWith('@a.json '))
       expect(term.paste).toHaveBeenCalledTimes(1)
     })
 
-    it('initialText と、2004 前に来た insertion の両方があるとき、initialText → insertion の順で paste される', async () => {
+    it('initialText と、準備前に来た insertion の両方があるとき、initialText → insertion の順で paste される', async () => {
       const pty = fakePty()
       const { rerender, props: base } = renderTab({
         ptyIo: pty.io,
@@ -783,25 +800,25 @@ describe('TerminalTab', () => {
       })
       await waitFor(() => expect(pty.spawned).toHaveLength(1))
 
-      // まだ 2004 を見ていない。起動時の差し込み（先頭）に続けて
+      // まだ準備できていない。起動時の差し込み（先頭）に続けて
       // insertion（@ ボタン）が押される
       rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@b.json ' }} />)
       expect(term.paste).not.toHaveBeenCalled()
 
-      pty.emit(BRACKETED_PASTE_BYTES)
+      enableBracketedPasteAndEmit(pty)
 
       // **押された順**——initialText が列の先頭、insertion がその後ろ
       await waitFor(() => expect(term.paste).toHaveBeenCalledTimes(2))
       expect(term.paste.mock.calls).toEqual([['@docs/a.json '], ['@b.json ']])
     })
 
-    it('2004 の後に来た insertion は即座に paste される（従来どおり）', async () => {
+    it('準備できた後の insertion は即座に paste される（従来どおり）', async () => {
       const pty = fakePty()
       const { rerender, props: base } = renderTab({ ptyIo: pty.io })
       await waitFor(() => expect(pty.spawned).toHaveLength(1))
 
-      // 先に 2004 を見せておく。以降の insertion は保留を経由しない
-      pty.emit(BRACKETED_PASTE_BYTES)
+      // 先に準備を済ませておく。以降の insertion は保留を経由しない
+      enableBracketedPasteAndEmit(pty)
 
       rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@a.json ' }} />)
       expect(term.paste).toHaveBeenCalledTimes(1)
@@ -822,7 +839,7 @@ describe('TerminalTab', () => {
       await vi.advanceTimersByTimeAsync(0)
       expect(pty.spawned).toHaveLength(1)
 
-      // まだ 2004 を見ていない間に insertion が押される
+      // まだ準備できていない間に insertion が押される
       rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@b.json ' }} />)
       expect(term.paste).not.toHaveBeenCalled()
 
@@ -837,11 +854,11 @@ describe('TerminalTab', () => {
     const pty = fakePty()
     const { rerender, props: base } = renderTab({ ptyIo: pty.io })
     await waitFor(() => expect(pty.spawned).toHaveLength(1))
-    // **先に 2004 を見せておく。** このテストの主張は「seq の重複排除」で
-    // あって「2004 待ちのゲート」ではない（ゲートは下の describe が見る）。
+    // **先に準備を済ませておく。** このテストの主張は「seq の重複排除」で
+    // あって「2004 待ちのゲート」ではない（ゲートは上の describe が見る）。
     // 見せておかないと insertion effect が即座に paste せず保留へ積むだけに
     // なり、以降のアサーションが成り立たない
-    pty.emit(BRACKETED_PASTE_BYTES)
+    enableBracketedPasteAndEmit(pty)
 
     rerender(<TerminalTab {...base} insertion={{ seq: 1, text: '@a.json ' }} />)
     expect(term.paste).toHaveBeenCalledTimes(1)
@@ -866,10 +883,12 @@ describe('TerminalTab', () => {
     )
     await waitFor(() => expect(pty.issuedIds).toHaveLength(2))
 
-    // 両方に 2004 を流す。**捨てられた側は disposed で弾かれ、生き残った側
-    // だけが流す**——onRunning を取っていないのでどちらが生存側かは
-    // 区別できないが、両方へ流しても1回にしかならないことがその証拠になる
-    for (const id of pty.issuedIds) pty.emit(id, BRACKETED_PASTE_BYTES)
+    // 両方に出力を流す（bracketedPasteMode は先に true にしておく）。
+    // **捨てられた側は disposed で弾かれ、生き残った側だけが流す**——
+    // onRunning を取っていないのでどちらが生存側かは区別できないが、
+    // 両方へ流しても1回にしかならないことがその証拠になる
+    term.modes.bracketedPasteMode = true
+    for (const id of pty.issuedIds) pty.emit(id, SOME_PTY_OUTPUT)
 
     await waitFor(() => expect(term.paste).toHaveBeenCalledTimes(1))
     expect(term.paste).toHaveBeenCalledWith('@a.json ')

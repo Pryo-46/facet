@@ -54,48 +54,6 @@ const SHIFT_ENTER_SEQUENCE = `${String.fromCharCode(27)}\r`
 const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err))
 
 /**
- * DECSET 2004（bracketed paste の有効化）。ESC[?2004h（バイトで
- * 0x1b 0x5b 0x3f 0x32 0x30 0x30 0x34 0x68）。xterm が貼り付けを
- * ESC[200~ … ESC[201~ で囲むのは、アプリがこれを送った後だけ
- * （node_modules/@xterm/xterm/lib/xterm.js）。起動時の差し込みと、
- * まだこれを見ていない間に来た insertion（@ ボタン／ドロップ）は、
- * これが PTY の出力に現れるまで保留する（下の起動 effect と insertion effect）
- */
-const BRACKETED_PASTE_ENABLE = new Uint8Array([0x1b, 0x5b, 0x3f, 0x32, 0x30, 0x30, 0x34, 0x68])
-
-/** `needle` の長さ − 1 バイトだけ前置して境界跨ぎを拾うための、直前チャンク末尾の切り出し */
-const tailBytes = (
-  bytes: Uint8Array<ArrayBufferLike>,
-  length: number,
-): Uint8Array<ArrayBufferLike> => (bytes.length <= length ? bytes : bytes.slice(bytes.length - length))
-
-const concatBytes = (
-  a: Uint8Array<ArrayBufferLike>,
-  b: Uint8Array<ArrayBufferLike>,
-): Uint8Array<ArrayBufferLike> => {
-  const out = new Uint8Array(a.length + b.length)
-  out.set(a, 0)
-  out.set(b, a.length)
-  return out
-}
-
-/** `haystack` が `needle` を部分列として含むか（バイト列の単純な総当たり探索） */
-const containsSequence = (haystack: Uint8Array<ArrayBufferLike>, needle: Uint8Array<ArrayBufferLike>): boolean => {
-  if (needle.length === 0 || haystack.length < needle.length) return false
-  for (let i = 0; i <= haystack.length - needle.length; i++) {
-    let matched = true
-    for (let j = 0; j < needle.length; j++) {
-      if (haystack[i + j] !== needle[j]) {
-        matched = false
-        break
-      }
-    }
-    if (matched) return true
-  }
-  return false
-}
-
-/**
  * 端末の配色を**ダーク側の役割トークン固定**で作る（M28 実機確認）。
  * `palette.css` は `.dark` クラスでダーク値を再定義しており、カスタム
  * プロパティは継承するので、`.dark` を付けた要素からは、アプリがライトの
@@ -161,9 +119,10 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   /**
    * まだ差し込んでいない保留の列（M28）。**実機で末尾のスペースが消える
    * 不具合の修正**——spawn 解決直後は claude の TUI がまだ立ち上がっておらず、
-   * xterm が貼り付けを囲む条件（DECSET 2004）を満たさない。ここでは差し込まず、
-   * PTY の出力に ESC[?2004h が現れてから差し込む（起動 effect の onData）。
-   * 5秒たっても来なければ従来どおり差し込む（保留し続けるのが一番悪い）。
+   * xterm が貼り付けを囲む条件（DECSET 2004 = bracketed paste mode）を
+   * 満たさない。ここでは差し込まず、xterm が 2004 を解析し終えるまで
+   * 待ってから差し込む（下の起動 effect の onData）。5秒たっても来なければ
+   * 従来どおり差し込む（保留し続けるのが一番悪い）。
    *
    * **起動時の差し込み（`session.initialText`）だけでなく、まだ 2004 を
    * 見ていない間に押された `insertion`（@ ボタン／ドロップ）もここへ積む。**
@@ -174,9 +133,10 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   const pendingInsertionsRef = useRef<string[]>([])
 
   /**
-   * bracketed paste が使える状態になったか。ESC[?2004h を見た、または
-   * 5秒の上限に達したら true。**一度 true になったら戻らない**——それ以降の
-   * `insertion` は保留せず即座に `term.paste()` する（下の insertion effect）
+   * bracketed paste が使える状態になったか。xterm の `modes.bracketedPasteMode`
+   * が true になった、または5秒の上限に達したら true。**一度 true になったら
+   * 戻らない**——それ以降の `insertion` は保留せず即座に `term.paste()` する
+   * （下の insertion effect）
    */
   const bracketedPasteReadyRef = useRef(false)
 
@@ -207,9 +167,6 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     // effect が押された順で後ろへ積む
     pendingInsertionsRef.current = session.initialText === null ? [] : [session.initialText]
     bracketedPasteReadyRef.current = false
-    // 直前チャンクの末尾。ESC[?2004h はチャンクの境目で割れることがあるので、
-    // 次のチャンクの先頭に前置してから探す（境界を跨いだ発生を落とさない）
-    let insertionTail: Uint8Array<ArrayBufferLike> = new Uint8Array(0)
     let insertionTimer: ReturnType<typeof setTimeout> | null = null
 
     /**
@@ -323,24 +280,18 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         // PTY が出力を出しても、既に dispose 済みの Terminal へ書かない
         onData: (bytes) => {
           if (disposed) return
-          term.write(bytes)
-          // まだ 2004 を見ていない間だけ、bracketed paste が有効になった
-          // 合図（ESC[?2004h）を探す。**保留の列が空でも走らせる**——起動時の
-          // 差し込みが無いセッションでも、後から来る insertion（@ ボタン／
-          // ドロップ）のために「見たか」を早く確定させておきたい。
-          // 見つかったらここで保留をまとめて差し込む——**この検出こそが
-          // 「末尾のスペースが消える」不具合の直し方そのもの**
-          // （ファイル冒頭のコメント参照）
-          if (!bracketedPasteReadyRef.current) {
-            const combined = concatBytes(insertionTail, bytes)
-            if (containsSequence(combined, BRACKETED_PASTE_ENABLE)) {
-              flushPendingInsertion()
-            } else {
-              // 次のチャンクとの継ぎ目のために末尾を覚えておく
-              // （必要なのはシーケンスの長さ − 1 バイトぶんだけ）
-              insertionTail = tailBytes(combined, BRACKETED_PASTE_ENABLE.length - 1)
-            }
-          }
+          // **xterm のパーサに聞く。** 自前でバイト列を探さない——DEC private
+          // mode はアプリが `CSI ? 1049 ; 2004 h` のようにパラメータをまとめて
+          // 送ることがあり、`ESC[?2004h` のリテラル一致では取り逃がす
+          //（実機で起動時の差し込みが行われない不具合の原因）。
+          // **callback を使う。** write は非同期で、解析が済むまで modes は
+          // 更新されない（typings: "fires when the data was processed by the
+          // parser"）
+          term.write(bytes, () => {
+            if (disposed) return
+            if (bracketedPasteReadyRef.current) return
+            if (term.modes.bracketedPasteMode) flushPendingInsertion()
+          })
         },
         // **disposed で守る**——捨てられた側の PTY の終了イベントが遅れて
         // 届いても、生きている側のセッションを「終了済み」にしてはいけない
