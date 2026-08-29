@@ -15,6 +15,7 @@ import {
 import { altModifierLabel, currentPlatform } from '@/core/keyboard/platform'
 import { buildErrorMarks, cellFace, CELL_FACE_CLASS } from '@/core/list-editor/cell-face'
 import { cellId, useListRows } from '@/core/list-editor/use-list-rows'
+import { useVisibleIdsReport } from '@/core/list-editor/use-visible-ids'
 import { newId } from '@/core/new-id'
 import type { EditorProps } from '@/core/registry'
 import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
@@ -73,6 +74,7 @@ export function GlossaryEditor({
   onChange,
   issues,
   modalOpen,
+  onVisibleIds,
 }: EditorProps<GlossarySchemaVersion1>) {
   const [filter, setFilter] = useState<GlossaryFilter>(EMPTY_FILTER)
 
@@ -107,6 +109,13 @@ export function GlossaryEditor({
   // 導出表示中（検索・フィルタ適用中）は並び替えを止める（session-notes 論点4）
   const derivedView = isDerivedView(filter)
   const reorderEnabled = !derivedView
+
+  // 画面に出ている行を額縁へ知らせる（M29）。実装は共通フックが持つ
+  useVisibleIdsReport(
+    derivedView ? visible.map((i) => data.terms[i].id) : null,
+    data.terms.length,
+    onVisibleIds,
+  )
 
   /** 表示中の並びで n 番目の行の指定セルへフォーカスする */
   const focusVisible = (visiblePos: number, field: GlossaryField): boolean => {

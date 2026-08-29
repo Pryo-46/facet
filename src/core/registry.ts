@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import type { JsonSchema } from './canonical'
 import type { ConsistencyIssue } from './consistency'
+import type { TableExport, VisibleRows } from './table-export'
 
 export interface EditorProps<TData> {
   data: TData
@@ -18,6 +19,20 @@ export interface EditorProps<TData> {
    * 各エディタはこれを KeyContext.modalOpen へそのまま渡すだけでよい
    */
   modalOpen: boolean
+  /**
+   * 絞り込みの状態を額縁へ知らせる（M29）。**絞り込みが無い状態では `ids` に
+   * null を渡す**（額縁は全件として扱う）。`total` はファイル内の全行数で、
+   * トーストの「42 件中 3 件」に使う。
+   *
+   * **絞り込みを持たないエディタは呼ばなくてよい**（額縁は全件・件数不明として
+   * 扱い、トーストに件数を付けない）。
+   *
+   * **ID を渡すのが要点である。** この報告は `useEffect` を経由するので1フレーム
+   * 古くなりうる。index（添字）を渡すと、行を削除した直後の古い添字が別の行を
+   * 指し、間違った内容が黙って出る。ID なら、消えた ID は一致せず落ちるだけで、
+   * **間違った行の内容が出ることは原理的にない**
+   */
+  onVisibleIds?: (ids: VisibleRows, total: number) => void
 }
 
 /**
@@ -40,9 +55,14 @@ export interface OutputProfile<TData> {
   /**
    * NotePM 等へ貼る Markdown を返す。額縁がクリップボードへのコピーと
    * `.md` 書き出しの両方に使うので、**副作用を持たない純関数**であること
-   *（ファイルにもクリップボードにも触らない）
+   *（ファイルにもクリップボードにも触らない）。
+   *
+   * `visible` は画面に出ている行の ID 集合（M29）。**任意引数なので、
+   * 絞り込みを持たないツールの出力関数は1文字も変えなくてよい**——
+   * 受け取らなければ無視される。**額縁が先にデータを間引く形にはしない**
+   *（No が振り直されて画面と食い違う。`VisibleRows` の JSDoc を参照）
    */
-  toMarkdown: (data: TData) => string
+  toMarkdown: (data: TData, visible?: VisibleRows) => string
   /**
    * 整合性エラー（レベル2の赤）があるまま出力しようとしたとき、
    * **出力に何が起きるか**を述べる1文。額縁の確認ダイアログが本文の末尾に足す。
@@ -126,6 +146,11 @@ export interface ToolModule<TData = unknown> {
    * 額縁はこの有無だけを見てボタンの活性を決める（ツールを名指ししない）
    */
   clipboardExchanges?: readonly ClipboardExchange<TData>[]
+  /**
+   * 規約8（任意）: 表形式コピー（M29）。**持たないツールは書かない。**
+   * 額縁はこの有無だけを見てボタンの活性を決める（ツールを名指ししない）
+   */
+  tableExport?: TableExport<TData>
   /** プロジェクト内に同 type のファイルを1つしか許さないか（コア横断検証が使う） */
   singleton: boolean
   /** 規約6: マイグレータ（旧 schemaVersion → 現行版。初版は恒等） */

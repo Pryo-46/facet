@@ -9,6 +9,8 @@ import { encodeMiroClipboard } from '@/modules/logic-tree/miro-codec'
 // INSERTION_QUIET_MS を上げた人がこのファイルを見落とす——
 // TerminalTab.dom.test.tsx も同じ理由で同じ定数を import している）
 import { INSERTION_QUIET_MS } from '@/components/TerminalTab'
+import { tableCopyPrefs } from '@/core/table-copy-options'
+import { UNSUPPORTED_REASON } from '@/components/ToolbarButton'
 
 /**
  * 額縁レベルの DOM テスト。**このファイルが守っているのは1点だけ**——
@@ -71,6 +73,7 @@ const {
   clipboardHtmlConfig,
   pasted,
   ptyDataMode,
+  copyTextMock,
 } = vi.hoisted(() => {
   // `clipboardHtmlConfig` は下の `readClipboardHtmlMock` が参照するので、
   // オブジェクトリテラルの外（同じ関数スコープの変数）として先に作る——
@@ -122,6 +125,10 @@ const {
     // 通したいので、書き換えるテストだけが 'async' にしてマイクロタスク越しに
     // 届く実機寄りの順序（invoke が先に解決し、その後で 2004 が来る）を試す
     ptyDataMode: { value: 'sync' as 'sync' | 'async' },
+    // Markdown の平文コピー（`AppIo.copyText` → `copyToClipboard`）専用の spy（M29）。
+    // 絞り込みがコピーへ追従することを確かめるには、コピーされた文字列そのものを
+    // 見る必要があるので、他の spy と同じ理由でモック化する
+    copyTextMock: vi.fn(async (_text: string) => undefined),
   }
 })
 
@@ -156,7 +163,7 @@ vi.mock('@/fs/app-window', () => ({
   forceClose: async () => undefined,
 }))
 vi.mock('@/fs/clipboard', () => ({
-  copyToClipboard: async () => undefined,
+  copyToClipboard: copyTextMock,
   // Miro 等とのクリップボード交換（logic-tree M3、Task 9）。呼ばれたかどうかを
   // テストから見たいので spy 化する（`clipboardHtmlConfig` で返す HTML を制御する）
   copyHtmlToClipboard: copyHtmlToClipboardMock,
@@ -367,6 +374,7 @@ afterEach(() => {
   copyHtmlToClipboardMock.mockClear()
   readClipboardHtmlMock.mockClear()
   clipboardHtmlConfig.value = ''
+  copyTextMock.mockClear()
 })
 /**
  * **止めたままの同期を次のテストへ持ち越さない（レビュー指摘）。**
@@ -1008,9 +1016,11 @@ describe('額縁の版番号', () => {
  *
  * このリポジトリは jest-dom を入れていないので `toBeDisabled()` / `toBeEnabled()`
  * は使わない。活性の検証は「クリックしてハンドラ（`copyHtmlToClipboardMock` /
- * `readClipboardHtmlMock`）が呼ばれたかどうか」で行う——disabled な button は
- * jsdom でも click イベントを発火しないので、これで押せる／押せないの両方を
- * 確かめられる
+ * `readClipboardHtmlMock`）が呼ばれたかどうか」で行う。**`ToolbarButton` は
+ * disabled 属性を使わない**（M29 フォローアップ。`disabled` はポインタイベントを
+ * 丸ごと落とし、押せない理由を説明する `title` のツールチップを道連れに殺すため）
+ * ので、押せないときも click イベント自体は発火する——押せないことは
+ * `onClick` がガードされて中の処理まで届かないことで確かめる
  */
 describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
   const GLOSSARY_PATH = '/proj/用語集.json'
@@ -1063,9 +1073,19 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
     const copyButton = screen.getByRole('button', { name: 'Miro へコピー' })
     const importButton = screen.getByRole('button', { name: 'Miro から取り込む' })
 
+    // 押せないことを二重に確かめる: aria-disabled が立っていること（理由は
+    // title で読める）と、クリックしても実際のハンドラまで届かないこと
+    expect(copyButton.getAttribute('aria-disabled')).toBe('true')
+    expect(copyButton.getAttribute('title')).toBe(UNSUPPORTED_REASON)
+    // 定数（UNSUPPORTED_REASON）を経由するアサーションだけだと、定数の値そのものが
+    // 誤って変わっても緑のまま通ってしまう。実際に画面へ出る文言を最低1箇所は
+    // リテラルで固定する（レビュー指摘）
+    expect(copyButton.getAttribute('title')).toBe('このツールは対応していません')
     fireEvent.click(copyButton)
     expect(copyHtmlToClipboardMock).not.toHaveBeenCalled()
 
+    expect(importButton.getAttribute('aria-disabled')).toBe('true')
+    expect(importButton.getAttribute('title')).toBe(UNSUPPORTED_REASON)
     fireEvent.click(importButton)
     expect(readClipboardHtmlMock).not.toHaveBeenCalled()
   })
@@ -1094,9 +1114,10 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
     await waitFor(() => expect(readClipboardHtmlMock).toHaveBeenCalled())
 
     const importButton = screen.getByRole('button', { name: 'Miro から取り込む' })
-    // disabled 属性が外れるまで待つ（jest-dom は入れていないので直接 DOM を見る。
-    // toBeEnabled() の代わり）
-    await waitFor(() => expect(importButton.hasAttribute('disabled')).toBe(false))
+    // aria-disabled が外れるまで待つ（jest-dom は入れていないので直接 DOM を見る。
+    // toBeEnabled() の代わり。ToolbarButton は disabled 属性を持たないので
+    // `hasAttribute('disabled')` では判定できない——M29 フォローアップ）
+    await waitFor(() => expect(importButton.getAttribute('aria-disabled')).toBeNull())
 
     // 押せるようになったことを「押して実際に取り込みが始まる」ところまで確かめる
     // （state が変わっただけで配線が繋がっていない、を弾く）
@@ -1118,8 +1139,12 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
     // （まだ読み終わっていないだけ、を「押せないまま」と取り違えないため）
     await waitFor(() => expect(readClipboardHtmlMock).toHaveBeenCalled())
 
+    const importButton = screen.getByRole('button', { name: 'Miro から取り込む' })
+    expect(importButton.getAttribute('aria-disabled')).toBe('true')
+    expect(importButton.getAttribute('title')).toBe('クリップボードに Miro のデータがありません')
+
     const callsBefore = readClipboardHtmlMock.mock.calls.length
-    fireEvent.click(screen.getByRole('button', { name: 'Miro から取り込む' }))
+    fireEvent.click(importButton)
     // 押せていれば控えのために readClipboardHtml をもう一度呼ぶ（コントローラ側の
     // importFromExternal。src/core/app-controller.ts）。呼ばれていないので押せていない
     expect(readClipboardHtmlMock.mock.calls.length).toBe(callsBefore)
@@ -1263,5 +1288,199 @@ describe('Claude Code へファイルを渡す（M28）', () => {
     await waitFor(() => expect(pasted).toEqual(['@用語集.json ']), {
       timeout: INSERTION_QUIET_MS + 1000,
     })
+  })
+})
+
+describe('表形式でコピー（M29）', () => {
+  // モジュールスコープの可変状態はテスト間で漏れる（`table-copy-options.ts` の
+  // JSDoc）。ここで reset しないと、先に走ったテストが変えた設定（No 列オフ等）
+  // が後続のテストへ持ち越される
+  beforeEach(() => {
+    tableCopyPrefs.reset()
+  })
+
+  const GLOSSARY_PATH = '/proj/用語集.json'
+  const LOGIC_TREE_PATH = '/proj/木.json'
+
+  const putGlossary = () => {
+    disk.set(
+      GLOSSARY_PATH,
+      JSON.stringify({ schemaVersion: 1, type: 'glossary', title: '用語集', terms: [] }),
+    )
+  }
+  const putLogicTree = () => {
+    disk.set(
+      LOGIC_TREE_PATH,
+      JSON.stringify({
+        schemaVersion: 1,
+        type: 'logicTree',
+        title: '木',
+        nodes: [{ id: 'node_Aaaaaaaaa1', parentId: null, text: 'ルート' }],
+      }),
+    )
+  }
+  /**
+   * 絞り込みのテスト専用。`putGlossary()` は terms が空なので流用できない
+   * （既存のヘルパは他のテストが件数を前提にしているため変えない）。
+   * `受注`／`与信` は `modules/glossary/table.test.ts` の固定データと同じ
+   * 組み合わせ——「与信」で絞ると1件だけに当たることが保証されている
+   */
+  const putGlossaryWithTwoTerms = () => {
+    disk.set(
+      GLOSSARY_PATH,
+      JSON.stringify({
+        schemaVersion: 1,
+        type: 'glossary',
+        title: '用語集',
+        terms: [
+          {
+            id: 'term_aaaaaaaaaa',
+            name: '受注',
+            kind: 'event',
+            definition: '顧客からの注文を受け付けること',
+            aliases: ['受注登録', 'オーダー'],
+            notes: '',
+          },
+          {
+            id: 'term_bbbbbbbbbb',
+            name: '与信',
+            kind: 'undecided',
+            definition: '',
+            aliases: [],
+            notes: 'メモ',
+          },
+        ],
+      }),
+    )
+  }
+
+  it('ファイルを選んでいないとき、ボタンは出るが押せない', async () => {
+    render(<App />)
+    const button = screen.getByRole('button', { name: '表形式でコピー' })
+    // **押せないことそのものを確かめる。** `controller.copyTable()` がファイル
+    // 未選択で早期リターンするので、下のクリック結果だけを見る書き方だと
+    // 「押せない」を偽陽性で通してしまう。`ToolbarButton` は disabled 属性を
+    // 使わない（M29 フォローアップ）ので、DOM の disabled が false のままで
+    // あることと、aria-disabled が立っていることの両方を確かめる
+    expect(button).toHaveProperty('disabled', false)
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    expect(button.getAttribute('title')).toBe('ファイルを選んでください')
+    fireEvent.click(button)
+    expect(screen.queryByRole('heading', { name: '表形式でコピー' })).toBeNull()
+  })
+
+  it('表形式コピーを持たないツール（シーケンス）を開くと、理由が変わって押せないまま', async () => {
+    // ファイルは選べている（canExport は true）が、`tableExport` を宣言していない
+    // ツールなので理由は「対応していません」側に切り替わる（M29 フォローアップ）
+    disk.set(
+      '/proj/シーケンス.json',
+      JSON.stringify({ schemaVersion: 1, type: 'sequence', title: 'シーケンス', actors: [], steps: [] }),
+    )
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'シーケンス（シーケンス.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    const button = screen.getByRole('button', { name: '表形式でコピー' })
+    expect(button.getAttribute('aria-disabled')).toBe('true')
+    expect(button.getAttribute('title')).toBe(UNSUPPORTED_REASON)
+  })
+
+  it('用語集を開くと押せて、設定ダイアログが開く', async () => {
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    fireEvent.click(screen.getByRole('button', { name: '表形式でコピー' }))
+    expect(await screen.findByRole('checkbox', { name: 'No 列を付ける' })).toBeTruthy()
+    // 用語集は読み手が1本なので選択を出さない
+    expect(screen.queryByRole('group', { name: '読み手' })).toBeNull()
+  })
+
+  it('ロジックツリーでは階層番号の選択と親のくり返しが出る', async () => {
+    putLogicTree()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '木（木.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    fireEvent.click(screen.getByRole('button', { name: '表形式でコピー' }))
+    expect(await screen.findByRole('radio', { name: '階層番号（1_1_1）' })).toBeTruthy()
+    expect(screen.getByRole('checkbox', { name: '親の文言を毎行くり返す' })).toBeTruthy()
+  })
+
+  it('[コピー]でクリップボードへ HTML と TSV が載る', async () => {
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    fireEvent.click(screen.getByRole('button', { name: '表形式でコピー' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'コピー' }))
+
+    await waitFor(() => expect(copyHtmlToClipboardMock).toHaveBeenCalled())
+    const [html, tsv] = copyHtmlToClipboardMock.mock.calls.at(-1)!
+    expect(html).toContain('<th>名称</th>')
+    expect(tsv).toContain('名称\t種別')
+  })
+
+  it('[キャンセル]で閉じ、クリップボードに何も載らない', async () => {
+    putGlossary()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    fireEvent.click(screen.getByRole('button', { name: '表形式でコピー' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'キャンセル' }))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('checkbox', { name: 'No 列を付ける' })).toBeNull(),
+    )
+    expect(copyHtmlToClipboardMock).not.toHaveBeenCalled()
+  })
+
+  it('絞り込んでからコピーすると、絞り込み後の行だけが載り No は元のまま', async () => {
+    putGlossaryWithTwoTerms()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    // 2件目だけに当たる語で絞り込む
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '与信' } })
+    fireEvent.click(screen.getByRole('button', { name: '表形式でコピー' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'コピー' }))
+
+    await waitFor(() => expect(copyHtmlToClipboardMock).toHaveBeenCalled())
+    const [, tsv] = copyHtmlToClipboardMock.mock.calls.at(-1)!
+    expect(tsv).toContain('与信')
+    expect(tsv).not.toContain('受注')
+    // **No は振り直さない**（データ配列の位置のまま）
+    expect(tsv).toContain('2\t与信')
+  })
+
+  // 設計 §5: 表形式コピーだけでなく、Markdown のコピーも絞り込みに追従するように
+  // 変えた（書き出しは変えない）。表側は上のテストで額縁レベルまで通しで
+  // 確かめているが、Markdown 側はコントローラのテストにしか無いので、
+  // ここに1本足して額縁までの配線ごと固定する
+  it('Markdown をコピーすると絞り込みに追従する', async () => {
+    putGlossaryWithTwoTerms()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
+    await screen.findByRole('textbox', { name: 'ファイルの名前' })
+
+    // 2件目だけに当たる語で絞り込む（表形式コピーのテストと同じ固定データ）
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '与信' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Markdown をコピー' }))
+
+    await waitFor(() => expect(copyTextMock).toHaveBeenCalled())
+    const [md] = copyTextMock.mock.calls.at(-1)!
+    expect(md).toContain('与信')
+    expect(md).not.toContain('受注')
   })
 })

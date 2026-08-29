@@ -522,3 +522,42 @@ describe('GlossaryEditor: 列幅', () => {
     expect(glossaryColumnWidths.getSnapshot()[1]).toBe(widened)
   })
 })
+
+describe('GlossaryEditor: 表示中の行の報告（M29）', () => {
+  // twoTerms には「与信」で1件だけ当たる語が無いため、この観点専用に用意する
+  // （既存フィクスチャは他のテストの件数の前提になっているので変えない）
+  const data = glossary([
+    term({ id: 'term_aaaaaaaaaa', name: '受注' }),
+    term({ id: 'term_bbbbbbbbbb', name: '与信' }),
+  ])
+
+  it('絞り込みが無ければ ids に null と全件数を渡す', () => {
+    const onVisibleIds = vi.fn()
+    render(
+      <GlossaryEditor data={data} onChange={vi.fn()} issues={[]} modalOpen={false} onVisibleIds={onVisibleIds} />,
+    )
+    expect(onVisibleIds).toHaveBeenLastCalledWith(null, data.terms.length)
+  })
+
+  it('検索すると、表示中の ID 集合と全件数を渡す', () => {
+    const onVisibleIds = vi.fn()
+    render(
+      <GlossaryEditor data={data} onChange={vi.fn()} issues={[]} modalOpen={false} onVisibleIds={onVisibleIds} />,
+    )
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: '与信' } })
+    const [ids, total] = onVisibleIds.mock.calls.at(-1)!
+    expect(total).toBe(data.terms.length)
+    expect([...ids]).toEqual(['term_bbbbbbbbbb'])
+  })
+
+  it('絞り込んで0件になったら空集合を渡す（null に落とさない）', () => {
+    const onVisibleIds = vi.fn()
+    render(
+      <GlossaryEditor data={data} onChange={vi.fn()} issues={[]} modalOpen={false} onVisibleIds={onVisibleIds} />,
+    )
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'まったく一致しない語' } })
+    const [ids] = onVisibleIds.mock.calls.at(-1)!
+    expect(ids).not.toBeNull()
+    expect(ids.size).toBe(0)
+  })
+})
