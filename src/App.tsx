@@ -7,7 +7,7 @@ import { FileHeader } from '@/components/FileHeader'
 import { EDITOR_MIN_WIDTH, PANE_MIN_WIDTH, PaneSplitter } from '@/components/PaneSplitter'
 import { TableCopyDialog } from '@/components/TableCopyDialog'
 import { TerminalPane } from '@/components/TerminalPane'
-import { ToolbarButton } from '@/components/ToolbarButton'
+import { ToolbarButton, UNSUPPORTED_REASON } from '@/components/ToolbarButton'
 import { buttonBase } from '@/components/button-styles'
 import { FileList } from '@/components/FileList'
 import { IssueBanner } from '@/components/IssueBanner'
@@ -798,33 +798,38 @@ function App() {
   }, [exchange])
 
   /**
-   * 出力ボタン4本の「押せない理由」（M29 フォローアップ）。人間が実機を触って
-   * 「どのボタンが今のツールで使えるのか、なぜ押せないのかが分からない」と
-   * 指摘したことに端を発する。**ファイル未選択を先に見る**——それが利用者にとって
-   * 次に取れる、動ける一手だから（「このツールは対応していません」を先に見せても
-   * 何もできない）。**活性の判断にモジュールの `type` を使わない**のは元の規約の
-   * ままで、ここでも `tableExport` / `exchange` の宣言の有無だけで決める。
+   * 表形式でコピー・Miro 交換2本の「押せない理由」（M29 フォローアップ）。
+   * 人間が実機を触って「どのボタンが今のツールで使えるのか、なぜ押せないのかが
+   * 分からない」と指摘したことに端を発する。**ファイル未選択を先に見る**——
+   * それが利用者にとって次に取れる、動ける一手だから（`UNSUPPORTED_REASON` を
+   * 先に見せても何もできない）。**活性の判断にモジュールの `type` を使わない**のは
+   * 元の規約のままで、ここでも `tableExport` / `exchange` の宣言の有無だけで決める。
    * 文言はツールを名指ししない（「Miro」だけは、クリップボードの形式の名前として
-   * 元々の規約が名指しを許している）
+   * 元々の規約が名指しを許している）。
+   *
+   * **`ExportMenu`（Markdown をコピー／書き出す）の理由はここには無い。**
+   * `outputs` が空＝Markdown 出力を持たない、の判定は `outputs` を実際に持つ
+   * `ExportMenu.tsx` 側の仕事——ここで渡すのは「ファイルを選んでいるか」
+   * （`exportMenuUnusable`）だけで足りる
    */
   const NO_FILE_REASON = 'ファイルを選んでください'
   const exportMenuUnusable = !canExport ? NO_FILE_REASON : null
   const tableCopyUnusable = !canExport
     ? NO_FILE_REASON
     : selectedModule?.tableExport === undefined
-      ? 'このツールは表形式コピーに対応していません'
+      ? UNSUPPORTED_REASON
       : null
   const miroCopyUnusable = !canExport
     ? NO_FILE_REASON
     : exchange === undefined
-      ? 'このツールは外部ツールとの交換に対応していません'
+      ? UNSUPPORTED_REASON
       : null
   // **`canExport` を見ない。** 取り込みはファイルを選んでいなくても、ロジック
   // ツリーの新規作成前でも意味を持ちうる操作で、元から `canExport` に依存して
   // いなかった（既存の設計をそのまま保つ）
   const miroImportUnusable =
     exchange === undefined
-      ? 'このツールは外部ツールとの交換に対応していません'
+      ? UNSUPPORTED_REASON
       : !clipboardHasImport
         ? 'クリップボードに Miro のデータがありません'
         : null

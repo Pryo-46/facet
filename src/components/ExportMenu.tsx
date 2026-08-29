@@ -1,4 +1,4 @@
-import { ToolbarButton } from '@/components/ToolbarButton'
+import { ToolbarButton, UNSUPPORTED_REASON } from '@/components/ToolbarButton'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -30,7 +30,6 @@ export interface ExportMenuProps {
 
 const COPY_LABEL = 'Markdown をコピー'
 const EXPORT_LABEL = 'Markdown を書き出す'
-const NO_OUTPUT_REASON = 'このツールは Markdown 出力を持ちません'
 
 function ProfileMenu(props: {
   label: string
@@ -76,9 +75,11 @@ export function ExportMenu({ outputs, unusable, onCopy, onExport }: ExportMenuPr
   // Markdown 出力を持たない。ボタンは出したまま押せなくする（M8 までと同じ
   // 見た目を保ち、額縁のボタンが消えたり出たりしない）。**押せない理由は
   // ToolbarButton の title で読める**（M29 フォローアップ。以前は disabled 属性
-  // だけで、なぜ押せないかを説明する手段が無かった）
+  // だけで、なぜ押せないかを説明する手段が無かった）。「Markdown 出力を持たない」の
+  // 判定は `outputs` を持つこのコンポーネントだけができる——`App.tsx` はここへは
+  // 踏み込まず、`!canExport` の判定だけを `unusable` として渡す
   const only = outputs[0]
-  const reason = unusable ?? (only === undefined ? NO_OUTPUT_REASON : null)
+  const reason = unusable ?? (only === undefined ? UNSUPPORTED_REASON : null)
   return (
     <>
       <ToolbarButton unusable={reason} onClick={() => only !== undefined && onCopy(only)}>

@@ -11,6 +11,17 @@ export interface ToolbarButtonProps {
 }
 
 /**
+ * 「このツールは対応していません」——ツールが宣言していない出力・交換に
+ * 共通の理由（M29 フォローアップのレビュー指摘）。**ボタンの label が
+ * 「何を」に当たるので、理由の中で繰り返さない**（`表形式でコピー` ボタンに
+ * わざわざ「表形式コピーに対応していません」と言い直さない）。3箇所で
+ * 別々の文言だったものを1本化した——分かれていると、直すときに1箇所
+ * 直し忘れて文言が食い違う経路が残る。呼び出し側（`App.tsx` / `ExportMenu.tsx`）
+ * はこれを import して使うこと
+ */
+export const UNSUPPORTED_REASON = 'このツールは対応していません'
+
+/**
  * 額縁の出力ボタン（ExportMenu・表形式でコピー・Miro 交換）の共通の土台
  *（M29 フォローアップ。人間が実機を触って「どのボタンがいま使えるのか、
  * なぜ押せないのかが分からない」と指摘したことに端を発する）。
@@ -25,16 +36,34 @@ export interface ToolbarButtonProps {
  * 見た目は `text-ink-faint` / `border-rule-muted` で一段沈める。**`opacity` は
  * 使わない**——`src/styles/conventions.test.ts`「役割トークンに透過を掛けていない」
  * が言う「一段薄くしたければ ink-muted / ink-faint の段を使う」を、そのまま体現した形。
+ * **ダークモードは `dark:border-rule-muted` を別に持つ**——`variant="outline"` は
+ * `dark:border-input` を内蔵しており、`border-input` と `border-rule-muted` の
+ * ダーク値は別の変数（`--input` は `--rule` 相当、`--rule-muted` はそれより
+ * 明確に暗い。`src/styles/palette.css`）を指すため、暗いテーマでは `dark:` 側を
+ * 名指しで上書きしないと `border-rule-muted` を書いた意味が消える
+ *（レビュー指摘。M27 の暗い配色を回さずに気付けなかった）。
  *
- * ホバーで見た目が変わらないようにする。**`hover:*!`（important 修飾）を
- * 付けているのは、同じプロパティを取り合う2つの Tailwind ユーティリティの
- * どちらが勝つかは、クラス名を並べた順では決まらないため**（生成された CSS 側の
- * 登録順で決まり、ソースの記述順とは無関係）。`variant="outline"` が内蔵する
- * `hover:bg-muted hover:text-foreground` を確実に上書きするには、並び順に
- * 頼らない important 修飾が要る。
+ * ホバーで見た目が変わらないようにする。**important 修飾（`!`）は使わない。**
+ * `Button` は `cn()`（`src/lib/utils.ts` の `twMerge(clsx(...))`）でクラスを
+ * 合成しており、**同じ modifier（`hover:` / `dark:hover:`）× 同じ CSS プロパティの
+ * 組み合わせは、後に書いた方が前を消す**——`text-ink-faint` が `outline` 変種の
+ * `border-border` ではなく `border-rule-muted` の色で出るのも、まさにこの
+ * 重複排除のおかげ。ここでの `hover:bg-transparent` / `hover:text-ink-faint` /
+ * `dark:hover:bg-transparent` も同じ理屈で `hover:bg-muted` / `hover:text-foreground` /
+ * `dark:hover:bg-input/50` をクラス一覧から消し去るので、生成 CSS 側で
+ * 特異性を争う場面がそもそも生まれない。**`!` を付けると twMerge はそれを別グループ
+ * として重複排除の対象から外してしまい**、負けるはずの `hover:bg-muted` 等が
+ * 死んだクラスとして残ってしまう（レビュー指摘。実際に `tailwind-merge` を
+ * 通して確かめた）。**twMerge が見分けられないのは、bare のクラスと `dark:` 付き
+ * クラスの組み合わせだけ**——上の `dark:border-rule-muted` を別出しした理由と同じ
  *
  * フォーカスは殺さない——`aria-disabled` は `disabled` と違ってタブ移動の対象から
- * 外れない。キーボードで辿り着けて、スクリーンリーダーがラベルと状態を読み上げる
+ * 外れない。キーボードで辿り着けて、スクリーンリーダーがラベルと状態を読み上げる。
+ *
+ * **クリック時の「押した」演出（`active:not-aria-\[haspopup\]:translate-y-px`。
+ * `buttonVariants` 由来）も止める。** 何も起きないのに沈む演出は「押せた」という
+ * 嘘のアフォーダンスになる。同じ modifier 列（`active:not-aria-[haspopup]:`）に
+ * `translate-y-0` を重ねることで、上と同じ twMerge の重複排除に乗せて消している
  */
 export function ToolbarButton({ unusable, onClick, children }: ToolbarButtonProps) {
   if (unusable !== null) {
@@ -47,7 +76,7 @@ export function ToolbarButton({ unusable, onClick, children }: ToolbarButtonProp
         variant="outline"
         aria-disabled="true"
         title={unusable}
-        className="text-ink-faint border-rule-muted hover:bg-transparent! hover:text-ink-faint! dark:hover:bg-transparent!"
+        className="text-ink-faint border-rule-muted dark:border-rule-muted hover:bg-transparent hover:text-ink-faint dark:hover:bg-transparent active:not-aria-[haspopup]:translate-y-0"
         onClick={guard}
       >
         {children}

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { encodeMiroClipboard } from '@/modules/logic-tree/miro-codec'
 import { tableCopyPrefs } from '@/core/table-copy-options'
+import { UNSUPPORTED_REASON } from '@/components/ToolbarButton'
 
 /**
  * 額縁レベルの DOM テスト。**このファイルが守っているのは1点だけ**——
@@ -1001,12 +1002,12 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
     // 押せないことを二重に確かめる: aria-disabled が立っていること（理由は
     // title で読める）と、クリックしても実際のハンドラまで届かないこと
     expect(copyButton.getAttribute('aria-disabled')).toBe('true')
-    expect(copyButton.getAttribute('title')).toBe('このツールは外部ツールとの交換に対応していません')
+    expect(copyButton.getAttribute('title')).toBe(UNSUPPORTED_REASON)
     fireEvent.click(copyButton)
     expect(copyHtmlToClipboardMock).not.toHaveBeenCalled()
 
     expect(importButton.getAttribute('aria-disabled')).toBe('true')
-    expect(importButton.getAttribute('title')).toBe('このツールは外部ツールとの交換に対応していません')
+    expect(importButton.getAttribute('title')).toBe(UNSUPPORTED_REASON)
     fireEvent.click(importButton)
     expect(readClipboardHtmlMock).not.toHaveBeenCalled()
   })
@@ -1164,7 +1165,7 @@ describe('表形式でコピー（M29）', () => {
 
     const button = screen.getByRole('button', { name: '表形式でコピー' })
     expect(button.getAttribute('aria-disabled')).toBe('true')
-    expect(button.getAttribute('title')).toBe('このツールは表形式コピーに対応していません')
+    expect(button.getAttribute('title')).toBe(UNSUPPORTED_REASON)
   })
 
   it('用語集を開くと押せて、設定ダイアログが開く', async () => {

@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { OutputProfile } from '@/core/registry'
+import { UNSUPPORTED_REASON } from './ToolbarButton'
 import { ExportMenu } from './ExportMenu'
 
 afterEach(cleanup)
@@ -63,14 +64,14 @@ describe('ExportMenu: 出力できるファイルを選んでいないとき', (
     expect(button.getAttribute('aria-disabled')).toBe('true')
   })
 
-  it('unusable が null でも outputs が空なら「Markdown 出力を持たない」で押せない', () => {
+  it('unusable が null でも outputs が空なら UNSUPPORTED_REASON で押せない', () => {
     // ファイルは選んでいる（unusable: null）が、このツールは Markdown 出力を
     // 持たない場合。ExportMenu 自身が outputs の空を見て理由を差し替える
     const onCopy = vi.fn()
     render(<ExportMenu outputs={[]} unusable={null} onCopy={onCopy} onExport={vi.fn()} />)
     const button = screen.getByRole('button', { name: 'Markdown をコピー' })
     expect(button.getAttribute('aria-disabled')).toBe('true')
-    expect(button.getAttribute('title')).toBe('このツールは Markdown 出力を持ちません')
+    expect(button.getAttribute('title')).toBe(UNSUPPORTED_REASON)
     fireEvent.click(button)
     expect(onCopy).not.toHaveBeenCalled()
   })
