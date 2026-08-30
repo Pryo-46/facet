@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { Hypothesis, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import { checkIssueTreeConsistency } from './consistency'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
@@ -10,7 +10,7 @@ function make(over: Partial<IssueTreeSchemaVersion3>): IssueTreeSchemaVersion3 {
 }
 
 /** v3 の仮説。全キー常在（date を除き空を許す） */
-function hypothesis(id: string, issueId: string, title: string) {
+function hypothesis(id: string, issueId: string, title: string): Hypothesis {
   return { id, issueId, title, detail: '', value: '', asks: [], feedbacks: [], events: [] }
 }
 
