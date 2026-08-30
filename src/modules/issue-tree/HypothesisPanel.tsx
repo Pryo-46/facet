@@ -176,7 +176,19 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
   const addButtonClass = `${buttonBase} ${ACTION_HEIGHT_CLASS} gap-1 border border-rule bg-surface px-1.5 text-sm ${ink} hover:bg-canvas`
 
   return (
-    <>
+    /**
+     * **包みは位置を持たない**（`position: static`）ので、中の絶対配置は
+     * 箱を基準にしたまま。中身が全て絶対配置なので高さも 0 で、`IssueBox` の
+     * 行の包み（`IssueTreeEditor`）と同じ形である。
+     *
+     * **`data-panel` は「ここは課題を選ぶ場所ではない」の印**（m5 実機確認後）。
+     * `IssueBox` の `onBoxClick` がこの印を見て**素通し**にする——箱の地の
+     * クリックは選択を入り切りするので、印が無いと**開いたパネルの余白を
+     * 押した拍子に課題ごと畳まれる**（780px の箱ではパネルの地が広い）。
+     * **パネルが描かれるのは選択中のときだけ**なので、素通しにして失う経路は
+     * 無い（未選択のノードのパネルを押して選ぶ、という道はそもそも存在しない）
+     */
+    <div data-panel="hypothesis">
       {/* パネルは面だけを描き、中身は同じ座標系（箱の中）に置く。
           後に描かれる要素が上に乗る＝面が中身を覆うことはない */}
       <div
@@ -377,6 +389,6 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
           {ADD_NOTE_LABEL}
         </button>
       </div>
-    </>
+    </div>
   )
 }

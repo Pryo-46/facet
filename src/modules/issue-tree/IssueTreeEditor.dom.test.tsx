@@ -1860,6 +1860,39 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
   })
 
   /**
+   * **展開したパネルの地をクリックしても畳まれない。**
+   *
+   * 入り切りは箱の地で受けるが、**パネルの中は素通しにする**（`[data-panel]`）
+   *——開いた箱は 780px あり、パネルの余白は広い。押した拍子に課題ごと畳まれると、
+   * 詳細や価値仮説を読み書きしている最中に開いていたものが閉じる。
+   * **パネルが描かれるのは選択中のときだけ**なので、素通しにして失う経路は無い。
+   *
+   * **面（`aria-hidden` の地）と、節見出しの帯の文字の両方で見る**——前者だけだと
+   * 「面の要素だけ弾く」実装が、後者だけだと「文字の要素だけ弾く」実装が通る
+   */
+  it('展開したパネルの地をクリックしても選択は外れない', () => {
+    render(<Harness initial={file()} />)
+    clickIssueBox(3)
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+
+    // パネルの面（`HypothesisPanel` が最初に描く `aria-hidden` の地）
+    const ground = issueBox(3).querySelector('[data-panel]')?.firstElementChild
+    if (ground === null || ground === undefined) throw new Error('パネルの地が無い')
+    expect(ground.getAttribute('aria-hidden')).toBe('true')
+    fireEvent.click(ground)
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+    expect(screen.getByRole('textbox', { name: '仮説1' })).toBeTruthy()
+
+    // 節見出しの帯（ボタンでも欄でもない、パネルの中の文字）
+    fireEvent.click(screen.getByText(SECTION_LABELS.solution))
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+
+    // **箱の地では従来どおり外れる**（素通しがパネルの外まで広がっていないこと）
+    clickIssueBox(3)
+    expect(issueBox(3).style.width).toBe(`${BOX_WIDTH}px`)
+  })
+
+  /**
    * **タイトルの欄は選択を外さない。** 箱の地の上のクリックは入り切りするが、
    * 文章の欄の上のクリックは**選ぶだけ**である——外す側に倒すと、選択中の
    * 課題のタイトルへカーソルを置き直すたびに箱が畳まれ、**打つ場所そのものが

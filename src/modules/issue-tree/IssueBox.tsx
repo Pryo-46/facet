@@ -187,8 +187,15 @@ export function IssueBox(props: IssueBoxProps) {
    * 箱の中のクリックで選択する。**押された場所で3つに分かれる**:
    *
    * 1. **押すと何かが起きるもの**（`button` ＝ 旗のトグル・畳んだ仮説行・
-   *    パネルの中のボタン、判断のドロップダウンの `menuitem`、リンク）
-   *    → **選択を動かさない。** その操作自身が仕事を持っている
+   *    パネルの中のボタン、判断のドロップダウンの `menuitem`、リンク）と、
+   *    **展開パネルの中**（`[data-panel]`）→ **選択を動かさない。**
+   *    前者はその操作自身が仕事を持っているから、後者は**そこが課題を選ぶ
+   *    場所ではなく、仮説を読み書きする場所**だから。パネルを外さずに
+   *    入り切りを受けると、**開いた箱（780px）の広い余白を押した拍子に
+   *    課題ごと畳まれる**。**パネルが描かれるのは選択中のときだけ**なので、
+   *    素通しにして失う経路は無い（未選択のノードのパネルを押して選ぶ、
+   *    という道はそもそも存在しない）。外す手段は「箱の地をもう一度押す」
+   *    「別のノードを押す」の2つが残る
    * 2. **文章の欄**（`textarea` / `input` / `select`）→ **選ぶだけ。外さない。**
    *    ここを外す側に倒すと、**選択中の課題のタイトルへカーソルを置き直す
    *    たびに箱が畳まれる**——打つ場所そのものが目の前で動く
@@ -205,7 +212,7 @@ export function IssueBox(props: IssueBoxProps) {
    */
   const onBoxClick = (e: React.MouseEvent<HTMLDivElement>): void => {
     const target = e.target as HTMLElement
-    if (target.closest('button, a, [role="menuitem"], [role="menu"]') !== null) return
+    if (target.closest('button, a, [role="menuitem"], [role="menu"], [data-panel]') !== null) return
     props.onSelect(target.closest('textarea, input, select') === null)
   }
 
