@@ -467,6 +467,22 @@ describe('GlossaryEditor: No 列と行全体の指摘', () => {
   })
 })
 
+/**
+ * 無方向の `border-<色>` は border-color を4辺へ流す。列の境界の縦罫
+ * （colBorder）と同じ th に載ると、生成 CSS の後勝ちでヘッダー下罫の色まで
+ * 縦罫の色に変わり、縦罫を持たない No 列だけが濃いまま残る（実機で
+ * 「No の下だけ濃い」段差になった）。だから th の罫線の色は辺指定で書く
+ */
+describe('GlossaryEditor: ヘッダーの罫線', () => {
+  it('下罫の色を全列そろえる（No 列だけ濃くならない）', () => {
+    renderEditor(twoTerms)
+    for (const th of screen.getAllByRole('columnheader')) {
+      expect(th.className).toMatch(/(^|\s)border-b-rule(\s|$)/)
+      expect(th.className).not.toMatch(/(^|\s)border-rule(-muted)?(\s|$)/)
+    }
+  })
+})
+
 describe('GlossaryEditor: 列幅', () => {
   // モジュールスコープの store はテスト間で漏れる
   beforeEach(() => glossaryColumnWidths.reset())

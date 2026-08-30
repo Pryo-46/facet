@@ -45,8 +45,16 @@ const KIND_OPTIONS = glossarySchema.$defs.term.properties.kind.enum
 const cellInput =
   'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
 
-/** 列の境界の縦罫。先頭列（No）には引かない（M8 決定2） */
-const colBorder = 'border-l border-rule-muted'
+/**
+ * 列の境界の縦罫。先頭列（No）には引かない（M8 決定2）。
+ *
+ * **色は辺指定（border-l-*）で書く。** 無方向の `border-rule-muted` は
+ * border-color を4辺へ流すので、ヘッダーの `border-b` と同じ th に載ると
+ * 下罫の色まで薄くなる（生成 CSS で .border-rule-muted が .border-rule より
+ * 後に出るので後勝ちになる）。縦罫を持たない No 列だけが濃いまま残り、
+ * ヘッダー下の罫線が「No の下だけ濃い」段差に見えていた
+ */
+const colBorder = 'border-l border-l-rule-muted'
 
 const PLATFORM = currentPlatform()
 
@@ -306,7 +314,7 @@ export function GlossaryEditor({
                 return (
                   <th
                     key={col.field}
-                    className={`sticky top-0 z-10 relative border-b border-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
+                    className={`sticky top-0 z-10 relative border-b border-b-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
                   >
                     {label}
                     {/* No 列は導出（データ配列の index+1）なのでハンドルを出さない。
