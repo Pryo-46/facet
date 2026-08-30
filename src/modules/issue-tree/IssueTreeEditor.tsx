@@ -404,18 +404,21 @@ export function IssueTreeEditor({
    */
   const [lastCell, setLastCell] = useState<LastCell | null>(null)
 
-  // 詳細を出している**課題**の行鍵。**同時に1件だけ**
-  //（開くと箱が `BOX_WIDTH` → `EXPANDED_BOX_WIDTH` に
-  // 広がるので、複数開くと図が読めなくなる）。
+  // 選択中の**課題**の行鍵。**同時に1件だけ**（選ぶと箱が `BOX_WIDTH` →
+  // `EXPANDED_BOX_WIDTH` に広がるので、複数開くと図が読めなくなる）。
+  //
+  // **選択は箱のクリックで入り、もう一度クリックすると外れる**（m5 の実機確認後。
+  // それまではタイトルの左のシェブロンで開閉していた）。**フォーカスでは選択しない**
+  // ——`Tab` でキャンバスを歩くたびに次々と箱が開いて図が動く（設計ノート D8）。
   //
   // **開くのは課題ノードであって仮説1本ではない**（m5。M3〜m4 は仮説単位だった）
   // ——開いた課題にぶら下がる仮説はまとめてパネルを持つ。仮説どうしを見比べる
   // 場面で、開くたびに隣が畳まれると比較そのものができないため。
   //
   // **これはビュー状態であり、データには書かない**——座標と同じく、
-  // 「いまどれを開いていたか」をファイルへ持ち込まない（rev 3章）。
+  // 「いまどれを選んでいたか」をファイルへ持ち込まない（rev 3章）。
   // 配列位置ではなく鍵で持つのも `lastCell` と同じ理由
-  const [expandedIssueKey, setExpandedIssueKey] = useState<string | null>(null)
+  const [selectedIssueKey, setSelectedIssueKey] = useState<string | null>(null)
 
   const readFont = (): void => {
     setTitleFont((prev) => {
@@ -492,9 +495,9 @@ export function IssueTreeEditor({
       ? { cell: 'ask', index: at, askIndex: lastCell.askIndex }
       : { cell: 'hypothesis', index: at }
   })()
-  const expandedIssueIndex =
-    expandedIssueKey === null ? -1 : issueKeys.indexOf(expandedIssueKey)
-  const layout = layoutIssueTree(data, posed, fonts, expandedIssueIndex)
+  const selectedIssueIndex =
+    selectedIssueKey === null ? -1 : issueKeys.indexOf(selectedIssueKey)
+  const layout = layoutIssueTree(data, posed, fonts, selectedIssueIndex)
   /** 課題 ID → ぶら下がる仮説の添字（配列順）。行は箱の中に描く */
   const rowsOf = new Map<string, number[]>()
   data.hypotheses.forEach((h, i) => {
@@ -607,7 +610,7 @@ export function IssueTreeEditor({
     // 同じ `data-cell` を名乗るのでどちらでも当たる。
     // **開くのは課題**なので、`source`（＝差し替えた後のデータ）で持ち主を引く
     if (focus.cell !== 'issue' && focus.cell !== 'issueEvent') {
-      setExpandedIssueKey(ownerIssueKey(source, nextIssueKeys, focus.index))
+      setSelectedIssueKey(ownerIssueKey(source, nextIssueKeys, focus.index))
     }
     // 画面の外なら寄せるのは、予約を当てる effect の仕事（`ensureVisible`）
     setPendingFocus(cellKey(focus, nextIssueKeys, nextHypothesisKeys))
@@ -647,13 +650,19 @@ export function IssueTreeEditor({
   const expandRowFor = (hypothesisIndex: number): void => {
     const key = hypothesisKeys[hypothesisIndex]
     if (key === undefined) return
-    setExpandedIssueKey(ownerIssueKey(data, issueKeys, hypothesisIndex))
+    setSelectedIssueKey(ownerIssueKey(data, issueKeys, hypothesisIndex))
     setPendingFocus(hypothesisCellKey(key, { cell: 'hypothesis' }))
   }
 
-  /** 課題の開閉トグル。**同じ課題をもう一度押すと閉じる** */
-  const toggleIssueExpanded = (key: string): void => {
-    setExpandedIssueKey((prev) => (prev === key ? null : key))
+  /**
+   * 課題の選択。**同じ課題をもう一度クリックすると外れる**（＝畳まれる）。
+   * 撤去したシェブロンのトグルと同じ手触りを、箱そのもので受ける。
+   *
+   * **`toggle` が偽なら選ぶだけで外さない**——文章の欄の上のクリックが
+   * これで来る（`IssueBox` の `onBoxClick`）。打ちに来た人から選択を奪わない
+   */
+  const selectIssue = (key: string, toggle: boolean): void => {
+    setSelectedIssueKey((prev) => (prev === key && toggle ? null : key))
   }
 
   /** data-cell 鍵のセルへ移る。戻り値 true＝移った（＝キーを消費した） */
@@ -1006,10 +1015,10 @@ export function IssueTreeEditor({
                   onChange(setIssueEventNote(data, index, next), `${key}:event`)
                 }
                 onFieldKeyDown={(e, state) => onIssueKeyDown(e, index, state)}
-                // 展開は**課題ノード単位**（m5）。開いているか・開けるかは
-                // `placement` が運ぶので、ここでは押されたことだけを渡す
+                // 選択は**課題ノード単位**（m5 実機確認後）。選ばれているか・
+                // 開いているかは `placement` が運ぶので、ここでは押されたことだけを渡す
                 //（`IssuePlacement.expanded` ＝「開いているか」の唯一の出所）
-                onToggleExpand={() => toggleIssueExpanded(key)}
+                onSelect={(toggle) => selectIssue(key, toggle)}
                 // 末尾の「＋ 仮説を追加」（m5 Task 7。キャンバスの `.addhypo`）。
                 // **帯のボタンとは別経路**——あちらは「最後に触った課題」に足すが、
                 // これは**この課題**に足す（`index` を直に渡している）。

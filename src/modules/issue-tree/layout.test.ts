@@ -11,8 +11,6 @@ import {
   BADGE_HEIGHT,
   BADGE_PADDING_X,
   BOX_WIDTH,
-  CHEVRON_GAP,
-  CHEVRON_SIZE,
   EXPANDED_BOX_WIDTH,
   FB_DELETE_WIDTH,
   ISSUE_INSET_X,
@@ -41,12 +39,13 @@ const fonts: IssueTreeFonts = {
 }
 
 /**
- * **第4引数は「展開している課題の添字」**（issue-tree m5 Task 2 で仮説の添字から
- * 変わった）。展開の単位が課題ノードになったので、開いた課題にぶら下がる仮説は
- * まとめてパネルを持つ
+ * **第4引数は「選択している課題の添字」**（issue-tree m5 Task 2 で仮説の添字から
+ * 課題の添字になり、実機確認後に「展開」から「選択」へ意味が変わった）。
+ * 選択された課題は、仮説を1本以上持っていれば開く——0本なら開かないまま
+ * 末尾の「＋ 仮説を追加」だけを持つ
  */
-function run(data: IssueTreeSchemaVersion3, expandedIssueIndex = -1) {
-  return layoutIssueTree(data, poseQuestions(data), fonts, expandedIssueIndex)
+function run(data: IssueTreeSchemaVersion3, selectedIssueIndex = -1) {
+  return layoutIssueTree(data, poseQuestions(data), fonts, selectedIssueIndex)
 }
 
 function make(over: Partial<IssueTreeSchemaVersion3>): IssueTreeSchemaVersion3 {
@@ -276,9 +275,7 @@ describe('layoutIssueTree', () => {
     /** 描く側（`IssueBox` の `gap-2` の flex）と同じ組み立て */
     const triggersW =
       badgeW(ISSUE_EVENT_LABELS.deferred) + BADGE_GAP + badgeW(ISSUE_EVENT_LABELS.resolved)
-    expect(box.title.width).toBe(
-      BOX_WIDTH - ISSUE_INSET_X * 2 - (CHEVRON_SIZE + CHEVRON_GAP) - BADGE_GAP - triggersW,
-    )
+    expect(box.title.width).toBe(BOX_WIDTH - ISSUE_INSET_X * 2 - BADGE_GAP - triggersW)
     // タイトルは箱からはみ出さない（枠を広げすぎていないことは上の8字テストが見る）
     expect(box.title.x + box.title.width).toBeLessThanOrEqual(box.rect.x + box.rect.width)
   })
@@ -295,16 +292,18 @@ describe('layoutIssueTree', () => {
    *
    * `EXPANDED_BOX_WIDTH`（780）は動かしていない——伸ばしたのは畳んだ箱だけ
    */
-  it('畳んだ箱の幅は 360 で、タイトルはそのぶん広い 204px を取る', () => {
+  it('畳んだ箱の幅は 360 で、タイトルはそのぶん広い 224px を取る', () => {
     expect(BOX_WIDTH).toBe(360)
     expect(EXPANDED_BOX_WIDTH).toBe(780)
     const data = make({ issues: [root, child] })
     const out = run(data)
     for (const [i, box] of out.issues.entries()) {
       expect(box!.rect.width, `課題${i + 1}の箱`).toBe(360)
-      // 320 のままなら 164。**「十分広い」ではなく実寸で見る**——枠の側を
-      // 詰めて誤魔化した実装と、箱を伸ばした実装を区別するため
-      expect(box!.title.width, `課題${i + 1}のタイトル`).toBe(204)
+      // 320 のままなら 144。**「十分広い」ではなく実寸で見る**——枠の側を
+      // 詰めて誤魔化した実装と、箱を伸ばした実装を区別するため。
+      // **m5 の実機確認後に 204 → 224 へ広がった**——開閉トグル（シェブロン）を
+      // 撤去して、タイトルの左に空けていた 20px が消えたぶん
+      expect(box!.title.width, `課題${i + 1}のタイトル`).toBe(224)
     }
   })
 
@@ -607,14 +606,6 @@ describe('layoutIssueTree', () => {
     expect(open.title.height % fonts.expandedTitle.lineHeight).toBe(0)
     // **畳んだときの行高では割り切れない**＝切り替えを落とすとここが赤くなる
     expect(open.title.height % fonts.title.lineHeight).not.toBe(0)
-
-    // シェブロンはタイトルの**1行目**に対して縦中央。開いた箱の行高で割る
-    expect(open.chevron.y - open.rect.y - ISSUE_INSET_Y).toBe(
-      Math.floor((fonts.expandedTitle.lineHeight - CHEVRON_SIZE) / 2),
-    )
-    expect(folded.chevron.y - folded.rect.y - ISSUE_INSET_Y).toBe(
-      Math.floor((fonts.title.lineHeight - CHEVRON_SIZE) / 2),
-    )
   })
 
   /**
@@ -785,57 +776,58 @@ describe('layoutIssueTree', () => {
     expect(out.issues[1]!.rect.width).toBe(EXPANDED_BOX_WIDTH)
   })
 
-  it('課題のタイトルは開閉トグルのぶんだけ右へ寄り、その場所は開いても閉じても空く', () => {
-    // **仮説を持たない課題でも空ける**——空けないと、同じ列の中でタイトルの
-    // 左端が箱ごとにずれる（`IssueBox` は仮説を持たない箱でトグルを
-    // `invisible` にするだけで、場所は残す）
+  /**
+   * **タイトルは内容の左端から始まる**（m5 の実機確認後。それまでは開閉トグル
+   *（シェブロン）のぶん 20px 右へ寄っていた）。トグルを撤去したのだから、
+   * 空けていた場所も一緒に消えていること——**片方だけ残ると、誰も使わない
+   * 20px がタイトルを痩せさせたまま画面に残る**（`measure.ts` から
+   * `CHEVRON_*` が消えたので、式で書くこともできない）
+   */
+  it('課題のタイトルは箱の内容の左端から始まる（列の中で揃う）', () => {
     const data = make({ issues: [root, child], hypotheses: [h(1)] })
     const folded = run(data)
-    const chevronBox = folded.issues[0]!
-    expect(chevronBox.chevron.width).toBe(CHEVRON_SIZE)
-    expect(chevronBox.chevron.height).toBe(CHEVRON_SIZE)
-    expect(chevronBox.chevron.x + CHEVRON_SIZE + CHEVRON_GAP).toBe(chevronBox.title.x)
-    // **縦はタイトルの1行目に対する中央。** 行全体の中央にすると、タイトルが
-    // 折り返したときシェブロンだけが下がる（行頭の点をバッジに揃えたのと同じ理屈）
-    expect(chevronBox.chevron.y).toBe(
-      chevronBox.title.y + Math.floor((fonts.title.lineHeight - CHEVRON_SIZE) / 2),
-    )
-    expect(chevronBox.title.x).toBe(chevronBox.rect.x + ISSUE_INSET_X + CHEVRON_SIZE + CHEVRON_GAP)
-    // 仮説を持たない箱でも同じ場所（列の中で左端が揃う）
+    const box = folded.issues[0]!
+    expect(box.title.x).toBe(box.rect.x + ISSUE_INSET_X)
+    // 仮説を持つ箱と持たない箱で同じ場所（列の中で左端が揃う）
     const leaf = folded.issues[1]!
-    expect(leaf.title.x - leaf.rect.x).toBe(chevronBox.title.x - chevronBox.rect.x)
+    expect(leaf.title.x - leaf.rect.x).toBe(box.title.x - box.rect.x)
+    // 開いても左端は動かない
+    const open = run(data, 0).issues[0]!
+    expect(open.title.x).toBe(open.rect.x + ISSUE_INSET_X)
     // タイトルは箱からはみ出さない
-    expect(chevronBox.title.x + chevronBox.title.width).toBeLessThanOrEqual(
-      chevronBox.rect.x + chevronBox.rect.width,
-    )
-  })
-
-  /**
-   * **タイトルが折り返してもシェブロンは1行目に留まる**（上のテストと対。
-   * こちらは複数行のタイトルで見る——1行だけだと「行全体の中央」の実装でも
-   * 同じ座標に落ちて弁別できない）
-   */
-  it('タイトルが折り返しても、シェブロンは1行目の高さに留まる', () => {
-    const short = run(make({ issues: [{ ...root, text: '短い' }] })).issues[0]!
-    const long = run(make({ issues: [{ ...root, text: 'あ'.repeat(60) }] })).issues[0]!
-    expect(long.title.height).toBeGreaterThan(short.title.height)
-    expect(long.chevron.y - long.rect.y).toBe(short.chevron.y - short.rect.y)
+    expect(box.title.x + box.title.width).toBeLessThanOrEqual(box.rect.x + box.rect.width)
   })
 
   /**
    * **開くものが無ければ開かない。** 展開中の課題から最後の仮説を消したとき、
    * 行が1本も無い 780 幅の箱が残らないようにする番人（m4 からの退行だった
-   * ——鍵が仮説を指していた頃は、消えれば自動的に畳まれていた）
+   * ——鍵が仮説を指していた頃は、消えれば自動的に畳まれていた）。
+   *
+   * **選択そのものは残る**（m5 実機確認後）——選ばれた印（`selected`）と
+   * 末尾の「＋ 仮説を追加」は出る。**幅とボタンの両方を見る**——幅だけだと
+   * 「ボタンごと出さない」実装（仮説を足す道がその課題から消える）が通り、
+   * ボタンだけだと 780 に広がった箱が通る
    */
-  it('仮説を1本も持たない課題は、展開の添字が自分を指していても開かない', () => {
+  it('仮説を1本も持たない課題は、選ばれても開かない（幅は畳んだまま／ボタンは出る）', () => {
     const data = make({ issues: [root, child] })
     const out = run(data, 0)
-    expect(out.issues[0]!.expandable).toBe(false)
+    expect(out.issues[0]!.selected).toBe(true)
     expect(out.issues[0]!.expanded).toBe(false)
     expect(out.issues[0]!.rect.width).toBe(BOX_WIDTH)
+    // **ボタンは出る**——足す道が箱から消えないこと
+    const add = out.issues[0]!.addHypothesis
+    expect(add).not.toBeNull()
+    expect(add!.height).toBe(ACTION_HEIGHT)
+    // **箱の下端にちょうど収まる**（高さの式へ足し忘れると、はみ出したまま描かれる）
+    expect(add!.y + add!.height + ISSUE_INSET_Y).toBe(
+      out.issues[0]!.rect.y + out.issues[0]!.rect.height,
+    )
+    // 選ばれていない隣の箱にはボタンが無い
+    expect(out.issues[1]!.selected).toBe(false)
+    expect(out.issues[1]!.addHypothesis).toBeNull()
     // 1本でもぶら下がれば開ける
     const withRow = run(make({ issues: [root, child], hypotheses: [h(1)] }), 0)
-    expect(withRow.issues[0]!.expandable).toBe(true)
+    expect(withRow.issues[0]!.selected).toBe(true)
     expect(withRow.issues[0]!.expanded).toBe(true)
     expect(withRow.issues[1]!.expanded).toBe(false)
   })

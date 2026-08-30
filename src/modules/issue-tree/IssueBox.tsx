@@ -1,4 +1,3 @@
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/Badge'
 import { CellInput, type FieldState } from '@/components/CellInput'
 import type { Rect } from '@/core/canvas/viewport'
@@ -6,7 +5,6 @@ import { badgeVariantOf } from './badge-variant'
 import { ISSUE_EVENT_LABELS, QUESTION_LABELS, type IssueEventKind } from './derive'
 import type { IssuePlacement } from './layout'
 import {
-  CHEVRON_SIZE_CLASS,
   EXPANDED_TITLE_FONT_CLASS,
   ISSUE_BORDER,
   ISSUE_BOX_CLASS,
@@ -45,22 +43,28 @@ export interface IssueBoxProps {
    */
   eventToggle: React.ReactNode
   /**
-   * 開閉トグル。**必須にしてある**（`eventToggle` と同じ理由——押す場所を型で守る）。
+   * この課題を選ぶ（＝箱の中がクリックされた）。**必須にしてある**
+   *（`eventToggle` と同じ理由——押す場所を型で守る）。
    *
-   * **開いているか／開けるかは props で受け取らない**——`placement.expanded` /
-   * `placement.expandable` を見る。エディタの持つ鍵とレイアウトの決めた事実で
-   * 情報源が2つに割れると、「シェブロンは下向きなのに何も開いていない」が
+   * 引数 `toggle` は「**選択中の課題をもう一度押したとき、外すかどうか**」。
+   * 箱の地の上のクリックは `true`（もう一度押すと畳まれる）、文章の欄
+   *（`textarea` など）の上のクリックは `false`（**選ぶだけで外さない**）。
+   * 打ちに来た人から選択を奪わないための区別で、理由は `onBoxClick` にある。
+   *
+   * **選ばれているか／開いているかは props で受け取らない**——`placement.selected`
+   * / `placement.expanded` を見る。エディタの持つ鍵とレイアウトの決めた事実で
+   * 情報源が2つに割れると、「枠は選択の色なのに何も開いていない」が
    * 作れてしまう（`IssuePlacement.expanded` の解説）
    */
-  onToggleExpand: () => void
+  onSelect: (toggle: boolean) => void
   /**
-   * 展開した課題ノードの末尾に置く「＋ 仮説を追加」。**必須にしてある**
-   *（`eventToggle` / `onToggleExpand` と同じ理由——押す場所を型で守る）。
+   * 選択された課題ノードの末尾に置く「＋ 仮説を追加」。**必須にしてある**
+   *（`eventToggle` / `onSelect` と同じ理由——押す場所を型で守る）。
    * 仮説を足す動線はキーから消えた（m5）ので、これが抜けると
    * **その課題に仮説を足す道が箱から消える**。
    *
-   * **場所を決めるのはレイアウト**（`placement.addHypothesis`）で、畳んで
-   * いれば矩形が `null` になり、ここは描かれない
+   * **場所を決めるのはレイアウト**（`placement.addHypothesis`）で、選ばれて
+   * いなければ矩形が `null` になり、ここは描かれない
    */
   addHypothesis: React.ReactNode
   /** 仮説行（`HypothesisRow` の列）。箱の中に絶対配置で置かれる */
@@ -101,11 +105,13 @@ export interface IssueBoxProps {
  *    `ink-faint` に落ちる（下の `face` の分岐で `suppressed` が上にある）。
  *    枠はどちらも `border-rule`（`rule` は両方の面の上で 3:1 を満たす。
  *    理由は `face` 計算のコメントを見よ）
- * 4. **タイトルの左に開閉トグル（シェブロン）がある**（m5）。展開の単位は
- *    課題ノードで、開くと箱が `BOX_WIDTH` → `EXPANDED_BOX_WIDTH` に広がり、
- *    その課題の仮説がまとめてパネルを持つ。**仮説を持たない課題では場所を
- *    空けたまま隠す**（`invisible`）——`display: none` にすると同じ列の中で
- *    タイトルの左端が揃わない
+ * 4. **箱そのものがクリックの受け口である**（m5 の実機確認後。それまでは
+ *    タイトルの左に開閉トグル＝シェブロンがあった）。押すとその課題が
+ *    **選択**され、仮説を1本以上持っていれば箱が `BOX_WIDTH` →
+ *    `EXPANDED_BOX_WIDTH` に広がってその課題の仮説がまとめてパネルを持つ。
+ *    **選択中は枠が `border-ink` に変わる**（`FileList` の選択と同じ語彙）。
+ *    **操作子の上のクリックは選択に効かない**——タイトルの `textarea` を
+ *    押すたびに選択が入り切りしたら、文字を打つ場所が開いたり閉じたりする
  * 5. 旗のトグルを置く枠がある。**押されているかどうかはデータの導出**
  *    ——`events` が空でなければ入り。ビュー側に開閉の状態を持たない
  *（判断のドロップダウンだけが、開閉の状態を親＝エディタに持たせている）
@@ -115,7 +121,9 @@ export function IssueBox(props: IssueBoxProps) {
   const rect = placement.rect
 
   // **面と枠のクラスは片方だけ出す。** 生成 CSS の順序に頼らず、条件分岐で
-  // 排他にする（M8）。
+  // 排他にする（M8）。**枠は下の `border` が別に選ぶ**——選択（m5 実機確認後）が
+  // 枠だけを取るので、面と枠を1本の式に束ねたままだと選択の枝で面まで
+  // 書き換えることになる。ここは面と文字色だけを決める。
   //
   // **優先順位は 整合性エラー ＞ 抑制 ＞ 旗 ＞ 通常。** `placement.event`
   // は layout.ts が「このノード自身が旗（見送り／解決）を掲げているか」だけで組む
@@ -140,14 +148,66 @@ export function IssueBox(props: IssueBoxProps) {
   // `FACE_REQUIREMENTS` が課している）。
   // 無効は赤い枠＋淡い面（`invalid-face`。rev 9章 規約2）
   const face = props.invalid
-    ? 'border-invalid bg-invalid-face text-ink'
+    ? 'bg-invalid-face text-ink'
     : props.suppressed
-      ? 'border-ink-faint bg-surface-muted text-ink-faint'
+      ? 'bg-surface-muted text-ink-faint'
       : placement.event !== null
         ? props.eventKind === 'resolved'
-          ? 'border-rule bg-judge-yes-face text-ink'
-          : 'border-rule bg-surface-muted text-ink'
-        : 'border-rule bg-surface text-ink'
+          ? 'bg-judge-yes-face text-ink'
+          : 'bg-surface-muted text-ink'
+        : 'bg-surface text-ink'
+
+  /**
+   * **選択は枠で示す。面には触らない。**（m5 の実機確認後）
+   *
+   * 面は旗が使っている（見送り＝`surface-muted`／解決＝`judge-yes-face`）ので、
+   * 選択まで面で示すと**旗と選択が同じ道具を奪い合う**——解決の課題を選んだ
+   * 瞬間に緑が消える、あるいは選択が見えない、のどちらかになる。枠なら両立する。
+   *
+   * 語彙は `FileList.tsx`（選択中＝`border-ink bg-canvas`／非選択＝
+   * `border-transparent`）に倣い、**枠の側だけ**借りた（面は上のとおり旗のもの）。
+   * 新しい役割トークンは作らない。
+   *
+   * **太さは変えない**（`ISSUE_BORDER` ＝ 1px のまま）——枠の太さは
+   * `measure.ts` の定数と対で、太くすると測る側も直さなければ中身の位置が
+   * 1px ずつずれる。色だけで示せるものに幾何を動かさない。
+   *
+   * **面と枠のクラスは片方だけ出す**（上の `face` と同じ M8 の約束）ので、
+   * ここは1本の三項で枠を1つだけ選ぶ
+   */
+  const border = placement.selected
+    ? 'border-ink'
+    : props.invalid
+      ? 'border-invalid'
+      : props.suppressed
+        ? 'border-ink-faint'
+        : 'border-rule'
+
+  /**
+   * 箱の中のクリックで選択する。**押された場所で3つに分かれる**:
+   *
+   * 1. **押すと何かが起きるもの**（`button` ＝ 旗のトグル・畳んだ仮説行・
+   *    パネルの中のボタン、判断のドロップダウンの `menuitem`、リンク）
+   *    → **選択を動かさない。** その操作自身が仕事を持っている
+   * 2. **文章の欄**（`textarea` / `input` / `select`）→ **選ぶだけ。外さない。**
+   *    ここを外す側に倒すと、**選択中の課題のタイトルへカーソルを置き直す
+   *    たびに箱が畳まれる**——打つ場所そのものが目の前で動く
+   * 3. それ以外（箱の地）→ **入り切りする。** もう一度押すと畳まれる
+   *    （撤去したシェブロンの手触りを、箱そのもので受ける）
+   *
+   * **判断のドロップダウンは Radix のポータルで body へ出るが、React の
+   * 合成イベントは React の木を遡る**ので、ここまで届く。1 で弾かないと、
+   * 種別を選んだ瞬間にその課題が畳まれてパネルごと消える（実際に踏んだ）。
+   *
+   * **フォーカスでは選択しない**（`onFocus` を持たせない）——`Tab` で
+   * キャンバスを歩くたびに次々と箱が開いて図が動く。m5 が同じ理由で
+   * 仮説行の `onFocus` による自動展開を外している（設計ノート D8）
+   */
+  const onBoxClick = (e: React.MouseEvent<HTMLDivElement>): void => {
+    const target = e.target as HTMLElement
+    if (target.closest('button, a, [role="menuitem"], [role="menu"]') !== null) return
+    props.onSelect(target.closest('textarea, input, select') === null)
+  }
 
   // 未記入と立っている問いは名前の後半に付ける。**前半（`課題{N}`）は動かさない**
   // ——エディタのテストが前方一致で引く
@@ -172,34 +232,10 @@ export function IssueBox(props: IssueBoxProps) {
       // ノードのレイヤは pointer-events-none で操作を通す。操作を受けるのは
       // この矩形だけ——レイヤ全面が受けると、下にある空状態のボタンや
       // 背景（パン）に触れなくなる
-      className={`group/issue pointer-events-auto absolute rounded-sm ${ISSUE_BOX_CLASS} ${face}`}
+      className={`group/issue pointer-events-auto absolute rounded-sm ${ISSUE_BOX_CLASS} ${border} ${face}`}
       style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
+      onClick={onBoxClick}
     >
-      {/* 開閉トグル（m5）。**展開の単位は課題ノード**なので、押すと
-          その課題にぶら下がる仮説がまとめて開く。
-          **レイアウトが場所を空けている**（`placement.chevron`）ので、
-          仮説を持たない箱でも `invisible` で隠すだけにしてタイトルの
-          左端を列の中で揃える。アイコンは lucide の SVG（絵文字は使わない）、
-          寸法は `CHEVRON_SIZE` と対の `CHEVRON_SIZE_CLASS` */}
-      <button
-        type="button"
-        className={`pointer-events-auto absolute inline-flex items-center justify-center rounded-sm text-ink-muted outline-none transition-colors hover:text-ink focus:ring-2 focus:ring-inset focus:ring-ring${
-          placement.expandable ? '' : ' invisible'
-        }`}
-        style={inBox(placement.chevron)}
-        // **アクセシブル名の前半（`課題{N}`）は動かさない**——テストが前方一致で引く。
-        // 開いているかは `aria-expanded` が運ぶ（名前と二重に述べない）
-        aria-label={`${label}の詳細`}
-        aria-expanded={placement.expanded}
-        onClick={props.onToggleExpand}
-      >
-        {placement.expanded ? (
-          <ChevronDown aria-hidden className={CHEVRON_SIZE_CLASS} />
-        ) : (
-          <ChevronRight aria-hidden className={CHEVRON_SIZE_CLASS} />
-        )}
-      </button>
-
       <div className="absolute" style={inBox(placement.title)}>
         <CellInput
           multiline
@@ -291,7 +327,8 @@ export function IssueBox(props: IssueBoxProps) {
       {/* 末尾の「＋ 仮説を追加」（m5 Task 7。キャンバスの `.addhypo`）。
           **帯は幅いっぱいで、ボタンは左寄せ**（`align-self: flex-start` に
           あたる）——レイアウトはボタンの幅を測っておらず、左端だけを
-          パネルと揃えている。**開いているときだけ矩形がある** */}
+          パネルと揃えている。**選ばれているときだけ矩形がある**——仮説が
+          0本で開かない課題でも、選べばここだけは出る（`layout.ts`） */}
       {placement.addHypothesis !== null && (
         <div
           className="absolute flex items-center"

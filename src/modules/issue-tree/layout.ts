@@ -25,8 +25,6 @@ import {
   BADGE_PADDING_X,
   BOX_CONTENT_WIDTH,
   BOX_WIDTH,
-  CHEVRON_GAP,
-  CHEVRON_SIZE,
   EXPANDED_BOX_WIDTH,
   FB_COL_GAP,
   FB_DELETE_WIDTH,
@@ -87,35 +85,35 @@ export interface IssuePlacement {
   /** 箱の外枠（世界座標）。エッジはここから引く */
   rect: Rect
   /**
-   * この課題が開いているか。**「開いているか」の唯一の出所はここである**
-   *——描く側（`IssueBox` の `aria-expanded`）とパネルの有無
-   *（`HypothesisPlacement.expanded`）が別々の情報源を見ると、片方だけが
-   * 「開いている」と言う状態が作れてしまう（シェブロンは下向きなのに
-   * 何も開かない、など）。**エディタの `expandedIssueKey` を直接見ないこと。**
+   * この課題が**選択されているか**（m5 実機確認後）。選択は箱をクリックして
+   * 入り、もう一度クリックすると外れる。**同時に1件だけ。**
    *
-   * 仮説を1本も持たない課題は、鍵が自分を指していても**開かない**（下の
-   * `expandable` を見よ）
+   * 運ぶのは2つ:
+   *
+   * - 枠の色（`IssueBox` が `border-ink` に切り替える。`FileList` の選択と同じ語彙）
+   * - **末尾の「＋ 仮説を追加」を出すこと**（`addHypothesis` が非 null になる）
+   *
+   * **`expanded` とは別である**——仮説を1本も持たない課題は、選択されても
+   * 開かない（箱は `BOX_WIDTH` のまま）。ボタンだけが出る。中身がボタン1つ
+   * しかない 780 幅の箱を作らないための分けであって、情報源が分かれた
+   * わけではない（どちらも下の `selectedIssueIndex` から出る）
+   */
+  selected: boolean
+  /**
+   * この課題が開いているか＝**選択されていて、かつ仮説を1本以上持つか**。
+   * **「開いているか」の唯一の出所はここである**——描く側（`IssueBox` の
+   * タイトルの書体・箱の幅）とパネルの有無（`HypothesisPlacement.expanded`）が
+   * 別々の情報源を見ると、片方だけが「開いている」と言う状態が作れてしまう。
+   * **エディタの `selectedIssueKey` を直接見ないこと。**
+   *
+   * **仮説を1本も持たない課題は、鍵が自分を指していても開かない。**
+   * m4 まで展開の鍵は仮説を指していたので、仮説が消えれば鍵が宙に浮いて
+   * 自動的に畳まれた。鍵が課題を指す m5 では消えても鍵が残るため、**行が
+   * 1本も無い 780 幅の箱**が残る。ビュー状態の側で消しに行くのではなく、
+   * **レイアウトが「開かない」と決める**ことで塞いでいる
    */
   expanded: boolean
-  /**
-   * 開けるか＝**仮説を1本以上持つか**。開くものが無い課題は開かない。
-   *
-   * **これが無いと m4 からの退行が起きる。** m4 まで展開の鍵は仮説を指していた
-   * ので、仮説が消えれば鍵が宙に浮いて自動的に畳まれた。鍵が課題を指す m5 では
-   * 消えても鍵が残るため、**行が1本も無い 780 幅の箱**が残り、トグルは
-   * 隠れている（押せない）ので二度と畳めない。ビュー状態の側で消しに行くのでは
-   * なく、**レイアウトが「開かない」と決める**ことで塞ぐ
-   */
-  expandable: boolean
-  /**
-   * 開閉トグル（シェブロン）の正方形。タイトルの左に `CHEVRON_GAP` 空けて座る。
-   *
-   * **仮説を持たない課題でも矩形は出る。** 出さないと `IssueBox` が
-   * 「場所を空けたまま隠す」を実現できず、同じ列の中でタイトルの左端が
-   * 箱ごとにずれる（描く側は `invisible` にするだけで場所は残す）
-   */
-  chevron: Rect
-  /** タイトルの入力欄（箱の中。トグルのぶん左が、バッジがあればその幅だけ右が空く） */
+  /** タイトルの入力欄（箱の中。バッジがあればその幅だけ右が空く） */
   title: Rect
   /**
    * 最新の旗（見送り／解決）。バッジはタイトル行の右端、理由はその下の1行
@@ -124,8 +122,14 @@ export interface IssuePlacement {
    */
   event: { badge: Rect; reason: Rect } | null
   /**
-   * 展開した課題ノードの**末尾**に置く「＋ 仮説を追加」の帯（m5 Task 7）。
-   * 開いていなければ null。
+   * 選択された課題ノードの**末尾**に置く「＋ 仮説を追加」の帯（m5 Task 7）。
+   * 選択されていなければ null。
+   *
+   * **`expanded` ではなく `selected` で出る**（m5 実機確認後）——仮説を
+   * 1本も持たない課題は開かない（箱は `BOX_WIDTH` のまま）が、**足す道が
+   * どこにも無くなってはいけない**。畳んだ幅のままボタンだけを出す。
+   * 帯の「仮説を追加」は「最後に触った課題」に足す別経路なので、
+   * これが無いと「この課題に足す」動線が箱から消える
    *
    * **高さ（`ACTION_HEIGHT`）は箱の高さに入っている。** 入れ忘れるとボタンが
    * 箱の下端からはみ出すが、絶対配置なので画面は黙ってはみ出したまま描く
@@ -469,18 +473,23 @@ interface RowPlan {
  * 最大幅で列の x を決めるので、`Size.width` に 780 を渡せば右の列がそのぶん
  * 送られる。**`tree-layout.ts` は触らない。**
  *
- * `expandedIssueIndex` は**ビュー状態であり `data` には無い**——座標と同じく、
- * 「いまどれを開いているか」をファイルに書かない（rev 3章）。
+ * **開く鍵は「選択中の課題」である**（m5 の実機確認後）。箱をクリックすると
+ * その課題が選択され、選択されていて仮説を1本以上持つ課題が開く。
+ * **選択されていても仮説が0本なら開かない**——箱は `BOX_WIDTH` のままで、
+ * 末尾の「＋ 仮説を追加」だけが出る（`IssuePlacement.selected` の解説）。
+ *
+ * `selectedIssueIndex` は**ビュー状態であり `data` には無い**——座標と同じく、
+ * 「いまどれを選んでいるか」をファイルに書かない（rev 3章）。
  *
  * **ここに「前回どこにあったか」の状態を混ぜないこと**——同じデータと同じ
- * 展開状態から違う図が出るようになった時点で「図は導出」が崩れる
+ * 選択状態から違う図が出るようになった時点で「図は導出」が崩れる
  */
 export function layoutIssueTree(
   data: IssueTreeSchemaVersion3,
   posed: PosedQuestions,
   fonts: IssueTreeFonts,
-  /** 展開している**課題**の添字。無ければ -1 */
-  expandedIssueIndex: number,
+  /** 選択している**課題**の添字。無ければ -1 */
+  selectedIssueIndex: number,
 ): IssueTreeLayout {
   /**
    * 課題 ID → 添字。仮説の行が「持ち主の課題が開いているか」を引くのに要る
@@ -492,7 +501,7 @@ export function layoutIssueTree(
     // `core/canvas/flat-tree-core.ts` の `firstIndexById`）。ID 重複のファイルは
     // 受け入れて赤表示する仕様（`consistency.ts` の `duplicate-id`）なので、
     // ここは到達可能な入力である。**後勝ちにすると木の側（先勝ち）とずれ**、
-    // 先頭側のトグルを押しても行が開かず箱だけが 780 に広がる
+    // 先頭側の箱を選んでも行が開かず箱だけが 780 に広がる
     if (!issueIndexOf.has(node.id)) issueIndexOf.set(node.id, i)
   })
   /** 展開している課題の中身が使える幅（箱が広がったぶんだけ広い） */
@@ -505,7 +514,7 @@ export function layoutIssueTree(
     // **開いているかは持ち主の課題で決まる。** ぶら下がり先が図に無い仮説
     //（参照切れ）はどの課題の子にもならないので、開くこともない
     const owner = issueIndexOf.get(h.issueId)
-    const open = owner !== undefined && owner === expandedIssueIndex
+    const open = owner !== undefined && owner === selectedIssueIndex
     /**
      * この行が使える幅。**開いた課題の中では箱が広がっているので、行も
      * パネルも広い方の幅で測る**——`BOX_CONTENT_WIDTH` のまま測ると、
@@ -897,21 +906,15 @@ export function layoutIssueTree(
   // --- 2. 課題の箱を測る ---
   const built = buildTree(data.issues)
   interface BoxPlan {
-    /** 開いているか（＝鍵が自分を指していて、かつ仮説を1本以上持つ） */
+    /** 開いているか（＝選ばれていて、かつ仮説を1本以上持つ） */
     open: boolean
-    /** 開けるか（仮説を1本以上持つ）。描く側はトグルの出し分けにこれを見る */
-    expandable: boolean
+    /** 選ばれているか。枠の色と、末尾の「＋ 仮説を追加」の有無をこれが決める */
+    selected: boolean
     width: number
     /** 箱の中の文章が使える幅（`width - ISSUE_INSET_X * 2`）。展開すると広がる */
     contentWidth: number
     titleWidth: number
     titleHeight: number
-    /**
-     * タイトルの行高。**開いた課題は `EXPANDED_TITLE_FONT_CLASS`（16px）で
-     * 描かれる**ので、シェブロンを1行目の中央に置く計算もその行高で行う
-     *——14px の行高で割ると、開いた瞬間にシェブロンだけが上にずれる
-     */
-    titleLineHeight: number
     /** 見送りバッジ（無ければ 0）。タイトルの右に空ける幅は `BADGE_GAP + これ` */
     badgeWidth: number
     reasonHeight: number | null
@@ -934,15 +937,17 @@ export function layoutIssueTree(
   )
   const boxes: BoxPlan[] = data.issues.map((node, i) => {
     const rows = rowsOf.get(node.id) ?? []
-    // **開くものが無ければ開かない。** 鍵が自分を指していても仮説が0本なら
-    // 畳んだまま——展開中の課題から最後の仮説を消したときに、行の無い 780 幅の
-    // 箱が残らないようにする（`IssuePlacement.expandable` の解説）
-    const expandable = rows.length > 0
+    const selected = i === selectedIssueIndex
+    // **開くものが無ければ開かない。** 選ばれていても仮説が0本なら畳んだまま
+    // ——展開中の課題から最後の仮説を消したときに、行の無い 780 幅の箱が
+    // 残らないようにする（`IssuePlacement.expanded` の解説）。**選択そのものは
+    // 残る**ので、末尾の「＋ 仮説を追加」は畳んだ幅のまま出る。
+    //
     // **行の側と同じ判定を通す。** 仮説行は `issueIndexOf`（先勝ち）で持ち主を
     // 引くので、ID が重複しているとき開けるのは**先に現れた方だけ**である。
     // ここで後ろ側も開けてしまうと、`BOX_WIDTH` 前提で測った行を `EXPANDED_BOX_WIDTH` の箱に置くこと
     // （またはその逆）になり、行とパネルが箱からはみ出す
-    const open = i === expandedIssueIndex && expandable && issueIndexOf.get(node.id) === i
+    const open = selected && rows.length > 0 && issueIndexOf.get(node.id) === i
     const latestFlag = node.events[node.events.length - 1]
     const flagged = latestFlag !== undefined
     // 「仮説なし」と旗は**排他**（旗を掲げた課題は抑制されるので問いが立たない）。
@@ -996,14 +1001,12 @@ export function layoutIssueTree(
     const width = open ? EXPANDED_BOX_WIDTH : BOX_WIDTH
     const contentWidth = width - ISSUE_INSET_X * 2
     /**
-     * **タイトルの左には開閉トグルのぶんを必ず空ける。** 仮説を持たない課題でも
-     * 空けるのは、同じ列の中でタイトルの左端を揃えるため（`IssueBox` は
-     * トグルを `invisible` にするだけで場所は残す）。右上の枠を常に1枠空けて
-     * いるのと同じ判断で、理由も同じ——出たり消えたりする要素で文章の幅が
-     * 動くと、列のスキャン性（UI ノート D3 rev.3）が落ちる
+     * **タイトルは内容の左端から始まる。** m5 はここに開閉トグル（シェブロン）の
+     * ぶん（`CHEVRON_SIZE + CHEVRON_GAP` ＝ 20px）を空けていたが、**実機確認後に
+     * トグルごと撤去した**（開閉は箱のクリックによる選択に変わった）ので、
+     * その空きも消えている。タイトルはそのぶん広い
      */
-    const titleInset = CHEVRON_SIZE + CHEVRON_GAP
-    const titleWidth = contentWidth - titleInset - reserve
+    const titleWidth = contentWidth - reserve
 
     /**
      * **展開中の課題タイトルは一段大きい**（`EXPANDED_TITLE_FONT_CLASS` ＝
@@ -1024,22 +1027,25 @@ export function layoutIssueTree(
       for (const hi of rows) height += plans[hi].height
     }
     /**
-     * **開いた課題ノードの末尾には「＋ 仮説を追加」が座る**（m5 Task 7。仮説を
+     * **選ばれた課題ノードの末尾には「＋ 仮説を追加」が座る**（m5 Task 7。仮説を
      * 足す動線はキーから消えたのでマウスにしかない）。**その高さを箱に足すこと**
      *——足し忘れるとボタンが箱の下端からはみ出すが、絶対配置なので画面は
-     * 黙ってはみ出したまま描く。空きは行どうしと同じ `ROW_GAP`（ボタンは
-     * 最後の行に続く。開いている箱は必ず行を1本以上持つ＝`open` は
-     * `expandable` を含む）
+     * 黙ってはみ出したまま描く。
+     *
+     * **空きは、行があれば行どうしと同じ `ROW_GAP`（ボタンは最後の行に続く）、
+     * 行が無ければ `TITLE_GAP`**（タイトル——または旗の理由——の直後に続く。
+     * 行が始まるときに空ける空きと同じ）。仮説0本の課題は開かないが、
+     * ボタンだけは出る（`IssuePlacement.addHypothesis` の解説）ので、
+     * **ここは `open` ではなく `selected` で足す**
      */
-    if (open) height += ROW_GAP + ACTION_HEIGHT
+    if (selected) height += (rows.length > 0 ? ROW_GAP : TITLE_GAP) + ACTION_HEIGHT
     return {
       open,
-      expandable,
+      selected,
       width,
       contentWidth,
       titleWidth,
       titleHeight,
-      titleLineHeight: titleFont.lineHeight,
       badgeWidth: badgeW,
       reasonHeight,
       height,
@@ -1067,17 +1073,9 @@ export function layoutIssueTree(
       const box = boxes[i]
       const left = point.x + ISSUE_INSET_X
       let cursor = point.y + ISSUE_INSET_Y
-      // 開閉トグルはタイトルの1行目に対して縦中央。**行の中央ではない**
-      //（タイトルが折り返すと、中央ではシェブロンだけが下がる。仮説行の
-      // 行頭の点をバッジに揃えているのと同じ理屈）
-      const chevron: Rect = {
-        x: left,
-        y: cursor + Math.floor((box.titleLineHeight - CHEVRON_SIZE) / 2),
-        width: CHEVRON_SIZE,
-        height: CHEVRON_SIZE,
-      }
+      // タイトルは内容の左端から始まる（m5 実機確認後にシェブロンを撤去した）
       const title: Rect = {
-        x: left + CHEVRON_SIZE + CHEVRON_GAP,
+        x: left,
         y: cursor,
         width: box.titleWidth,
         height: box.titleHeight,
@@ -1109,20 +1107,21 @@ export function layoutIssueTree(
         cursor += plans[hi].height
       })
       // 末尾の「＋ 仮説を追加」。**左端はパネルと揃える**（`PANEL_INDENT`）。
-      // 帯は残りの幅いっぱいで、ボタン自身の幅は測らない（描く側が左寄せで置く）
-      const addHypothesis: Rect | null = box.open
+      // 帯は残りの幅いっぱいで、ボタン自身の幅は測らない（描く側が左寄せで置く）。
+      // **空きは高さを積んだときと同じ式**（行があれば `ROW_GAP`、無ければ
+      // `TITLE_GAP`）——片方だけ直すとボタンが箱からはみ出す
+      const addHypothesis: Rect | null = box.selected
         ? {
             x: left + PANEL_INDENT,
-            y: cursor + ROW_GAP,
+            y: cursor + (box.rows.length > 0 ? ROW_GAP : TITLE_GAP),
             width: box.contentWidth - PANEL_INDENT,
             height: ACTION_HEIGHT,
           }
         : null
       issues[i] = {
         rect: { x: point.x, y: point.y, width: box.width, height: box.height },
+        selected: box.selected,
         expanded: box.open,
-        expandable: box.expandable,
-        chevron,
         title,
         event,
         addHypothesis,

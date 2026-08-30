@@ -98,6 +98,25 @@ const issueCell = (n: number): HTMLTextAreaElement =>
   }) as HTMLTextAreaElement
 
 /**
+ * 課題の箱そのもの（クリックの受け口）。箱に `data-cell` は無いので
+ * **タイトルの欄からたどる**。
+ *
+ * **箱を押すとその課題が選択される**（m5 の実機確認後。それまでは
+ * タイトルの左のシェブロンを押していた）——選択中は仮説のパネルが開き、
+ * もう一度押すと外れる
+ */
+const issueBox = (n: number): HTMLElement => {
+  const box = issueCell(n).closest('[class*="pointer-events-auto"]')
+  if (box === null) throw new Error(`課題${n}の箱が無い`)
+  return box as HTMLElement
+}
+
+/** 課題の箱をクリックする（＝選ぶ／選択中ならば外す） */
+const clickIssueBox = (n: number): void => {
+  fireEvent.click(issueBox(n))
+}
+
+/**
  * 仮説の文言の欄。**畳まれた行に textbox は無い**（M3 の文法）——行はボタンで、
  * 押す（＝フォーカスが入る）と展開して textarea になる。
  * 既に開いていればそのまま返す
@@ -1530,22 +1549,20 @@ describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task
    * `aria-expanded` と箱の実寸の両方を見る——片方だけだと、
    * 「見た目は畳んだが幅は 780 のまま」を見逃す
    */
-  it('展開した課題から最後の仮説が消えると、箱は畳まれる', () => {
+  it('選択した課題から最後の仮説が消えると、箱は畳まれる', () => {
     render(<Harness initial={file()} />)
-    const toggle = () => screen.getByRole('button', { name: '課題3の詳細' })
-    // 課題3 の箱（仮説はここにぶら下がる）
-    const boxOf = (n: number): HTMLElement =>
-      issueCell(n).closest('[class*="pointer-events-auto"]') as HTMLElement
 
-    fireEvent.click(toggle())
-    expect(toggle().getAttribute('aria-expanded')).toBe('true')
-    expect(boxOf(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+    clickIssueBox(3)
+    expect(screen.getByRole('textbox', { name: '仮説1' })).toBeTruthy()
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
 
     fireEvent.click(screen.getByRole('button', { name: '仮説1を削除' }))
     expect(screen.queryByRole('textbox', { name: '仮説1' })).toBeNull()
 
-    expect(toggle().getAttribute('aria-expanded')).toBe('false')
-    expect(boxOf(3).style.width).toBe(`${BOX_WIDTH}px`)
+    // **選択は残る**（＝「＋ 仮説を追加」は出たまま）が、開くものが無いので
+    // 箱は畳んだ幅に戻る
+    expect(issueBox(3).style.width).toBe(`${BOX_WIDTH}px`)
+    expect(screen.getByRole('button', { name: '課題3に仮説を追加' })).toBeTruthy()
   })
 
   /**
@@ -1571,7 +1588,7 @@ describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task
     expect(issueCell(3).className).toContain(TITLE_FONT_CLASS)
     expect(issueCell(3).className).not.toContain(EXPANDED_TITLE_FONT_CLASS)
 
-    fireEvent.click(screen.getByRole('button', { name: '課題3の詳細' }))
+    clickIssueBox(3)
 
     // 開いた箱だけが 16px に上がる
     expect(issueCell(3).className).toContain(EXPANDED_TITLE_FONT_CLASS)
@@ -1597,11 +1614,11 @@ describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task
     }
     const onChange = vi.fn()
     const { unmount } = render(<Harness initial={initial} onChange={onChange} />)
-    // 最後に触ったのは課題2。トグルは押しても触った課題を書き換えない
+    // 最後に触ったのは課題2。箱をクリックしても「最後に触った課題」は書き換わらない
     act(() => {
       issueCell(2).focus()
     })
-    fireEvent.click(screen.getByRole('button', { name: '課題3の詳細' }))
+    clickIssueBox(3)
     fireEvent.click(screen.getByRole('button', { name: '課題3に仮説を追加' }))
     const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
     expect(next.hypotheses.filter((h) => h.issueId === I(3))).toHaveLength(2)
@@ -1715,10 +1732,12 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
   })
 
   /**
-   * 展開の単位は**課題ノード**（m5）。押すと箱ごと開き、その課題の仮説が
-   * まとめてパネルを持つ。もう一度押すと閉じる
+   * 選択（＝展開）の単位は**課題ノード**（m5）。**箱そのものがクリックの
+   * 受け口である**（m5 の実機確認後。それまではタイトルの左のシェブロンだった）
+   *——押すと箱ごと開き、その課題の仮説がまとめてパネルを持つ。
+   * もう一度押すと外れる
    */
-  it('課題のトグルを押すと展開し、もう一度押すと閉じる', () => {
+  it('課題の箱をクリックすると選択されて展開し、もう一度クリックすると外れる', () => {
     const base = file()
     render(
       <Harness
@@ -1731,34 +1750,146 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
         }}
       />,
     )
-    // **`aria-expanded` で見る**（クラス名やレイアウトに依存しない）
-    const toggle = () => screen.getByRole('button', { name: '課題3の詳細' })
-    expect(toggle().getAttribute('aria-expanded')).toBe('false')
+    expect(screen.getByRole('button', { name: '仮説1を開く' })).toBeTruthy()
 
-    fireEvent.click(toggle())
-    expect(toggle().getAttribute('aria-expanded')).toBe('true')
+    clickIssueBox(3)
     // **その課題の仮説はすべて開く**（1本だけではない）
     expect(screen.getByRole('textbox', { name: '仮説1' })).toBeTruthy()
     expect(screen.getByRole('textbox', { name: '仮説2' })).toBeTruthy()
+    // 箱も広がる（見た目だけ開いて幅が畳んだままにならないこと）
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
 
-    fireEvent.click(toggle())
-    expect(toggle().getAttribute('aria-expanded')).toBe('false')
+    clickIssueBox(3)
     expect(screen.getByRole('button', { name: '仮説1を開く' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '仮説2を開く' })).toBeTruthy()
+    expect(issueBox(3).style.width).toBe(`${BOX_WIDTH}px`)
+  })
+
+  /**
+   * **選択中は枠で示す。面は旗のもののまま。**
+   *
+   * 語彙は `FileList.tsx`（選択中＝`border-ink`／非選択＝`border-transparent`）に
+   * 倣って枠の側だけ借りた。**面まで選択で使うと旗と道具を奪い合う**ので、
+   * 解決の旗（淡い緑 `judge-yes-face`）を掲げた課題を選んだときに
+   * **緑と選択の両方が見えること**をここで固定する——片方を消す実装
+   *（面で選択を示す／枠の三項で旗の面を上書きする）はここで赤くなる
+   */
+  it('解決の旗を掲げた課題を選んでも、緑の面と選択の枠が両立する', () => {
+    const base = file()
+    render(
+      <Harness
+        initial={{
+          ...base,
+          issues: base.issues.map((n, i) =>
+            i === 2 ? { ...n, events: [{ kind: 'resolved' as const, note: '', date: '2026-08-30' }] } : n,
+          ),
+        }}
+      />,
+    )
+    // 旗だけのときは通常の枠
+    expect(issueBox(3).className).toContain('bg-judge-yes-face')
+    expect(issueBox(3).className).toContain('border-rule')
+    expect(issueBox(3).className).not.toContain('border-ink ')
+
+    clickIssueBox(3)
+    // **面はそのまま**（緑が消えない）
+    expect(issueBox(3).className).toContain('bg-judge-yes-face')
+    // **枠だけが選択の色に変わる**（選択が見えないままにならない）
+    expect(issueBox(3).className).toContain('border-ink ')
+    expect(issueBox(3).className).not.toContain('border-rule')
+  })
+
+  /**
+   * **開閉トグル（シェブロン）は撤去した**（m5 の実機確認。依頼者の指示）。
+   * 選択が箱のクリックへ移ったので、同じことをする口が2つある状態にしない。
+   *
+   * **代償は承知の上である**——シェブロンは `<button>` としてタブ順にいたので、
+   * 撤去したことで**展開へのキーボード経路が無くなった**（`docs/open-issues.md`）
+   */
+  it('タイトル左の開閉トグル（シェブロン）は無い', () => {
+    render(<Harness initial={file()} />)
+    for (const n of [1, 2, 3]) {
+      expect(screen.queryByRole('button', { name: `課題${n}の詳細` })).toBeNull()
+    }
+    // `aria-expanded` を名乗るものも箱に残っていない（出所は layout ひとつ）
+    expect(document.querySelectorAll('[aria-expanded]')).toHaveLength(0)
+  })
+
+  /**
+   * **仮説を1本も持たない課題は、選ばれても広がらない**——中身がボタン1つ
+   * しかない 780 幅の箱は、無意味に右の列を押し広げる。
+   * **だが「仮説を追加」だけは出す**——出さないと、その課題に仮説を足す道が
+   * 箱から消える（帯のボタンは「最後に触った課題」に足す別経路）。
+   *
+   * **幅とボタンの両方を見る**——幅だけだと「ボタンごと出さない」実装が、
+   * ボタンだけだと 780 に広がる実装が、それぞれ通ってしまう
+   */
+  it('仮説を持たない課題は、選んでも広がらず「仮説を追加」だけが出る', () => {
+    render(<Harness initial={file()} />)
+    // 課題1 は仮説を持たない（仮説がぶら下がるのは課題3）
+    expect(screen.queryByRole('button', { name: '課題1に仮説を追加' })).toBeNull()
+
+    clickIssueBox(1)
+    expect(issueBox(1).style.width).toBe(`${BOX_WIDTH}px`)
+    expect(screen.getByRole('button', { name: '課題1に仮説を追加' })).toBeTruthy()
+  })
+
+  /**
+   * **選択は同時に1つ。** 箱が `BOX_WIDTH` → `EXPANDED_BOX_WIDTH` に広がるので、
+   * 複数開くと図が読めない（`selectedIssueKey` が単一であることの番人）
+   */
+  it('選択は同時に1つ（別の課題を選ぶと前の課題は畳まれる）', () => {
+    const base = file()
+    render(
+      <Harness
+        initial={{
+          ...base,
+          hypotheses: [
+            base.hypotheses[0],
+            { ...base.hypotheses[0], id: H(2), issueId: I(2), title: '受付IDだけ先に返す' },
+          ],
+        }}
+      />,
+    )
+    clickIssueBox(3)
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+
+    clickIssueBox(2)
+    expect(issueBox(2).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+    expect(issueBox(3).style.width).toBe(`${BOX_WIDTH}px`)
+  })
+
+  /**
+   * **タイトルの欄は選択を外さない。** 箱の地の上のクリックは入り切りするが、
+   * 文章の欄の上のクリックは**選ぶだけ**である——外す側に倒すと、選択中の
+   * 課題のタイトルへカーソルを置き直すたびに箱が畳まれ、**打つ場所そのものが
+   * 目の前で動く**。
+   *
+   * あわせて**タイトルの編集とキー操作が生きていること**を見る（箱に
+   * クリックの受け口を足したことで、`textarea` の入力や `Enter` の
+   * 兄弟追加が阻害されていないこと）
+   */
+  it('タイトルの欄はクリックしても畳まれず、編集とキー操作が生きている', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={file()} onChange={onChange} />)
+    clickIssueBox(3)
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+
+    // 欄をクリックしても畳まれない（選ぶだけ）
+    fireEvent.click(issueCell(3))
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+
+    // 文言が打てる
+    fireEvent.change(issueCell(3), { target: { value: '受付IDだけ返せるか？' } })
+    expect(onChange.mock.calls[0][0].issues[2].text).toBe('受付IDだけ返せるか？')
+    // Enter は兄弟を増やす（既定動作は止める）
+    expect(fireEvent.keyDown(issueCell(3), { key: 'Enter' })).toBe(false)
+    expect(onChange.mock.calls[1][0].issues).toHaveLength(4)
   })
 
   // **「開いた課題から最後の仮説が消えると箱は畳まれる」は消す動線と一緒に
   // 引っ越した**——m4 はキーボードの Backspace、m5 Task 7 からはパネルの
   // ゴミ箱である。番人は下の describe（仮説の追加・削除のマウス動線）にある
-
-  it('仮説を持たない課題のトグルは場所を空けたまま隠れる（タブ順にも出ない）', () => {
-    // **`display: none` にしない**——同じ列の中でタイトルの左端が揃わなくなる。
-    // `invisible`（visibility: hidden）なら場所は残り、タブ順からは外れる
-    render(<Harness initial={file()} />)
-    // 課題1・2 は仮説を持たない（仮説がぶら下がるのは課題3）
-    expect(screen.getByRole('button', { name: '課題1の詳細' }).className).toContain('invisible')
-    expect(screen.getByRole('button', { name: '課題3の詳細' }).className).not.toContain('invisible')
-  })
 
   /**
    * **かつてはこの経路が課題セルの Ctrl+Enter だった**（m5 でボタンへ移った）。

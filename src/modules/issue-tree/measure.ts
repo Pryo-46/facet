@@ -304,18 +304,15 @@ export const STATIC_TEXT_CLASS =
 export const BODY_FIELD_CLASS = 'text-sm leading-normal'
 
 /**
- * 課題タイトル左の開閉トグル（シェブロン。Task 2 でレイアウトに組み込む）。
- * `CHEVRON_SIZE` はアイコンの一辺、`CHEVRON_GAP` はタイトルとの空き。
- * 値は同アートボードから
+ * **`CHEVRON_SIZE` / `CHEVRON_SIZE_CLASS` / `CHEVRON_GAP` は m5 の実機確認後に
+ * 消した。**
+ *
+ * 課題タイトルの左にあった開閉トグル（シェブロン）を撤去し、**箱そのものの
+ * クリックによる選択**に置き換えたため（依頼者の指示。設計ノート D8）。
+ * トグルが消えたので、タイトルの左に空けていた `CHEVRON_SIZE + CHEVRON_GAP`
+ * ＝ 20px も消え、**畳んだ箱のタイトルは 204 → 224px に広がった**
+ *（`layout.test.ts` の「畳んだ箱の幅は 360」が実寸で見ている）。
+ *
+ * 定数を残さないのは上の `ASK_*_CLASS` / `PANEL_CONTENT_WIDTH` と同じ判断
+ *——**誰も読まない数は、隣の数と食い違っても何も落ちない**ぶん静かに嘘になる
  */
-export const CHEVRON_SIZE = 14
-/** `CHEVRON_SIZE` と対のクラス（size-3.5 = 14px） */
-export const CHEVRON_SIZE_CLASS = 'size-3.5'
-/**
- * トグルとタイトルの空き。**`CHEVRON_GAP_CLASS`（`gap-1.5`）は m5 Task 7 で
- * 消した**——トグルとタイトルは flex で並んでおらず、`layout.ts` が
- * `CHEVRON_SIZE + CHEVRON_GAP` ぶんタイトルの矩形を右へ寄せている（箱の子は
- * すべて絶対配置）。理由は上の `ASK_*_CLASS` と同じで、**当てていないクラスの
- * 対は誰も読まないぶん、隣の数と食い違っても何も落ちない**
- */
-export const CHEVRON_GAP = 6
