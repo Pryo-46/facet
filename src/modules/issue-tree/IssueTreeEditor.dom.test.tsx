@@ -1542,12 +1542,15 @@ describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task
    * m4 までは `expandedKey` が**仮説**の鍵だったので、仮説が消えれば
    * `indexOf` が -1 になって自動的に畳まれていた。課題の鍵に変えた m5 では
    * その自動解除が効かない——鍵は課題を指したまま残るので、**行が1本も無い
-   * 780 幅の箱**が残り、トグルは `invisible`（仮説が無いので押せない）。
-   * 列が 460px 右へずれたまま戻せなくなる。
+   * 780 幅の箱**が残り、列が 460px 右へずれたまま戻せなくなる。
    *
    * 直しは**レイアウト側**にある（「行が0本なら開かない」）ので、
-   * `aria-expanded` と箱の実寸の両方を見る——片方だけだと、
-   * 「見た目は畳んだが幅は 780 のまま」を見逃す
+   * **パネルの有無と箱の実寸の両方を見る**——片方だけだと、
+   * 「見た目は畳んだが幅は 780 のまま」を見逃す。
+   *
+   * **選択そのものは残る**（m5 の実機確認後）ので、末尾の「＋ 仮説を追加」が
+   * 出たままであることも見る——ここで一緒に消える実装だと、最後の仮説を
+   * 消した課題に**もう一度仮説を足す道が箱から無くなる**
    */
   it('選択した課題から最後の仮説が消えると、箱は畳まれる', () => {
     render(<Harness initial={file()} />)
@@ -1811,8 +1814,12 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
     for (const n of [1, 2, 3]) {
       expect(screen.queryByRole('button', { name: `課題${n}の詳細` })).toBeNull()
     }
-    // `aria-expanded` を名乗るものも箱に残っていない（出所は layout ひとつ）
-    expect(document.querySelectorAll('[aria-expanded]')).toHaveLength(0)
+    // `aria-expanded` を名乗るものも箱に残っていない（出所は layout ひとつ）。
+    // **箱の中に絞る**——文書全体で数えると、Radix のトリガー（`KindMenu` は
+    // `aria-expanded` を持つ）が既定の fixture に出た瞬間、無関係の理由で赤くなる
+    for (const n of [1, 2, 3]) {
+      expect(issueBox(n).querySelectorAll('[aria-expanded]')).toHaveLength(0)
+    }
   })
 
   /**
@@ -1832,6 +1839,26 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
     clickIssueBox(1)
     expect(issueBox(1).style.width).toBe(`${BOX_WIDTH}px`)
     expect(screen.getByRole('button', { name: '課題1に仮説を追加' })).toBeTruthy()
+  })
+
+  /**
+   * **出したボタンが実際に効くこと。** 上のテストは**出ること**しか見ておらず、
+   * 「その課題に増える」は仮説を1本持つ課題の側のテスト（下の describe の
+   * 「展開したノード末尾のボタンでその課題に仮説が増える」）が見ている。
+   * **`selected` と `open` を分けた動機がまさにこの経路**——仮説0本の課題は
+   * 開かない（`open` は偽）が、ボタンだけは出す（`selected` は真）——なので、
+   * ここに直接の番人を置く。**足す先の課題を `index` で渡す配線**が
+   * 開いた箱の側だけで生きていても、こちらは静かに壊れうる
+   */
+  it('仮説を持たない課題の「仮説を追加」で、その課題に仮説が増える', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={file()} onChange={onChange} />)
+    clickIssueBox(1)
+    fireEvent.click(screen.getByRole('button', { name: '課題1に仮説を追加' }))
+    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    // **課題1 に1本**（既定の fixture の1本は課題3 にぶら下がっている）
+    expect(next.hypotheses.filter((h) => h.issueId === I(1))).toHaveLength(1)
+    expect(next.hypotheses.filter((h) => h.issueId === I(3))).toHaveLength(1)
   })
 
   /**
