@@ -5,9 +5,8 @@ import { CellInput } from '@/components/CellInput'
 import type { Rect } from '@/core/canvas/viewport'
 import type { Hypothesis } from '@/types/issue-tree'
 import { AskBlock } from './AskBlock'
-import { badgeVariantOf } from './badge-variant'
 import { hypothesisCellKey, type HypothesisCell } from './cell-keys'
-import { badgeGroupOf, BADGE_LABELS, EVENT_KIND_LABELS } from './derive'
+import { EVENT_KIND_LABELS } from './derive'
 import type { HypothesisPanel as PanelRects } from './layout'
 import {
   ADD_ASK_LABEL,
@@ -75,6 +74,8 @@ export interface HypothesisPanelProps {
   onRemoveFeedback: (feedbackIndex: number) => void
   /**
    * 判断イベントのドロップダウン。エディタが `menuPropsFor` で組んで渡す。
+   * **トリガーは状態のバッジそのもの**（Task 6）なので、これは「操作」だけでなく
+   * 「いまの状態」も運ぶ——パネルが同じ語をもう1つ描かないこと。
    * **必須にしてある**（`IssueBox` の `eventToggle` と同じ）——判断を付ける
    * 動線がマウスから消えていても型は通る、という穴を塞ぐ
    */
@@ -82,7 +83,7 @@ export interface HypothesisPanelProps {
 }
 
 /**
- * 節の見出しの帯。**見出しの文字・バッジ・日付・トリガーが横に並ぶ1行**で、
+ * 節の見出しの帯。**見出しの文字・バッジ（＝判断のトリガー）・日付が横に並ぶ1行**で、
  * レイアウトは帯の矩形1つだけを測っている（`HypothesisPanel` 型の解説）。
  * `gap-2` はキャンバスの `.label { gap: 8px }`。
  *
@@ -226,17 +227,11 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
       {/* --- 検証結果 --- */}
       <div className={sectionBandClass} style={inBox(panel.judgement.label)}>
         <span className={sectionLabelClass}>{SECTION_LABELS.judgement}</span>
-        {/* 判断のバッジ。**イベントが無ければ導出の「未決」**（`BADGE_LABELS`）で、
-            1件でもあれば保存された種別の文言（`EVENT_KIND_LABELS`）。
-            Task 6 がこれを押せるようにする */}
-        <Badge
-          variant={badgeVariantOf(
-            latest === undefined ? 'open' : badgeGroupOf(latest.kind),
-            props.suppressed,
-          )}
-        >
-          {latest === undefined ? BADGE_LABELS.open : EVENT_KIND_LABELS[latest.kind]}
-        </Badge>
+        {/* **状態のバッジはドロップダウンのトリガーそのもの**（Task 6）。
+            パネルはここへ置くだけで、語も面もエディタが組む
+            ——見る場所と変える場所が1つなので、**パネルが自分でもう1つ
+            バッジを描いてはならない**（同じ語が帯に2つ出る） */}
+        {props.judgementMenu}
         {/* 日付は**判断があるときだけ**。無いときに「更新」だけが出ると、
             何もしていないのに更新したように読める */}
         {latest !== undefined && (
@@ -244,7 +239,6 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
             {judgementDateText(latest.date)}
           </span>
         )}
-        <span className="ml-auto flex items-center">{props.judgementMenu}</span>
       </div>
       {latest === undefined ? (
         <div className={`${STATIC_TEXT_CLASS} ${mutedInk}`} style={inBox(panel.judgement.note)}>

@@ -1,9 +1,9 @@
-import { Plus, StickyNoteOff } from 'lucide-react'
+import { ChevronDown, Plus, StickyNoteOff } from 'lucide-react'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { KeyHints } from '@/components/KeyHints'
 import { MissingTally } from '@/components/MissingTally'
-import { badgeClass } from '@/components/badge-styles'
+import { badgeClass, type BadgeVariant } from '@/components/badge-styles'
 import { buttonBase } from '@/components/button-styles'
 import {
   DropdownMenu,
@@ -61,6 +61,8 @@ import {
   type FocusTarget,
 } from './commands'
 import {
+  badgeGroupOf,
+  BADGE_LABELS,
   EVENT_KIND_LABELS,
   ISSUE_EVENT_LABELS,
   ISSUE_EVENT_NOTES,
@@ -77,8 +79,8 @@ import { HypothesisPanel } from './HypothesisPanel'
 import { HypothesisRow } from './HypothesisRow'
 import { IssueBox } from './IssueBox'
 import { IssueTreeEdges } from './IssueTreeEdges'
-import { JUDGEMENT_TRIGGER_LABELS, layoutIssueTree, type IssueTreeFonts } from './layout'
-import { ACTION_HEIGHT_CLASS, EXPANDED_TITLE_FONT_CLASS, TITLE_FONT_CLASS } from './measure'
+import { layoutIssueTree, type IssueTreeFonts } from './layout'
+import { EXPANDED_TITLE_FONT_CLASS, TITLE_FONT_CLASS } from './measure'
 import {
   listFlaggedTargets,
   listOpenTargets,
@@ -173,26 +175,17 @@ function cachedMeasurer(font: CanvasFont): { measure: MeasureWidth; lineHeight: 
 /**
  * ドロップダウンのトリガーと**旗のトグル**（見送り／解決）に共通の土台。
  * **`buttonBase` を敷かないのは角丸のため。**
- * `buttonBase` は `rounded-sm` を持つが、旗が立っている課題ではトグル自身が
- * 旗のバッジ（`rounded-sm`）を兼ねる——**角丸を2つ並べると勝つのは生成 CSS の
- * 順序であってクラス名の順序**であり、`TRIGGER_FACE` を切り出した理由（M8）が
- * 角丸について残ってしまう。**角丸は面が決める**ことにして口を1つにする。
- * 失うのは `justify-center` と `disabled:*` だけで、このトリガーは無効化しない
+ * `buttonBase` は `rounded-sm` を持つが、**いまはどちらのトリガーも面がバッジ**
+ *（判断は `badgeClass`、旗は `DEFER_TRIGGER_FACE`）で、バッジが `rounded-sm` を
+ * 持っている——**角丸を2つ並べると勝つのは生成 CSS の順序であってクラス名の
+ * 順序**なので、**角丸は面が決める**ことにして口を1つにする。
+ * 失うのは `justify-center` と `disabled:*` だけで、このトリガーは無効化しない。
+ *
+ * **`TRIGGER_FACE`（小さなボタンの面）は m5 Task 6 で消えた**——判断の
+ * トリガーがバッジになり、この面を使う呼び出し側が1つも無くなったため
  */
 const TRIGGER_BASE =
   'pointer-events-auto inline-flex items-center justify-center transition-colors outline-none focus:ring-2 focus:ring-inset focus:ring-ring'
-
-/**
- * 小さなボタンの面。**呼び出し側が必ず渡す**（足すのではなく差し替える）
- *——判断ドロップダウンと「＋ FB」が使う。旗のトグルは `DEFER_TRIGGER_FACE` を使う
- *（旗が立っている課題ではトグル自身が旗のバッジを兼ねるため、幾何をバッジに揃えてある）。
- * **幅はもう測っていない**——m5 Task 4 で判断のトリガーは「検証結果」の見出しの
- * 帯の中に flex で並ぶようになり、「＋ FB」も全幅の行の中で自分の幅を取る。
- * **高さだけがレイアウトの前提**（`ACTION_HEIGHT` と対の `ACTION_HEIGHT_CLASS`）
- * なので、高さのクラスは対で直すこと
- */
-const TRIGGER_FACE =
-  'rounded-sm border border-rule bg-surface px-1 text-sm text-ink-muted hover:bg-canvas'
 
 /**
  * 旗トグルの未入力面。**バッジの箱と同じ幾何**（`src/components/badge-styles.ts`
@@ -213,10 +206,14 @@ const DEFER_TRIGGER_FACE =
 interface KindMenuProps {
   /** アクセシブル名（トリガーのボタン） */
   label: string
-  /** ボタンに出す短い文言 */
-  triggerText: string
-  /** トリガーの面。**足すのではなく差し替える** */
-  triggerClassName: string
+  /**
+   * トリガーが名乗るバッジの意味。**トリガー自身がバッジの箱になる**
+   *（`badgeClass` を面として敷く。旗のトグルと同じやり方で、共通部品には
+   * 手を入れずに「押せるバッジ」を作る口である）
+   */
+  badgeVariant: BadgeVariant
+  /** バッジの中の語（`BADGE_LABELS` ／ `EVENT_KIND_LABELS` から来る） */
+  badgeText: string
   kinds: readonly JudgementKind[]
   onPick: (kind: JudgementKind) => void
   open: boolean
@@ -241,12 +238,23 @@ function KindMenu(props: KindMenuProps) {
   const picked = useRef(false)
   return (
     <DropdownMenu open={props.open} onOpenChange={props.onOpenChange}>
+      {/* **トリガーは状態のバッジそのもの**（キャンバスの `.badge.pick`）。
+          見る場所と変える場所を1つにする＝「判断を追加」「判断を変える」という
+          文言のボタンは m5 Task 6 で消えた。`gap-1` / `pr-1` はキャンバスの
+          `.pick { gap: 4px; padding-right: 4px }`——山形を抱えるぶん、右の
+          余白だけをバッジの 6px から 4px へ詰める（`cursor: pointer` は
+          `src/index.css` の `@layer base` が全ボタンに与えている） */}
       <DropdownMenuTrigger
         type="button"
         aria-label={props.label}
-        className={`${TRIGGER_BASE} ${props.triggerClassName}`}
+        className={`${TRIGGER_BASE} ${badgeClass(props.badgeVariant)} gap-1 pr-1`}
       >
-        {props.triggerText}
+        {props.badgeText}
+        {/* 押せることを示す山形。**12px はキャンバスの `.pick > svg`**。
+            レイアウトはこの帯の幅を測らない（帯は flex で、根拠の欄はその下に
+            パネルの全幅で座る）ので、対で直す測定側は無い——ここは
+            `measure.ts` に定数を置かず、キャンバスの値をそのまま当てている */}
+        <ChevronDown aria-hidden="true" className="size-3" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
@@ -986,6 +994,8 @@ export function IssueTreeEditor({
                   if (row === null) return null
                   const h = data.hypotheses[hi]
                   const rowKey = hypothesisKeys[hi]
+                  /** 最新の判断。**無ければ「未決」**（導出の語）。バッジが運ぶ */
+                  const latestJudgement = h.events.at(-1)
                   return (
                     // **包みは位置を持たない**（`position: static`）ので、行の中の
                     // 絶対配置は箱を基準にしたまま。中身が全て絶対配置なので高さも 0
@@ -1057,14 +1067,30 @@ export function IssueTreeEditor({
                           }
                           judgementMenu={
                             <KindMenu
+                              // **アクセシブル名の前半は動かさない**（テストが
+                              // 前方一致で引く規約）。判断があってもこの名前の
+                              // まま——押してすることは常に「次の判断の追記」で、
+                              // いまの状態はバッジの語が運ぶ
                               label={`仮説${hi + 1}に判断を追加`}
-                              // **文言はレイアウトが持つ**——描く文字列を
-                              // 1箇所から出す（`layout.ts` の定数）
-                              triggerText={
-                                JUDGEMENT_TRIGGER_LABELS[h.events.length === 0 ? 'empty' : 'latest']
+                              // **バッジはトリガーの中身**（m5 Task 6）。
+                              // イベントが無ければ導出の「未決」、あれば
+                              // 保存された種別の語。**畳まれた行（`HypothesisRow`）
+                              // と同じ規則**で、語の出所は `derive.ts` の1組だけ
+                              badgeVariant={badgeVariantOf(
+                                latestJudgement === undefined
+                                  ? 'open'
+                                  : badgeGroupOf(latestJudgement.kind),
+                                // **`issueSuppressed`（自分の見送りを含む）で薄くする**
+                                // ——箱の面に使う `suppressed`（祖先由来だけ）ではない。
+                                // パネルの中身と同じ規則（`HypothesisPanel` の
+                                // `suppressed` prop と同じ値を渡している）
+                                issueSuppressed[index],
+                              )}
+                              badgeText={
+                                latestJudgement === undefined
+                                  ? BADGE_LABELS.open
+                                  : EVENT_KIND_LABELS[latestJudgement.kind]
                               }
-                              // 高さは `ACTION_HEIGHT` で場所を空けてある（対のクラス）
-                              triggerClassName={`${TRIGGER_FACE} ${ACTION_HEIGHT_CLASS}`}
                               kinds={JUDGEMENT_KINDS}
                               onPick={(kind) => apply(appendJudgement(data, hi, kind))}
                               {...menuPropsFor(judgementMenuKey(rowKey))}

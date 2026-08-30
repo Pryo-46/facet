@@ -5,10 +5,9 @@ import { badgeClass } from '@/components/badge-styles'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
 import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
-import { BADGE_LABELS, EVENT_KIND_LABELS, poseQuestions } from './derive'
+import { EVENT_KIND_LABELS, poseQuestions } from './derive'
 import { HypothesisPanel } from './HypothesisPanel'
 import {
-  JUDGEMENT_TRIGGER_LABELS,
   layoutIssueTree,
   NO_JUDGEMENT_TEXT,
   SECTION_LABELS,
@@ -35,6 +34,13 @@ const fonts: IssueTreeFonts = {
 const DETAIL_SENTINEL = '受信を待たずに画面を返す（DETAIL）'
 const VALUE_SENTINEL = '応募者を待たせない（VALUE）'
 const ASK_SENTINEL = '待ち画面で離脱しないか（ASK）'
+/**
+ * 判断のドロップダウンの目印。**中身はエディタが組む**（m5 Task 6 で状態の
+ * バッジもトリガーの中へ入った）ので、パネルの側で見るのは「帯のどこに
+ * 置かれるか」だけである——ここに本物のバッジを書き写すと、テストが
+ * パネルではなく写しを検査することになる
+ */
+const MENU_SENTINEL = '判断のトリガー（MENU）'
 
 /**
  * 課題2件・仮説3件のファイル。**退化した形（仮説1件・イベント1件）を避ける**
@@ -126,13 +132,9 @@ function renderPanel(index: number, opts: { suppressed?: boolean } = {}) {
       onAddFeedback={onAddFeedback}
       onRemoveFeedback={vi.fn()}
       // 判断のドロップダウンはエディタが組む（パネルは置き場所だけを持つ）。
-      // **トリガーの文言はレイアウトが持つ定数**——測った幅と描く幅を同じ
-      // 文字列から出すので、ここでも打ち直さない
-      judgementMenu={
-        <button type="button">
-          {JUDGEMENT_TRIGGER_LABELS[h.events.length === 0 ? 'empty' : 'latest']}
-        </button>
-      }
+      // **状態のバッジもその中**（m5 Task 6：バッジ自身がトリガー）なので、
+      // ここは目印のボタン1つでよい
+      judgementMenu={<button type="button">{MENU_SENTINEL}</button>}
     />,
   )
   return { onAddAsk, onAddFeedback, onDetailChange, onValueChange }
@@ -210,11 +212,12 @@ describe('HypothesisPanel: ソリューション仮説と価値仮説', () => {
       expect(/missing|invalid/.test(field.className)).toBe(false)
       expect(/missing|invalid/.test((field.parentElement as HTMLElement).className)).toBe(false)
     }
-    // **欠落の語彙を使っている要素は「未決」のバッジだけ**（判断がまだ無い、は
-    // 導出で立つ正当な問い）。空の欄のために増えた印があればここで増える
+    // **パネルは欠落の語彙をひとつも使わない。** 「未決」のバッジは m5 Task 6 で
+    // 判断のトリガー（＝エディタが組む）の中へ移ったので、ここに `missing` の
+    // 面や線が現れたら、それは空の欄のために増えた印である
     expect(
       Array.from(document.querySelectorAll('[class*="missing"]')).map((e) => e.textContent),
-    ).toEqual([BADGE_LABELS.open])
+    ).toEqual([])
   })
 
   /**
@@ -244,23 +247,25 @@ describe('HypothesisPanel: ソリューション仮説と価値仮説', () => {
 })
 
 describe('HypothesisPanel: 検証結果', () => {
-  it('判断があれば種別のバッジと日付が見出しの行に出る', () => {
+  it('判断があれば日付が見出しの行に出る（状態の語はトリガーが運ぶ）', () => {
     renderPanel(0)
-    const badge = screen.getByText(EVENT_KIND_LABELS.rejected)
-    expect(badge.className).toBe(badgeClass(badgeVariantOf('no', false)))
     // 日付は `YYYY-MM-DD` をそのまま出さない（画面は月日だけ）
-    expect(screen.getByText('8/13 更新')).toBeTruthy()
+    const date = screen.getByText('8/13 更新')
+    expect(precedes(sectionLabel(SECTION_LABELS.judgement), date)).toBe(true)
+    // **最新の判断の語をパネルは自分で描かない**（m5 Task 6）——描くと、
+    // トリガーのバッジと合わせて同じ語が帯に2つ出る
+    expect(screen.queryByText(EVENT_KIND_LABELS.rejected)).toBeNull()
   })
 
   it('検証結果の日付は判断があるときだけ出る', () => {
     renderPanel(1)
     expect(screen.queryByText(/更新$/)).toBeNull()
-    // 未決のバッジとプレースホルダは出る（判断を付ける動線を消さない）
-    expect(screen.getByText(BADGE_LABELS.open).className).toBe(
-      badgeClass(badgeVariantOf('open', false)),
-    )
+    // プレースホルダと、判断を付ける動線（バッジのトリガー）は出る
     expect(screen.getByText(NO_JUDGEMENT_TEXT)).toBeTruthy()
-    expect(screen.getByRole('button', { name: JUDGEMENT_TRIGGER_LABELS.empty })).toBeTruthy()
+    const trigger = screen.getByRole('button', { name: MENU_SENTINEL })
+    // **トリガーは見出しの帯の中**——見出しの隣に、同じ1行の要素として並ぶ
+    expect(trigger.parentElement).toBe(sectionLabel(SECTION_LABELS.judgement).parentElement)
+    expect(precedes(sectionLabel(SECTION_LABELS.judgement), trigger)).toBe(true)
   })
 
   /**

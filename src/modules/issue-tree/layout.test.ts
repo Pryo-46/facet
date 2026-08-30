@@ -6,6 +6,7 @@ import { layoutIssueTree, SECTION_LABELS, type IssueTreeFonts, type IssueTreeLay
 import {
   ACTION_HEIGHT,
   BADGE_GAP,
+  BADGE_HEIGHT,
   BOX_WIDTH,
   CHEVRON_GAP,
   CHEVRON_SIZE,
@@ -306,6 +307,22 @@ describe('layoutIssueTree', () => {
     )
     expect(p.judgement.note.x).toBe(p.judgement.label.x)
     expect(p.judgement.note.width).toBe(p.judgement.label.width)
+  })
+
+  /**
+   * **「検証結果」の帯の高さはバッジで決まる**（m5 Task 6）。トリガーは
+   * 「判断を追加」という**文言のボタン**（`ACTION_HEIGHT` ＝ 24px）ではなく
+   * **バッジ自身**（`BADGE_HEIGHT` ＝ 22px）になった。文言ボタンを消したのに
+   * 帯だけ 24px を空け続けると、**帯の 2px は誰も使わないまま根拠の欄を
+   * 押し下げ、画面と測定が静かに食い違う**——測り直しの番人はここ
+   */
+  it('検証結果の帯はバッジの高さで測る（消えた文言ボタンのぶんを空けない）', () => {
+    // 2つの定数が同じ値だと、この番人は何も区別しない
+    expect(BADGE_HEIGHT).toBeLessThan(ACTION_HEIGHT)
+    const data = make({ issues: [root], hypotheses: [h(1)] })
+    const p = run(data, 0).hypotheses[0]?.expanded
+    expect(p).toBeDefined()
+    expect(p!.judgement.label.height).toBe(BADGE_HEIGHT)
   })
 
   it('展開パネルに「由来」の節が無い（rationale の廃止）', () => {

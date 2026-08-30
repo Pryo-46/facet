@@ -264,17 +264,13 @@ export interface IssueTreeLayout {
 }
 
 /**
- * 「検証結果」節のトリガーの文言。**画面だけの言葉を節見出しと同じ場所に置く**
- *——エディタが別の文字列を打ち直すと、同じボタンの呼び名が2箇所に散る。
- * m5 Task 4 でトリガーは見出しの帯の中に flex で並ぶようになったので、
- * **レイアウトはもうこの幅を測っていない**（測っているのは帯の高さだけ）
+ * **`JUDGEMENT_TRIGGER_LABELS`（「判断を追加」「判断を変える」）は m5 Task 6 で
+ * 消した。** トリガーは状態のバッジ自身になったので、**トリガーに固有の文言は
+ * もう存在しない**——描くのは `EVENT_KIND_LABELS` ／ `BADGE_LABELS` の語であり、
+ * 何をするボタンかはアクセシブル名（`仮説{N}に判断を追加`）が運ぶ。
+ * 帯の高さを決める `judgeLabelH` も**バッジの高さで測り直してある**
+ *（下の「検証結果の節」を見ること）
  */
-export const JUDGEMENT_TRIGGER_LABELS = {
-  /** イベント0件（まだ何も判断していない） */
-  empty: '判断を追加',
-  /** 1件以上（最新を上書きせず、次のイベントを追記する） */
-  latest: '判断を変える',
-} as const
 
 /**
  * 「検証結果」節でイベントが1件も無いときに根拠の場所へ出す文言
@@ -582,11 +578,16 @@ export function layoutIssueTree(
     const valueSectionH = labelH + SECTION_GAP + valueH
 
     /**
-     * 検証結果の節。**見出しの帯にバッジ・日付・トリガーが同居する**ので、
-     * 帯の高さはその3つの一番高いものに合わせる（幅は測らない。
-     * `HypothesisPanel` の解説）。根拠はその下に**パネルの全幅**で座る
+     * 検証結果の節。**見出しの帯にバッジと日付が同居する**ので、帯の高さは
+     * 高い方に合わせる（幅は測らない。`HypothesisPanel` の解説）。根拠は
+     * その下に**パネルの全幅**で座る。
+     *
+     * **`ACTION_HEIGHT`（24px）は入れない。** m5 Task 6 で「判断を追加」という
+     * 文言のボタンが消え、判断のトリガーは**バッジ自身**（`BADGE_HEIGHT`）に
+     * なった。帯にボタンぶんの 24px を空け続けると、**誰も使わない 2px が
+     * 根拠の欄を押し下げたまま残る**（消した文言のぶんを測り直し忘れる、の形）
      */
-    const judgeLabelH = Math.max(labelH, BADGE_HEIGHT, ACTION_HEIGHT)
+    const judgeLabelH = Math.max(labelH, BADGE_HEIGHT)
     const judgeNoteH = textHeight(
       latest === null ? NO_JUDGEMENT_TEXT : latest.note,
       fonts.body,

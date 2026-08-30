@@ -20,7 +20,6 @@ import {
   tallyQuestions,
 } from './derive'
 import { IssueTreeEditor } from './IssueTreeEditor'
-import { JUDGEMENT_TRIGGER_LABELS } from './layout'
 
 afterEach(cleanup)
 
@@ -963,6 +962,35 @@ describe('IssueTreeEditor（行のFB待ちバッジ）', () => {
 })
 
 describe('IssueTreeEditor（仮説の行の操作）', () => {
+  /**
+   * **状態を見る場所と変える場所を1つにする**（m5 Task 6。キャンバスの
+   * `.badge.pick`）。かつてはバッジの右に「判断を追加」「判断を変える」という
+   * **文言のボタン**が別に並んでいた——同じ1件について語る要素が2つあると、
+   * どちらが今の状態でどちらが操作なのかを毎回読み分けることになる。
+   * いまは**バッジ自身がトリガー**で、押せることは中の山形（`ChevronDown`）が示す
+   */
+  it('検証結果のバッジを押すと判断の候補が出る', async () => {
+    render(<Harness initial={file()} />)
+    openHypothesis(1)
+    const trigger = screen.getByRole('button', { name: '仮説1に判断を追加' })
+    // トリガーはバッジそのもの（語も面もバッジの語彙。判断がまだ無いので「未決」）
+    expect(trigger.textContent).toBe(BADGE_LABELS.open)
+    expect(trigger.className).toContain(badgeClass(badgeVariantOf('open', false)))
+    // 押せることを示す山形が**バッジの中**にある（アイコンは lucide の SVG）
+    expect(trigger.querySelector('svg')).not.toBeNull()
+    // **文言のボタンは残っていない**——同じことを2箇所で言わない
+    expect(screen.queryByText('判断を追加')).toBeNull()
+    expect(screen.queryByText('判断を変える')).toBeNull()
+
+    fireEvent.pointerDown(trigger, { button: 0 })
+    expect((await screen.findAllByRole('menuitem')).map((e) => e.textContent)).toEqual([
+      EVENT_KIND_LABELS.supported,
+      EVENT_KIND_LABELS.rejected,
+      EVENT_KIND_LABELS.onHold,
+      EVENT_KIND_LABELS.deferred,
+    ])
+  })
+
   it('判断を選ぶとイベントが追記される（マウスの動線）', async () => {
     const onChange = vi.fn()
     render(<Harness initial={file()} onChange={onChange} />)
@@ -982,6 +1010,11 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
     // 最新イベントの根拠だけなので、外れると静かに壊れる
     expect(document.activeElement).toBe(
       screen.getByRole('textbox', { name: `仮説1 の${EVENT_KIND_LABELS.rejected}の根拠` }),
+    )
+    // **トリガーはバッジなので、選んだ語がそのまま状態の表示になる**
+    //（m5 Task 6。名前は `仮説{N}に判断を追加` のまま——前半は動かさない規約）
+    expect(screen.getByRole('button', { name: '仮説1に判断を追加' }).textContent).toBe(
+      EVENT_KIND_LABELS.rejected,
     )
   })
 
@@ -1172,7 +1205,7 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
    * 判断を5語に畳んだいま、その差は無くなった（どちらも「棄却」）。
    *
    * 残っているのは**畳まれた行とその中身の関係**である: 行は判断の語を1つだけ運び、
-   * 開くと判断の節（バッジ＋「判断を変える」のトリガー）が現れる。畳まれた行が
+   * 開くと判断の節（＝押せるバッジ1つ。m5 Task 6）が現れる。畳まれた行が
    * 語を2つ運んだり、節が畳まれた行に漏れ出したりしないことは、いまも壊れうる
    */
   it('畳まれた行は判断の語を1つだけ運び、展開すると判断の節が出る', () => {
@@ -1189,8 +1222,8 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
     )
     const row = screen.getByRole('button', { name: '仮説1を開く' })
     expect(row.textContent).toContain(BADGE_LABELS.no)
-    // 畳まれた行に判断の節は出ない（「判断を変える」のトリガーは中の人）
-    expect(row.textContent).not.toContain(JUDGEMENT_TRIGGER_LABELS.latest)
+    // 畳まれた行に判断の節は出ない（バッジのトリガーは開いてから現れる）
+    expect(screen.queryByRole('button', { name: '仮説1に判断を追加' })).toBeNull()
     expect(screen.getAllByText(EVENT_KIND_LABELS.rejected)).toHaveLength(1)
 
     openHypothesis(1)
@@ -1198,8 +1231,10 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
     // 運ぶのは「検証結果」節のバッジだけになった（m5 Task 4。頭部を残すと
     // 同じ文言が2箇所に出る）
     expect(screen.getAllByText(EVENT_KIND_LABELS.rejected)).toHaveLength(1)
+    // **語を運んでいるのはトリガーそのもの**（m5 Task 6 でバッジがトリガーに
+    // なったので、バッジと文言ボタンで語が2つに割れることが無くなった）
     expect(screen.getByRole('button', { name: '仮説1に判断を追加' }).textContent).toBe(
-      JUDGEMENT_TRIGGER_LABELS.latest,
+      EVENT_KIND_LABELS.rejected,
     )
   })
 })
