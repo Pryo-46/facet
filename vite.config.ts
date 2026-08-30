@@ -32,5 +32,8 @@ export default defineConfig({
     // 走査対象を明示して足す
     include: ['src/**/*.{test,spec}.{ts,tsx}', 'scripts/**/*.test.mjs'],
     environment: 'node',
+    // jsdom は canvas 未実装の通知を呼び出しのたびに1行吐く。挙動を変えずに
+    // それだけ止める（src/test-setup.ts に理由を書いた）
+    setupFiles: ['./src/test-setup.ts'],
   },
 })
