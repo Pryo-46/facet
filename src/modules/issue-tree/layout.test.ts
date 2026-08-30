@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
-import type { Hypothesis, IssueNode, IssueTreeSchemaVersion2 } from '@/types/issue-tree'
-import { ISSUE_DEFERRED_LABEL, poseQuestions } from './derive'
-import { DEFER_TRIGGER_LABEL, layoutIssueTree, type IssueTreeFonts } from './layout'
-import { BADGE_GAP, BOX_WIDTH, ISSUE_INSET_X } from './measure'
+import type { Hypothesis, IssueNode, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import { ISSUE_EVENT_LABELS, poseQuestions } from './derive'
+import { layoutIssueTree, SECTION_LABELS, type IssueTreeFonts } from './layout'
+import { ACTION_HEIGHT, BADGE_GAP, BOX_WIDTH, ISSUE_INSET_X, PANEL_INSET_Y } from './measure'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
+
+/** 表示用の日付。v3 は `IssueEvent` / `JudgementEvent` / `Feedback` のいずれも空文字を許さない */
+const DATE = '2026-08-30'
 
 /**
  * 測定は決定的な概算器で行う。**太字（title）の概算は細字と同じでよい**
@@ -18,12 +21,12 @@ const fonts: IssueTreeFonts = {
   small: { measure: createEstimateMeasurer(14), lineHeight: 18 },
 }
 
-function run(data: IssueTreeSchemaVersion2, expandedIndex = -1) {
+function run(data: IssueTreeSchemaVersion3, expandedIndex = -1) {
   return layoutIssueTree(data, poseQuestions(data), fonts, expandedIndex)
 }
 
-function make(over: Partial<IssueTreeSchemaVersion2>): IssueTreeSchemaVersion2 {
-  return { schemaVersion: 2, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
+function make(over: Partial<IssueTreeSchemaVersion3>): IssueTreeSchemaVersion3 {
+  return { schemaVersion: 3, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
 }
 
 const root: IssueNode = { id: I(0), parentId: null, text: '結果取得を画面遷移の中で待てるか', events: [] }
@@ -34,10 +37,12 @@ function h(n: number, over: Partial<Hypothesis> = {}): Hypothesis {
   return {
     id: H(n),
     issueId: I(0),
-    text: `仮説${n}の文言`,
-    rationale: '',
+    title: `仮説${n}の文言`,
+    detail: '',
+    value: '',
+    asks: [],
+    feedbacks: [],
     events: [],
-    pendingNotes: [],
     ...over,
   }
 }
@@ -78,51 +83,53 @@ describe('layoutIssueTree', () => {
   })
 
   /**
-   * 帯の「未判断」と行の表示を一対一にする（M22）。**同じテストで有り／無しの
-   * 両方を見る**——片方だけだと「常に null」「常に Rect」でも緑になる。
-   * 2件は現在ステータスを揃えてある（どちらも支持）ので、判断バッジの幅は同じ。
-   * 差は未判断バッジのぶんだけである
+   * 帯の「FB待ち」と行の表示を一対一にする（M22。M4 で `pendingNotes` から
+   * `asks`/`feedbacks` へ移った）。**同じテストで有り／無しの両方を見る**
+   *——片方だけだと「常に null」「常に Rect」でも緑になる。2件は現在ステータスを
+   * 揃えてある（どちらも支持）ので、状態バッジの幅は同じ。差は FB待ちバッジの
+   * ぶんだけである
    */
-  it('未判断の仮説行は、判断バッジの左に未判断バッジの幅を確保する', () => {
+  it('FB待ちの仮説行は、状態バッジの左にFB待ちバッジの幅を確保する', () => {
     const data = make({
       issues: [root],
       hypotheses: [
         h(1, {
-          events: [{ kind: 'supported', note: '実測で確認' }],
-          pendingNotes: ['レビューで出た指摘'],
+          events: [{ kind: 'supported', note: '実測で確認', date: DATE }],
+          // 文言のある問いに FB が1件も無い＝ FB待ちが立つ（derive.ts）
+          asks: [{ id: 'ask_0000000001', text: 'レビューで出た指摘に答えられるか' }],
         }),
-        h(2, { events: [{ kind: 'supported', note: '実測で確認' }] }),
+        h(2, { events: [{ kind: 'supported', note: '実測で確認', date: DATE }] }),
       ],
     })
     const posed = poseQuestions(data)
-    expect(posed.hypothesisQuestions[0].judgement).toBe(true)
-    expect(posed.hypothesisQuestions[1].judgement).toBe(false)
+    expect(posed.hypothesisQuestions[0].feedback).toBeGreaterThan(0)
+    expect(posed.hypothesisQuestions[1].feedback).toBe(0)
 
     const out = run(data)
     const pending = out.hypotheses[0]!
     const plain = out.hypotheses[1]!
 
     // 立っていない行は従来どおり（バッジは1つ）
-    expect(plain.judgementBadge).toBeNull()
+    expect(plain.feedbackBadge).toBeNull()
 
-    // 立っている行は、判断バッジの左に BADGE_GAP を空けて並ぶ（同じ高さ・同じ y）
-    const jb = pending.judgementBadge!
+    // 立っている行は、状態バッジの左に BADGE_GAP を空けて並ぶ（同じ高さ・同じ y）
+    const jb = pending.feedbackBadge!
     expect(jb.width).toBeGreaterThan(0)
     expect(jb.height).toBe(pending.badge.height)
     expect(jb.y).toBe(pending.badge.y)
     expect(jb.x + jb.width + BADGE_GAP).toBe(pending.badge.x)
-    // 判断バッジ自身の場所は動かない（右端のまま）
+    // 状態バッジ自身の場所は動かない（右端のまま）
     expect(pending.badge.x).toBe(plain.badge.x)
     expect(pending.badge.x + pending.badge.width).toBeLessThanOrEqual(
       out.issues[0]!.rect.x + out.issues[0]!.rect.width,
     )
-    // 文言はそのぶんだけ狭く、未判断バッジに被らない
+    // 文言はそのぶんだけ狭く、FB待ちバッジに被らない
     expect(pending.text.width).toBe(plain.text.width - BADGE_GAP - jb.width)
     expect(pending.text.x + pending.text.width).toBeLessThanOrEqual(jb.x)
 
     // **展開した行の頭部も同じ**（頭部の組み立ては閉じた行と同じ幅を通る）
     const open = run(data, 0).hypotheses[0]!
-    const ojb = open.judgementBadge!
+    const ojb = open.feedbackBadge!
     expect(ojb.width).toBe(jb.width)
     expect(ojb.y).toBe(open.badge.y)
     expect(ojb.x + ojb.width + BADGE_GAP).toBe(open.badge.x)
@@ -146,7 +153,9 @@ describe('layoutIssueTree', () => {
 
     // (c) 見送り済み
     const deferred = run(
-      make({ issues: [{ ...root, events: [{ kind: 'deferred', note: '今回は追わない' }] }] }),
+      make({
+        issues: [{ ...root, events: [{ kind: 'deferred', note: '今回は追わない', date: DATE }] }],
+      }),
     ).issues[0]!
     expect(deferred.rect.width).toBe(BOX_WIDTH)
 
@@ -156,19 +165,24 @@ describe('layoutIssueTree', () => {
   })
 
   /**
-   * **D3 rev.3 の主張そのものの門番。** 右上の枠に出るものは3つ（見送りバッジ・
+   * **D3 rev.3 の主張そのものの門番。** 右上の枠に出るものは3つ（旗のバッジ・
    * 「仮説なし」バッジ・見送りトグル）だが、**レイアウトが矩形を組むのは
-   * 見送りバッジだけ**で、残る2つは `IssueBox` が CSS の `right: ISSUE_PADDING_X`
+   * 旗のバッジだけ**で、残る2つは `IssueBox` が CSS の `right: ISSUE_PADDING_X`
    * で右寄せする。どちらも右端は「箱の右端 − `ISSUE_INSET_X`」に落ちるので、
    * **箱幅が揃っていれば3種類とも同じ x に並ぶ**——上のテストと対で見ること
    */
-  it('同じ深さの箱では、見送りバッジの右端が揃う', () => {
-    const a: IssueNode = { id: I(1), parentId: I(0), text: '短い', events: [{ kind: 'deferred', note: 'r' }] }
+  it('同じ深さの箱では、旗のバッジの右端が揃う', () => {
+    const a: IssueNode = {
+      id: I(1),
+      parentId: I(0),
+      text: '短い',
+      events: [{ kind: 'deferred', note: 'r', date: DATE }],
+    }
     const b: IssueNode = {
       id: I(2),
       parentId: I(0),
       text: 'とても長いほうの課題の文言でありこちらは折り返す',
-      events: [{ kind: 'deferred', note: 'r' }],
+      events: [{ kind: 'deferred', note: 'r', date: DATE }],
     }
     // 見送っていない葉（仮説を持たないので「仮説なし」バッジが立つ）。
     // **a・b だけでは幅ロックそのものを弁別しない**——両方とも見送り済みで、
@@ -180,8 +194,8 @@ describe('layoutIssueTree', () => {
     // BOX_WIDTH を割り、下のアサーションが赤くなる
     const c: IssueNode = { id: I(3), parentId: I(0), text: '短い葉', events: [] }
     const out = run(make({ issues: [root, a, b, c] }))
-    const da = out.issues[1]!.deferral!
-    const db = out.issues[2]!.deferral!
+    const da = out.issues[1]!.event!
+    const db = out.issues[2]!.event!
     expect(da.badge.x + da.badge.width).toBe(db.badge.x + db.badge.width)
     // 箱の右端 − ISSUE_INSET_X に一致する
     const rect = out.issues[1]!.rect
@@ -214,11 +228,13 @@ describe('layoutIssueTree', () => {
       hypotheses: [
         h(1),
         h(2, {
-          rationale: '由来',
-          pendingNotes: ['FB1', 'FB2'],
+          feedbacks: [
+            { askId: null, text: 'FB1', by: '', sentiment: 'note', date: DATE },
+            { askId: null, text: 'FB2', by: '', sentiment: 'note', date: DATE },
+          ],
           events: [
-            { kind: 'supported', note: '根拠' },
-            { kind: 'rejected', note: '覆った' },
+            { kind: 'supported', note: '根拠', date: DATE },
+            { kind: 'rejected', note: '覆った', date: DATE },
           ],
         }),
         h(3),
@@ -239,10 +255,9 @@ describe('layoutIssueTree', () => {
     expect(p.panel.y + p.panel.height).toBeLessThanOrEqual(
       open.hypotheses[1]!.rect.y + open.hypotheses[1]!.rect.height,
     )
-    // 節は上から 判断 → 以前の判断 → 由来 → FB の順
-    expect(p.previousLabel!.y).toBeGreaterThan(p.judgement.label.y)
-    expect(p.rationale.label.y).toBeGreaterThan(p.previous[0].note.y)
-    expect(p.notes.label.y).toBeGreaterThan(p.rationale.cell.y)
+    // 節は上から 判断 → 以前の判断 → FB の順（由来は v3 で廃止された）
+    expect(p.previousLabel).not.toBeNull()
+    expect(p.notes.label.y).toBeGreaterThan(p.previous[0].note.y)
     expect(p.notes.add.y).toBeGreaterThan(p.notes.cells[1].y)
     // 判断の行はバッジ・根拠・トリガーが横に並ぶ（重ならない）
     expect(p.judgement.note.x).toBeGreaterThanOrEqual(p.judgement.badge.x + p.judgement.badge.width)
@@ -251,10 +266,38 @@ describe('layoutIssueTree', () => {
     )
   })
 
+  it('展開パネルに「由来」の節が無い（rationale の廃止）', () => {
+    // 型からも消えているので、これは「消し忘れた矩形が残っていない」ことの番人ではなく、
+    // **節が3つ（判断・以前の判断・FB）に減ったぶんパネルが縮む**ことの番人である
+    const data = make({
+      issues: [root],
+      hypotheses: [
+        h(1, {
+          feedbacks: [{ askId: null, text: 'FB1', by: '', sentiment: 'note', date: DATE }],
+          events: [
+            { kind: 'supported', note: '根拠', date: DATE },
+            { kind: 'rejected', note: '覆った', date: DATE },
+          ],
+        }),
+      ],
+    })
+    const posed = poseQuestions(data)
+    const withRationaleGone = layoutIssueTree(data, posed, fonts, 0)
+    const panel = withRationaleGone.hypotheses[0]?.expanded
+    expect(panel).not.toBeNull()
+    expect(Object.keys(SECTION_LABELS)).toEqual(['judgement', 'previous', 'notes'])
+    // **SECTION_LABELS の鍵だけでは「矩形が残っていないか」しか見ない。**
+    // パネルの実測が節3つぶんぴったりであることも見る——最後の内容（＋FBボタン）
+    // の下端と、パネルの下端（内側余白を引いた位置）が一致するはずで、由来の
+    // ぶんの高さを `sectionHs` から消し忘れているとここに隙間が残る
+    const p = panel!
+    expect(p.notes.add.y + ACTION_HEIGHT).toBe(p.panel.y + p.panel.height - PANEL_INSET_Y)
+  })
+
   it('イベントが1件だけの仮説には「以前の判断」の節が出ない', () => {
     const data = make({
       issues: [root],
-      hypotheses: [h(1, { events: [{ kind: 'supported', note: '実測' }] })],
+      hypotheses: [h(1, { events: [{ kind: 'supported', note: '実測', date: DATE }] })],
     })
     const p = run(data, 0).hypotheses[0]!.expanded!
     expect(p.previous).toEqual([])
@@ -263,43 +306,22 @@ describe('layoutIssueTree', () => {
 
   it('展開した仮説の文言は折り返した高さになる（畳むと1行）', () => {
     const long = 'あ'.repeat(60)
-    const data = make({ issues: [root], hypotheses: [h(1, { text: long })] })
+    const data = make({ issues: [root], hypotheses: [h(1, { title: long })] })
     expect(run(data).hypotheses[0]!.text.height).toBe(fonts.body.lineHeight)
     expect(run(data, 0).hypotheses[0]!.text.height).toBeGreaterThan(fonts.body.lineHeight)
   })
 
   it('見送った課題はタイトル行の右端にバッジ、その下に理由の行を持つ', () => {
     const data = make({
-      issues: [{ ...root, events: [{ kind: 'deferred', note: '通知は本開発で扱う' }] }],
+      issues: [{ ...root, events: [{ kind: 'deferred', note: '通知は本開発で扱う', date: DATE }] }],
     })
     const p = run(data).issues[0]!
-    expect(p.deferral).not.toBeNull()
-    expect(p.deferral!.badge.x).toBeGreaterThanOrEqual(p.title.x + p.title.width)
-    expect(p.deferral!.reason.y).toBeGreaterThanOrEqual(p.title.y + p.title.height)
+    expect(p.event).not.toBeNull()
+    expect(p.event!.badge.x).toBeGreaterThanOrEqual(p.title.x + p.title.width)
+    expect(p.event!.reason.y).toBeGreaterThanOrEqual(p.title.y + p.title.height)
     expect(p.rect.width).toBe(BOX_WIDTH)
     // バッジは箱の中（右端からはみ出さない）
-    expect(p.deferral!.badge.x + p.deferral!.badge.width).toBeLessThanOrEqual(p.rect.x + p.rect.width)
-  })
-
-  /**
-   * **タイトル行の右上の枠に出る文言は2つあり、いまどちらも「見送り」である。**
-   * `DEFER_TRIGGER_LABEL`（まだ見送っていない箱でホバー中に出る小ボタン）と
-   * `ISSUE_DEFERRED_LABEL`（見送り済みのバッジ）で、`layout.ts` の `slotW` は
-   * 状態に応じてどちらかの幅で枠を空ける。
-   *
-   * **一致は偶然であって、統合したわけではない**——別々に置いてあるのは、
-   * 押す前と押した後で文言を変えられるようにするためである（`derive.ts` が
-   * `ISSUE_DEFERRED_LABEL` を `BADGE_LABELS.deferred` と別に持っているのと同じ趣旨）。
-   * **だから畳まないこと。**
-   *
-   * 固定するのは「一致していること」ではなく、**一致が黙って崩れないこと**である。
-   * ここが落ちたら、割るのか揃えるのかを決めてから検査を直す——割るなら、
-   * `IssueTreeEditor.dom.test.tsx` の `textContent` の照合が
-   * **その時点で初めて**切りと入りの取り違えを捕まえる検査に変わる
-   *（同値であるいまは捕まえない。あちらは面のクラスで分けている）
-   */
-  it('DEFER_TRIGGER_LABEL と ISSUE_DEFERRED_LABEL はたまたま同値な独立した定数である（畳まない）', () => {
-    expect(DEFER_TRIGGER_LABEL).toBe(ISSUE_DEFERRED_LABEL)
+    expect(p.event!.badge.x + p.event!.badge.width).toBeLessThanOrEqual(p.rect.x + p.rect.width)
   })
 
   it('子の列は親の箱の右端より右に置かれる（箱の幅がブロックの幅に効く）', () => {
@@ -340,7 +362,13 @@ describe('layoutIssueTree', () => {
         { id: I(2), parentId: I(0), text: '再受検の扱い', events: [] },
       ],
       hypotheses: [
-        { ...h(1), issueId: I(1), pendingNotes: ['採否は次回の設計会で決める'] },
+        {
+          ...h(1),
+          issueId: I(1),
+          feedbacks: [
+            { askId: null, text: '採否は次回の設計会で決める', by: '', sentiment: 'note', date: DATE },
+          ],
+        },
         { ...h(2), issueId: I(1) },
       ],
     })
@@ -372,5 +400,40 @@ describe('layoutIssueTree', () => {
     const out = run(data)
     expect(out.hypotheses[0]).not.toBe(null)
     expect(out.hypotheses[1]).toBe(null)
+  })
+
+  /**
+   * 旗を1件立てた木のレイアウトを返す。**`posed` は必ず同じ `data` から取り直す**
+   *——`layoutIssueTree` は「`posed` は同じ `data` に対する `poseQuestions(data)` の
+   * 結果である」を前提に添字で引き当てており（`open-issues.md` にこの不変条件が
+   * doc に書かれていないとして載っている）、別の木の答えを渡すとバッジが立ったり
+   * 立たなかったりする。**テストの中でその不変条件を破らないこと**
+   */
+  const flagData = make({ issues: [root, child] })
+  function layoutWithFlag(kind: 'deferred' | 'resolved') {
+    const issues = flagData.issues.map((n, i) =>
+      i === 1 ? { ...n, events: [{ kind, note: '通知の集約で解ける', date: DATE }] } : n,
+    )
+    const next = { ...flagData, issues }
+    return layoutIssueTree(next, poseQuestions(next), fonts, -1)
+  }
+
+  it('解決の旗を掲げた課題は、見送りと同じ形で右上のバッジと理由の行を持つ', () => {
+    const placement = layoutWithFlag('resolved').issues[1]
+    expect(placement?.event).not.toBeNull()
+    expect(placement?.event?.reason.height).toBeGreaterThan(0)
+  })
+
+  it('旗のバッジの幅は種別ごとに変わる（文言決め打ちに戻したら赤くなる）', () => {
+    // **等値でも「片方が狭い」でもなく「違う」を見る。** 概算測定器の
+    // 文字幅の仮定に寄りかからずに、`ISSUE_EVENT_LABELS[kind]` から測って
+    // いることだけを押さえる
+    const deferred = layoutWithFlag('deferred').issues[1]?.event?.badge.width
+    const resolved = layoutWithFlag('resolved').issues[1]?.event?.badge.width
+    expect(deferred).toBeDefined()
+    expect(resolved).toBeDefined()
+    expect(resolved).not.toBe(deferred)
+    // ブリーフの前提の番人：「見送り」（3文字）と「解決」（2文字）で幅が違う
+    expect(ISSUE_EVENT_LABELS.deferred).not.toBe(ISSUE_EVENT_LABELS.resolved)
   })
 })
