@@ -30,6 +30,7 @@ import {
   FB_DELETE_WIDTH,
   FB_ICON_SIZE,
   FB_INDENT,
+  FIELD_INDENT,
   ISSUE_INSET_X,
   ISSUE_INSET_Y,
   MIN_FIELD_WIDTH,
@@ -154,10 +155,28 @@ export interface IssuePlacement {
  */
 export interface HypothesisPanel {
   panel: Rect
-  /** 「ソリューション仮説」節。見出しの帯／仮説の文言／詳細（どちらも複数行） */
-  solution: { label: Rect; title: Rect; detail: Rect }
+  /**
+   * 「ソリューション仮説」節。見出しの帯／仮説の文言（複数行）。
+   *
+   * **`detail` はここから出た**（m5 の追加作業）——「どう作るか」は独立した節に
+   * 昇格し、価値仮説の次に座る（下の `detail`）。**ゴミ箱（仮説の削除）は
+   * この節の帯に残る**——仮説そのものを消すボタンなので、節が分かれても
+   * 仮説の先頭の節に付く
+   */
+  solution: { label: Rect; title: Rect }
   /** 「価値仮説」節。見出しの帯／価値仮説（複数行） */
   value: { label: Rect; field: Rect }
+  /**
+   * 「どう作るか」節（`detail`）。見出しの帯／本文（複数行）。
+   *
+   * **m5 の追加作業で独立した節になった。** それまではソリューション仮説の節の
+   * 中に、タイトルの下の本文として描かれていた——スキーマが `detail` を
+   * 「ソリューション仮説の**詳細**（どう作るか）」と説明している通りの入れ子だが、
+   * 実機で読むと**タイトルと詳細のどちらが仮説の本体か**が見分けられなかった。
+   * 節に上げて見出しを与え、**価値仮説（なぜ効くか）の次**——「何を・なぜ・
+   * どう」の順——に置いた（依頼者の指示）
+   */
+  detail: { label: Rect; field: Rect }
   /**
    * 「検証結果」節。`label` の帯に最新イベントのバッジ・日付・種別を選ぶ
    * トリガーが並び、その下が根拠（編集可）。
@@ -304,16 +323,55 @@ export const NO_JUDGEMENT_TEXT = '理由（判断を選ぶと書ける）'
 
 /**
  * 節の見出し。**`derive.ts` には置かない**——Skill の報告には出ない画面だけの言葉。
- * **並びは描く順**（キャンバスの「仮説の展開」アートボード）: ソリューション仮説 →
- * 価値仮説 → 検証結果 →（以前の判断）→ FB
+ * **鍵の並びが描く順**: ソリューション仮説 → 価値仮説 → どう作るか →
+ * 検証結果 →（以前の判断）→ FB。`layout.test.ts` が鍵の並びを、
+ * `HypothesisPanel.dom.test.tsx` が DOM の並びを、対で固定している。
+ *
+ * **「どう作るか」（`detail`）は m5 の追加作業でソリューション仮説の節の中から
+ * 昇格した**（`HypothesisPanel.detail` の解説）
  */
 export const SECTION_LABELS = {
   solution: 'ソリューション仮説',
   value: '価値仮説',
+  detail: 'どう作るか',
   judgement: '検証結果',
   previous: '以前の判断',
   notes: 'FB',
 } as const
+
+/** FB の調子（`sentiment`）。**スキーマの enum そのもの** */
+export type Sentiment = Feedback['sentiment']
+
+/**
+ * 調子ごとの日本語。**語はスキーマの説明から取った**——
+ * `src/types/issue-tree.ts` の `Feedback.sentiment` が
+ * 「like＝賛成／concern＝懸念／question＝質問／note＝ただのメモ（分類しない）」と
+ * 書いている、その語をそのまま使う。**画面のために語を発明しない**
+ *（発明すると、アプリの画面と Skill が人へ返す報告で同じ値が別の名前で出る）。
+ *
+ * **`derive.ts` には置けない**——あちらは同梱 Skill にバイト一致のコピーがあり、
+ * 画面だけの言葉を足すとコピーの側が意味の無い差分を持つ。`SECTION_LABELS` と
+ * 同じ事情で、ここが画面だけの言葉の置き場である。
+ *
+ * **`Record<Sentiment, string>` にしてあるのは、スキーマが調子を増やしたときに
+ * `tsc` をここで落とすためである**（`SENTIMENT_ICONS` ／ `EVENT_KIND_LABELS` と
+ * 同じ手）。手書きの配列にすると、増えた語が**選べないまま静かに残る**
+ */
+export const SENTIMENT_LABELS: Record<Sentiment, string> = {
+  like: '賛成',
+  concern: '懸念',
+  question: '質問',
+  note: 'ただのメモ',
+}
+
+/**
+ * ドロップダウンに出す調子の並び。**`SENTIMENT_LABELS` の鍵の順**
+ *（スキーマの enum の順でもある）——`JUDGEMENT_MENU_ORDER` が
+ * `Record<JudgementKind, number>` で並びを持っているのと同じ理由で、
+ * **手書きの配列を置かない**：ここは鍵から導くので、語が増えれば
+ * 自動でメニューにも出る（`SENTIMENT_LABELS` 側で `tsc` が落ちて気づく）
+ */
+export const SENTIMENT_ORDER: readonly Sentiment[] = Object.keys(SENTIMENT_LABELS) as Sentiment[]
 
 /**
  * 空の欄に出す案内。**プレースホルダは高さに効かない**（測るのは値の側）ので
@@ -323,7 +381,14 @@ export const SECTION_LABELS = {
 export const FIELD_PLACEHOLDERS = {
   detail: 'どう作るか',
   value: 'なぜ効くか',
-  ask: '聞きたいこと',
+  /**
+   * **画面だけ「SHに」を前に付ける**（m5 の追加作業。依頼者の指示）。
+   * **データと Skill の語彙は `asks` ＝「聞きたいこと」のまま**——スキーマ v3 は
+   * 凍結範囲で、説明を変えると同梱 Skill のバイト一致コピーとも食い違う。
+   * **これは意図した使い分けである**（画面は「誰に聞くか」まで言い、データの
+   * 語彙は中立のまま）——`docs/open-issues.md` に記録してある
+   */
+  ask: 'SHに聞きたいこと',
 } as const
 
 /**
@@ -367,8 +432,15 @@ export function feedbackMetaText(f: Pick<Feedback, 'by' | 'date'>): string {
  * 値はデザインキャンバスの `.adds` から逐語
  */
 export const ADD_NOTE_LABEL = 'FBを追加'
-/** 「＋ 聞きたいことを追加」のボタンの文言。同上 */
-export const ADD_ASK_LABEL = '聞きたいことを追加'
+/**
+ * 「＋ SHに聞きたいことを追加」のボタンの文言。
+ *
+ * **キャンバスの逐語は「聞きたいことを追加」だった**が、m5 の追加作業で
+ * 依頼者の指示により「SHに」を前に付けた（`FIELD_PLACEHOLDERS.ask` と同じ判断
+ *——**画面だけが「誰に聞くか」まで言い、データと Skill の語彙は `asks` ＝
+ * 「聞きたいこと」のまま**）
+ */
+export const ADD_ASK_LABEL = 'SHに聞きたいことを追加'
 /** 問いブロックの中の小さな「＋FB」の文言（キャンバスの `.miniadd`） */
 export const MINI_ADD_NOTE_LABEL = 'FB'
 /**
@@ -524,6 +596,15 @@ export function layoutIssueTree(
      */
     const contentWidth = open ? EXPANDED_CONTENT_WIDTH : BOX_CONTENT_WIDTH
     const panelContentWidth = contentWidth - PANEL_INDENT - PANEL_INSET_X * 2
+    /**
+     * **節見出しの下の「値の欄」が使える幅**（`measure.ts` の `FIELD_INDENT`）。
+     * 値の欄は見出しの帯より全角1文字ぶん右から始まるので、**そのぶん狭い。**
+     * **測る側（この値で `textHeight` を呼ぶ）と描く側（`fieldRow` が x を足す）は
+     * 対である**——片方だけ直すと、折り返しの測定が実際より広い幅で行われ、
+     * 高さ固定の `textarea` で末尾の行が黙って切れる（このマイルストーンで
+     * この型の欠陥が繰り返し出ている）。**見出しの帯は `panelContentWidth` のまま**
+     */
+    const fieldContentWidth = panelContentWidth - FIELD_INDENT
 
     // --- 畳まれた1行 ---
     // **バッジと文言の幅の式はこの枝にしか無い。** 開いた仮説に頭部は無く
@@ -594,22 +675,28 @@ export function layoutIssueTree(
     /**
      * ソリューション仮説の節。**タイトルは `fonts.title` で測る**（描くのは
      * `HYPO_TITLE_FONT_CLASS`。`IssueTreeFonts.title` の解説＝安全側の再利用）。
-     * 詳細は本文と同じ書体で、**空でも1行ぶんの高さを取る**——空欄には
-     * プレースホルダが出るので、潰すと押せる場所が消える
+     * **`detail` はもうこの節に無い**——独立した「どう作るか」の節へ昇格した
+     *（`HypothesisPanel.detail` の解説）
      */
-    const hypoTitleH = textHeight(h.title, fonts.title, panelContentWidth)
-    const detailH = textHeight(h.detail, fonts.body, panelContentWidth)
+    const hypoTitleH = textHeight(h.title, fonts.title, fieldContentWidth)
     /**
      * 見出しの帯にはゴミ箱（仮説の削除。m5 Task 7）が右端に並ぶので、
      * **帯の高さは高い方に合わせる**——`judgeLabelH` がバッジで測っているのと
      * 同じ組み方で、書体が小さい環境でアイコンが帯からはみ出さない
      */
     const solutionLabelH = Math.max(labelH, TRASH_ICON_SIZE)
-    const solutionH = solutionLabelH + SECTION_GAP + hypoTitleH + SECTION_GAP + detailH
+    const solutionH = solutionLabelH + SECTION_GAP + hypoTitleH
 
     /** 価値仮説の節（見出し＋1つの欄） */
-    const valueH = textHeight(h.value, fonts.body, panelContentWidth)
+    const valueH = textHeight(h.value, fonts.body, fieldContentWidth)
     const valueSectionH = labelH + SECTION_GAP + valueH
+
+    /**
+     * 「どう作るか」の節（`detail`）。本文と同じ書体で、**空でも1行ぶんの
+     * 高さを取る**——空欄にはプレースホルダが出るので、潰すと押せる場所が消える
+     */
+    const detailH = textHeight(h.detail, fonts.body, fieldContentWidth)
+    const detailSectionH = labelH + SECTION_GAP + detailH
 
     /**
      * 検証結果の節。**見出しの帯にバッジと日付が同居する**ので、帯の高さは
@@ -625,14 +712,14 @@ export function layoutIssueTree(
     const judgeNoteH = textHeight(
       latest === null ? NO_JUDGEMENT_TEXT : latest.note,
       fonts.body,
-      panelContentWidth,
+      fieldContentWidth,
     )
     const judgementH = judgeLabelH + SECTION_GAP + judgeNoteH
 
     // 以前の判断は追記専用の記録。**最新1件を除いた全部**を古い順に出す
     const previous = h.events.slice(0, -1).map((e) => {
       const w = badgeWidth(EVENT_KIND_LABELS[e.kind], fonts.small)
-      const noteW = panelContentWidth - w - BADGE_GAP
+      const noteW = fieldContentWidth - w - BADGE_GAP
       return { badgeW: w, noteW, height: Math.max(BADGE_HEIGHT, textHeight(e.note, fonts.body, noteW)) }
     })
     const previousH =
@@ -648,7 +735,9 @@ export function layoutIssueTree(
      * 並べ、最後に「どの問いにも紐づかないFB」のブロックを**中身があるときだけ**置く
      */
     const { attached, loose } = groupFeedbacks(h)
-    const blockContentWidth = panelContentWidth - ASK_PADDING_X * 2
+    // **ブロックそのものが字下げの対象**（`FIELD_INDENT`）。中身（`ASK_PADDING_X`・
+    // `FB_INDENT`）はブロックからの相対なので、**ここで足せば二重にならない**
+    const blockContentWidth = fieldContentWidth - ASK_PADDING_X * 2
     const rowContentWidth = blockContentWidth - FB_INDENT
     const miniAddW = miniActionWidth(MINI_ADD_NOTE_LABEL, fonts.small)
     /**
@@ -738,9 +827,14 @@ export function layoutIssueTree(
       askBlocks.reduce((sum, b) => sum + b.height + ASK_BLOCK_GAP, 0) +
       ACTION_HEIGHT
 
-    const sectionHs = [solutionH, valueSectionH, judgementH, previousH, notesSectionH].filter(
-      (s) => s > 0,
-    )
+    const sectionHs = [
+      solutionH,
+      valueSectionH,
+      detailSectionH,
+      judgementH,
+      previousH,
+      notesSectionH,
+    ].filter((s) => s > 0)
     const panelH =
       PANEL_INSET_Y * 2 +
       sectionHs.reduce((sum, s) => sum + s, 0) +
@@ -768,19 +862,35 @@ export function layoutIssueTree(
           cursor += rowHeight + gap
           return r
         }
-        /** 節の見出しの帯を置いて本文の上端まで進める */
+        /** 節の見出しの帯を置いて本文の上端まで進める。**帯は字下げしない** */
         const sectionLabel = (bandHeight = labelH): Rect => fullRow(bandHeight, SECTION_GAP)
+        /**
+         * 節見出しの下の「値の欄」を置く。**`x` に `FIELD_INDENT` を足し、幅から
+         * 同じだけ引く**——右端は見出しの帯と揃ったまま、左端だけが全角1文字ぶん
+         * 内側に入る。**測る側（`fieldContentWidth`）と対**である
+         */
+        const fieldRow = (rowHeight: number, gap: number): Rect => {
+          const r: Rect = {
+            x: cx + FIELD_INDENT,
+            y: cursor,
+            width: fieldContentWidth,
+            height: rowHeight,
+          }
+          cursor += rowHeight + gap
+          return r
+        }
 
         const solutionLabel = sectionLabel(solutionLabelH)
-        // 節の中の空きは見出しと同じ `SECTION_GAP`（キャンバスの `.sec` の gap）
-        const hypoTitle = fullRow(hypoTitleH, SECTION_GAP)
-        const detail = fullRow(detailH, PANEL_GAP)
+        const hypoTitle = fieldRow(hypoTitleH, PANEL_GAP)
 
         const valueLabel = sectionLabel()
-        const valueField = fullRow(valueH, PANEL_GAP)
+        const valueField = fieldRow(valueH, PANEL_GAP)
+
+        const detailLabel = sectionLabel()
+        const detailField = fieldRow(detailH, PANEL_GAP)
 
         const judgeLabel = sectionLabel(judgeLabelH)
-        const judgeNote = fullRow(judgeNoteH, 0)
+        const judgeNote = fieldRow(judgeNoteH, 0)
 
         const previousRects: { badge: Rect; note: Rect }[] = []
         let previousLabel: Rect | null = null
@@ -789,9 +899,11 @@ export function layoutIssueTree(
           previousLabel = sectionLabel()
           previous.forEach((p, j) => {
             if (j > 0) cursor += ROW_GAP
+            // **値の欄と同じ字下げ**（バッジが行の先頭に座るので、バッジの側を寄せる）
+            const px = cx + FIELD_INDENT
             previousRects.push({
-              badge: { x: cx, y: cursor, width: p.badgeW, height: BADGE_HEIGHT },
-              note: { x: cx + p.badgeW + BADGE_GAP, y: cursor, width: p.noteW, height: p.height },
+              badge: { x: px, y: cursor, width: p.badgeW, height: BADGE_HEIGHT },
+              note: { x: px + p.badgeW + BADGE_GAP, y: cursor, width: p.noteW, height: p.height },
             })
             cursor += p.height
           })
@@ -800,7 +912,15 @@ export function layoutIssueTree(
         cursor += PANEL_GAP
         const notesLabel = sectionLabel()
         const blocks: AskBlockRects[] = askBlocks.map((bp) => {
-          const block: Rect = { x: cx, y: cursor, width: panelContentWidth, height: bp.height }
+          // **ブロックの面ごと字下げする**（値の欄と同じ `FIELD_INDENT`）。
+          // 中の `ASK_PADDING_X` / `FB_INDENT` はこの矩形からの相対なので、
+          // ここで足しても入れ子の字下げと二重にはならない
+          const block: Rect = {
+            x: cx + FIELD_INDENT,
+            y: cursor,
+            width: fieldContentWidth,
+            height: bp.height,
+          }
           const bx = block.x + ASK_PADDING_X
           /** ブロックの中身の右端（＋FB とバッジはここから左へ並ぶ） */
           const right = bx + blockContentWidth
@@ -886,8 +1006,9 @@ export function layoutIssueTree(
           row: null,
           expanded: {
             panel,
-            solution: { label: solutionLabel, title: hypoTitle, detail },
+            solution: { label: solutionLabel, title: hypoTitle },
             value: { label: valueLabel, field: valueField },
+            detail: { label: detailLabel, field: detailField },
             judgement: { label: judgeLabel, note: judgeNote },
             previousLabel,
             previous: previousRects,

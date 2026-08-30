@@ -10,6 +10,12 @@ import {
 import { Badge } from '@/components/Badge'
 import { buttonBase } from '@/components/button-styles'
 import { CellInput } from '@/components/CellInput'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import type { Rect } from '@/core/canvas/viewport'
 import type { Ask, Feedback } from '@/types/issue-tree'
 import type { HypothesisCell } from './cell-keys'
@@ -19,7 +25,10 @@ import {
   FIELD_PLACEHOLDERS,
   MINI_ADD_NOTE_LABEL,
   NO_ASK_TEXT,
+  SENTIMENT_LABELS,
+  SENTIMENT_ORDER,
   type AskBlockRects,
+  type Sentiment,
 } from './layout'
 import {
   ACTION_ICON_SIZE_CLASS,
@@ -33,9 +42,6 @@ import {
   MINI_ICON_SIZE_CLASS,
   STATIC_TEXT_CLASS,
 } from './measure'
-
-/** FB の調子。**スキーマの enum そのもの**（増えたら下の表で `tsc` が落ちる） */
-type Sentiment = Feedback['sentiment']
 
 /**
  * 調子ごとのアイコン。**`Record<Sentiment, LucideIcon>` にしてあるので、
@@ -52,6 +58,68 @@ const SENTIMENT_ICONS: Record<Sentiment, LucideIcon> = {
   concern: TriangleAlert,
   question: CircleHelp,
   note: MessageSquare,
+}
+
+/** ドロップダウンの開閉。**親（＝エディタ）が持つ**——同時に1つの約束のため */
+interface MenuOpenProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+interface SentimentMenuProps extends MenuOpenProps {
+  /** アクセシブル名（トリガーのボタン）。**前半（`仮説{N}`）は動かさない** */
+  label: string
+  /** いまの調子。**トリガーのアイコンそのものが、この値の表示である** */
+  value: Sentiment
+  /** アイコンの色（抑制の規則は親が1箇所で決める。`mutedInk`） */
+  iconClass: string
+  onPick: (next: Sentiment) => void
+}
+
+/**
+ * FB の調子を1つ選ぶドロップダウン（m5 の追加作業）。
+ *
+ * **トリガーは調子のアイコンそのもの**——`IssueTreeEditor` の `KindMenu`
+ *（判断のバッジ自身がトリガー）と同じ考え方で、**状態を見る場所と変える場所を
+ * 1つにする**。アイコンの右に「変える」ボタンを別に置くと、同じ1件について
+ * 語る要素が2つ並ぶ（`KindMenu` の解説）。
+ *
+ * **開閉は親が持つ制御コンポーネント**——`openCell` の鍵1つで
+ * 「同時に開くのは1つ」を構造的に保証する（`KindMenu` と同じ形）。
+ *
+ * **`KindMenu` の `picked` ref ／ `onCloseAutoFocus` の仕掛けは持たない。**
+ * あちらは選んだ直後に**別の欄（追記した根拠）へフォーカスを予約する**ので
+ * Radix の「トリガーへ戻す」と取り合うが、調子の差し替えは**席を1つも増やさない**
+ *——フォーカスがトリガー（＝いま押したアイコン）へ戻るのが正しい行き先である。
+ *
+ * **アイコンに色を付けない**（`iconClass` は `text-ink-muted` ／抑制時は
+ * `text-ink-faint`）——形だけで区別する、という既存の決定は変えない
+ *（`SENTIMENT_ICONS` の解説）
+ */
+function SentimentMenu(props: SentimentMenuProps) {
+  const Icon = SENTIMENT_ICONS[props.value]
+  return (
+    <DropdownMenu open={props.open} onOpenChange={props.onOpenChange}>
+      {/* **調子は `data-sentiment` で名乗る**——アイコンの SVG は
+          `aria-hidden` なので、形の対応を検査できる手掛かりをここに残す
+          （名前は「何をするボタンか」を運ぶので、値は名乗れない） */}
+      <DropdownMenuTrigger
+        type="button"
+        aria-label={props.label}
+        data-sentiment={props.value}
+        className={`${buttonBase} size-full ${props.iconClass} outline-none hover:text-ink focus:ring-2 focus:ring-inset focus:ring-ring`}
+      >
+        <Icon className={FB_ICON_SIZE_CLASS} aria-hidden="true" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {SENTIMENT_ORDER.map((sentiment) => (
+          <DropdownMenuItem key={sentiment} onSelect={() => props.onPick(sentiment)}>
+            {SENTIMENT_LABELS[sentiment]}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
 export interface AskBlockProps {
@@ -87,6 +155,20 @@ export interface AskBlockProps {
   onRemoveAsk: () => void
   onAddFeedback: () => void
   onFeedbackTextChange: (feedbackIndex: number, next: string) => void
+  /**
+   * 調子（`sentiment`）を差し替える。**アイコンのドロップダウンから来る**
+   *——`commands.ts` の `setFeedbackSentiment` へ写像される
+   */
+  onFeedbackSentimentChange: (feedbackIndex: number, next: Sentiment) => void
+  /**
+   * 調子のドロップダウンの開閉。**エディタの `openCell` から来る**
+   *（`menuPropsFor` の戻り値そのもの）——**同時に開くのは1つ**という
+   * 約束は鍵を1つしか持たないことで構造的に守られている。
+   *
+   * **ブロックの側で `useState` を持たないこと。** 持つと FB の数だけ
+   * 独立した開閉状態ができ、「同時に1つ」が場所ごとに破れる
+   */
+  sentimentMenuProps: (feedbackIndex: number) => MenuOpenProps
   onRemoveFeedback: (feedbackIndex: number) => void
 }
 
@@ -217,19 +299,20 @@ export function AskBlock(props: AskBlockProps) {
       {rects.rows.map((row) => {
         const f = props.feedbacks[row.feedbackIndex]
         if (f === undefined) return null
-        const Icon = SENTIMENT_ICONS[f.sentiment]
         const name = `${label} のFB${row.feedbackIndex + 1}`
         return (
           <span key={`fb:${row.feedbackIndex}`}>
-            {/* **調子は `data-sentiment` で名乗る**——アイコン自体は
-                `aria-hidden` なので、形の対応を検査できる手掛かりを残す */}
-            <span
-              aria-hidden="true"
-              data-sentiment={f.sentiment}
-              className={`flex items-center justify-center ${mutedInk}`}
-              style={inBlock(row.icon)}
-            >
-              <Icon className={FB_ICON_SIZE_CLASS} />
+            {/* **アイコンはドロップダウンのトリガーそのもの**（m5 の追加作業）
+                ——形が「いまの調子」を、押せることが「変えられる」を運ぶ。
+                判断のバッジがトリガーになっているのと同じ考え方（`KindMenu`） */}
+            <span className="flex items-center justify-center" style={inBlock(row.icon)}>
+              <SentimentMenu
+                label={`${name}の調子`}
+                value={f.sentiment}
+                iconClass={mutedInk}
+                onPick={(next) => props.onFeedbackSentimentChange(row.feedbackIndex, next)}
+                {...props.sentimentMenuProps(row.feedbackIndex)}
+              />
             </span>
             <span style={inBlock(row.text)}>
               <CellInput

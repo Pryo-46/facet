@@ -129,6 +129,10 @@ function renderPanel(index: number, opts: { suppressed?: boolean } = {}) {
       onValueChange={onValueChange}
       onAskTextChange={vi.fn()}
       onFeedbackTextChange={vi.fn()}
+      // 調子のドロップダウンはエディタが開閉の鍵を持つ（同時に1つ）。
+      // ここは「閉じている」を固定で渡す——中身は `AskBlock.dom.test.tsx` が見る
+      onFeedbackSentimentChange={vi.fn()}
+      sentimentMenuProps={() => ({ open: false, onOpenChange: vi.fn() })}
       onEventNoteChange={vi.fn()}
       onAddAsk={onAddAsk}
       onRemoveAsk={vi.fn()}
@@ -157,17 +161,34 @@ function precedes(a: Element, b: Element): boolean {
 }
 
 describe('HypothesisPanel: 節の構成', () => {
-  it('節が「ソリューション仮説」「価値仮説」「検証結果」「FB」の順に並ぶ', () => {
+  /**
+   * **「どう作るか」（`detail`）は価値仮説の次**（m5 の追加作業）。それまでは
+   * ソリューション仮説の節の中、タイトルの下の本文だった——見出しを持たないので
+   * 「タイトルと詳細のどちらが仮説の本体か」が実機で見分けられなかった。
+   *
+   * **並びは `SECTION_LABELS` の鍵の順と対**（`layout.test.ts` が鍵の並びを、
+   * ここが DOM の並びを固定する）
+   */
+  it('節が「ソリューション仮説」「価値仮説」「どう作るか」「検証結果」「FB」の順に並ぶ', () => {
     renderPanel(0)
     const labels = [
       SECTION_LABELS.solution,
       SECTION_LABELS.value,
+      SECTION_LABELS.detail,
       SECTION_LABELS.judgement,
       SECTION_LABELS.notes,
     ].map(sectionLabel)
     for (let i = 1; i < labels.length; i += 1) {
       expect(precedes(labels[i - 1], labels[i])).toBe(true)
     }
+    // **「どう作るか」の欄は、その見出しの下にある**——見出しだけを別の場所へ
+    // 出して欄はソリューション仮説の節に残す、という中途半端な移し方を弾く
+    expect(
+      precedes(sectionLabel(SECTION_LABELS.detail), screen.getByRole('textbox', { name: '仮説1 の詳細' })),
+    ).toBe(true)
+    expect(
+      precedes(screen.getByRole('textbox', { name: '仮説1 の価値仮説' }), sectionLabel(SECTION_LABELS.detail)),
+    ).toBe(true)
   })
 
   /**

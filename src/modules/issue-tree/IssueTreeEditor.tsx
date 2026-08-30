@@ -52,6 +52,7 @@ import {
   removeFeedback,
   setAskText,
   setEventNote,
+  setFeedbackSentiment,
   setFeedbackText,
   setHypothesisDetail,
   setHypothesisTitle,
@@ -703,6 +704,13 @@ export function IssueTreeEditor({
   /** ドロップダウンの鍵。**`data-cell` と同じ文字列にしないこと**——フォーカスの
       予約は `data-cell` で引くので、衝突するとトリガーを掴んでしまう */
   const judgementMenuKey = (hypothesisKey: string): string => `menu:judge:${hypothesisKey}`
+  /**
+   * FB の調子のドロップダウンの鍵（m5 の追加作業）。**判断と同じ `openCell` に
+   * 載る**ので、判断のメニューと調子のメニューが同時に開くことはない。
+   * 接頭辞を分けているのは、同じ仮説の判断と FB1 が同じ鍵にならないようにするため
+   */
+  const sentimentMenuKey = (hypothesisKey: string, feedbackIndex: number): string =>
+    `menu:sentiment:${hypothesisKey}:${feedbackIndex}`
 
   /** 編集の打ち切り。フォーカスを外すと CellInput が確定値に戻す */
   const blurActive = (): void => {
@@ -1163,6 +1171,20 @@ export function IssueTreeEditor({
                               setFeedbackText(data, hi, feedbackIndex, next),
                               `${rowKey}:feedback:${feedbackIndex}`,
                             )
+                          }
+                          // **調子の差し替えは履歴をまとめない**（第2引数は `null`）
+                          // ——打鍵ではなく1回の選択なので、まとめる相手が無い。
+                          // 文言（`onFeedbackTextChange`）が鍵でまとめているのは
+                          // 連続した打鍵を1つの取り消しにするためである。
+                          // **同じ調子を選び直したら何もしない**（`apply` が
+                          // `result.data === data` を落としているのと同じ理由——
+                          // 中身の同じコミットが積まれると Undo が空振りする）
+                          onFeedbackSentimentChange={(feedbackIndex, next) => {
+                            const updated = setFeedbackSentiment(data, hi, feedbackIndex, next)
+                            if (updated !== data) onChange(updated, null)
+                          }}
+                          sentimentMenuProps={(feedbackIndex) =>
+                            menuPropsFor(sentimentMenuKey(rowKey, feedbackIndex))
                           }
                           onEventNoteChange={(eventIndex, next) =>
                             onChange(

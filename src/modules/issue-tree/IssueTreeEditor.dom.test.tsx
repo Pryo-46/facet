@@ -20,7 +20,7 @@ import {
   tallyQuestions,
 } from './derive'
 import { IssueTreeEditor } from './IssueTreeEditor'
-import { NO_ASK_TEXT, SECTION_LABELS } from './layout'
+import { NO_ASK_TEXT, SECTION_LABELS, SENTIMENT_LABELS } from './layout'
 import {
   BOX_WIDTH,
   EXPANDED_BOX_WIDTH,
@@ -1437,6 +1437,65 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
   })
 
   /**
+   * **FB の調子（`sentiment`）を選ぶ動線の番人**（m5 の追加作業）。3つを見る:
+   *
+   * 1. **保存された JSON の値**——アイコンの見た目だけを見ると、
+   *    `setFeedbackSentiment` を配線し忘れた実装でも緑になりかねない
+   * 2. **他の欄が動かないこと**——`date` は「いつ言われたか」であって
+   *    「いつ分類し直したか」ではない
+   * 3. **選んだ瞬間に課題が畳まれないこと**——Radix の項目は `body` へ
+   *    ポータルされるが**React の合成イベントは箱まで遡る**ので、
+   *    `IssueBox` の `onBoxClick` が `[role="menuitem"]` を弾いていないと、
+   *    調子を選ぶたびに開いていた課題が閉じる（判断のドロップダウンで
+   *    実際に踏んだ欠陥。`[data-panel]` の素通しはポータルには効かない）
+   */
+  it('FB のアイコンから調子を選ぶと保存され、課題は畳まれない', async () => {
+    const onChange = vi.fn()
+    const base = file()
+    const withFeedback: IssueTreeSchemaVersion3 = {
+      ...base,
+      hypotheses: [
+        {
+          ...base.hypotheses[0],
+          feedbacks: [
+            {
+              askId: null,
+              text: '待ち表示があるなら離脱しない',
+              by: '佐藤さん',
+              sentiment: 'note',
+              date: '2026-08-01',
+            },
+          ],
+        },
+      ],
+    }
+    render(<Harness initial={withFeedback} onChange={onChange} />)
+    openHypothesis(1)
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+
+    const trigger = screen.getByRole('button', { name: '仮説1 のFB1の調子' })
+    expect(trigger.getAttribute('data-sentiment')).toBe('note')
+    fireEvent.pointerDown(trigger, { button: 0 })
+    fireEvent.click(await screen.findByRole('menuitem', { name: SENTIMENT_LABELS.concern }))
+
+    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    expect(next.hypotheses[0].feedbacks[0]).toEqual({
+      askId: null,
+      text: '待ち表示があるなら離脱しない',
+      by: '佐藤さん',
+      sentiment: 'concern',
+      date: '2026-08-01',
+    })
+    // 1操作1コミット（打鍵ではないのでまとめる相手が無い）
+    expect(onChange.mock.calls[0][1]).toBe(null)
+    // **開いたまま**であること
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+    expect(screen.getByRole('button', { name: '仮説1 のFB1の調子' }).getAttribute('data-sentiment')).toBe(
+      'concern',
+    )
+  })
+
+  /**
    * **エディタの配線の番人。** `addFeedback` の `askId` は既定値の無い必須引数で、
    * 押されたブロックが自分の問いを渡す。ここが `null` に固定されていても
    * 「FB が1件増える」テストは緑になるので、**保存された `askId` を見る**
@@ -1691,8 +1750,11 @@ describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task
     )
     openHypothesis(1)
     const loose = screen.getByRole('group', { name: `仮説1 の${NO_ASK_TEXT}` })
+    // **調子のトリガー（アイコン）はどのブロックの FB にも付く**（m5 の追加作業）
+    // ——ここが見ているのは「問いの削除だけが無い」ことである
     expect(within(loose).queryAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
       `仮説1 に${NO_ASK_TEXT}を足す`,
+      '仮説1 のFB1の調子',
       '仮説1 のFB1を消す',
     ])
   })

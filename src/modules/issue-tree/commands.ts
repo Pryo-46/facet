@@ -446,6 +446,36 @@ export function setFeedbackText(
 }
 
 /**
+ * FB の調子（`sentiment`）を差し替える（アイコンのドロップダウン。m5 の追加作業）。
+ *
+ * **`setFeedbackText` と同じ規律**——並べ替えない、**日付も文言も書き換えない**
+ *（`date` は「いつ言われたか」であって「いつ分類し直したか」ではない）。
+ *
+ * **これが無いあいだ、`sentiment` はアプリから一度も変えられなかった**
+ *——`newFeedback` が `note` 固定で作り、画面はアイコンで**表示するだけ**
+ * だったので、`like` / `concern` / `question` は Skill か手書きでしか入らなかった。
+ * 「スキーマが受け入れる値を、アプリからは選べない」は
+ * `JUDGEMENT_MENU_ORDER` の註が名指ししている失敗と同じ形である
+ */
+export function setFeedbackSentiment(
+  data: IssueTreeSchemaVersion3,
+  index: number,
+  feedbackIndex: number,
+  sentiment: Feedback['sentiment'],
+): IssueTreeSchemaVersion3 {
+  const h = data.hypotheses[index]
+  const current = h?.feedbacks[feedbackIndex]
+  // **同じ調子を選び直したら「動かなかった編集」**（`moveFeedback` と同じ約束で
+  // 同じ参照を返す）——ドロップダウンはいまの値も選べるので、素通しにすると
+  // 中身の同じコミットが積まれて Undo が空振りする
+  if (h === undefined || current === undefined || current.sentiment === sentiment) return data
+  return replaceHypothesis(data, index, {
+    ...h,
+    feedbacks: h.feedbacks.map((f, i) => (i === feedbackIndex ? { ...f, sentiment } : f)),
+  })
+}
+
+/**
  * FB を1件消す（空欄 Backspace／削除）。**`events` と違って消せるのはここだけ**
  *——打ち間違いが残るのは実務的でない一方、判断の履歴は「そのとき何を根拠に
  * 決めたか」の記録なので追記専用を守る。

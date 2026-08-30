@@ -12,6 +12,7 @@ import {
   removeAsk,
   removeFeedback,
   setAskText,
+  setFeedbackSentiment,
   setFeedbackText,
 } from './commands'
 import { poseQuestions, QUESTION_LABELS } from './derive'
@@ -21,6 +22,8 @@ import {
   ADD_NOTE_LABEL,
   layoutIssueTree,
   NO_ASK_TEXT,
+  SENTIMENT_LABELS,
+  SENTIMENT_ORDER,
   type IssueTreeFonts,
 } from './layout'
 import {
@@ -141,8 +144,14 @@ function Harness(props: {
   index: number
   initial?: IssueTreeSchemaVersion3
   onAdd?: (askId: string | null) => void
+  /** 書き戻された**ファイルそのもの**を受ける（保存された値を見るため） */
+  onFile?: (next: IssueTreeSchemaVersion3) => void
 }) {
   const [file, setFile] = useState(props.initial ?? data)
+  // **調子のドロップダウンの開閉は鍵1つ**（本番は `IssueTreeEditor` の `openCell`）。
+  // ここでも1つしか持たない——ブロックの側に状態を持たせる実装では、
+  // 「同時に1つ」が場所ごとに破れることに気づけない
+  const [openMenu, setOpenMenu] = useState<number | null>(null)
   const index = props.index
   const h = file.hypotheses[index]
   const ownerIndex = file.issues.findIndex((n) => n.id === h.issueId)
@@ -170,6 +179,15 @@ function Harness(props: {
       onAddAsk={() => setFile(addAsk(file, index).data)}
       onRemoveAsk={(askIndex) => setFile(removeAsk(file, index, askIndex).data)}
       onFeedbackTextChange={(fi, next) => setFile(setFeedbackText(file, index, fi, next))}
+      onFeedbackSentimentChange={(fi, next) => {
+        const updated = setFeedbackSentiment(file, index, fi, next)
+        props.onFile?.(updated)
+        setFile(updated)
+      }}
+      sentimentMenuProps={(fi) => ({
+        open: openMenu === fi,
+        onOpenChange: (open) => setOpenMenu(open ? fi : null),
+      })}
       onEventNoteChange={vi.fn()}
       onAddFeedback={(askId) => {
         props.onAdd?.(askId)
@@ -337,6 +355,92 @@ describe('AskBlock: FB の行', () => {
   })
 })
 
+/**
+ * **調子（`sentiment`）を選べるようにした**（m5 の追加作業）。それまでスキーマの
+ * 4語のうちアプリから入るのは `note` だけで（`newFeedback` の既定）、
+ * `like` / `concern` / `question` は Skill か手書きでしか入らなかった
+ *——「スキーマが受け入れる値を、アプリからは選べない」の形である。
+ *
+ * **トリガーはアイコンそのもの**（判断のバッジと同じ考え方。`KindMenu`）
+ */
+describe('AskBlock: 調子を選ぶ', () => {
+  /** 調子のトリガー（アイコン）を FB の番号で引く */
+  const trigger = (n: number, label = '仮説1'): HTMLElement =>
+    screen.getByRole('button', { name: `${label} のFB${n}の調子` })
+
+  it('アイコンを押すと4語が出る（語はスキーマの説明から）', async () => {
+    render(<Harness index={0} />)
+    // トリガーはいまの調子を名乗る（FB1 は `like`）
+    expect(trigger(1).getAttribute('data-sentiment')).toBe('like')
+    fireEvent.pointerDown(trigger(1), { button: 0 })
+    expect((await screen.findAllByRole('menuitem')).map((e) => e.textContent)).toEqual([
+      SENTIMENT_LABELS.like,
+      SENTIMENT_LABELS.concern,
+      SENTIMENT_LABELS.question,
+      SENTIMENT_LABELS.note,
+    ])
+    // **4語が尽きていること**——スキーマが増えたら `SENTIMENT_LABELS` で
+    // `tsc` が落ち、この並びもそこから導かれる
+    expect(SENTIMENT_ORDER).toHaveLength(4)
+  })
+
+  /**
+   * **保存された値を見る。** アイコンの見た目だけを見ると、
+   * `onFeedbackSentimentChange` を配線し忘れた実装（＝アイコンは押せるが値は
+   * 変わらない）でも、再描画で元の形が出るだけなので緑になりかねない
+   */
+  it('選ぶとその FB の sentiment だけが差し替わる（保存された値で見る）', async () => {
+    const onFile = vi.fn()
+    render(<Harness index={0} onFile={onFile} />)
+    fireEvent.pointerDown(trigger(1), { button: 0 })
+    fireEvent.click(await screen.findByRole('menuitem', { name: SENTIMENT_LABELS.question }))
+    const next: IssueTreeSchemaVersion3 = onFile.mock.calls[0][0]
+    expect(next.hypotheses[0].feedbacks.map((f) => f.sentiment)).toEqual([
+      'question',
+      'note',
+      'concern',
+      'question',
+    ])
+    // **文言・発言者・日付は動かない**（分類し直しは「いつ言われたか」を変えない）
+    expect(next.hypotheses[0].feedbacks[0]).toEqual({
+      askId: A(1),
+      text: FB_LIKE,
+      by: '佐藤さん',
+      sentiment: 'question',
+      date: '2026-08-12',
+    })
+    // 画面のアイコンも新しい調子を名乗る（見る場所と変える場所が1つ）
+    expect(trigger(1).getAttribute('data-sentiment')).toBe('question')
+  })
+
+  /**
+   * **同時に開くのは1つ**（`openCell` の鍵1つ、という既存の約束）。
+   * ブロックの側で `useState` を持つ実装だと、FB の数だけ独立した開閉ができる
+   */
+  it('メニューは同時に1つしか開かない', async () => {
+    render(<Harness index={1} />)
+    // **開いている間、外側は a11y ツリーから隠される**（Radix の modal な
+    // メニュー）ので、2つ目のトリガーは `getByRole` では引けない。
+    // DOM から直に引く
+    const node = (n: number): HTMLElement => {
+      const el = document.querySelector(`[aria-label="仮説2 のFB${n}の調子"]`)
+      if (el === null) throw new Error(`FB${n} の調子のトリガーが無い`)
+      return el as HTMLElement
+    }
+    const openMenus = (): number => document.querySelectorAll('[role="menu"]').length
+
+    fireEvent.pointerDown(node(1), { button: 0 })
+    expect(await screen.findAllByRole('menuitem')).toHaveLength(4)
+    expect(openMenus()).toBe(1)
+    // **ブロックごとに `useState` を持つ実装なら 2 つ開いたままになる**
+    // ——開いている鍵は（本番も harness も）1つだけである
+    fireEvent.pointerDown(node(2), { button: 0 })
+    expect(openMenus()).toBeLessThanOrEqual(1)
+    fireEvent.pointerDown(node(3), { button: 0 })
+    expect(openMenus()).toBeLessThanOrEqual(1)
+  })
+})
+
 describe('AskBlock: 節の末尾のボタン', () => {
   it('「聞きたいことを追加」で問いのブロックが増える', () => {
     render(<Harness index={1} />)
@@ -352,7 +456,13 @@ describe('AskBlock: 節の末尾のボタン', () => {
     ).toBe('何回設定できれば足りるか')
   })
 
-  it('2つのボタンの文言はキャンバスの逐語', () => {
+  /**
+   * **文言は定数から引く**（打ち直さない）。「FBを追加」はキャンバスの逐語、
+   * 「SHに聞きたいことを追加」は m5 の追加作業で依頼者が言い換えたもの
+   *——**画面だけが「誰に聞くか」まで言い、データと Skill の語彙は `asks` ＝
+   * 「聞きたいこと」のまま**である（`ADD_ASK_LABEL` の解説）
+   */
+  it('2つのボタンの文言は定数のとおり', () => {
     render(<Harness index={0} />)
     expect(screen.getByRole('button', { name: '仮説1 に聞きたいことを足す' }).textContent).toBe(
       ADD_ASK_LABEL,

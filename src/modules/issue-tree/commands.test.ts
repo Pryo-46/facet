@@ -17,6 +17,7 @@ import {
   removeFeedback,
   setAskText,
   setEventNote,
+  setFeedbackSentiment,
   setHypothesisDetail,
   setHypothesisValue,
   setIssueEventNote,
@@ -298,6 +299,41 @@ describe('仮説とFB', () => {
     const d = withFeedbacks()
     expect(moveFeedback(d, 99, 0, 1).data).toBe(d)
     expect(moveFeedback(d, 0, 9, -1).data).toBe(d)
+  })
+
+  /**
+   * **調子（`sentiment`）の差し替え**（m5 の追加作業）。それまでアプリから入る
+   * 調子は `note`（`newFeedback` の既定）だけで、**スキーマが受け入れる4語のうち
+   * 3語はアプリから選べなかった**。
+   *
+   * **他の欄が動かないことまで見る**——`date` は「いつ言われたか」であって
+   * 「いつ分類し直したか」ではない（`setFeedbackText` が日付を触らないのと同じ規律）
+   */
+  it('FB の調子だけを差し替える（文言・発言者・日付は動かない）', () => {
+    const d = withFeedbacks()
+    const next = setFeedbackSentiment(d, 0, 1, 'concern')
+    expect(next.hypotheses[0].feedbacks.map((f) => f.sentiment)).toEqual([
+      'note',
+      'concern',
+      'note',
+    ])
+    expect(next.hypotheses[0].feedbacks[1]).toEqual({
+      askId: null,
+      text: 'B',
+      by: '',
+      sentiment: 'concern',
+      date: '2026-08-30',
+    })
+    // 対象の仮説以外は同一参照のまま（巻き込まない）
+    expect(next.hypotheses[1]).toBe(d.hypotheses[1])
+  })
+
+  it('同じ調子を選び直しても、存在しない席でも「動かなかった編集」（同じ参照）', () => {
+    const d = withFeedbacks()
+    // ドロップダウンはいまの値も選べるので、素通しにすると中身の同じコミットが積まれる
+    expect(setFeedbackSentiment(d, 0, 0, 'note')).toBe(d)
+    expect(setFeedbackSentiment(d, 0, 9, 'like')).toBe(d)
+    expect(setFeedbackSentiment(d, 99, 0, 'like')).toBe(d)
   })
 
   it('先頭の FB を消したら仮説の文言へ戻る（由来の欄が無くなったので行き先が変わった）', () => {

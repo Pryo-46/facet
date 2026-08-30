@@ -15,6 +15,7 @@ import {
   judgementDateText,
   NO_JUDGEMENT_TEXT,
   SECTION_LABELS,
+  type Sentiment,
 } from './layout'
 import {
   ACTION_HEIGHT_CLASS,
@@ -48,7 +49,7 @@ export interface HypothesisPanelProps {
   /** 親の箱の左上（世界座標）。パネルは箱の中に絶対配置されるので差し引く */
   origin: { x: number; y: number }
   /**
-   * 描く仮説1件。**欄ごとにばらして受け取らない**——節が5つあり、
+   * 描く仮説1件。**欄ごとにばらして受け取らない**——節が6つあり、
    * `title` / `detail` / `value` / `events` / `feedbacks` を別々の props で
    * 運ぶと、どれか1つを渡し忘れても型が通る組み合わせが増える
    */
@@ -62,6 +63,17 @@ export interface HypothesisPanelProps {
   onValueChange: (next: string) => void
   onAskTextChange: (askIndex: number, next: string) => void
   onFeedbackTextChange: (feedbackIndex: number, next: string) => void
+  /** FB の調子（`sentiment`）を差し替える（アイコンのドロップダウン） */
+  onFeedbackSentimentChange: (feedbackIndex: number, next: Sentiment) => void
+  /**
+   * 調子のドロップダウンの開閉。**エディタの `menuPropsFor` の戻り値**を
+   * FB の席ごとに渡す——**鍵はエディタが1つだけ持つ**ので、同時に開くのは
+   * 判断も含めて1つである（`AskBlock` の同名 prop の解説）
+   */
+  sentimentMenuProps: (feedbackIndex: number) => {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+  }
   /** **最新イベントの根拠だけが編集できる**（`setEventNote` が同じ規則を持つ） */
   onEventNoteChange: (eventIndex: number, next: string) => void
   onAddAsk: () => void
@@ -119,7 +131,8 @@ const swallowEnter = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElem
 /**
  * 展開した仮説1件のパネル（デザインキャンバス「仮説の展開」アートボード）。
  *
- * 節は上から **ソリューション仮説 → 価値仮説 → 検証結果 →（以前の判断）→ FB**。
+ * 節は上から **ソリューション仮説 → 価値仮説 → どう作るか → 検証結果 →
+ *（以前の判断）→ FB**（`SECTION_LABELS` の鍵の並びが正）。
  * 「以前の判断」はキャンバスに描かれていないが**残す**——追記専用の列
  *（覆される前の判断とその根拠）を読める唯一の場所だからで、判断が2件以上の
  * ときだけ出る。
@@ -237,20 +250,6 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
           onFieldKeyDown={swallowEnter}
         />
       </div>
-      <div className="absolute" style={inBox(panel.solution.detail)}>
-        <CellInput
-          multiline
-          autoSize={false}
-          className={`${CELL_INPUT_CLASS} ${BODY_FIELD_CLASS} ${ink}`}
-          aria-label={`${label} の詳細`}
-          // **空でも警告にしない**（スキーマの規律。設計ノート D7）——
-          // プレースホルダは「何を書く欄か」の案内であって欠落の印ではない
-          placeholder={FIELD_PLACEHOLDERS.detail}
-          data-cell={cellOf({ cell: 'detail' })}
-          value={hypothesis.detail}
-          onValueChange={props.onDetailChange}
-        />
-      </div>
 
       {/* --- 価値仮説 --- */}
       <div className={sectionBandClass} style={inBox(panel.value.label)}>
@@ -266,6 +265,30 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
           data-cell={cellOf({ cell: 'value' })}
           value={hypothesis.value}
           onValueChange={props.onValueChange}
+        />
+      </div>
+
+      {/* --- どう作るか（`detail`）---
+          **m5 の追加作業で節に昇格した。** それまではソリューション仮説の節の中、
+          タイトルの下の本文だった（`HypothesisPanel.detail` の解説）。
+          **アクセシブル名は `仮説{N} の詳細` のまま**——前半だけでなく、
+          この名前でフォーカスの行き先を引いているテストが複数ある。
+          見出しが変わっても `data-cell`（`detail:`）は同じ席を指す */}
+      <div className={sectionBandClass} style={inBox(panel.detail.label)}>
+        <span className={sectionLabelClass}>{SECTION_LABELS.detail}</span>
+      </div>
+      <div className="absolute" style={inBox(panel.detail.field)}>
+        <CellInput
+          multiline
+          autoSize={false}
+          className={`${CELL_INPUT_CLASS} ${BODY_FIELD_CLASS} ${ink}`}
+          aria-label={`${label} の詳細`}
+          // **空でも警告にしない**（スキーマの規律。設計ノート D7）——
+          // プレースホルダは「何を書く欄か」の案内であって欠落の印ではない
+          placeholder={FIELD_PLACEHOLDERS.detail}
+          data-cell={cellOf({ cell: 'detail' })}
+          value={hypothesis.detail}
+          onValueChange={props.onDetailChange}
         />
       </div>
 
@@ -362,6 +385,8 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
               if (askIndex !== null) props.onRemoveAsk(askIndex)
             }}
             onFeedbackTextChange={props.onFeedbackTextChange}
+            onFeedbackSentimentChange={props.onFeedbackSentimentChange}
+            sentimentMenuProps={props.sentimentMenuProps}
             onRemoveFeedback={props.onRemoveFeedback}
           />
         )

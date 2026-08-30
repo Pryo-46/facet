@@ -13,8 +13,10 @@ import {
   BOX_WIDTH,
   EXPANDED_BOX_WIDTH,
   FB_DELETE_WIDTH,
+  FIELD_INDENT,
   ISSUE_INSET_X,
   ISSUE_INSET_Y,
+  PANEL_INSET_X,
   PANEL_INSET_Y,
   TRASH_ICON_SIZE,
 } from './measure'
@@ -352,25 +354,28 @@ describe('layoutIssueTree', () => {
     expect(p.panel.y + p.panel.height).toBeLessThanOrEqual(
       open.hypotheses[1]!.rect.y + open.hypotheses[1]!.rect.height,
     )
-    // 節は上から ソリューション仮説 → 価値仮説 → 検証結果 → 以前の判断 → FB の順
-    //（由来は v3 で廃止された）。**y で見る**——描く側の DOM 順は
+    // 節は上から ソリューション仮説 → 価値仮説 → どう作るか → 検証結果 →
+    // 以前の判断 → FB の順（由来は v3 で廃止／「どう作るか」は m5 の追加作業で
+    // ソリューション仮説の中から昇格）。**y で見る**——描く側の DOM 順は
     // `HypothesisPanel.dom.test.tsx` が別に見ている
     expect(p.solution.title.y).toBeGreaterThan(p.solution.label.y)
-    expect(p.solution.detail.y).toBeGreaterThan(p.solution.title.y)
-    expect(p.value.label.y).toBeGreaterThan(p.solution.detail.y)
+    expect(p.value.label.y).toBeGreaterThan(p.solution.title.y)
     expect(p.value.field.y).toBeGreaterThan(p.value.label.y)
-    expect(p.judgement.label.y).toBeGreaterThan(p.value.field.y)
+    expect(p.detail.label.y).toBeGreaterThan(p.value.field.y)
+    expect(p.detail.field.y).toBeGreaterThan(p.detail.label.y)
+    expect(p.judgement.label.y).toBeGreaterThan(p.detail.field.y)
     expect(p.previousLabel).not.toBeNull()
     expect(p.previousLabel!.y).toBeGreaterThan(p.judgement.note.y)
     expect(p.notes.label.y).toBeGreaterThan(p.previous[0].note.y)
     expect(p.notes.adds.y).toBeGreaterThan(p.notes.blocks[0].rows[1].rect.y)
-    // 検証結果の根拠は見出しの帯の下に、パネルの全幅で座る（バッジ・日付・
-    // トリガーは帯の中に flex で並ぶので、根拠の幅を削らない）
+    // 検証結果の根拠は見出しの帯の下に座る（バッジ・日付・トリガーは帯の中に
+    // flex で並ぶので、根拠の幅を削らない）。**左端だけが `FIELD_INDENT` ぶん
+    // 内側**で、右端は帯と揃う（下の「値の欄は…」が対で見ている）
     expect(p.judgement.note.y).toBeGreaterThanOrEqual(
       p.judgement.label.y + p.judgement.label.height,
     )
-    expect(p.judgement.note.x).toBe(p.judgement.label.x)
-    expect(p.judgement.note.width).toBe(p.judgement.label.width)
+    expect(p.judgement.note.x).toBe(p.judgement.label.x + FIELD_INDENT)
+    expect(p.judgement.note.width).toBe(p.judgement.label.width - FIELD_INDENT)
   })
 
   /**
@@ -436,6 +441,68 @@ describe('layoutIssueTree', () => {
     expect(add!.y + add!.height + ISSUE_INSET_Y).toBe(box.rect.y + box.rect.height)
   })
 
+  /**
+   * **見出しと値の区別を付けるための字下げ**（m5 の追加作業。実機で「見出しと
+   * 値の区別がつかない」と言われた）。値の欄は節見出しの帯より**全角1文字
+   *（`FIELD_INDENT`）だけ内側**から始まり、**右端は帯と揃う**。
+   * **帯そのものは動かさない**——「見出しが左、値が一段右」という位置関係で読ませる。
+   *
+   * **測る側と描く側の両方を見る。**
+   *
+   * - `x` に足しただけ（幅を削っていない）→ 右端が帯からはみ出す
+   * - 幅を削っただけ（`x` に足していない）→ 字下げが無い
+   * - **`fieldContentWidth` を `panelContentWidth` に戻した**→ 位置も幅も
+   *   正しいのに、**折り返しだけが実際より広い幅で数えられる**。高さ固定＋
+   *   `overflow-hidden` の textarea なので、末尾の行が黙って消える。
+   *   これは位置と幅だけを見るテストでは捕まらないので、**境界の長さの文字列**で
+   *   行数そのものを見る
+   */
+  it('値の欄は帯より全角1文字ぶん内側から始まり、そのぶん狭く測られる', () => {
+    // `body` の概算器は全角1文字＝16px。帯は 720px（45文字ちょうど）で、値の欄は
+    // 706px（44文字ぶん）——**45文字は帯の幅なら1行、値の幅なら2行**になる
+    const boundary = 'あ'.repeat(45)
+    const data = make({
+      issues: [root],
+      hypotheses: [
+        h(1, {
+          title: boundary,
+          detail: boundary,
+          value: boundary,
+          feedbacks: [{ askId: null, text: 'FB1', by: '', sentiment: 'note', date: DATE }],
+          events: [
+            { kind: 'supported', note: '根拠', date: DATE },
+            { kind: 'rejected', note: boundary, date: DATE },
+          ],
+        }),
+      ],
+    })
+    const p = run(data, 0).hypotheses[0]!.expanded!
+
+    // --- 描く側: 左端だけが内側へ入り、右端は帯と揃う ---
+    const pairs: [string, { x: number; width: number }, { x: number; width: number }][] = [
+      ['ソリューション仮説', p.solution.label, p.solution.title],
+      ['価値仮説', p.value.label, p.value.field],
+      ['どう作るか', p.detail.label, p.detail.field],
+      ['検証結果', p.judgement.label, p.judgement.note],
+      ['以前の判断', p.previousLabel!, p.previous[0].badge],
+      ['FB', p.notes.label, p.notes.blocks[0].block],
+    ]
+    for (const [name, band, field] of pairs) {
+      expect(field.x, name).toBe(band.x + FIELD_INDENT)
+      // 右端が揃う＝「x を足しただけ」の実装ならここで落ちる
+      expect(field.x + field.width, name).toBeLessThanOrEqual(band.x + band.width)
+    }
+    // 帯そのものはパネルの内容の左端に座ったまま（見出しは動かさない）
+    expect(p.value.label.x).toBe(p.panel.x + PANEL_INSET_X)
+    expect(p.notes.label.width).toBe(p.notes.blocks[0].block.width + FIELD_INDENT)
+
+    // --- 測る側: 狭い幅で折り返している（45文字が2行になる） ---
+    expect(p.solution.title.height).toBe(fonts.title.lineHeight * 2)
+    expect(p.detail.field.height).toBe(fonts.body.lineHeight * 2)
+    expect(p.value.field.height).toBe(fonts.body.lineHeight * 2)
+    expect(p.judgement.note.height).toBe(fonts.body.lineHeight * 2)
+  })
+
   it('検証結果の帯はバッジの高さで測る（消えた文言ボタンのぶんを空けない）', () => {
     // 2つの定数が同じ値だと、この番人は何も区別しない
     expect(BADGE_HEIGHT).toBeLessThan(ACTION_HEIGHT)
@@ -464,9 +531,12 @@ describe('layoutIssueTree', () => {
     const withRationaleGone = layoutIssueTree(data, posed, fonts, 0)
     const panel = withRationaleGone.hypotheses[0]?.expanded
     expect(panel).not.toBeNull()
+    // **鍵の並びが描く順**（`SECTION_LABELS` の解説）。「どう作るか」（`detail`）は
+    // m5 の追加作業で価値仮説の次へ入った
     expect(Object.keys(SECTION_LABELS)).toEqual([
       'solution',
       'value',
+      'detail',
       'judgement',
       'previous',
       'notes',
@@ -516,8 +586,9 @@ describe('layoutIssueTree', () => {
     let prevBottom = p.notes.label.y + p.notes.label.height
     for (const b of p.notes.blocks) {
       expect(b.block.y).toBeGreaterThanOrEqual(prevBottom)
-      expect(b.block.x).toBe(p.notes.label.x)
-      expect(b.block.width).toBe(p.notes.label.width)
+      // ブロックは値の欄と同じ字下げ（`FIELD_INDENT`）で、右端は帯と揃う
+      expect(b.block.x).toBe(p.notes.label.x + FIELD_INDENT)
+      expect(b.block.width).toBe(p.notes.label.width - FIELD_INDENT)
       const parts = [
         b.head.icon,
         b.head.text,
@@ -630,13 +701,13 @@ describe('layoutIssueTree', () => {
       ],
     })
     const p = run(data, 0).hypotheses[0]!.expanded!
-    expect(p.solution.detail.height).toBeGreaterThan(fonts.body.lineHeight)
+    expect(p.detail.field.height).toBeGreaterThan(fonts.body.lineHeight)
     expect(p.value.field.height).toBeGreaterThan(fonts.body.lineHeight)
     expect(p.judgement.note.height).toBeGreaterThan(fonts.body.lineHeight)
 
     // 空の欄は1行ぶん残す（潰すと、プレースホルダも押せる場所も消える）
     const empty = run(make({ issues: [root], hypotheses: [h(1)] }), 0).hypotheses[0]!.expanded!
-    expect(empty.solution.detail.height).toBe(fonts.body.lineHeight)
+    expect(empty.detail.field.height).toBe(fonts.body.lineHeight)
     expect(empty.value.field.height).toBe(fonts.body.lineHeight)
   })
 
