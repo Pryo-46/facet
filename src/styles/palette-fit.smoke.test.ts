@@ -68,7 +68,7 @@ function draft(overrides: { light?: Record<string, string>; dark?: Record<string
     'pending-face': 'oklch(0.30 0.05 250)',
     'judge-yes': 'oklch(0.80 0.08 165)',
     'judge-yes-fg': 'oklch(0.17 0 0)',
-    'judge-yes-face': 'oklch(0.27 0.05 165)',
+    'judge-yes-face': 'oklch(0.26 0.05 165)',
     'judge-no': 'oklch(0.36 0 0)',
     'judge-no-fg': 'oklch(0.95 0 0)',
     ...overrides.dark,
