@@ -75,8 +75,10 @@
        ——面と面が別の色相だと「同じ軸の2段」に見えない。載るのは本文（ink）・
        理由（ink-muted）・箱の枠（rule）・抑制された仮説行（ink-faint）の4つで、
        後ろ2つが 3:1 の要件。
-       ink 16.53:1、ink-muted 7.44:1、rule 3.77:1、ink-faint 3.77:1
-       （ライトは `rule` と `ink-faint` が同じ L 0.58 なので同値） */
+       ink 16.53:1、ink-muted 7.44:1、rule 3.76:1、ink-faint 3.76:1
+       （ライトは `rule` と `ink-faint` が同じ L 0.58 なので同値。実値 3.7646 で、
+       `palette-fit.mjs` の印字と桁を揃えてある——道具の出力と註が食い違うと
+       次に照合する人が「どちらかが古い」と疑う） */
     --judge-yes-face: oklch(0.95 0.045 165);
     --judge-no: oklch(0.35 0 0);            /* チャコール。judge-yes と 7.9:1 */
     --judge-no-fg: oklch(0.985 0 0);
