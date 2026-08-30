@@ -446,7 +446,7 @@ describe('AskBlock: 節の末尾のボタン', () => {
     render(<Harness index={1} />)
     // 仮説2 は問いを持たない（ブロックは「紐づかないFB」の1つだけ）
     expect(screen.getAllByRole('group')).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: '仮説2 に聞きたいことを足す' }))
+    fireEvent.click(screen.getByRole('button', { name: '仮説2 にSHに聞きたいことを足す' }))
     const added = screen.getByRole('textbox', { name: '仮説2 の聞きたいこと1の文言' })
     expect((added as HTMLTextAreaElement).value).toBe('')
     fireEvent.change(added, { target: { value: '何回設定できれば足りるか' } })
@@ -464,7 +464,7 @@ describe('AskBlock: 節の末尾のボタン', () => {
    */
   it('2つのボタンの文言は定数のとおり', () => {
     render(<Harness index={0} />)
-    expect(screen.getByRole('button', { name: '仮説1 に聞きたいことを足す' }).textContent).toBe(
+    expect(screen.getByRole('button', { name: '仮説1 にSHに聞きたいことを足す' }).textContent).toBe(
       ADD_ASK_LABEL,
     )
     expect(screen.getByRole('button', { name: '仮説1 にFBを足す' }).textContent).toBe(

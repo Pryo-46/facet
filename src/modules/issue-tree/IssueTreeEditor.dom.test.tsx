@@ -1525,7 +1525,7 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
   it('「聞きたいことを追加」で足した問いの欄にフォーカスが来る', () => {
     render(<Harness initial={file()} />)
     openHypothesis(1)
-    fireEvent.click(screen.getByRole('button', { name: '仮説1 に聞きたいことを足す' }))
+    fireEvent.click(screen.getByRole('button', { name: '仮説1 にSHに聞きたいことを足す' }))
     expect(document.activeElement).toBe(
       screen.getByRole('textbox', { name: '仮説1 の聞きたいこと1の文言' }),
     )

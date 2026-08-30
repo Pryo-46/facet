@@ -8,6 +8,9 @@ import { badgeVariantOf } from './badge-variant'
 import { EVENT_KIND_LABELS, poseQuestions } from './derive'
 import { HypothesisPanel } from './HypothesisPanel'
 import {
+  ADD_ASK_LABEL,
+  ASK_LABEL,
+  FIELD_PLACEHOLDERS,
   layoutIssueTree,
   NO_JUDGEMENT_TEXT,
   SECTION_LABELS,
@@ -207,6 +210,49 @@ describe('HypothesisPanel: 節の構成', () => {
   })
 })
 
+/**
+ * **見出しとプレースホルダは、同じ欄について別々の半分を言う。**
+ * 見出しが項目名、プレースホルダが書き方の促し（または欄の短い呼び名）で、
+ * **同じ語を縦に2つ並べない**（`FIELD_PLACEHOLDERS` の表）。
+ *
+ * m5 の追加作業で `detail` を「どう作るか」の節に上げたとき、**見出しに
+ * 採ったのが元のプレースホルダと同じ語**だったので、一度そうなっていた。
+ * 節を増やす・見出しを言い換えるたびに再発しうる形なので、番人を置く
+ */
+describe('HypothesisPanel: 節見出しと空欄の案内', () => {
+  it('空の欄の案内は、その節の見出しと同じ語にならない', () => {
+    // **詳細も価値仮説も空の仮説**（プレースホルダが実際に出ている状態で見る）
+    renderPanel(1)
+    const placeholderOf = (name: string): string =>
+      (screen.getByRole('textbox', { name }) as HTMLTextAreaElement).placeholder
+    expect(placeholderOf('仮説2 の詳細')).toBe(FIELD_PLACEHOLDERS.detail)
+    expect(placeholderOf('仮説2 の価値仮説')).toBe(FIELD_PLACEHOLDERS.value)
+    // **定数どうしでも見る**——描く側だけ直しても、次に節を増やす人が読むのは表の方
+    expect(FIELD_PLACEHOLDERS.detail).not.toBe(SECTION_LABELS.detail)
+    expect(FIELD_PLACEHOLDERS.value).not.toBe(SECTION_LABELS.value)
+  })
+
+  /**
+   * **見える文字が、そのままアクセシブル名に含まれること**（音声操作の
+   * 利用者は見えている言葉でボタンを呼ぶ。WCAG 2.5.3 の趣旨）。
+   * **前半（`仮説{N}`）は動かさない**規約と両立させるので、見るのは
+   * 「後半に含まれるか」である
+   */
+  it('「SHに聞きたいことを追加」のボタンは、見える文字を名前にも持つ', () => {
+    renderPanel(0)
+    const button = screen.getByRole('button', { name: `仮説1 に${ASK_LABEL}を足す` })
+    expect(button.textContent).toBe(ADD_ASK_LABEL)
+    // 名前は「仮説{N}」で始まり（規約）、見える語（`SHに聞きたいこと`）を含む
+    expect(button.getAttribute('aria-label')?.startsWith('仮説1')).toBe(true)
+    expect(button.getAttribute('aria-label')).toContain(ASK_LABEL)
+    // 問いの欄の案内も同じ語（3箇所が `ASK_LABEL` 1つから出ている）
+    expect(
+      (screen.getByRole('textbox', { name: '仮説1 の聞きたいこと1の文言' }) as HTMLTextAreaElement)
+        .placeholder,
+    ).toBe(ASK_LABEL)
+  })
+})
+
 describe('HypothesisPanel: 仮説の削除', () => {
   /**
    * **ゴミ箱は「ソリューション仮説」の見出しの帯の中**（キャンバスの `.trash`）。
@@ -345,7 +391,7 @@ describe('HypothesisPanel: FB', () => {
     const { onAddAsk, onAddFeedback } = renderPanel(1)
     expect(screen.getByRole('textbox', { name: '仮説2 のFB1' })).toBeTruthy()
     expect(screen.getByRole('textbox', { name: '仮説2 のFB2' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '仮説2 に聞きたいことを足す' }))
+    fireEvent.click(screen.getByRole('button', { name: '仮説2 にSHに聞きたいことを足す' }))
     expect(onAddAsk).toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '仮説2 にFBを足す' }))
     // **節の末尾の「＋ FBを追加」は、どの問いにも紐づかない FB を作る**
@@ -375,7 +421,7 @@ describe('HypothesisPanel: 測定と描画の対', () => {
     renderPanel(1)
     // レイアウトは `ACTION_HEIGHT` ぶんの帯を空けている（`layout.ts`）。
     // クラスを当て忘れるとボタンの実高だけが縮み、定数が静かに嘘になる
-    for (const name of ['仮説2 に聞きたいことを足す', '仮説2 にFBを足す']) {
+    for (const name of ['仮説2 にSHに聞きたいことを足す', '仮説2 にFBを足す']) {
       expect(screen.getByRole('button', { name }).className, name).toContain(ACTION_HEIGHT_CLASS)
     }
   })

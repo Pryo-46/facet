@@ -11,6 +11,7 @@ import type { HypothesisPanel as PanelRects } from './layout'
 import {
   ADD_ASK_LABEL,
   ADD_NOTE_LABEL,
+  ASK_LABEL,
   FIELD_PLACEHOLDERS,
   judgementDateText,
   NO_JUDGEMENT_TEXT,
@@ -398,7 +399,14 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
         <button
           type="button"
           className={addButtonClass}
-          aria-label={`${label} に聞きたいことを足す`}
+          // **見える文字（`ADD_ASK_LABEL`）の語がこの名前に含まれること。**
+          // 音声操作の利用者は見えている言葉でボタンを呼ぶ（WCAG 2.5.3 の趣旨）
+          // ので、`ASK_LABEL` から組んで打ち直さない。**前半（`仮説{N}`）は
+          // 動かさない**（規約。テストが前方一致で引く）。
+          // **`足す` は隣の「FBを足す」と揃えたまま**——見える文字の `追加` と
+          // 食い違うが、それはこの変更より前からモジュール全体にある不揃いで、
+          // ここだけ直すと逆に隣と揃わなくなる（`docs/open-issues.md` に記録）
+          aria-label={`${label} に${ASK_LABEL}を足す`}
           onClick={props.onAddAsk}
         >
           <Plus className={ACTION_ICON_SIZE_CLASS} aria-hidden="true" />
