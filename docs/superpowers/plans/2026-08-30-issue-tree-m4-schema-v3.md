@@ -416,7 +416,11 @@ describe('issueTree のスキーマ検証（レベル1）', () => {
     const noEvents = [{ id: ISSUE_A, parentId: null, text: 'x' }]
     expect(validate({ ...base, issues: noEvents, hypotheses: [] }).ok).toBe(false)
     for (const key of ['title', 'detail', 'value', 'asks', 'feedbacks', 'events'] as const) {
-      const { [key]: _dropped, ...without } = base.hypotheses[0]
+      // 計算キーの分割代入（`const { [key]: _d, ...rest }`）は、`key` がユニオン型の
+      // とき TS が rest 型を解決できないことがある。**通らなければリテラルキーの
+      // 列挙に落としてよい**（`it` の主張——6キーそれぞれの欠損を拒否する——は変えない）
+      const without: Record<string, unknown> = { ...base.hypotheses[0] }
+      delete without[key]
       expect(validate({ ...base, hypotheses: [without] }).ok, key).toBe(false)
     }
     const { by: _by, ...feedbackWithoutBy } = base.hypotheses[0].feedbacks[0]
@@ -2084,27 +2088,40 @@ it('展開パネルに「由来」の節が無い（rationale の廃止）', () 
   expect(Object.keys(SECTION_LABELS)).toEqual(['judgement', 'previous', 'notes'])
 })
 
+/**
+ * 旗を1件立てた木のレイアウトを返す。**`posed` は必ず同じ `data` から取り直す**
+ *——`layoutIssueTree` は「`posed` は同じ `data` に対する `poseQuestions(data)` の
+ * 結果である」を前提に添字で引き当てており（`open-issues.md` にこの不変条件が
+ * doc に書かれていないとして載っている）、別の木の答えを渡すとバッジが立ったり
+ * 立たなかったりする。**テストの中でその不変条件を破らないこと**
+ */
+function layoutWithFlag(kind: 'deferred' | 'resolved') {
+  const issues = data.issues.map((n, i) =>
+    i === 1 ? { ...n, events: [{ kind, note: '通知の集約で解ける', date: '2026-08-30' }] } : n,
+  )
+  const next = { ...data, issues }
+  return layoutIssueTree(next, poseQuestions(next), fonts, -1)
+}
+
 it('解決の旗を掲げた課題は、見送りと同じ形で右上のバッジと理由の行を持つ', () => {
-  const resolved = data.issues.map((n, i) =>
-    i === 1 ? { ...n, events: [{ kind: 'resolved' as const, note: '通知の集約で解ける', date: '2026-08-30' }] } : n,
-  )
-  const out = layoutIssueTree({ ...data, issues: resolved }, poseQuestions({ ...data, issues: resolved }), fonts, -1)
-  const placement = out.issues[1]
+  const placement = layoutWithFlag('resolved').issues[1]
   expect(placement?.event).not.toBeNull()
-  // 「解決」は「見送り」より短いので、枠は狭くてよい——**幅を種別から測っている**
-  // ことの番人（`ISSUE_DEFERRED_LABEL` 決め打ちに戻したら赤くなる）
-  expect(placement?.event?.badge.width).toBeLessThan(
-    (layoutIssueTree(
-      { ...data, issues: data.issues.map((n, i) => (i === 1 ? { ...n, events: [{ kind: 'deferred' as const, note: '', date: '2026-08-30' }] } : n)) },
-      posed,
-      fonts,
-      -1,
-    ).issues[1]?.event?.badge.width ?? 0),
-  )
+  expect(placement?.event?.reason.height).toBeGreaterThan(0)
+})
+
+it('旗のバッジの幅は種別ごとに変わる（文言決め打ちに戻したら赤くなる）', () => {
+  // **等値でも「片方が狭い」でもなく「違う」を見る。** 概算測定器の
+  // 文字幅の仮定に寄りかからずに、`ISSUE_EVENT_LABELS[kind]` から測って
+  // いることだけを押さえる
+  const deferred = layoutWithFlag('deferred').issues[1]?.event?.badge.width
+  const resolved = layoutWithFlag('resolved').issues[1]?.event?.badge.width
+  expect(deferred).toBeDefined()
+  expect(resolved).toBeDefined()
+  expect(resolved).not.toBe(deferred)
 })
 ```
 
-**「解決」（2文字）が「見送り」（3文字）より狭い**ことに依存している。`layout.test.ts` の測定器はテキスト長に比例する概算器なので成立するが、**成立しなければ計画の誤りとして報告すること**（そのときは「幅が等しくない」ではなく「種別を変えると幅が変わる」で見る形に直す）。
+**「見送り」（3文字）と「解決」（2文字）で幅が変わる**ことに依存している。`layout.test.ts` の測定器は文字数に比例する概算器なので成立するはずだが、**成立しなければ計画の誤りとして報告すること**。
 
 - [ ] **Step 2: テストが落ちることを確認する**
 
@@ -2529,7 +2546,7 @@ npm run lint
 - [ ] **Step 6: コミット**
 
 ```
-git add src/modules/issue-tree/IssueTreeEditor.tsx src/modules/issue-tree/IssueTreeEditor.dom.test.tsx src/modules/issue-tree/IssueTreeEdges.dom.test.tsx src/modules/issue-tree/layout.ts
+git add src/modules/issue-tree/IssueTreeEditor.tsx src/modules/issue-tree/IssueTreeEditor.dom.test.tsx src/modules/issue-tree/IssueTreeEdges.dom.test.tsx
 git commit -m "feat(issue-tree): エディタを v3 へ（FB・旗のトグル・解決のチップ。根拠へ移す経路を削除）"
 ```
 
