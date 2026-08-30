@@ -193,14 +193,20 @@ describe('poseQuestions（問いの立ち方）', () => {
     expect(posed.hypothesisQuestions[0].feedback).toBe(1)
   })
 
-  it('祖先が見送りなら配下の問いは立たない（FB待ちも 0 に落ちる）', () => {
+  it('祖先が見送りなら配下の問いは立たない。抑制は中間ノードから効き、兄弟の枝には及ばない（FB待ちも 0 に落ちる）', () => {
+    // 見送りを付けるのはルート(0)ではなく中間ノード(1)。「木全体を止める」誤実装
+    // だと id(3)（別の枝の葉）まで false になってしまうので、それと見分けが付く
     const h = hypothesis(1, id(2), { asks: [{ id: ASK_1, text: '効くか' }], feedbacks: [] })
     const deferredIssues = issues().map((n, i) =>
-      i === 0 ? { ...n, events: [{ kind: 'deferred' as const, note: '', date: '2026-08-30' }] } : n,
+      i === 1 ? { ...n, events: [{ kind: 'deferred' as const, note: '', date: '2026-08-30' }] } : n,
     )
     const posed = poseQuestions({ issues: deferredIssues, hypotheses: [h] })
     expect(posed.hypothesisQuestions[0]).toEqual({ result: false, hold: false, feedback: 0 })
-    expect(posed.issueNeedsHypothesis.every((needs) => !needs)).toBe(true)
+    // 抑制した枝（中間 id(1) の配下の葉 id(2)・id(4)）では立たない
+    expect(posed.issueNeedsHypothesis[2]).toBe(false)
+    expect(posed.issueNeedsHypothesis[4]).toBe(false)
+    // 兄弟の枝（id(3)、仮説なしの葉）には及ばず、立ったままである
+    expect(posed.issueNeedsHypothesis[3]).toBe(true)
   })
 
   it('祖先が解決でも同じように抑制される（意味は逆だが、実効は同じ「配下を止める」）', () => {

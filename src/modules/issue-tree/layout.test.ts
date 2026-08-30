@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
 import type { Hypothesis, IssueNode, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import { ISSUE_EVENT_LABELS, poseQuestions } from './derive'
-import { layoutIssueTree, SECTION_LABELS, type IssueTreeFonts } from './layout'
+import { layoutIssueTree, SECTION_LABELS, type IssueTreeFonts, type IssueTreeLayout } from './layout'
 import { ACTION_HEIGHT, BADGE_GAP, BOX_WIDTH, ISSUE_INSET_X, PANEL_INSET_Y } from './measure'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
@@ -410,7 +410,7 @@ describe('layoutIssueTree', () => {
    * 立たなかったりする。**テストの中でその不変条件を破らないこと**
    */
   const flagData = make({ issues: [root, child] })
-  function layoutWithFlag(kind: 'deferred' | 'resolved') {
+  function layoutWithFlag(kind: 'deferred' | 'resolved'): IssueTreeLayout {
     const issues = flagData.issues.map((n, i) =>
       i === 1 ? { ...n, events: [{ kind, note: '通知の集約で解ける', date: DATE }] } : n,
     )

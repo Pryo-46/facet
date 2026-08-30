@@ -56,7 +56,7 @@ export function issueStatus(node: Pick<IssueNode, 'events'>): IssueStatus {
  *
  * **課題ノードのイベントは見送り（deferred）しか無い**（スキーマ）ので、1件でもあれば
  * 抑制される。見送りを解除して拾い直すときは、**最新の見送りイベントを消す**
- *（`commands.ts` の `toggleDeferral`）——解除を表す種別を追記する機構は持たない。
+ *（`commands.ts` の `toggleIssueEvent`）——解除を表す種別を追記する機構は持たない。
  * 打ち消しのイベントを足す形にすると、「1件でもあれば抑制」がここで成立しなくなり、
  * 列の中身を数えることになる。
  *
@@ -225,7 +225,7 @@ export const QUESTION_LABELS = {
  * ため、俯瞰のバッジと展開の行が同じ言葉を出す。それでも `BADGE_LABELS` と
  * 別に置くのは、鍵が違う（こちらは `JudgementKind`、あちらは `BadgeGroup`）
  * からであり、俯瞰と詳細をまた別の言葉に分けたくなったとき、片方だけ動かせる
- * ようにしておくため（`ISSUE_DEFERRED_LABEL` を別に置いているのと同じ理由）
+ * ようにしておくため（`ISSUE_EVENT_LABELS` を別に置いているのと同じ理由）
  */
 export const EVENT_KIND_LABELS: Record<JudgementKind, string> = {
   supported: '支持',
@@ -256,8 +256,8 @@ export function tallyLine(t: IssueTreeTally): string {
  * 帯（MissingTally 部品）へ渡す共通形。kind は OpenKind と同じ語で、
  * チップの onJump がそのまま goToNextOpen に渡せる。
  * variant の対応は元々 badge-variant.ts の chipVariantOf が持っていたものと
- * 同じ——未決・仮説なしは破線（open）、保留は実線（hold）、未判断は着信の青
- *（pending）。M22 でここに一本化し、chipVariantOf は削った
+ * 同じ——未決・仮説なしは破線（open）、保留は実線（hold）、FB待ちは着信の青
+ *（pending）——欠落ではなく、返事を待っている。M22 でここに一本化し、chipVariantOf は削った
  */
 export function toMissingTally(t: IssueTreeTally): MissingTally {
   return {
