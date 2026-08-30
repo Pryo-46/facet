@@ -485,6 +485,11 @@ describe('layoutIssueTree', () => {
     expect(chevronBox.chevron.width).toBe(CHEVRON_SIZE)
     expect(chevronBox.chevron.height).toBe(CHEVRON_SIZE)
     expect(chevronBox.chevron.x + CHEVRON_SIZE + CHEVRON_GAP).toBe(chevronBox.title.x)
+    // **縦はタイトルの1行目に対する中央。** 行全体の中央にすると、タイトルが
+    // 折り返したときシェブロンだけが下がる（行頭の点をバッジに揃えたのと同じ理屈）
+    expect(chevronBox.chevron.y).toBe(
+      chevronBox.title.y + Math.floor((fonts.title.lineHeight - CHEVRON_SIZE) / 2),
+    )
     expect(chevronBox.title.x).toBe(chevronBox.rect.x + ISSUE_INSET_X + CHEVRON_SIZE + CHEVRON_GAP)
     // 仮説を持たない箱でも同じ場所（列の中で左端が揃う）
     const leaf = folded.issues[1]!
@@ -493,6 +498,59 @@ describe('layoutIssueTree', () => {
     expect(chevronBox.title.x + chevronBox.title.width).toBeLessThanOrEqual(
       chevronBox.rect.x + chevronBox.rect.width,
     )
+  })
+
+  /**
+   * **タイトルが折り返してもシェブロンは1行目に留まる**（上のテストと対。
+   * こちらは複数行のタイトルで見る——1行だけだと「行全体の中央」の実装でも
+   * 同じ座標に落ちて弁別できない）
+   */
+  it('タイトルが折り返しても、シェブロンは1行目の高さに留まる', () => {
+    const short = run(make({ issues: [{ ...root, text: '短い' }] })).issues[0]!
+    const long = run(make({ issues: [{ ...root, text: 'あ'.repeat(60) }] })).issues[0]!
+    expect(long.title.height).toBeGreaterThan(short.title.height)
+    expect(long.chevron.y - long.rect.y).toBe(short.chevron.y - short.rect.y)
+  })
+
+  /**
+   * **開くものが無ければ開かない。** 展開中の課題から最後の仮説を消したとき、
+   * 行が1本も無い 780 幅の箱が残らないようにする番人（m4 からの退行だった
+   * ——鍵が仮説を指していた頃は、消えれば自動的に畳まれていた）
+   */
+  it('仮説を1本も持たない課題は、展開の添字が自分を指していても開かない', () => {
+    const data = make({ issues: [root, child] })
+    const out = run(data, 0)
+    expect(out.issues[0]!.expandable).toBe(false)
+    expect(out.issues[0]!.expanded).toBe(false)
+    expect(out.issues[0]!.rect.width).toBe(BOX_WIDTH)
+    // 1本でもぶら下がれば開ける
+    const withRow = run(make({ issues: [root, child], hypotheses: [h(1)] }), 0)
+    expect(withRow.issues[0]!.expandable).toBe(true)
+    expect(withRow.issues[0]!.expanded).toBe(true)
+    expect(withRow.issues[1]!.expanded).toBe(false)
+  })
+
+  /**
+   * ID 重複は**先に現れた方を採る**（`commands.ts` の規約。実体は
+   * `core/canvas/flat-tree-core.ts` の `firstIndexById`）。ID 重複のファイルは
+   * 受け入れて赤表示する仕様なので、ここは到達可能な入力である。
+   *
+   * **行の持ち主と箱の開閉が別々の規則で解決されると幾何が壊れる**
+   *——320 前提で測った行を 780 の箱に置く（またはその逆）ことになる
+   */
+  it('ID が重複した課題では、開けるのは先に現れた方だけ', () => {
+    const dup: IssueNode = { id: I(0), parentId: null, text: '同じIDの後ろ側', events: [] }
+    const data = make({ issues: [root, dup], hypotheses: [h(1)] })
+    // 先頭を開くと、行もその箱の幅で測られる
+    const first = run(data, 0)
+    expect(first.issues[0]!.expanded).toBe(true)
+    expect(first.issues[0]!.rect.width).toBe(EXPANDED_BOX_WIDTH)
+    expect(first.hypotheses[0]!.expanded).not.toBeNull()
+    // 後ろ側は開かない（箱だけが広がる、が起きない）
+    const second = run(data, 1)
+    expect(second.issues[1]!.expanded).toBe(false)
+    expect(second.issues[1]!.rect.width).toBe(BOX_WIDTH)
+    expect(second.hypotheses[0]!.expanded).toBeNull()
   })
 
   it('展開した課題では、仮説の行もパネルも広がった箱の中に収まる', () => {

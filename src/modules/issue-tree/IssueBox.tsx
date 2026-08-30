@@ -40,17 +40,13 @@ export interface IssueBoxProps {
    */
   eventToggle: React.ReactNode
   /**
-   * 詳細を開いているか（**課題ノード単位**。m5）。`aria-expanded` に出る
+   * 開閉トグル。**必須にしてある**（`eventToggle` と同じ理由——押す場所を型で守る）。
+   *
+   * **開いているか／開けるかは props で受け取らない**——`placement.expanded` /
+   * `placement.expandable` を見る。エディタの持つ鍵とレイアウトの決めた事実で
+   * 情報源が2つに割れると、「シェブロンは下向きなのに何も開いていない」が
+   * 作れてしまう（`IssuePlacement.expanded` の解説）
    */
-  expanded: boolean
-  /**
-   * 開閉トグルを押せるか＝**仮説を1本以上持つか**。持たない課題では
-   * 開くものが無いので、**場所は空けたままボタンを隠す**（`invisible`）。
-   * `display: none` にすると同じ列の中でタイトルの左端が揃わない
-   *（`visibility: hidden` はタブ順からも外れるので、キーの動線も汚さない）
-   */
-  expandable: boolean
-  /** 開閉トグル。**必須にしてある**（`eventToggle` と同じ理由——押す場所を型で守る） */
   onToggleExpand: () => void
   /** 仮説行（`HypothesisRow` の列）。箱の中に絶対配置で置かれる */
   children?: React.ReactNode
@@ -160,16 +156,16 @@ export function IssueBox(props: IssueBoxProps) {
       <button
         type="button"
         className={`pointer-events-auto absolute inline-flex items-center justify-center rounded-sm text-ink-muted outline-none transition-colors hover:text-ink focus:ring-2 focus:ring-inset focus:ring-ring${
-          props.expandable ? '' : ' invisible'
+          placement.expandable ? '' : ' invisible'
         }`}
         style={inBox(placement.chevron)}
         // **アクセシブル名の前半（`課題{N}`）は動かさない**——テストが前方一致で引く。
         // 開いているかは `aria-expanded` が運ぶ（名前と二重に述べない）
         aria-label={`${label}の詳細`}
-        aria-expanded={props.expanded}
+        aria-expanded={placement.expanded}
         onClick={props.onToggleExpand}
       >
-        {props.expanded ? (
+        {placement.expanded ? (
           <ChevronDown aria-hidden className={CHEVRON_SIZE_CLASS} />
         ) : (
           <ChevronRight aria-hidden className={CHEVRON_SIZE_CLASS} />

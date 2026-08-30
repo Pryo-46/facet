@@ -49,8 +49,14 @@ export const SECTION_LABEL_FONT_CLASS = 'text-sm font-semibold'
  * 展開時の課題タイトルのフォント（段2 = text-base 16px / 1.5 / 600）。
  * **キャンバスの「仮説の展開」アートボードは 18px（27px 行高）で描かれて
  * いるが、18px は `src/index.css` の段（14/16/22px の3サイズ、M23／M26）に
- * 存在しないので、`text-base`（16px・24px 行高）に落とす。** 閉じている間は
- * `TITLE_FONT_CLASS`（14px）のままで、展開すると 16px に差し替わる
+ * 存在しないので、`text-base`（16px・24px 行高）に落とす。**
+ *
+ * **まだどこからも読まれていない（Task 4 で接続する）。** 展開中の課題タイトルも
+ * いまは `TITLE_FONT_CLASS`（14px）で描かれ、`layout.ts` もその測定器で
+ * `titleHeight` を測っている。差し替えるときは**エディタの測定用の見本を1本足し、
+ * `layout.ts` が展開中の課題だけその測定器で測るように直すのと対で**行うこと
+ *——片方だけ変えると、測定より広く描いて折り返しが1行増え、高さ固定＋
+ * `overflow-hidden` の textarea で末尾の行が黙って見えなくなる
  */
 export const EXPANDED_TITLE_FONT_CLASS = 'text-base leading-normal font-semibold'
 /**
@@ -137,13 +143,15 @@ export const ACTION_HEIGHT_CLASS = 'h-6'
 export const ACTION_INSET_X = 5
 
 /**
- * パネルの中の文章が使える幅（パネルは行の文言と同じ位置から始まる）。
+ * **`PANEL_CONTENT_WIDTH` は m5 Task 2 で消した。**
  *
- * **これは畳んでいる箱（`BOX_WIDTH`）の値である。** 展開している課題の箱は
- * `EXPANDED_BOX_WIDTH` に広がるので、`layout.ts` は同じ式をその幅から組み直す
- *（m5 Task 2）——**片方だけ直さないこと**
+ * 箱の幅が可変になった（畳んで 320 ／開いて 780）ので、パネルの中の文章が
+ * 使える幅は箱ごとに違う。`layout.ts` が `contentWidth - PANEL_INDENT -
+ * PANEL_INSET_X * 2` をその場で組んでおり、**ここに同じ式の写しを置くと、
+ * `PANEL_INDENT` などを動かしたとき定数側だけが静かに嘘になる**
+ *（畳んだ経路でしか合わない値が「パネルの幅」の名前で残る）。
+ * 幅が要るときは箱の `contentWidth` から組むこと
  */
-export const PANEL_CONTENT_WIDTH = BOX_CONTENT_WIDTH - PANEL_INDENT - PANEL_INSET_X * 2
 
 /**
  * 問いブロック（Ask）。デザインキャンバス「仮説の展開」アートボードの値。
@@ -195,5 +203,10 @@ export const CHEVRON_SIZE = 14
 /** `CHEVRON_SIZE` と対のクラス（size-3.5 = 14px） */
 export const CHEVRON_SIZE_CLASS = 'size-3.5'
 export const CHEVRON_GAP = 6
-/** `CHEVRON_GAP` と対のクラス（gap-1.5 = 6px） */
+/**
+ * `CHEVRON_GAP` と対のクラス（gap-1.5 = 6px）。**まだどこからも読まれていない**
+ *——いまトグルとタイトルは flex で並んでおらず、`layout.ts` が
+ * `CHEVRON_SIZE + CHEVRON_GAP` ぶんタイトルの矩形を右へ寄せている（箱の子は
+ * すべて絶対配置）。flex で並べる作りに変えるときの対として置いてある
+ */
 export const CHEVRON_GAP_CLASS = 'gap-1.5'

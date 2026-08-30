@@ -55,6 +55,27 @@ export interface IssuePlacement {
   /** 箱の外枠（世界座標）。エッジはここから引く */
   rect: Rect
   /**
+   * この課題が開いているか。**「開いているか」の唯一の出所はここである**
+   *——描く側（`IssueBox` の `aria-expanded`）とパネルの有無
+   *（`HypothesisPlacement.expanded`）が別々の情報源を見ると、片方だけが
+   * 「開いている」と言う状態が作れてしまう（シェブロンは下向きなのに
+   * 何も開かない、など）。**エディタの `expandedIssueKey` を直接見ないこと。**
+   *
+   * 仮説を1本も持たない課題は、鍵が自分を指していても**開かない**（下の
+   * `expandable` を見よ）
+   */
+  expanded: boolean
+  /**
+   * 開けるか＝**仮説を1本以上持つか**。開くものが無い課題は開かない。
+   *
+   * **これが無いと m4 からの退行が起きる。** m4 まで展開の鍵は仮説を指していた
+   * ので、仮説が消えれば鍵が宙に浮いて自動的に畳まれた。鍵が課題を指す m5 では
+   * 消えても鍵が残るため、**行が1本も無い 780 幅の箱**が残り、トグルは
+   * 隠れている（押せない）ので二度と畳めない。ビュー状態の側で消しに行くのでは
+   * なく、**レイアウトが「開かない」と決める**ことで塞ぐ
+   */
+  expandable: boolean
+  /**
    * 開閉トグル（シェブロン）の正方形。タイトルの左に `CHEVRON_GAP` 空けて座る。
    *
    * **仮説を持たない課題でも矩形は出る。** 出さないと `IssueBox` が
@@ -213,7 +234,14 @@ export function layoutIssueTree(
    *（開閉が仮説ごとではなく課題ごとになったため）
    */
   const issueIndexOf = new Map<string, number>()
-  data.issues.forEach((node, i) => issueIndexOf.set(node.id, i))
+  data.issues.forEach((node, i) => {
+    // **ID 重複は先に現れた方を採る**（`commands.ts` の規約、実体は
+    // `core/canvas/flat-tree-core.ts` の `firstIndexById`）。ID 重複のファイルは
+    // 受け入れて赤表示する仕様（`consistency.ts` の `duplicate-id`）なので、
+    // ここは到達可能な入力である。**後勝ちにすると木の側（先勝ち）とずれ**、
+    // 先頭側のトグルを押しても行が開かず箱だけが 780 に広がる
+    if (!issueIndexOf.has(node.id)) issueIndexOf.set(node.id, i)
+  })
   /** 展開している課題の中身が使える幅（箱が広がったぶんだけ広い） */
   const EXPANDED_CONTENT_WIDTH = EXPANDED_BOX_WIDTH - ISSUE_INSET_X * 2
   // --- 1. 仮説行の計画（高さと組み立て） ---
@@ -437,6 +465,10 @@ export function layoutIssueTree(
   // --- 2. 課題の箱を測る ---
   const built = buildTree(data.issues)
   interface BoxPlan {
+    /** 開いているか（＝鍵が自分を指していて、かつ仮説を1本以上持つ） */
+    open: boolean
+    /** 開けるか（仮説を1本以上持つ）。描く側はトグルの出し分けにこれを見る */
+    expandable: boolean
     width: number
     /** 箱の中の文章が使える幅（`width - ISSUE_INSET_X * 2`）。展開すると広がる */
     contentWidth: number
@@ -449,8 +481,16 @@ export function layoutIssueTree(
     rows: number[]
   }
   const boxes: BoxPlan[] = data.issues.map((node, i) => {
-    const open = i === expandedIssueIndex
     const rows = rowsOf.get(node.id) ?? []
+    // **開くものが無ければ開かない。** 鍵が自分を指していても仮説が0本なら
+    // 畳んだまま——展開中の課題から最後の仮説を消したときに、行の無い 780 幅の
+    // 箱が残らないようにする（`IssuePlacement.expandable` の解説）
+    const expandable = rows.length > 0
+    // **行の側と同じ判定を通す。** 仮説行は `issueIndexOf`（先勝ち）で持ち主を
+    // 引くので、ID が重複しているとき開けるのは**先に現れた方だけ**である。
+    // ここで後ろ側も開けてしまうと、320 前提で測った行を 780 の箱に置くこと
+    // （またはその逆）になり、行とパネルが箱からはみ出す
+    const open = i === expandedIssueIndex && expandable && issueIndexOf.get(node.id) === i
     const latestFlag = node.events[node.events.length - 1]
     const flagged = latestFlag !== undefined
     // 「仮説なし」と旗は**排他**（旗を掲げた課題は抑制されるので問いが立たない）。
@@ -522,6 +562,8 @@ export function layoutIssueTree(
       for (const hi of rows) height += plans[hi].height
     }
     return {
+      open,
+      expandable,
       width,
       contentWidth,
       titleWidth,
@@ -590,6 +632,8 @@ export function layoutIssueTree(
       }
       issues[i] = {
         rect: { x: point.x, y: point.y, width: box.width, height: box.height },
+        expanded: box.open,
+        expandable: box.expandable,
         chevron,
         title,
         event,

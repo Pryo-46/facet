@@ -21,6 +21,7 @@ import {
 } from './derive'
 import { IssueTreeEditor } from './IssueTreeEditor'
 import { JUDGEMENT_TRIGGER_LABELS } from './layout'
+import { BOX_WIDTH, EXPANDED_BOX_WIDTH } from './measure'
 
 afterEach(cleanup)
 
@@ -781,7 +782,7 @@ describe('IssueTreeEditor（帯）', () => {
     render(<Harness initial={openFile()} onChange={onChange} />)
     // 仮説A・B がぶら下がるのは I(2)。**末尾の課題は I(3)** なので、既定の
     // 行き先（末尾）に落ちていたら気づける
-    // 行を開くと、展開後の文言の欄までフォーカスが来る（`expandRow` の予約）
+    // 行を開くと、展開後の文言の欄までフォーカスが来る（`expandRowFor` の予約）
     openHypothesis(1)
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説1' }))
     fireEvent.click(screen.getByRole('button', { name: '仮説を追加' }))
@@ -1125,6 +1126,44 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
     expect(toggle().getAttribute('aria-expanded')).toBe('false')
     expect(screen.getByRole('button', { name: '仮説1を開く' })).toBeTruthy()
     expect(screen.getByRole('button', { name: '仮説2を開く' })).toBeTruthy()
+  })
+
+  /**
+   * **開いた課題から最後の仮説が消えたら、箱は畳まれる。**
+   *
+   * m4 までは `expandedKey` が**仮説**の鍵だったので、仮説が消えれば
+   * `indexOf` が -1 になって自動的に畳まれていた。課題の鍵に変えた m5 では
+   * その自動解除が効かない——鍵は課題を指したまま残るので、**行が1本も無い
+   * 780 幅の箱**が残り、トグルは `invisible`（仮説が無いので押せない）。
+   * 列が 460px 右へずれたまま戻せなくなる。
+   *
+   * 直しは**レイアウト側**にある（「行が0本なら開かない」）ので、
+   * `aria-expanded` と箱の実寸の両方を見る——片方だけだと、
+   * 「見た目は畳んだが幅は 780 のまま」を見逃す
+   */
+  it('展開した課題から最後の仮説が消えると、箱は畳まれる', () => {
+    const base = file()
+    render(
+      <Harness
+        initial={{ ...base, hypotheses: [{ ...base.hypotheses[0], title: '' }] }}
+      />,
+    )
+    const toggle = () => screen.getByRole('button', { name: '課題3の詳細' })
+    // 課題3 の箱（仮説はここにぶら下がる）
+    const boxOf = (n: number): HTMLElement =>
+      issueCell(n).closest('[class*="pointer-events-auto"]') as HTMLElement
+
+    fireEvent.click(toggle())
+    expect(toggle().getAttribute('aria-expanded')).toBe('true')
+    expect(boxOf(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+
+    // 空欄の仮説を消す（`deleteHypothesis` は行き先を課題へ返すので、
+    // `goTo` は展開の鍵に触らない＝鍵は課題を指したまま残る）
+    fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1' }), { key: 'Backspace' })
+    expect(screen.queryByRole('textbox', { name: '仮説1' })).toBeNull()
+
+    expect(toggle().getAttribute('aria-expanded')).toBe('false')
+    expect(boxOf(3).style.width).toBe(`${BOX_WIDTH}px`)
   })
 
   it('仮説を持たない課題のトグルは場所を空けたまま隠れる（タブ順にも出ない）', () => {

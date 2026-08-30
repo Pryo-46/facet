@@ -1029,10 +1029,9 @@ export function IssueTreeEditor({
                   onChange(setIssueEventNote(data, index, next), `${key}:event`)
                 }
                 onFieldKeyDown={(e, state) => onIssueKeyDown(e, index, state)}
-                // 展開は**課題ノード単位**（m5）。仮説を1本も持たない課題は
-                // 開くものが無いので、トグルは場所を空けたまま隠れる
-                expanded={expandedIssueKey === key}
-                expandable={(rowsOf.get(node.id) ?? []).length > 0}
+                // 展開は**課題ノード単位**（m5）。開いているか・開けるかは
+                // `placement` が運ぶので、ここでは押されたことだけを渡す
+                //（`IssuePlacement.expanded` ＝「開いているか」の唯一の出所）
                 onToggleExpand={() => toggleIssueExpanded(key)}
                 eventToggle={
                   <button
