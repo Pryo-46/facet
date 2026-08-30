@@ -16,6 +16,7 @@ import {
   ISSUE_INSET_X,
   ISSUE_INSET_Y,
   PANEL_INSET_Y,
+  TRASH_ICON_SIZE,
 } from './measure'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
@@ -309,6 +310,34 @@ describe('layoutIssueTree', () => {
     )
     expect(p.judgement.note.x).toBe(p.judgement.label.x)
     expect(p.judgement.note.width).toBe(p.judgement.label.width)
+  })
+
+  /**
+   * **「ソリューション仮説」の帯はゴミ箱より低くならない**
+   *（`solutionLabelH = Math.max(labelH, TRASH_ICON_SIZE)`）。
+   *
+   * 現行の書体では `labelH`（`fonts.small` の行高）が `TRASH_ICON_SIZE`（16px）を
+   * 上回るので、**既定の測定器では `Math.max` の右側が選ばれない。**
+   * だが「選ばれない分岐には番人を付けようがない」は誤りである——
+   * `layoutIssueTree` は `fonts` を**引数で受け取る**ので、行高を縮めた `fonts` を
+   * 1つ渡せば右側が選ばれる。書体が縮んだ日にこの分岐が壊れていることを、
+   * 実機まで持ち越さないための番人
+   */
+  it('節見出しの帯はゴミ箱より低くならない（書体が縮んだときの分岐）', () => {
+    const data = make({ issues: [root], hypotheses: [h(1)] })
+    const tiny: IssueTreeFonts = {
+      ...fonts,
+      small: { measure: createEstimateMeasurer(10), lineHeight: 12 },
+    }
+    // labelH(12) < TRASH_ICON_SIZE(16) → 帯はアイコンの高さに底上げされる
+    const shrunk = layoutIssueTree(data, poseQuestions(data), tiny, 0).hypotheses[0]!.expanded!
+    expect(shrunk.solution.label.height).toBe(TRASH_ICON_SIZE)
+    // **他の節の帯は縮んだまま**——底上げがソリューション仮説だけであること
+    expect(shrunk.value.label.height).toBe(12)
+    // 既定の書体では文字の高さの方が高い（左側の分岐）
+    expect(run(data, 0).hypotheses[0]!.expanded!.solution.label.height).toBe(
+      fonts.small.lineHeight,
+    )
   })
 
   /**

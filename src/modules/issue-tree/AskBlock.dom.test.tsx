@@ -23,6 +23,11 @@ import {
   NO_ASK_TEXT,
   type IssueTreeFonts,
 } from './layout'
+import {
+  FB_DELETE_WIDTH_CLASS,
+  MINI_ACTION_HEIGHT_CLASS,
+  MINI_ICON_GAP_CLASS,
+} from './measure'
 
 afterEach(cleanup)
 
@@ -371,5 +376,33 @@ describe('AskBlock: 節の末尾のボタン', () => {
     render(<Harness index={0} initial={clean} />)
     expect(screen.queryByText(NO_ASK_TEXT)).toBeNull()
     expect(screen.getAllByRole('group')).toHaveLength(2)
+  })
+})
+
+/**
+ * **「測定と描画」の対の、描画側の番人**（`Badge.dom.test.tsx` の
+ * `h-[${BADGE_BOX_HEIGHT}px]` と同じ形）。`measure.ts` は定数とクラスを対で
+ * 直す約束を註に持つが、**その約束を守っているかを見ているのは測定側だけ**
+ * という状態が m5 で4件出た。当たっていることだけを見る——寸法そのものは
+ * jsdom に版組が無いので測れず、実機確認が守る
+ */
+describe('AskBlock: 測定と描画の対', () => {
+  it('「＋FB」の高さとアイコンの空きは `MINI_ACTION_*` と対のクラス', () => {
+    render(<Harness index={0} />)
+    const mini = screen.getByRole('button', { name: '仮説1 の聞きたいこと1にFBを足す' })
+    expect(mini.className).toContain(MINI_ACTION_HEIGHT_CLASS)
+    expect(mini.className).toContain(MINI_ICON_GAP_CLASS)
+  })
+
+  it('削除ボタンの列幅は `FB_DELETE_WIDTH` と対のクラス（問いの見出しと FB の行で同じ）', () => {
+    render(<Harness index={0} />)
+    // レイアウトは `FB_DELETE_WIDTH` ぶんの列を空けている（`layout.ts`）。
+    // 幅のクラスがずれると、押せる面と空けた列が食い違う
+    expect(
+      screen.getByRole('button', { name: '仮説1 の聞きたいこと1を消す' }).className,
+    ).toContain(FB_DELETE_WIDTH_CLASS)
+    expect(screen.getByRole('button', { name: '仮説1 のFB1を消す' }).className).toContain(
+      FB_DELETE_WIDTH_CLASS,
+    )
   })
 })

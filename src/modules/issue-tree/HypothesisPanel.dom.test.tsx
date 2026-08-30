@@ -13,6 +13,7 @@ import {
   SECTION_LABELS,
   type IssueTreeFonts,
 } from './layout'
+import { ACTION_HEIGHT_CLASS, HYPO_TITLE_FONT_CLASS } from './measure'
 
 afterEach(cleanup)
 
@@ -329,5 +330,32 @@ describe('HypothesisPanel: FB', () => {
     // **節の末尾の「＋ FBを追加」は、どの問いにも紐づかない FB を作る**
     //（`addFeedback` の `askId` は必須。既定 `null` に頼らない）
     expect(onAddFeedback).toHaveBeenCalledWith(null)
+  })
+})
+
+/**
+ * **「測定と描画」の対の、描画側の番人**（`Badge.dom.test.tsx` の
+ * `h-[${BADGE_BOX_HEIGHT}px]` と同じ形）。
+ *
+ * `measure.ts` の定数と Tailwind クラスは対で直す約束だが、**その約束を
+ * 守っているかを見ているのは測定側だけ**という状態が m5 で4件出た。
+ * ここは「定数の指すクラスが、実際にその要素へ当たっている」ことだけを
+ * 見る——jsdom に版組は無いので、寸法そのものは実機確認が守る
+ */
+describe('HypothesisPanel: 測定と描画の対', () => {
+  it('仮説のタイトルは `HYPO_TITLE_FONT_CLASS` で描かれる（測るのは fonts.title）', () => {
+    renderPanel(0)
+    expect(screen.getByRole('textbox', { name: '仮説1' }).className).toContain(
+      HYPO_TITLE_FONT_CLASS,
+    )
+  })
+
+  it('節の末尾の追加ボタンの高さは `ACTION_HEIGHT` と対のクラス', () => {
+    renderPanel(1)
+    // レイアウトは `ACTION_HEIGHT` ぶんの帯を空けている（`layout.ts`）。
+    // クラスを当て忘れるとボタンの実高だけが縮み、定数が静かに嘘になる
+    for (const name of ['仮説2 に聞きたいことを足す', '仮説2 にFBを足す']) {
+      expect(screen.getByRole('button', { name }).className, name).toContain(ACTION_HEIGHT_CLASS)
+    }
   })
 })

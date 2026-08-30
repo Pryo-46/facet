@@ -21,7 +21,12 @@ import {
 } from './derive'
 import { IssueTreeEditor } from './IssueTreeEditor'
 import { NO_ASK_TEXT, SECTION_LABELS } from './layout'
-import { BOX_WIDTH, EXPANDED_BOX_WIDTH } from './measure'
+import {
+  BOX_WIDTH,
+  EXPANDED_BOX_WIDTH,
+  EXPANDED_TITLE_FONT_CLASS,
+  TITLE_FONT_CLASS,
+} from './measure'
 
 afterEach(cleanup)
 
@@ -149,6 +154,32 @@ describe('IssueTreeEditor（仮説は操作言語を持たない。m5）', () =>
     // **戻り値も見る。** `false`＝既定動作（改行）を消費して止めた——閉じた行は
     // 1行で測っているので、改行が入ると測定と描画がずれる（`swallowEnter` の役目）
     expect(fireEvent.keyDown(openHypothesis(1), { key: 'Enter' })).toBe(false)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  /**
+   * **修飾つきの Enter も止める。**
+   *
+   * rev 10章は「`Shift+Enter` / `Alt+Enter` はアプリが関与しない（＝ブラウザ
+   * 既定のセル内改行が生きる）」を不変条件として持ち、課題セルではそれを
+   * 上の「Shift+Enter / Alt+Enter は誰も消費しない」が守っている。
+   * **仮説のタイトルはその明示的な例外**で、`swallowEnter` は修飾を見ずに
+   * `preventDefault` する——畳まれた仮説の行はこの文言を**1行**として
+   * 測っているので、どの打ち方であれ改行が入れば測定と描画がずれる。
+   *
+   * **素の Enter だけを見ていると、修飾を除外する変異
+   *（`&& !e.shiftKey && !e.altKey`）が緑のまま通る。** ここが例外の
+   * 適用範囲そのものを固定する番人である
+   */
+  it('仮説のタイトルでは修飾つきの Enter も消費する（rev 10章の例外の適用範囲）', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={file()} onChange={onChange} />)
+    const title = openHypothesis(1)
+    expect(fireEvent.keyDown(title, { key: 'Enter', shiftKey: true })).toBe(false)
+    expect(fireEvent.keyDown(title, { key: 'Enter', altKey: true })).toBe(false)
+    // 主修飾キー（課題ツリーでは未割り当て）でも同じ——改行させない
+    expect(fireEvent.keyDown(title, { key: 'Enter', ctrlKey: true })).toBe(false)
+    expect(fireEvent.keyDown(title, { key: 'Enter', metaKey: true })).toBe(false)
     expect(onChange).not.toHaveBeenCalled()
   })
 
@@ -1216,6 +1247,39 @@ describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task
 
     expect(toggle().getAttribute('aria-expanded')).toBe('false')
     expect(boxOf(3).style.width).toBe(`${BOX_WIDTH}px`)
+  })
+
+  /**
+   * **「測定と描画」の対の、描画側の番人。**
+   *
+   * `layout.ts` は `titleFont = open ? fonts.expandedTitle : fonts.title` で
+   * 測定器を切り替えており、そちらには番人がある（`layout.test.ts`）。
+   * **対のもう半分——`IssueBox` が同じ条件でクラスを切り替えること——は
+   * ここが唯一の番人である。**
+   *
+   * 片側だけ壊れると静かに壊れる: 描画を常に `TITLE_FONT_CLASS`（14px）に
+   * すると測定 16px・描画 14px で余白が増えるだけだが、逆に常に
+   * `EXPANDED_TITLE_FONT_CLASS`（16px）にすると**測定 14px・描画 16px** となり、
+   * 高さ固定＋`overflow-hidden` の textarea から末尾の行が黙って消える。
+   * `Badge.dom.test.tsx` の `h-[${BADGE_BOX_HEIGHT}px]` と同じ形で、
+   * **定数と実際に当たっているクラスを DOM で突き合わせる。**
+   *
+   * **両向きを見る**——片側だけだと「常に片方」の実装が緑のまま残る
+   */
+  it('開いた課題のタイトルだけが展開時の書体になる（測定と対）', () => {
+    render(<Harness initial={file()} />)
+    // 畳んでいる間は 14px
+    expect(issueCell(3).className).toContain(TITLE_FONT_CLASS)
+    expect(issueCell(3).className).not.toContain(EXPANDED_TITLE_FONT_CLASS)
+
+    fireEvent.click(screen.getByRole('button', { name: '課題3の詳細' }))
+
+    // 開いた箱だけが 16px に上がる
+    expect(issueCell(3).className).toContain(EXPANDED_TITLE_FONT_CLASS)
+    expect(issueCell(3).className).not.toContain(TITLE_FONT_CLASS)
+    // **開いていない箱は 14px のまま**——切り替えが箱ごとであること
+    expect(issueCell(1).className).toContain(TITLE_FONT_CLASS)
+    expect(issueCell(1).className).not.toContain(EXPANDED_TITLE_FONT_CLASS)
   })
 
   /**

@@ -1033,7 +1033,11 @@ export function IssueTreeEditor({
                         : badgeClass(badgeVariantOf('deferred', suppressed))
                     }`}
                     // **立っている旗を押すと、その旗が外れる**（差し替えではない）。
-                    // 解決を新規に付ける動線は m4 では足さない（m5 の担当）
+                    // **旗の無い箱を押すと必ず `deferred` が付く——`resolved` を
+                    // 新規に立てる動線は m4 も m5 も足していない。担当は未定**
+                    //（`docs/open-issues.md` の「`resolved` を新規に付ける動線が
+                    // 画面に無い」を参照。m4 は「m5 の担当」と残し、m5 は
+                    // 「実装済み」と誤認して着手しなかった）
                     onClick={() => apply(toggleIssueEvent(data, index, flagKind ?? 'deferred'))}
                   >
                     {ISSUE_EVENT_LABELS[flagKind ?? 'deferred']}
