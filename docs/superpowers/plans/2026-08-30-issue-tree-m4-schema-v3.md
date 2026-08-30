@@ -2579,7 +2579,13 @@ git commit -m "feat(issue-tree): エディタを v3 へ（FB・旗のトグル�
 
 `EVENT_KIND_LABELS` の JSDoc の末尾が「（`ISSUE_DEFERRED_LABEL` を別に置いているのと同じ理由）」となっているが、**その識別子はこのファイルからもう消えている**（`ISSUE_EVENT_LABELS` になった）。`ISSUE_EVENT_LABELS` に読み替える。あわせて `toMissingTally` の JSDoc に残っている「未判断は着信の青（`pending`）」を、**「FB待ちは着信の青（`pending`）——欠落ではなく、返事を待っている」**に直す。
 
-**同じファイルの中に「v2 の `ISSUE_DEFERRED_LABEL` と同じ理由」と明示的に過去形で書いてある箇所は触らないこと**——あちらは歴史の説明であって、存在しないものへの参照ではない。
+あわせて、**`derive.ts` の中で `toggleDeferral` を名指ししている行**（Task 5 の実装者が報告した。`suppressedIssueIds` の JSDoc）を `toggleIssueEvent` に直す。**この機会に、`derive.ts` に残った「もう無い名前」を1回で洗うこと**:
+
+```
+grep -n "toggleDeferral\|setDeferralNote\|pendingNotes\|rationale\|未判断\|ISSUE_DEFERRED_LABEL\|deferralLine\|DEFERRAL_NOTE" src/modules/issue-tree/derive.ts
+```
+
+**当たった行を1つずつ見て、「いま存在しないものへの参照」なら直し、「過去にそうだった」という歴史の説明ならそのまま残す**——たとえば「v2 の `ISSUE_DEFERRED_LABEL` と同じ理由」は明示的に過去形なので触らない。**判断した結果を、行ごとに報告に書くこと。**
 
 **(b) `src/modules/issue-tree/derive.test.ts` の抑制テストの識別力を戻す**
 
