@@ -35,7 +35,7 @@ const ASK_SENTINEL = '待ち画面で離脱しないか（ASK）'
  * 課題2件・仮説3件のファイル。**退化した形（仮説1件・イベント1件）を避ける**
  */
 const data: IssueTreeSchemaVersion3 = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',
   issues: [
@@ -52,7 +52,6 @@ const data: IssueTreeSchemaVersion3 = {
       asks: [{ id: 'ask_AAAAAAAAAA', text: ASK_SENTINEL }],
       feedbacks: [],
       events: [
-        { kind: 'supported', note: '前回の実測値がそのまま使える', date: '2026-08-01' },
         { kind: 'rejected', note: '実機では3秒を超えた', date: '2026-08-02' },
       ],
     },

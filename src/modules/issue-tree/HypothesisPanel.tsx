@@ -1,5 +1,4 @@
 import { Plus, Trash2 } from 'lucide-react'
-import { Badge } from '@/components/Badge'
 import { buttonBase } from '@/components/button-styles'
 import { CellInput } from '@/components/CellInput'
 import type { Rect } from '@/core/canvas/viewport'
@@ -132,11 +131,12 @@ const swallowEnter = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElem
 /**
  * 展開した仮説1件のパネル（デザインキャンバス「仮説の展開」アートボード）。
  *
- * 節は上から **ソリューション仮説 → 価値仮説 → どう作るか → 検証結果 →
- *（以前の判断）→ FB**（`SECTION_LABELS` の鍵の並びが正）。
- * 「以前の判断」はキャンバスに描かれていないが**残す**——追記専用の列
- *（覆される前の判断とその根拠）を読める唯一の場所だからで、判断が2件以上の
- * ときだけ出る。
+ * 節は上から **ソリューション仮説 → 価値仮説 → どう作るか → 検証結果 → FB**
+ * の5つ（`SECTION_LABELS` の鍵の並びが正）。
+ *
+ * **「以前の判断」の節は v4 で消えた。** 仮説の `events` が `maxItems: 1` に
+ * なり、覆される前の判断はデータに残らなくなった——読み手（見出し・バッジ・
+ * 読み取り専用の根拠）を残すと、**永久に空の節**が測定だけを食う。
  *
  * **パネルの面は判断で変えない**（全部 `bg-canvas`）。キャンバスは支持・棄却で
  * 面を塗り分けているが、採らなかった。**当時は `judge-yes-face` が facet の
@@ -326,30 +326,6 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
           />
         </div>
       )}
-
-      {/* --- 以前の判断 ---
-          **`CellInput` にしない**——追記専用の列であり、「そのとき何を根拠に
-          決めたか」が後から書き換わってはならない。バッジは保存された種別の
-          文言で、面は薄い枠にする（いま決まっているのは最新1件だけだと見せる） */}
-      {panel.previousLabel !== null && (
-        <div className={sectionBandClass} style={inBox(panel.previousLabel)}>
-          <span className={sectionLabelClass}>{SECTION_LABELS.previous}</span>
-        </div>
-      )}
-      {panel.previous.map((rects, j) => {
-        const event = events[j]
-        if (event === undefined) return null
-        return (
-          <span key={`prev:${j}`}>
-            <span className="absolute flex items-start" style={inBox(rects.badge)}>
-              <Badge variant="faint">{EVENT_KIND_LABELS[event.kind]}</Badge>
-            </span>
-            <span className={`${STATIC_TEXT_CLASS} ${mutedInk}`} style={inBox(rects.note)}>
-              {event.note}
-            </span>
-          </span>
-        )
-      })}
 
       {/* --- FB ---
           **中身は問いブロックの入れ子**（`AskBlock`）。並びと割り振りは

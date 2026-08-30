@@ -19,7 +19,7 @@ import {
   tallyLine,
   tallyQuestions,
 } from './derive'
-import { IssueTreeEditor } from './IssueTreeEditor'
+import { CLEAR_JUDGEMENT_LABEL, IssueTreeEditor } from './IssueTreeEditor'
 import { NO_ASK_TEXT, SECTION_LABELS, SENTIMENT_LABELS } from './layout'
 import {
   BOX_WIDTH,
@@ -39,7 +39,7 @@ const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
  * 同じラベルになり、写像を差し替えても緑のままになる（logic-tree M1 が踏んだ形）
  */
 const file = (): IssueTreeSchemaVersion3 => ({
-  schemaVersion: 3,
+  schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',
   issues: [
@@ -399,7 +399,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
    */
   it('見送りが入れ子でも、配下は薄いまま（自分も見送っている C が濃く戻らない）', () => {
     const nested: IssueTreeSchemaVersion3 = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       type: 'issueTree',
       title: 'テスト',
       issues: [
@@ -471,7 +471,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
   // 薄いまま」のテストが両側から見ている
   it('見送りの枝（当人と配下）だけが bg-surface-muted を持ち、通常の箱は持たない', () => {
     const nested: IssueTreeSchemaVersion3 = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       type: 'issueTree',
       title: 'テスト',
       issues: [
@@ -606,7 +606,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
  * チップを押し続けたときの巡回（末尾なら先頭へ）が見える
  */
 const openFile = (): IssueTreeSchemaVersion3 => ({
-  schemaVersion: 3,
+  schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',
   issues: [
@@ -626,7 +626,7 @@ const openFile = (): IssueTreeSchemaVersion3 => ({
  * `kind === 'hold'` の分岐を壊しても緑になる。同じ帯に4つ並べて突き合わせる
  */
 const allKindsFile = (): IssueTreeSchemaVersion3 => ({
-  schemaVersion: 3,
+  schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',
   issues: [
@@ -671,7 +671,7 @@ const allKindsFile = (): IssueTreeSchemaVersion3 => ({
  * 根は葉ではないので「仮説なし」も立たず、**帯に出るのは FB待ち だけ**になる
  */
 const askFile = (): IssueTreeSchemaVersion3 => ({
-  schemaVersion: 3,
+  schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',
   issues: [
@@ -863,7 +863,7 @@ describe('IssueTreeEditor（帯）', () => {
   it('課題0件でも「課題を追加」で根を作れる（マウスだけの動線）', () => {
     render(
       <Harness
-        initial={{ schemaVersion: 3, type: 'issueTree', title: 'テスト', issues: [], hypotheses: [] }}
+        initial={{ schemaVersion: 4, type: 'issueTree', title: 'テスト', issues: [], hypotheses: [] }}
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: '課題を追加' }))
@@ -905,7 +905,7 @@ describe('IssueTreeEditor（帯）', () => {
 
 /** 見送りを掲げた課題が2件（うち1件は入れ子）あるファイル */
 const deferredFile = (): IssueTreeSchemaVersion3 => ({
-  schemaVersion: 3,
+  schemaVersion: 4,
   type: 'issueTree',
   title: '見送りの帯',
   issues: [
@@ -1104,7 +1104,7 @@ describe('IssueTreeEditor（解決の旗と帯のチップ）', () => {
 describe('IssueTreeEditor（旗の面と幅。m5 の実機確認）', () => {
   /** 課題1件だけの木。旗の有無と種別だけを変える */
   const oneIssue = (events: IssueTreeSchemaVersion3['issues'][number]['events']): IssueTreeSchemaVersion3 => ({
-    schemaVersion: 3,
+    schemaVersion: 4,
     type: 'issueTree',
     title: 'テスト',
     issues: [{ id: I(1), parentId: null, text: '根', events }],
@@ -1142,7 +1142,7 @@ describe('IssueTreeEditor（旗の面と幅。m5 の実機確認）', () => {
    */
   it('祖先由来の抑制が立つと、見送りも解決もバッジは faint に落ちる', () => {
     const nested: IssueTreeSchemaVersion3 = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       type: 'issueTree',
       title: 'テスト',
       issues: [
@@ -1216,7 +1216,7 @@ describe('IssueTreeEditor（旗の面と幅。m5 の実機確認）', () => {
    */
   it('祖先が旗を掲げていれば、自分が解決でも surface-muted ＋ ink-faint に落ちる', () => {
     const nested: IssueTreeSchemaVersion3 = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       type: 'issueTree',
       title: 'テスト',
       issues: [
@@ -1280,7 +1280,7 @@ describe('IssueTreeEditor（旗の面と幅。m5 の実機確認）', () => {
     // 落ちて「帯と同じ面か」を比べる意味が消える（実際に一度そうなった）。
     // 抑制は祖先由来だけなので、兄弟どうしなら互いに影響しない
     const siblings: IssueTreeSchemaVersion3 = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       type: 'issueTree',
       title: 'テスト',
       issues: [
@@ -1407,6 +1407,116 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
       EVENT_KIND_LABELS.onHold,
       EVENT_KIND_LABELS.deferred,
     ])
+  })
+
+  /**
+   * **「取り消す」は判断があるときだけ出る**（v4）。未決に「取り消す」は意味を
+   * 持たない——押せる項目として並ぶと、何も起きない操作を利用者に見せることになる。
+   *
+   * **同じテストで有り／無しの両方を見る。** 片方だけだと、条件を落として
+   * 「常に出す」に変えた実装も、条件を反転した実装も、どちらかは緑で通る
+   */
+  it('「取り消す」は判断があるときだけ候補に並ぶ', async () => {
+    const judged: IssueTreeSchemaVersion3 = {
+      ...file(),
+      hypotheses: [
+        { ...file().hypotheses[0], events: [{ kind: 'rejected', note: '実機で3秒超', date: '2026-08-13' }] },
+      ],
+    }
+    render(<Harness initial={judged} />)
+    openHypothesis(1)
+    fireEvent.pointerDown(screen.getByRole('button', { name: '仮説1に判断を追加' }), { button: 0 })
+    expect((await screen.findAllByRole('menuitem')).map((e) => e.textContent)).toEqual([
+      EVENT_KIND_LABELS.supported,
+      EVENT_KIND_LABELS.rejected,
+      EVENT_KIND_LABELS.onHold,
+      EVENT_KIND_LABELS.deferred,
+      CLEAR_JUDGEMENT_LABEL,
+    ])
+    cleanup()
+
+    // 未決（`file()` の仮説は events が空）では並ばない
+    render(<Harness initial={file()} />)
+    openHypothesis(1)
+    fireEvent.pointerDown(screen.getByRole('button', { name: '仮説1に判断を追加' }), { button: 0 })
+    await screen.findAllByRole('menuitem')
+    expect(screen.queryByRole('menuitem', { name: CLEAR_JUDGEMENT_LABEL })).toBeNull()
+  })
+
+  /**
+   * **判断は差し替わる（追記されない）。番人の狙いは列の長さである。**
+   *
+   * 最新の種別だけを見ると、**追記に戻した実装でも緑になる**——`[...events, e]`
+   * でも最後の要素は同じだからである。だから**保存された JSON の `events` を
+   * まるごと**見る（長さ1・中身が新しい判断だけ）。
+   *
+   * あわせて**選んだ瞬間に課題が畳まれないこと**も見る（FB の調子と同じ罠。
+   * Radix の項目は `body` へポータルされるが React の合成イベントは箱まで遡る）
+   */
+  it('判断を選び直すと差し替わり（列は1件のまま）、課題は畳まれない', async () => {
+    const onChange = vi.fn()
+    const judged: IssueTreeSchemaVersion3 = {
+      ...file(),
+      hypotheses: [
+        { ...file().hypotheses[0], events: [{ kind: 'rejected', note: '実機で3秒超', date: '2026-08-13' }] },
+      ],
+    }
+    render(<Harness initial={judged} onChange={onChange} />)
+    openHypothesis(1)
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+    fireEvent.pointerDown(screen.getByRole('button', { name: '仮説1に判断を追加' }), { button: 0 })
+    fireEvent.click(await screen.findByRole('menuitem', { name: EVENT_KIND_LABELS.supported }))
+
+    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    expect(next.hypotheses[0].events).toHaveLength(1)
+    expect(next.hypotheses[0].events).toEqual([
+      { kind: 'supported', note: '', date: todayString() },
+    ])
+    expect(onChange.mock.calls[0][1]).toBe(null)
+    // **開いたまま**であること
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+    expect(screen.getByRole('button', { name: '仮説1に判断を追加' }).textContent).toBe(
+      EVENT_KIND_LABELS.supported,
+    )
+  })
+
+  /**
+   * **「取り消す」の動線の番人**（v4）。4つを見る:
+   *
+   * 1. **保存された JSON の `events` が空になること**——バッジの語だけを見ると、
+   *    未決の語を描くだけで保存していない実装でも緑になる
+   * 2. **バッジが未決へ戻ること**（画面の側）
+   * 3. **根拠の欄が消えること**——判断が無いのに欄が残ると、書いた文字が
+   *    どこにも保存されない
+   * 4. **選んだ瞬間に課題が畳まれないこと**（上と同じ罠）
+   */
+  it('「取り消す」で判断が消え、バッジが未決に戻り、課題は畳まれない', async () => {
+    const onChange = vi.fn()
+    const judged: IssueTreeSchemaVersion3 = {
+      ...file(),
+      hypotheses: [
+        { ...file().hypotheses[0], events: [{ kind: 'rejected', note: '実機で3秒超', date: '2026-08-13' }] },
+      ],
+    }
+    render(<Harness initial={judged} onChange={onChange} />)
+    openHypothesis(1)
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+    // 取り消す前は根拠の欄がある
+    expect(screen.getByRole('textbox', { name: `仮説1 の${EVENT_KIND_LABELS.rejected}の根拠` })).toBeTruthy()
+
+    fireEvent.pointerDown(screen.getByRole('button', { name: '仮説1に判断を追加' }), { button: 0 })
+    fireEvent.click(await screen.findByRole('menuitem', { name: CLEAR_JUDGEMENT_LABEL }))
+
+    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    expect(next.hypotheses[0].events).toEqual([])
+    expect(onChange.mock.calls[0][1]).toBe(null)
+    // **開いたまま**であること
+    expect(issueBox(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+    // バッジは導出の「未決」へ戻り、根拠の欄は消える
+    expect(screen.getByRole('button', { name: '仮説1に判断を追加' }).textContent).toBe(BADGE_LABELS.open)
+    expect(screen.queryAllByRole('textbox', { name: /の根拠$/ })).toHaveLength(0)
+    // **行き先は仮説の文言**（`clearJudgement` の解説）——根拠の欄はいま消えた
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説1' }))
   })
 
   it('判断を選ぶとイベントが追記される（マウスの動線）', async () => {

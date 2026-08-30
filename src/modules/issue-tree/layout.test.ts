@@ -16,6 +16,7 @@ import {
   FIELD_INDENT,
   ISSUE_INSET_X,
   ISSUE_INSET_Y,
+  PANEL_GAP,
   PANEL_INSET_X,
   PANEL_INSET_Y,
   TRASH_ICON_SIZE,
@@ -51,7 +52,7 @@ function run(data: IssueTreeSchemaVersion3, selectedIssueIndex = -1) {
 }
 
 function make(over: Partial<IssueTreeSchemaVersion3>): IssueTreeSchemaVersion3 {
-  return { schemaVersion: 3, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
+  return { schemaVersion: 4, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
 }
 
 const root: IssueNode = { id: I(0), parentId: null, text: '結果取得を画面遷移の中で待てるか', events: [] }
@@ -319,10 +320,7 @@ describe('layoutIssueTree', () => {
             { askId: null, text: 'FB1', by: '', sentiment: 'note', date: DATE },
             { askId: null, text: 'FB2', by: '', sentiment: 'note', date: DATE },
           ],
-          events: [
-            { kind: 'supported', note: '根拠', date: DATE },
-            { kind: 'rejected', note: '覆った', date: DATE },
-          ],
+          events: [{ kind: 'rejected', note: '覆った', date: DATE }],
         }),
         h(3),
       ],
@@ -332,16 +330,12 @@ describe('layoutIssueTree', () => {
     const open = run(data, 0)
     expect(folded.hypotheses[1]!.expanded).toBeNull()
     const p = open.hypotheses[1]!.expanded!
-    expect(p.previous).toHaveLength(1) // events 2件 → 以前の判断は1件
-    expect(p.previousLabel).not.toBeNull()
     // FB は「どの問いにも紐づかないFB」のブロック1つに入る（問いが無いので）
     expect(p.notes.blocks).toHaveLength(1)
     expect(p.notes.blocks[0].askIndex).toBeNull()
     expect(p.notes.blocks[0].rows.map((r) => r.feedbackIndex)).toEqual([0, 1])
-    // 判断も FB も無い隣の仮説にもパネルは出る（節は「判断」と「FB」の2つ）
+    // 判断も FB も無い隣の仮説にもパネルは出る（節の数は判断の有無で変わらない）
     const bare = open.hypotheses[0]!.expanded!
-    expect(bare.previous).toEqual([])
-    expect(bare.previousLabel).toBeNull()
     // FB も問いも無ければブロックは1つも出ない（空の受け皿を置かない）
     expect(bare.notes.blocks).toEqual([])
     expect(open.issues[0]!.rect.height).toBeGreaterThan(folded.issues[0]!.rect.height)
@@ -354,9 +348,9 @@ describe('layoutIssueTree', () => {
     expect(p.panel.y + p.panel.height).toBeLessThanOrEqual(
       open.hypotheses[1]!.rect.y + open.hypotheses[1]!.rect.height,
     )
-    // 節は上から ソリューション仮説 → 価値仮説 → どう作るか → 検証結果 →
-    // 以前の判断 → FB の順（由来は v3 で廃止／「どう作るか」は m5 の追加作業で
-    // ソリューション仮説の中から昇格）。**y で見る**——描く側の DOM 順は
+    // 節は上から ソリューション仮説 → 価値仮説 → どう作るか → 検証結果 → FB の
+    // **5つ**（由来は v3 で廃止／「どう作るか」は m5 の追加作業でソリューション仮説の
+    // 中から昇格／「以前の判断」は v4 で廃止）。**y で見る**——描く側の DOM 順は
     // `HypothesisPanel.dom.test.tsx` が別に見ている
     expect(p.solution.title.y).toBeGreaterThan(p.solution.label.y)
     expect(p.value.label.y).toBeGreaterThan(p.solution.title.y)
@@ -364,9 +358,7 @@ describe('layoutIssueTree', () => {
     expect(p.detail.label.y).toBeGreaterThan(p.value.field.y)
     expect(p.detail.field.y).toBeGreaterThan(p.detail.label.y)
     expect(p.judgement.label.y).toBeGreaterThan(p.detail.field.y)
-    expect(p.previousLabel).not.toBeNull()
-    expect(p.previousLabel!.y).toBeGreaterThan(p.judgement.note.y)
-    expect(p.notes.label.y).toBeGreaterThan(p.previous[0].note.y)
+    expect(p.notes.label.y).toBeGreaterThan(p.judgement.note.y)
     expect(p.notes.adds.y).toBeGreaterThan(p.notes.blocks[0].rows[1].rect.y)
     // 検証結果の根拠は見出しの帯の下に座る（バッジ・日付・トリガーは帯の中に
     // flex で並ぶので、根拠の幅を削らない）。**左端だけが `FIELD_INDENT` ぶん
@@ -469,10 +461,7 @@ describe('layoutIssueTree', () => {
           detail: boundary,
           value: boundary,
           feedbacks: [{ askId: null, text: 'FB1', by: '', sentiment: 'note', date: DATE }],
-          events: [
-            { kind: 'supported', note: '根拠', date: DATE },
-            { kind: 'rejected', note: boundary, date: DATE },
-          ],
+          events: [{ kind: 'rejected', note: boundary, date: DATE }],
         }),
       ],
     })
@@ -484,7 +473,6 @@ describe('layoutIssueTree', () => {
       ['価値仮説', p.value.label, p.value.field],
       ['どう作るか', p.detail.label, p.detail.field],
       ['検証結果', p.judgement.label, p.judgement.note],
-      ['以前の判断', p.previousLabel!, p.previous[0].badge],
       ['FB', p.notes.label, p.notes.blocks[0].block],
     ]
     for (const [name, band, field] of pairs) {
@@ -492,16 +480,11 @@ describe('layoutIssueTree', () => {
       // 右端が揃う＝「x を足しただけ」の実装ならここで落ちる
       expect(field.x + field.width, name).toBeLessThanOrEqual(band.x + band.width)
     }
-    // **以前の判断の根拠は、バッジの右から帯の右端までを使う。**
-    // 上の `pairs` が以前の判断について見ているのは**バッジだけ**で、バッジは幅が
-    // 小さいので「右端を越えない」を素通りする——`noteW` を広い幅（`panelContentWidth`）
-    // に戻す変異が、それだけでは捕まらなかった。根拠の面は `STATIC_TEXT_CLASS`
-    //（`absolute overflow-hidden`）なので、壊れると**折り返しが 14px 広い幅で数えられて
-    // 末尾の行が黙って消え**、面の右端も帯の外へ出る。
-    // **`noteW` は測る側と描く側が読む同じ1つの数**（幅にも `textHeight` の引数にも
-    // 同じ変数が渡る）なので、この1行が両側の番人になる
-    expect(p.previous[0].note.x + p.previous[0].note.width).toBe(
-      p.previousLabel!.x + p.previousLabel!.width,
+    // **検証結果の根拠は帯の右端まで使い切る。** 上の `pairs` は「右端を越えない」
+    // しか見ないので、幅を狭める変異は素通りする——`fieldContentWidth` を
+    // 使わない実装だとここが落ちる
+    expect(p.judgement.note.x + p.judgement.note.width).toBe(
+      p.judgement.label.x + p.judgement.label.width,
     )
     // 帯そのものはパネルの内容の左端に座ったまま（見出しは動かさない）
     expect(p.value.label.x).toBe(p.panel.x + PANEL_INSET_X)
@@ -515,47 +498,39 @@ describe('layoutIssueTree', () => {
   })
 
   /**
-   * **以前の判断の根拠の、測る側だけを狙った番人。**
+   * **検証結果の根拠の、測る側だけを狙った番人。**
    *
-   * 上のテストの幅の1行（`note.x + note.width` が帯の右端と一致する）は、
-   * **`noteW` という1つの数**を固定する——いまの実装はその同じ変数を
-   * 幅にも `textHeight` の引数にも渡しているので、そこを広い幅へ戻す変異は
+   * 上のテストの幅の1行（`judgement.note` の右端が帯の右端と一致する）は、
+   * **`fieldContentWidth` という1つの数**を固定する——いまの実装はその同じ値を
+   * 矩形の幅にも `textHeight` の引数にも渡しているので、そこを広い幅へ戻す変異は
    * あれで赤くなる。**ここが見るのはその先**で、`textHeight` の引数だけを
    * 別の式に差し替える（＝測る側と描く側が別々の数を見る形に割る）変異である。
    *
-   * **固定の文字数を置けない。** 根拠が使える幅はバッジの語（判断の種別）の
-   * 幅で決まる。実測すると、既定の書体で「支持」のとき根拠は 656px、
-   * 変異後は 670px で、**どちらも全角41文字ちょうどを収める**
-   *（41×16＝656 ≤ 656 かつ ≤ 670／42×16＝672 はどちらも超える）
-   * ——つまりその組み合わせでは**どんな長さの文字列でも行数が変わらず、
-   * 高さの検査は番人にならない**。だから
+   * **固定の文字数を置けない。** 正しい幅と壊れた幅の両方が同じ文字数を収める
+   * 組み合わせでは、**どんな長さの文字列でも行数が変わらず、高さの検査は
+   * 番人にならない**（issue-tree-m5 で実際に踏んだ形）。だから
    *
    * 1. 幅を**実測してから**境界の長さを作る
    * 2. **境界が2つの幅の間にあること自体を前提として検査する**
    *
-   * こうしておくと、書体やバッジの余白が動いて境界が消えた日には
+   * こうしておくと、書体や余白が動いて境界が消えた日には
    * 「番人が効かなくなった」ことが**静かにではなく赤で**分かる
+   *
+   * **この番人は v4 で引っ越してきた**——それまで同じ検査を担っていたのは
+   * 「以前の判断」の根拠で、その節ごと消えたため、字下げを共有する隣の欄
+   *（検証結果の根拠）へ移した
    */
-  it('以前の判断の根拠も、字下げのぶん狭い幅で折り返す（測る側）', () => {
-    /** 根拠の文言だけを差し替えて、以前の判断の矩形を1つ取る */
-    const previousNote = (note: string) => {
+  it('検証結果の根拠は、字下げのぶん狭い幅で折り返す（測る側）', () => {
+    /** 根拠の文言だけを差し替えて、検証結果の根拠の矩形を取る */
+    const judgeNote = (note: string) => {
       const data = make({
         issues: [root],
-        hypotheses: [
-          h(1, {
-            events: [
-              // **語の広い種別を選ぶ**（「見送り」＝3文字）。バッジが広いほど
-              // 根拠の幅が 16px の格子から外れ、下の前提が成り立ちやすい
-              { kind: 'deferred', note, date: DATE },
-              { kind: 'rejected', note: '最新', date: DATE },
-            ],
-          }),
-        ],
+        hypotheses: [h(1, { events: [{ kind: 'deferred', note, date: DATE }] })],
       })
-      return run(data, 0).hypotheses[0]!.expanded!.previous[0].note
+      return run(data, 0).hypotheses[0]!.expanded!.judgement.note
     }
 
-    const room = previousNote('短い根拠').width
+    const room = judgeNote('短い根拠').width
     /** 全角1文字の幅（概算器は 16px）。**打ち直さず測定器に聞く** */
     const em = fonts.body.measure('あ')
     const perLine = Math.floor(room / em)
@@ -569,7 +544,7 @@ describe('layoutIssueTree', () => {
     // 狭い幅（実装）では2行、広い幅（変異）では1行に収まる長さ
     const boundary = 'あ'.repeat(perLine + 1)
     expect(boundary.length * em).toBeLessThanOrEqual(room + FIELD_INDENT)
-    expect(previousNote(boundary).height).toBe(fonts.body.lineHeight * 2)
+    expect(judgeNote(boundary).height).toBe(fonts.body.lineHeight * 2)
   })
 
   it('検証結果の帯はバッジの高さで測る（消えた文言ボタンのぶんを空けない）', () => {
@@ -581,18 +556,15 @@ describe('layoutIssueTree', () => {
     expect(p!.judgement.label.height).toBe(BADGE_HEIGHT)
   })
 
-  it('展開パネルに「由来」の節が無い（rationale の廃止）', () => {
+  it('展開パネルの節は5つで、鍵の並びが描く順である（由来と以前の判断の廃止）', () => {
     // 型からも消えているので、これは「消し忘れた矩形が残っていない」ことの番人ではなく、
-    // **節が3つ（判断・以前の判断・FB）に減ったぶんパネルが縮む**ことの番人である
+    // **節が減ったぶんパネルが縮む**ことの番人である
     const data = make({
       issues: [root],
       hypotheses: [
         h(1, {
           feedbacks: [{ askId: null, text: 'FB1', by: '', sentiment: 'note', date: DATE }],
-          events: [
-            { kind: 'supported', note: '根拠', date: DATE },
-            { kind: 'rejected', note: '覆った', date: DATE },
-          ],
+          events: [{ kind: 'rejected', note: '覆った', date: DATE }],
         }),
       ],
     })
@@ -607,15 +579,25 @@ describe('layoutIssueTree', () => {
       'value',
       'detail',
       'judgement',
-      'previous',
       'notes',
     ])
     // **SECTION_LABELS の鍵だけでは「矩形が残っていないか」しか見ない。**
-    // パネルの実測が節3つぶんぴったりであることも見る——最後の内容（＋FBボタン）
-    // の下端と、パネルの下端（内側余白を引いた位置）が一致するはずで、由来の
-    // ぶんの高さを `sectionHs` から消し忘れているとここに隙間が残る
+    // パネルの実測が節5つぶんぴったりであることも見る——最後の内容（＋FBボタン）
+    // の下端と、パネルの下端（内側余白を引いた位置）が一致するはずで、消した節の
+    // ぶんの高さを `sectionHs` から落とし忘れているとここに隙間が残る。
+    // **積み上げの空きも数える**——`PANEL_GAP * (節の数 - 1)` が節の減少に
+    // 追随していないと、実測の下端がここでズレる
     const p = panel!
     expect(p.notes.adds.y + ACTION_HEIGHT).toBe(p.panel.y + p.panel.height - PANEL_INSET_Y)
+    // 節と節の間の空きはちょうど4つぶん（5つの節の間）。**帯の上端どうしの
+    // 差ではなく、前の節の下端から次の帯の上端までを1つずつ見る**
+    const gaps = [
+      p.value.label.y - (p.solution.title.y + p.solution.title.height),
+      p.detail.label.y - (p.value.field.y + p.value.field.height),
+      p.judgement.label.y - (p.detail.field.y + p.detail.field.height),
+      p.notes.label.y - (p.judgement.note.y + p.judgement.note.height),
+    ]
+    expect(gaps).toEqual([PANEL_GAP, PANEL_GAP, PANEL_GAP, PANEL_GAP])
   })
 
   /**
@@ -702,16 +684,6 @@ describe('layoutIssueTree', () => {
       prevBottom = b.block.y + b.block.height
     }
     expect(p.notes.adds.y).toBeGreaterThanOrEqual(prevBottom)
-  })
-
-  it('イベントが1件だけの仮説には「以前の判断」の節が出ない', () => {
-    const data = make({
-      issues: [root],
-      hypotheses: [h(1, { events: [{ kind: 'supported', note: '実測', date: DATE }] })],
-    })
-    const p = run(data, 0).hypotheses[0]!.expanded!
-    expect(p.previous).toEqual([])
-    expect(p.previousLabel).toBeNull()
   })
 
   it('展開した仮説の文言は折り返した高さになる（畳むと1行）', () => {
@@ -1033,7 +1005,7 @@ describe('layoutIssueTree', () => {
    */
   const flagData = make({ issues: [root, child] })
   function layoutWithFlag(kind: 'deferred' | 'resolved'): IssueTreeLayout {
-    const issues = flagData.issues.map((n, i) =>
+    const issues: IssueNode[] = flagData.issues.map((n, i) =>
       i === 1 ? { ...n, events: [{ kind, note: '通知の集約で解ける', date: DATE }] } : n,
     )
     const next = { ...flagData, issues }

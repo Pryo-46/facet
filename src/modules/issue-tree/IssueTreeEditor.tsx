@@ -44,7 +44,7 @@ import {
   addHypothesis,
   addRootIssue,
   addSiblingIssueAfter,
-  appendJudgement,
+  clearJudgement,
   deleteHypothesis,
   deleteIssueSubtree,
   moveIssueSibling,
@@ -59,6 +59,7 @@ import {
   setHypothesisValue,
   setIssueEventNote,
   setIssueText,
+  setJudgement,
   toggleIssueEvent,
   type EditResult,
   type FocusTarget,
@@ -233,9 +234,23 @@ interface KindMenuProps {
   badgeText: string
   kinds: readonly JudgementKind[]
   onPick: (kind: JudgementKind) => void
+  /**
+   * 判断を取り消して未決へ戻す（v4）。**`null` なら項目そのものを出さない**
+   *——未決のときに「取り消す」は意味を持たない。
+   *
+   * **`kinds` に混ぜず別の口にしてある。** 取り消しは種別の1つではなく
+   * 「いま立っているものを外す」操作で、`JudgementKind` に席が無い
+   *（`derive.ts` の `undecided` が保存される種別でないのと同じ理由）。
+   * 混ぜると `EVENT_KIND_LABELS`（`Record<JudgementKind, string>` で
+   * 網羅が型に守られている表）に嘘の1語を足すことになる
+   */
+  onClear: (() => void) | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }
+
+/** 「取り消す」の文言。**`EVENT_KIND_LABELS` に混ぜない**（保存される種別ではない） */
+export const CLEAR_JUDGEMENT_LABEL = '取り消す'
 
 /**
  * 判断の種別を1つ選ぶドロップダウン。**開閉は親が持つ制御コンポーネント**
@@ -300,6 +315,23 @@ function KindMenu(props: KindMenuProps) {
             {EVENT_KIND_LABELS[kind]}
           </DropdownMenuItem>
         ))}
+        {/* **判断があるときだけ出す**（未決に「取り消す」は無い）。種別の下に
+            置くのは、これが5つ目の種別ではなく「立っているものを外す」操作だから
+            である——並びの正は `JUDGEMENT_MENU_ORDER` が持ち、そこに席は無い。
+            **閉じるのを先に済ませるのは種別と同じ**（`onSelect` の解説）——
+            取り消した後は仮説の文言へフォーカスを予約するので、`FocusScope` と
+            取り合うと打てなくなる */}
+        {props.onClear !== null && (
+          <DropdownMenuItem
+            onSelect={() => {
+              picked.current = true
+              props.onOpenChange(false)
+              props.onClear?.()
+            }}
+          >
+            {CLEAR_JUDGEMENT_LABEL}
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -1214,8 +1246,9 @@ export function IssueTreeEditor({
                             <KindMenu
                               // **アクセシブル名の前半は動かさない**（テストが
                               // 前方一致で引く規約）。判断があってもこの名前の
-                              // まま——押してすることは常に「次の判断の追記」で、
-                              // いまの状態はバッジの語が運ぶ
+                              // まま——押して開く面は常に同じで、いまの状態は
+                              // バッジの語が運ぶ（v4 で中身に「取り消す」が
+                              // 増えたが、名前は動かさない）
                               label={`仮説${hi + 1}に判断を追加`}
                               // **バッジはトリガーの中身**（m5 Task 6）。
                               // イベントが無ければ導出の「未決」、あれば
@@ -1237,7 +1270,16 @@ export function IssueTreeEditor({
                                   : EVENT_KIND_LABELS[latestJudgement.kind]
                               }
                               kinds={JUDGEMENT_KINDS}
-                              onPick={(kind) => apply(appendJudgement(data, hi, kind))}
+                              onPick={(kind) => apply(setJudgement(data, hi, kind))}
+                              // **判断があるときだけ「取り消す」を渡す**
+                              //（未決のときは項目ごと出ない）。**同じ条件を
+                              // `KindMenu` の中でもう一度書かない**——出す・出さないの
+                              // 判断が2箇所に生えると、片方だけが古びる
+                              onClear={
+                                latestJudgement === undefined
+                                  ? null
+                                  : () => apply(clearJudgement(data, hi))
+                              }
                               {...menuPropsFor(judgementMenuKey(rowKey))}
                             />
                           }

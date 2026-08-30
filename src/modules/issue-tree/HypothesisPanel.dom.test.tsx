@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { badgeClass } from '@/components/badge-styles'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
 import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
-import { badgeVariantOf } from './badge-variant'
 import { EVENT_KIND_LABELS, poseQuestions } from './derive'
 import { HypothesisPanel } from './HypothesisPanel'
 import {
@@ -16,7 +14,7 @@ import {
   SECTION_LABELS,
   type IssueTreeFonts,
 } from './layout'
-import { ACTION_HEIGHT_CLASS, HYPO_TITLE_FONT_CLASS } from './measure'
+import { ACTION_HEIGHT_CLASS, HYPO_TITLE_FONT_CLASS, SECTION_LABEL_FONT_CLASS } from './measure'
 
 afterEach(cleanup)
 
@@ -47,11 +45,14 @@ const ASK_SENTINEL = '待ち画面で離脱しないか（ASK）'
 const MENU_SENTINEL = '判断のトリガー（MENU）'
 
 /**
- * 課題2件・仮説3件のファイル。**退化した形（仮説1件・イベント1件）を避ける**
- * ——「最新だけ編集できる」は要素が1つだと「全部編集できる」と区別が付かない
+ * 課題2件・仮説3件のファイル。**仮説は3件**にしてある（1件では「この仮説の欄」と
+ * 「どれかの仮説の欄」が区別できない）。
+ *
+ * **判断は1件までである**——v4 のスキーマが `maxItems: 1` を課したので、
+ * `Hypothesis['events']` は `[] | [JudgementEvent]` で、2件は型として作れない
  */
 const data: IssueTreeSchemaVersion3 = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',
   issues: [
@@ -68,7 +69,6 @@ const data: IssueTreeSchemaVersion3 = {
       asks: [{ id: 'ask_AAAAAAAAAA', text: ASK_SENTINEL }],
       feedbacks: [],
       events: [
-        { kind: 'supported', note: '前回の実測値がそのまま使える', date: '2026-08-01' },
         { kind: 'rejected', note: '実機では3秒を超えた', date: '2026-08-13' },
       ],
     },
@@ -172,15 +172,28 @@ describe('HypothesisPanel: 節の構成', () => {
    * **並びは `SECTION_LABELS` の鍵の順と対**（`layout.test.ts` が鍵の並びを、
    * ここが DOM の並びを固定する）
    */
-  it('節が「ソリューション仮説」「価値仮説」「どう作るか」「検証結果」「FB」の順に並ぶ', () => {
+  it('節は5つで、「ソリューション仮説」「価値仮説」「どう作るか」「検証結果」「FB」の順に並ぶ', () => {
     renderPanel(0)
-    const labels = [
+    const order = [
       SECTION_LABELS.solution,
       SECTION_LABELS.value,
       SECTION_LABELS.detail,
       SECTION_LABELS.judgement,
       SECTION_LABELS.notes,
-    ].map(sectionLabel)
+    ]
+    // **並びだけを見ると、間に6つ目の節が挟まっていても緑になる**（隣接の
+    // `precedes` は「間に何も無いこと」を主張しない）。**節の総数**をここで見る
+    //——`SECTION_LABELS` の鍵と、実際に描かれた見出しの帯の数の両方で。
+    // v4 で「以前の判断」を消したので、どちらも 5 である
+    expect(order).toHaveLength(5)
+    expect(Object.keys(SECTION_LABELS)).toHaveLength(5)
+    // **前提**: 節見出しは太字で、パネルの中で太字を使うのはここだけである。
+    // 崩れたら数え方が意味を失うので、静かに通らず名指しで赤くする
+    expect(SECTION_LABEL_FONT_CLASS, '節見出しが太字でなくなった＝この数え方は成立しない').toContain(
+      'font-semibold',
+    )
+    expect(document.querySelectorAll('span.font-semibold')).toHaveLength(5)
+    const labels = order.map(sectionLabel)
     for (let i = 1; i < labels.length; i += 1) {
       expect(precedes(labels[i - 1], labels[i])).toBe(true)
     }
@@ -195,18 +208,19 @@ describe('HypothesisPanel: 節の構成', () => {
   })
 
   /**
-   * **「以前の判断」はキャンバスに描かれていないが消さない**——追記専用の列
-   *（覆される前の判断とその根拠）を読める唯一の場所である。判断が2件以上の
-   * ときだけ出るので、同じテストで有り／無しの両方を見る
+   * **「以前の判断」の節は v4 で消えた。** 仮説の `events` が `maxItems: 1` に
+   * なり、覆される前の判断はデータに残らない——読み手を残すと**永久に空の節**が
+   * 測定だけを食う。
+   *
+   * **文字列を字面で置く。** `SECTION_LABELS.previous` はもう存在しないので
+   * 定数から引けず、引ける形にすると「消したはずの語」を復活させることになる
    */
-  it('「以前の判断」の節は判断が2件以上のときだけ、検証結果とFBの間に出る', () => {
-    renderPanel(0)
-    const previous = sectionLabel(SECTION_LABELS.previous)
-    expect(precedes(sectionLabel(SECTION_LABELS.judgement), previous)).toBe(true)
-    expect(precedes(previous, sectionLabel(SECTION_LABELS.notes))).toBe(true)
+  it('「以前の判断」の節はどこにも出ない（判断があってもなくても）', () => {
+    renderPanel(0) // 判断あり
+    expect(screen.queryByText('以前の判断')).toBeNull()
     cleanup()
-    renderPanel(1)
-    expect(screen.queryByText(SECTION_LABELS.previous)).toBeNull()
+    renderPanel(1) // 未決
+    expect(screen.queryByText('以前の判断')).toBeNull()
   })
 })
 
@@ -360,29 +374,21 @@ describe('HypothesisPanel: 検証結果', () => {
   })
 
   /**
-   * これが壊れると「追記専用」がデータの上（`setEventNote`）だけの約束になり、
-   * 画面からは静かに破れる——過去の根拠が編集できると、
-   * 「そのとき何を根拠に決めたか」が後から書き換わる
+   * **根拠の欄はちょうど1つ。** v4 で列が高々1件になったので、2つ目が出るのは
+   * 「消したはずの節が復活した」ときだけである。**未決の側も見る**——判断が
+   * 無いのに欄が出ると、書いた根拠がどこにも保存されない欄になる
    */
-  it('根拠を編集できるのは最新のイベントだけ', () => {
+  it('根拠の欄は判断1件ぶんだけ出て、未決には出ない', () => {
     renderPanel(0)
     expect(screen.getAllByRole('textbox', { name: /の根拠$/ })).toHaveLength(1)
     expect(
       screen.getByRole('textbox', { name: `仮説1 の${EVENT_KIND_LABELS.rejected}の根拠` }),
     ).toBeInstanceOf(HTMLTextAreaElement)
     // 「引けない」だけでは消えていても緑になる。読めることまで見る
-    expect(screen.getByText('前回の実測値がそのまま使える')).toBeTruthy()
-  })
-
-  /**
-   * 覆される前の判断が「いま決まっていること」に見えないのは薄い枠のおかげで、
-   * それが崩れると履歴が現役の判断の顔をする（語では区別できない）
-   */
-  it('以前の判断は薄い面で出る', () => {
-    renderPanel(0)
-    expect(screen.getByText(EVENT_KIND_LABELS.supported).className).toBe(
-      badgeClass(badgeVariantOf('yes', true)),
-    )
+    expect(screen.getByText('実機では3秒を超えた')).toBeTruthy()
+    cleanup()
+    renderPanel(1)
+    expect(screen.queryAllByRole('textbox', { name: /の根拠$/ })).toHaveLength(0)
   })
 })
 

@@ -7,7 +7,6 @@ import {
   awaitingAskCount,
   badgeGroupOf,
   BADGE_LABELS,
-  EVENT_KIND_LABELS,
   hypothesisStatus,
   ISSUE_EVENT_LABELS,
   QUESTION_LABELS,
@@ -185,16 +184,6 @@ export interface HypothesisPanel {
    */
   judgement: { label: Rect; note: Rect }
   /**
-   * 「以前の判断」の見出し。1件も無ければ null（節ごと出ない）。
-   *
-   * **`previous` の配列とは別に持つ。** 見出しの場所を部品が
-   * 「先頭行の上」から逆算すると、節の組み方（`SECTION_GAP`）が
-   * レイアウトと部品の2箇所に散る
-   */
-  previousLabel: Rect | null
-  /** 「以前の判断」。`events[0 .. length-2]` の順。読み取り専用 */
-  previous: { badge: Rect; note: Rect }[]
-  /**
    * FB の節。**中身は問いブロックの入れ子**（デザインキャンバスの `.ask`）で、
    * `blocks` は `asks` の順に並び、最後に「どの問いにも紐づかないFB」の
    * ブロックが**その中身が1件以上あるときだけ**付く。`adds` は
@@ -324,18 +313,21 @@ export const NO_JUDGEMENT_TEXT = '理由（判断を選ぶと書ける）'
 /**
  * 節の見出し。**`derive.ts` には置かない**——Skill の報告には出ない画面だけの言葉。
  * **鍵の並びが描く順**: ソリューション仮説 → 価値仮説 → どう作るか →
- * 検証結果 →（以前の判断）→ FB。`layout.test.ts` が鍵の並びを、
+ * 検証結果 → FB の**5つ**。`layout.test.ts` が鍵の並びを、
  * `HypothesisPanel.dom.test.tsx` が DOM の並びを、対で固定している。
  *
  * **「どう作るか」（`detail`）は m5 の追加作業でソリューション仮説の節の中から
- * 昇格した**（`HypothesisPanel.detail` の解説）
+ * 昇格した**（`HypothesisPanel.detail` の解説）。
+ *
+ * **「以前の判断」の節は v4 で消えた**——仮説の `events` が `maxItems: 1` に
+ * なり、覆される前の判断そのものがデータに残らなくなったので、読み手ごと消した
+ *（矩形・見出し・部品の描画を残すと、**永久に空の節**が測定だけを食う）
  */
 export const SECTION_LABELS = {
   solution: 'ソリューション仮説',
   value: '価値仮説',
   detail: 'どう作るか',
   judgement: '検証結果',
-  previous: '以前の判断',
   notes: 'FB',
 } as const
 
@@ -564,7 +556,7 @@ interface RowPlan {
  *
  * **展開の単位は課題ノードである**（m5。M3〜m4 は仮説1本だった）。開いた課題は
  * 幅が `EXPANDED_BOX_WIDTH` に広がり、**その課題にぶら下がる仮説がすべて**
- * パネル（判断・以前の判断・FB）を開く。1本だけ開く形をやめたのは、仮説どうしを
+ * パネル（判断・FB）を開く。1本だけ開く形をやめたのは、仮説どうしを
  * 見比べる場面——どれを先に検証するか、どれが同じ問いに答えているか——で、
  * 開くたびに隣が畳まれると比較そのものができないため。
  *
@@ -743,20 +735,6 @@ export function layoutIssueTree(
     )
     const judgementH = judgeLabelH + SECTION_GAP + judgeNoteH
 
-    // 以前の判断は追記専用の記録。**最新1件を除いた全部**を古い順に出す
-    const previous = h.events.slice(0, -1).map((e) => {
-      const w = badgeWidth(EVENT_KIND_LABELS[e.kind], fonts.small)
-      const noteW = fieldContentWidth - w - BADGE_GAP
-      return { badgeW: w, noteW, height: Math.max(BADGE_HEIGHT, textHeight(e.note, fonts.body, noteW)) }
-    })
-    const previousH =
-      previous.length === 0
-        ? 0
-        : labelH +
-          SECTION_GAP +
-          previous.reduce((sum, p) => sum + p.height, 0) +
-          ROW_GAP * (previous.length - 1)
-
     /**
      * FB の節。**問いブロックの入れ子**（キャンバスの `.ask`）で、`asks` の順に
      * 並べ、最後に「どの問いにも紐づかないFB」のブロックを**中身があるときだけ**置く
@@ -859,7 +837,6 @@ export function layoutIssueTree(
       valueSectionH,
       detailSectionH,
       judgementH,
-      previousH,
       notesSectionH,
     ].filter((s) => s > 0)
     const panelH =
@@ -919,23 +896,8 @@ export function layoutIssueTree(
         const judgeLabel = sectionLabel(judgeLabelH)
         const judgeNote = fieldRow(judgeNoteH, 0)
 
-        const previousRects: { badge: Rect; note: Rect }[] = []
-        let previousLabel: Rect | null = null
-        if (previous.length > 0) {
-          cursor += PANEL_GAP
-          previousLabel = sectionLabel()
-          previous.forEach((p, j) => {
-            if (j > 0) cursor += ROW_GAP
-            // **値の欄と同じ字下げ**（バッジが行の先頭に座るので、バッジの側を寄せる）
-            const px = cx + FIELD_INDENT
-            previousRects.push({
-              badge: { x: px, y: cursor, width: p.badgeW, height: BADGE_HEIGHT },
-              note: { x: px + p.badgeW + BADGE_GAP, y: cursor, width: p.noteW, height: p.height },
-            })
-            cursor += p.height
-          })
-        }
-
+        // **`judgeNote` は `gap` に 0 を渡している**ので、ここで節どうしの空きを足す
+        //（「以前の判断」の節が間にあった名残ではなく、根拠の欄が節の最後の行だから）
         cursor += PANEL_GAP
         const notesLabel = sectionLabel()
         const blocks: AskBlockRects[] = askBlocks.map((bp) => {
@@ -1037,8 +999,6 @@ export function layoutIssueTree(
             value: { label: valueLabel, field: valueField },
             detail: { label: detailLabel, field: detailField },
             judgement: { label: judgeLabel, note: judgeNote },
-            previousLabel,
-            previous: previousRects,
             notes: { label: notesLabel, blocks, adds: addsRect },
           },
         }

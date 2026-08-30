@@ -248,7 +248,13 @@ describe('nextOpenTarget（次の1件）', () => {
 })
 
 describe('listFlaggedTargets / nextFlaggedTarget（旗の巡回）', () => {
-  const issue = (issueId: string, parentId: string | null, kind?: 'deferred' | 'resolved') => ({
+  // **`events` をタプルで返す**（v4 の `maxItems: 1` で `IssueNode['events']` が
+  // `[] | [IssueEvent]` になったため。配列リテラルのままだと代入できない）
+  const issue = (
+    issueId: string,
+    parentId: string | null,
+    kind?: 'deferred' | 'resolved',
+  ): IssueNode => ({
     id: issueId,
     parentId,
     text: '課題',
