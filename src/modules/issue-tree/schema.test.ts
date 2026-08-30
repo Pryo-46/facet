@@ -119,6 +119,28 @@ describe('issueTree のスキーマ検証（レベル1）', () => {
     }
   })
 
+  /**
+   * `deferred` と `resolved` の排他は**スキーマでは機械強制していない**
+   *（`maxItems: 1` を入れると、手書きの2件以上のファイルが開けなくなり、
+   * `commands.test.ts` が守っている「戻すと最新の1件だけが消える」の前提が
+   * 崩れる——意図した判断）。担保は `toggleIssueEvent`（`commands.ts`）と
+   * そのテストが持つ。だからこの `it` は「スキーマは通す」側だけを記録する
+   */
+  it('課題ノードに見送り・解決の両方を並べたものもスキーマは受け入れる（排他はスキーマの担当ではない）', () => {
+    const issues = [
+      {
+        id: ISSUE_A,
+        parentId: null,
+        text: 'x',
+        events: [
+          { kind: 'deferred', note: '一度は見送った', date: '2026-08-20' },
+          { kind: 'resolved', note: '解決に差し替えたつもりだが消し忘れた', date: '2026-08-30' },
+        ],
+      },
+    ]
+    expect(validate({ ...base, issues, hypotheses: [] }).ok).toBe(true)
+  })
+
   it('課題ノードに支持・棄却・保留のイベントを付けたものを拒否する', () => {
     // 課題は「支持・棄却を判定される主張」ではない。付けられるのは旗2種だけ
     for (const kind of ['supported', 'rejected', 'onHold']) {

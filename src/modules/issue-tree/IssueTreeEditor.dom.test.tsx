@@ -869,18 +869,36 @@ describe('IssueTreeEditor（解決の旗と帯のチップ）', () => {
     expect(onChange.mock.calls[0][0].issues[0].events).toEqual([])
   })
 
-  it('帯には見送りと解決が別々のチップとして並ぶ（0件のほうは描かれない）', () => {
+  it('帯には見送りと解決が別々のチップとして並ぶ（両方同時に立ち、0件のほうは描かれない）', () => {
     const base = file()
-    render(
-      <Harness
-        initial={{
-          ...base,
-          issues: base.issues.map((n, i) =>
-            i === 0 ? { ...n, events: [{ kind: 'resolved' as const, note: '', date: '2026-08-30' }] } : n,
-          ),
-        }}
-      />,
+    // 課題1に見送り・課題2に解決を立てる。**`FLAG_KINDS` を回さず「0件でない
+    // 先頭の種別だけ描く」実装でも、片方だけを見るテストは両方とも緑を通る**
+    //——だからこの1本で「2つが同時に並ぶ」経路を踏む
+    const bothFlagged: IssueTreeSchemaVersion3 = {
+      ...base,
+      issues: base.issues.map((n, i) => {
+        if (i === 0) return { ...n, events: [{ kind: 'deferred' as const, note: '', date: '2026-08-30' }] }
+        if (i === 1) return { ...n, events: [{ kind: 'resolved' as const, note: '', date: '2026-08-30' }] }
+        return n
+      }),
+    }
+    render(<Harness initial={bothFlagged} />)
+    expect(screen.getByRole('button', { name: '次の見送りへ' }).textContent).toBe(
+      issueEventLine(1, 'deferred'),
     )
+    expect(screen.getByRole('button', { name: '次の解決へ' }).textContent).toBe(
+      issueEventLine(1, 'resolved'),
+    )
+    cleanup()
+
+    // **0件のほうは描かれないことも失わない**（解決だけが立つケース）
+    const onlyResolved: IssueTreeSchemaVersion3 = {
+      ...base,
+      issues: base.issues.map((n, i) =>
+        i === 0 ? { ...n, events: [{ kind: 'resolved' as const, note: '', date: '2026-08-30' }] } : n,
+      ),
+    }
+    render(<Harness initial={onlyResolved} />)
     expect(screen.getByRole('button', { name: '次の解決へ' }).textContent).toBe('解決 1')
     expect(screen.queryByRole('button', { name: '次の見送りへ' })).toBeNull()
   })
@@ -1006,6 +1024,27 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
     ).toBe(false)
     const texts = (onChange.mock.calls[0][0].hypotheses[0].feedbacks as Feedback[]).map((f) => f.text)
     expect(texts).toEqual(['B', 'A', 'C'])
+  })
+
+  it('FB セルの主修飾キー＋Enter はキーを消費しない（判断イベントは仮説の文言でしか開かない）', () => {
+    // v3 で「根拠へ移す」は廃止した。FB セルに toggle-item-state を割り当てる先が
+    // 無いので、キーは消費されない（＝preventDefault されない）ことを見る唯一のテスト
+    const base = file()
+    const onChange = vi.fn()
+    render(
+      <Harness
+        initial={{ ...base, hypotheses: [{ ...base.hypotheses[0], feedbacks: [fb('A')] }] }}
+        onChange={onChange}
+      />,
+    )
+    openHypothesis(1)
+    expect(
+      fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のFB1' }), {
+        key: 'Enter',
+        ctrlKey: true,
+      }),
+    ).toBe(true)
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('空欄の仮説を Backspace で消すと、持ち主の課題へフォーカスが返る', () => {

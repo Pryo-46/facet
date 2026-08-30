@@ -141,9 +141,21 @@
         {
           "id": "ask_EMyryNTAQU",
           "text": "他チームでも同様の要件が今後出ないか、来月のロードマップ会議で確認する"
+        },
+        {
+          "id": "ask_eqkNaHkNgF",
+          "text": "結果確定イベントが来ない失敗ケースを運用側はどう検知しているか"
         }
       ],
-      "feedbacks": [],
+      "feedbacks": [
+        {
+          "askId": "ask_eqkNaHkNgF",
+          "text": "現状はタイムアウト監視で拾っている。イベント方式に変えても監視はそのまま流用できる",
+          "by": "運用担当",
+          "sentiment": "like",
+          "date": "2026-08-23"
+        }
+      ],
       "events": [
         {
           "kind": "supported",

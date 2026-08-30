@@ -110,6 +110,11 @@ const ISSUE_TREE_HINTS: readonly KeyHint[] = [
   { keys: '$alt+↑↓', label: '並び替え' },
 ]
 
+/** 別枠のチップ。**見送りと解決を同じ形で並べる**——実効は同じ「配下を止める」で、
+    意味だけが逆（追わない／答えが出た）なので、見た目の系統は分けない。
+    データにも props にも依存しないのでモジュール直下に置く（毎レンダ作り直さない） */
+const FLAG_KINDS: readonly IssueEventKind[] = ['deferred', 'resolved']
+
 /**
  * ドロップダウンに出す種別の並び。**文言は `EVENT_KIND_LABELS` から引く**
  *（打ち直すと、アプリの画面と Skill の報告が食い違う）。
@@ -658,8 +663,9 @@ export function IssueTreeEditor({
         }
         // FB の Enter は**押した位置の次**（コアのコマンド名どおり insert-item-after）。
         // 末尾に足すと、3件の1件目で押したときに生まれるのは4件目になり、
-        // フォーカスが展開パネルの一番下へ飛ぶ。**末尾に足すのは帯のボタンだけ**
-        //（「＋ FB」が末尾へ足す）
+        // フォーカスが展開パネルの一番下へ飛ぶ。末尾に足すのは、展開パネルの
+        // 「＋ FB」ボタン（`HypothesisRow.tsx` の `panel.notes.add`）だけである
+        //（帯にあるのは「課題を追加」「仮説を追加」の2つで、こちらは末尾専用ではない）
         if (cell.cell === 'feedback') {
           apply(addFeedbackAfter(data, index, cell.feedbackIndex))
           return true
@@ -700,7 +706,8 @@ export function IssueTreeEditor({
         return cell.cell === 'hypothesis' ? focusHypothesisSibling(index, 1) : false
       case 'toggle-item-state':
         // 仮説の文言では判断イベントのドロップダウンを開く（追記する種別を選ばせる）。
-        // FB セルでは何もしない（＝キーを消費しない）——「根拠へ移す」は v3 で廃止した
+        // FB は判断へ移さない——判断の理由は人が書く。FB セルでは何もしない
+        //（＝キーを消費しない）
         if (cell.cell === 'hypothesis') {
           setOpenCell(judgementMenuKey(hypothesisKeys[index]))
           return true
@@ -805,10 +812,6 @@ export function IssueTreeEditor({
     //（参照切れの仮説だけが数に入っているファイルでは、列が空になりうる）
     if (next !== null) goTo(next.focus)
   }
-
-  /** 別枠のチップ。**見送りと解決を同じ形で並べる**——実効は同じ「配下を止める」で、
-      意味だけが逆（追わない／答えが出た）なので、見た目の系統は分けない */
-  const FLAG_KINDS: readonly IssueEventKind[] = ['deferred', 'resolved']
 
   const goToNextFlagged = (kind: IssueEventKind): void => {
     const next = nextFlaggedTarget(listFlaggedTargets(data, kind), lastFocus)
