@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { badgeClass, BADGE_BOX_HEIGHT } from '@/components/badge-styles'
 import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { todayString } from '@/core/today'
@@ -20,6 +20,8 @@ import {
   tallyQuestions,
 } from './derive'
 import { IssueTreeEditor } from './IssueTreeEditor'
+import { NO_ASK_TEXT } from './layout'
+import { BOX_WIDTH, EXPANDED_BOX_WIDTH } from './measure'
 
 afterEach(cleanup)
 
@@ -1038,11 +1040,212 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
     expect(loose.hypotheses[2].feedbacks.at(-1)?.askId).toBeNull()
   })
 
-  // **FB の並び替え・挿入位置指定・削除、および仮説の Backspace 削除はキーから
-  // 消えた（m5）。** 追加（`onAddFeedback` の「＋ FB」ボタン）だけがマウスの
-  // 動線として残り、削除・並び替え・挿入位置の指定はいまはどの動線からも
-  // 到達できない（`addFeedbackAfter` / `moveFeedback` / `removeFeedback` /
-  // `deleteHypothesis` は `commands.ts` に残るが呼び出し元が無い。Task 3 報告参照）
+  /**
+   * **追加した直後にその欄へ行けること。** 配線は3つに分かれている
+   *（`commands.ts` が `focus` を返す → `cell-keys.ts` が `data-cell` に直す →
+   * `AskBlock` がその `data-cell` を出す）ので、どれか1つが欠けても
+   * 「1件増える」テストは緑のまま——足したのに打てない欄が残る。
+   * 判断イベントの根拠には同じ番人がある（上の「判断を選ぶと…」）
+   */
+  it('「聞きたいことを追加」で足した問いの欄にフォーカスが来る', () => {
+    render(<Harness initial={file()} />)
+    openHypothesis(1)
+    fireEvent.click(screen.getByRole('button', { name: '仮説1 に聞きたいことを足す' }))
+    expect(document.activeElement).toBe(
+      screen.getByRole('textbox', { name: '仮説1 の聞きたいこと1の文言' }),
+    )
+  })
+
+  it('「FBを追加」で足した FB の欄にフォーカスが来る', () => {
+    render(<Harness initial={file()} />)
+    openHypothesis(1)
+    fireEvent.click(screen.getByRole('button', { name: '仮説1 にFBを足す' }))
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説1 のFB1' }))
+  })
+
+  // **FB の並び替えと挿入位置の指定はキーから消えた（m5）。** `addFeedbackAfter` /
+  // `moveFeedback` はいまどの動線からも到達できない（`commands.ts` に残るが
+  // 呼び出し元が無い。Task 3 報告参照）。削除（FB・問い・仮説）と追加は
+  // すべてマウスのボタンに載っており、下の describe が見ている
+})
+
+/**
+ * **仮説の追加・削除はマウスにしかない**（m5 Task 7）。キーの操作言語は課題の
+ * 追加・削除・移動だけに絞られたので、仮説を足す・消す動線が画面に無いと
+ * 「キーでしか到達できない意味」どころか**どこからも到達できない意味**になる
+ *（rev 10章の裏返し）。問いの削除も同じ理由でここに置いた——`removeAsk` は
+ * m4 からあったが、押せる場所が無く「足せるが消せない」ままだった
+ */
+describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task 7）', () => {
+  /** 課題3 に仮説3件。**2件だと「常に末尾を消す」実装と区別が付かない** */
+  const threeHypotheses = (): IssueTreeSchemaVersion3 => {
+    const base = file()
+    return {
+      ...base,
+      hypotheses: [
+        { ...base.hypotheses[0], id: H(1), title: '仮説A' },
+        { ...base.hypotheses[0], id: H(2), title: '仮説B' },
+        { ...base.hypotheses[0], id: H(3), title: '仮説C' },
+      ],
+    }
+  }
+
+  it('パネルのゴミ箱を押すとその仮説だけが消える', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={threeHypotheses()} onChange={onChange} />)
+    // 課題ごと開く（3本ともパネルになる）
+    openHypothesis(2)
+    fireEvent.click(screen.getByRole('button', { name: '仮説2を削除' }))
+    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    // **件数を数えない**——「常に末尾を消す」実装も 3件→2件になる。残った文言で見る
+    expect(next.hypotheses.map((h) => h.title)).toEqual(['仮説A', '仮説C'])
+    // 構造の変更は履歴をまとめない（1操作1コミット）
+    expect(onChange.mock.calls[0][1]).toBe(null)
+    // **確認ダイアログを出さない**（Undo は額縁のグローバル層にある）
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  /**
+   * **`deleteHypothesis` は前の仮説が無いとき行き先に `null` を返す。** そのまま
+   * 予約を外すとフォーカスが宙に浮き（`document.body`）、続けて打ったキーが
+   * どこにも入らない——エディタが持ち主の課題へ返す（`ownerIssueFocus`）
+   */
+  it('仮説を消したあとフォーカスが宙に浮かない（持ち主の課題へ返る）', () => {
+    render(<Harness initial={file()} />)
+    openHypothesis(1)
+    fireEvent.click(screen.getByRole('button', { name: '仮説1を削除' }))
+    expect(screen.queryByRole('textbox', { name: '仮説1' })).toBeNull()
+    expect(document.activeElement).not.toBe(document.body)
+    expect(document.activeElement).toBe(issueCell(3))
+  })
+
+  /**
+   * **開いた課題から最後の仮説が消えたら、箱は畳まれる**（m4 まではキーの
+   * Backspace で見ていた番人。Task 3 で動線ごと消え、ゴミ箱で守り直す）。
+   *
+   * m4 までは `expandedKey` が**仮説**の鍵だったので、仮説が消えれば
+   * `indexOf` が -1 になって自動的に畳まれていた。課題の鍵に変えた m5 では
+   * その自動解除が効かない——鍵は課題を指したまま残るので、**行が1本も無い
+   * 780 幅の箱**が残り、トグルは `invisible`（仮説が無いので押せない）。
+   * 列が 460px 右へずれたまま戻せなくなる。
+   *
+   * 直しは**レイアウト側**にある（「行が0本なら開かない」）ので、
+   * `aria-expanded` と箱の実寸の両方を見る——片方だけだと、
+   * 「見た目は畳んだが幅は 780 のまま」を見逃す
+   */
+  it('展開した課題から最後の仮説が消えると、箱は畳まれる', () => {
+    render(<Harness initial={file()} />)
+    const toggle = () => screen.getByRole('button', { name: '課題3の詳細' })
+    // 課題3 の箱（仮説はここにぶら下がる）
+    const boxOf = (n: number): HTMLElement =>
+      issueCell(n).closest('[class*="pointer-events-auto"]') as HTMLElement
+
+    fireEvent.click(toggle())
+    expect(toggle().getAttribute('aria-expanded')).toBe('true')
+    expect(boxOf(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
+
+    fireEvent.click(screen.getByRole('button', { name: '仮説1を削除' }))
+    expect(screen.queryByRole('textbox', { name: '仮説1' })).toBeNull()
+
+    expect(toggle().getAttribute('aria-expanded')).toBe('false')
+    expect(boxOf(3).style.width).toBe(`${BOX_WIDTH}px`)
+  })
+
+  /**
+   * **ノード末尾のボタンは「その課題」に足す。** 帯の「仮説を追加」は
+   * **最後に触った課題**に足すので、両者は別経路である——同じ課題で試すと
+   * どちらの実装でも緑になるので、**別の課題を最後に触った状態**で押す
+   */
+  it('展開したノード末尾のボタンでその課題に仮説が増える', () => {
+    const base = file()
+    const initial: IssueTreeSchemaVersion3 = {
+      ...base,
+      hypotheses: [
+        { ...base.hypotheses[0], id: H(1), issueId: I(2), title: '課題2の仮説' },
+        { ...base.hypotheses[0], id: H(2), issueId: I(3), title: '課題3の仮説' },
+      ],
+    }
+    const onChange = vi.fn()
+    const { unmount } = render(<Harness initial={initial} onChange={onChange} />)
+    // 最後に触ったのは課題2。トグルは押しても触った課題を書き換えない
+    act(() => {
+      issueCell(2).focus()
+    })
+    fireEvent.click(screen.getByRole('button', { name: '課題3の詳細' }))
+    fireEvent.click(screen.getByRole('button', { name: '課題3に仮説を追加' }))
+    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    expect(next.hypotheses.filter((h) => h.issueId === I(3))).toHaveLength(2)
+    expect(next.hypotheses.filter((h) => h.issueId === I(2))).toHaveLength(1)
+    unmount()
+
+    // **対の経路**——同じ状態で帯のボタンを押すと、最後に触った課題2 に足される
+    const onBanner = vi.fn()
+    render(<Harness initial={initial} onChange={onBanner} />)
+    act(() => {
+      issueCell(2).focus()
+    })
+    fireEvent.click(screen.getByRole('button', { name: '仮説を追加' }))
+    const banner: IssueTreeSchemaVersion3 = onBanner.mock.calls[0][0]
+    expect(banner.hypotheses.filter((h) => h.issueId === I(2))).toHaveLength(2)
+  })
+
+  /** 問い3件。ゴミ箱と同じく**残った文言**で見る */
+  const threeAsks = (): IssueTreeSchemaVersion3 => {
+    const base = file()
+    return {
+      ...base,
+      hypotheses: [
+        {
+          ...base.hypotheses[0],
+          asks: [
+            { id: 'ask_AAAAAAAAAA', text: '問いA' },
+            { id: 'ask_AAAAAAAAAB', text: '問いB' },
+            { id: 'ask_AAAAAAAAAC', text: '問いC' },
+          ],
+        },
+      ],
+    }
+  }
+
+  it('問いの削除ボタンでその問いだけが消える', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={threeAsks()} onChange={onChange} />)
+    openHypothesis(1)
+    fireEvent.click(screen.getByRole('button', { name: '仮説1 の聞きたいこと2を消す' }))
+    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    expect(next.hypotheses[0].asks.map((a) => a.text)).toEqual(['問いA', '問いC'])
+  })
+
+  /**
+   * **「どの問いにも紐づかないFB」のブロックに削除は無い**——消す対象の問いが
+   * 無い（`removeAsk` に渡す `askIndex` が無い）。名前で引くのではなく
+   * **そのブロックの中のボタンを全部並べて**見る——「たまたま名前が違う削除」が
+   * 混ざっていれば落ちる
+   */
+  it('どの問いにも紐づかない FB のブロックには問いの削除が無い', () => {
+    const base = file()
+    render(
+      <Harness
+        initial={{
+          ...base,
+          hypotheses: [
+            {
+              ...base.hypotheses[0],
+              feedbacks: [
+                { askId: null, text: '媒体ごとに仕様が違う', by: '', sentiment: 'note', date: '2026-08-30' },
+              ],
+            },
+          ],
+        }}
+      />,
+    )
+    openHypothesis(1)
+    const loose = screen.getByRole('group', { name: `仮説1 の${NO_ASK_TEXT}` })
+    expect(within(loose).queryAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
+      `仮説1 に${NO_ASK_TEXT}を足す`,
+      '仮説1 のFB1を消す',
+    ])
+  })
 })
 
 describe('IssueTreeEditor（展開の継ぎ目）', () => {
@@ -1114,10 +1317,9 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
     expect(screen.getByRole('button', { name: '仮説2を開く' })).toBeTruthy()
   })
 
-  // **「開いた課題から最後の仮説が消えると箱は畳まれる」は m4 まではここで
-  // 見ていたが、消す動線（キーボードの Backspace）が m5 で無くなった。** 仮説の
-  // 削除は Task 7 でゴミ箱ボタンに移る予定——そのときこの性質（レイアウトが
-  // 「行が0本なら開かない」に戻ること）をボタン経由で見直すこと（Task 3 報告参照）
+  // **「開いた課題から最後の仮説が消えると箱は畳まれる」は消す動線と一緒に
+  // 引っ越した**——m4 はキーボードの Backspace、m5 Task 7 からはパネルの
+  // ゴミ箱である。番人は下の describe（仮説の追加・削除のマウス動線）にある
 
   it('仮説を持たない課題のトグルは場所を空けたまま隠れる（タブ順にも出ない）', () => {
     // **`display: none` にしない**——同じ列の中でタイトルの左端が揃わなくなる。

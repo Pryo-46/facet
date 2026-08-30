@@ -22,6 +22,7 @@ import {
   type AskBlockRects,
 } from './layout'
 import {
+  ACTION_ICON_SIZE_CLASS,
   BODY_FIELD_CLASS,
   CELL_INPUT_CLASS,
   FB_DELETE_WIDTH_CLASS,
@@ -78,6 +79,12 @@ export interface AskBlockProps {
   /** 抑えた文字（問いの文言・日付・固定文・アイコン）の色。同上 */
   mutedInk: string
   onAskTextChange: (next: string) => void
+  /**
+   * この問いを消す。**`ask` が `null` のブロックからは呼ばれない**
+   *——レイアウトが削除の矩形（`rects.head.remove`）を出さないので、
+   * ボタンそのものが描かれない（消す対象の問いが無いブロックである）
+   */
+  onRemoveAsk: () => void
   onAddFeedback: () => void
   onFeedbackTextChange: (feedbackIndex: number, next: string) => void
   onRemoveFeedback: (feedbackIndex: number) => void
@@ -120,6 +127,13 @@ export function AskBlock(props: AskBlockProps) {
    */
   const addLabel =
     askLabel === null ? `${label} に${NO_ASK_TEXT}を足す` : `${askLabel}にFBを足す`
+
+  /**
+   * 削除ボタン（キャンバスの `.del` ＝ 20×21）。**幅は `FB_DELETE_WIDTH` と対の
+   * クラス、高さは行いっぱい。** 問いの見出しと FB の行で同じ形を使う
+   *——どちらも「その行を消す」ボタンであり、別の見え方にする理由が無い
+   */
+  const deleteButtonClass = `${buttonBase} ${FB_DELETE_WIDTH_CLASS} h-full text-ink-faint hover:text-ink-muted`
 
   /** ミニボタン（＋FB）。**枠と高さは `MINI_ACTION_*` と対** */
   const miniActionClass = `${buttonBase} ${MINI_ACTION_HEIGHT_CLASS} ${MINI_ICON_GAP_CLASS} ${MINI_ACTION_FONT_CLASS} border border-rule px-1.5 whitespace-nowrap ${mutedInk} hover:bg-canvas`
@@ -181,6 +195,23 @@ export function AskBlock(props: AskBlockProps) {
           {MINI_ADD_NOTE_LABEL}
         </button>
       </span>
+      {/* 問いの削除（m5 Task 7）。**問いのあるブロックだけ**——レイアウトが
+          `remove` を出すのは `askIndex` が問いを指すブロックだけで、
+          「どの問いにも紐づかないFB」の受け皿には消す対象の問いが無い。
+          **FB の行の削除と同じ形**（右端・同じ列幅）で、名前だけが
+          「何を消すか」を運ぶ。**確認は出さない**（FB・仮説と同じ） */}
+      {rects.head.remove !== null && askLabel !== null && (
+        <span className="flex items-center justify-end" style={inBlock(rects.head.remove)}>
+          <button
+            type="button"
+            className={deleteButtonClass}
+            aria-label={`${askLabel}を消す`}
+            onClick={props.onRemoveAsk}
+          >
+            <X className={ACTION_ICON_SIZE_CLASS} aria-hidden="true" />
+          </button>
+        </span>
+      )}
 
       {/* --- FB の行 --- */}
       {rects.rows.map((row) => {
@@ -225,11 +256,11 @@ export function AskBlock(props: AskBlockProps) {
                 type="button"
                 // 幅は `FB_DELETE_WIDTH` と対のクラス、高さは行（`meta` と同じ
                 // 1行ぶん）いっぱい。キャンバスの `.del`（20×21）そのもの
-                className={`${buttonBase} ${FB_DELETE_WIDTH_CLASS} h-full text-ink-faint hover:text-ink-muted`}
+                className={deleteButtonClass}
                 aria-label={`${name}を消す`}
                 onClick={() => props.onRemoveFeedback(row.feedbackIndex)}
               >
-                <X className="size-3" aria-hidden="true" />
+                <X className={ACTION_ICON_SIZE_CLASS} aria-hidden="true" />
               </button>
             </span>
           </span>

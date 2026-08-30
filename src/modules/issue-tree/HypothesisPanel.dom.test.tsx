@@ -111,6 +111,7 @@ function renderPanel(index: number, opts: { suppressed?: boolean } = {}) {
   if (owner === null) throw new Error('持ち主の課題が図に位置を持たない')
   const onAddFeedback = vi.fn()
   const onAddAsk = vi.fn()
+  const onDelete = vi.fn()
   const onDetailChange = vi.fn()
   const onValueChange = vi.fn()
   render(
@@ -129,15 +130,17 @@ function renderPanel(index: number, opts: { suppressed?: boolean } = {}) {
       onFeedbackTextChange={vi.fn()}
       onEventNoteChange={vi.fn()}
       onAddAsk={onAddAsk}
+      onRemoveAsk={vi.fn()}
       onAddFeedback={onAddFeedback}
       onRemoveFeedback={vi.fn()}
+      onDelete={onDelete}
       // 判断のドロップダウンはエディタが組む（パネルは置き場所だけを持つ）。
       // **状態のバッジもその中**（m5 Task 6：バッジ自身がトリガー）なので、
       // ここは目印のボタン1つでよい
       judgementMenu={<button type="button">{MENU_SENTINEL}</button>}
     />,
   )
-  return { onAddAsk, onAddFeedback, onDetailChange, onValueChange }
+  return { onAddAsk, onAddFeedback, onDelete, onDetailChange, onValueChange }
 }
 
 /**
@@ -179,6 +182,26 @@ describe('HypothesisPanel: 節の構成', () => {
     cleanup()
     renderPanel(1)
     expect(screen.queryByText(SECTION_LABELS.previous)).toBeNull()
+  })
+})
+
+describe('HypothesisPanel: 仮説の削除', () => {
+  /**
+   * **ゴミ箱は「ソリューション仮説」の見出しの帯の中**（キャンバスの `.trash`）。
+   * 名前で引くだけだと、帯の外——たとえばパネルの隅——に置いても緑になる。
+   * 帯そのものを親として見る（`ml-auto` が右端へ寄せるのはその帯の中である）
+   */
+  it('ゴミ箱は「ソリューション仮説」の見出しの帯の中にある', () => {
+    const { onDelete } = renderPanel(0)
+    const trash = screen.getByRole('button', { name: '仮説1を削除' })
+    const band = sectionLabel(SECTION_LABELS.solution).parentElement
+    expect(band).not.toBeNull()
+    expect(band!.contains(trash)).toBe(true)
+    // 帯の中で右端へ寄る（帯は flex。矩形はレイアウトが測った1つだけ）
+    expect(trash.className).toContain('ml-auto')
+    // **確認ダイアログを挟まない**——押したら消える（Undo は額縁側）
+    fireEvent.click(trash)
+    expect(onDelete).toHaveBeenCalledTimes(1)
   })
 })
 

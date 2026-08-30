@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/Badge'
 import { buttonBase } from '@/components/button-styles'
 import { CellInput } from '@/components/CellInput'
@@ -18,14 +18,15 @@ import {
 } from './layout'
 import {
   ACTION_HEIGHT_CLASS,
+  ACTION_ICON_SIZE_CLASS,
   BODY_FIELD_CLASS,
   CELL_INPUT_CLASS,
   HYPO_TITLE_FONT_CLASS,
   ISSUE_BORDER,
-  MINI_ICON_SIZE_CLASS,
   PANEL_BOX_CLASS,
   SECTION_LABEL_FONT_CLASS,
   STATIC_TEXT_CLASS,
+  TRASH_ICON_SIZE_CLASS,
 } from './measure'
 
 /**
@@ -65,6 +66,12 @@ export interface HypothesisPanelProps {
   onEventNoteChange: (eventIndex: number, next: string) => void
   onAddAsk: () => void
   /**
+   * 問いを1件消す（見出し行のゴミ箱）。**`askIndex` は押されたブロックが持つ**
+   *（`onAddFeedback` の `askId` と同じ規律）。**`askIndex` が `null` のブロック
+   *（どの問いにも紐づかないFB）からは呼ばれない**——消す対象の問いが無い
+   */
+  onRemoveAsk: (askIndex: number) => void
+  /**
    * FB を1件足す。**`askId` は呼ぶ側（＝押されたブロック）が持つ**
    *——`addFeedback` が既定値を与えず必須にしているのと同じ理由で、
    * ここで `null` に固定すると、問いブロックの「＋FB」が黙って
@@ -72,6 +79,15 @@ export interface HypothesisPanelProps {
    */
   onAddFeedback: (askId: string | null) => void
   onRemoveFeedback: (feedbackIndex: number) => void
+  /**
+   * この仮説を消す（「ソリューション仮説」の見出しの右端のゴミ箱。m5 Task 7）。
+   * **必須にしてある**（`judgementMenu` と同じ理由）——キーから仮説の削除が
+   * 消えたので、この動線が抜けると**どこからも消せない仮説**になる。
+   *
+   * **確認ダイアログは出さない**（押した先で消える）——Undo は額縁の
+   * グローバル層にあり、FB も問いも同じく確認なしで消える
+   */
+  onDelete: () => void
   /**
    * 判断イベントのドロップダウン。エディタが `menuPropsFor` で組んで渡す。
    * **トリガーは状態のバッジそのもの**（Task 6）なので、これは「操作」だけでなく
@@ -169,8 +185,22 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
       {/* --- ソリューション仮説 --- */}
       <div className={sectionBandClass} style={inBox(panel.solution.label)}>
         <span className={sectionLabelClass}>{SECTION_LABELS.solution}</span>
-        {/* ゴミ箱（仮説の削除）は Task 7 がここへ `ml-auto` で足す。
-            帯は flex なので、足しても測定は変わらない */}
+        {/* ゴミ箱（仮説の削除。キャンバスの `.trash`）。**帯の右端**へ
+            `ml-auto` で寄せる——帯は flex なので、置いても他の節の測定は
+            変わらない（帯の高さだけ `TRASH_ICON_SIZE` を勘定に入れてある）。
+            **確認ダイアログを出さない**（Undo は額縁のグローバル層）。
+            文字色は抑制に合わせて落とさない `text-ink-faint` 固定——
+            キャンバスの `.trash` そのもので、押せる場所であることは
+            ホバーで一段濃くなることが示す */}
+        <button
+          type="button"
+          className={`${buttonBase} ml-auto text-ink-faint hover:text-ink-muted`}
+          // **前半（`仮説{N}`）は動かさない**（テストが前方一致で引く規約）
+          aria-label={`${label}を削除`}
+          onClick={props.onDelete}
+        >
+          <Trash2 className={TRASH_ICON_SIZE_CLASS} aria-hidden="true" />
+        </button>
       </div>
       <div
         className={`absolute${props.invalid ? ' bg-invalid-face outline-1 -outline-offset-1 outline-invalid' : ''}`}
@@ -311,6 +341,11 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
             // **`askId` はブロックが持つ**——押した「＋FB」がどの問いの下に
             // あるかを、呼ぶ側が知っている（`addFeedback` の必須引数）
             onAddFeedback={() => props.onAddFeedback(ask === null ? null : ask.id)}
+            // **消す対象の問いを持つブロックだけが呼ぶ**（`askIndex` が null の
+            // 受け皿では、レイアウトが削除の矩形そのものを出さない）
+            onRemoveAsk={() => {
+              if (askIndex !== null) props.onRemoveAsk(askIndex)
+            }}
             onFeedbackTextChange={props.onFeedbackTextChange}
             onRemoveFeedback={props.onRemoveFeedback}
           />
@@ -326,7 +361,7 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
           aria-label={`${label} に聞きたいことを足す`}
           onClick={props.onAddAsk}
         >
-          <Plus className={MINI_ICON_SIZE_CLASS} aria-hidden="true" />
+          <Plus className={ACTION_ICON_SIZE_CLASS} aria-hidden="true" />
           {ADD_ASK_LABEL}
         </button>
         <button
@@ -335,7 +370,7 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
           aria-label={`${label} にFBを足す`}
           onClick={() => props.onAddFeedback(null)}
         >
-          <Plus className={MINI_ICON_SIZE_CLASS} aria-hidden="true" />
+          <Plus className={ACTION_ICON_SIZE_CLASS} aria-hidden="true" />
           {ADD_NOTE_LABEL}
         </button>
       </div>

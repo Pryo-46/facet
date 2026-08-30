@@ -9,6 +9,7 @@ import type { Feedback, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import {
   addAsk,
   addFeedback,
+  removeAsk,
   removeFeedback,
   setAskText,
   setFeedbackText,
@@ -162,6 +163,7 @@ function Harness(props: {
       onValueChange={vi.fn()}
       onAskTextChange={(askIndex, next) => setFile(setAskText(file, index, askIndex, next))}
       onAddAsk={() => setFile(addAsk(file, index).data)}
+      onRemoveAsk={(askIndex) => setFile(removeAsk(file, index, askIndex).data)}
       onFeedbackTextChange={(fi, next) => setFile(setFeedbackText(file, index, fi, next))}
       onEventNoteChange={vi.fn()}
       onAddFeedback={(askId) => {
@@ -169,6 +171,7 @@ function Harness(props: {
         setFile(addFeedback(file, index, askId, '2026-08-30').data)
       }}
       onRemoveFeedback={(fi) => setFile(removeFeedback(file, index, fi).data)}
+      onDelete={vi.fn()}
       judgementMenu={<button type="button">判断を追加</button>}
     />
   )

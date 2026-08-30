@@ -45,8 +45,10 @@ import {
   addRootIssue,
   addSiblingIssueAfter,
   appendJudgement,
+  deleteHypothesis,
   deleteIssueSubtree,
   moveIssueSibling,
+  removeAsk,
   removeFeedback,
   setAskText,
   setEventNote,
@@ -80,7 +82,12 @@ import { HypothesisRow } from './HypothesisRow'
 import { IssueBox } from './IssueBox'
 import { IssueTreeEdges } from './IssueTreeEdges'
 import { layoutIssueTree, type IssueTreeFonts } from './layout'
-import { EXPANDED_TITLE_FONT_CLASS, TITLE_FONT_CLASS } from './measure'
+import {
+  ACTION_HEIGHT_CLASS,
+  ACTION_ICON_SIZE_CLASS,
+  EXPANDED_TITLE_FONT_CLASS,
+  TITLE_FONT_CLASS,
+} from './measure'
 import {
   listFlaggedTargets,
   listOpenTargets,
@@ -958,6 +965,23 @@ export function IssueTreeEditor({
                 // `placement` が運ぶので、ここでは押されたことだけを渡す
                 //（`IssuePlacement.expanded` ＝「開いているか」の唯一の出所）
                 onToggleExpand={() => toggleIssueExpanded(key)}
+                // 末尾の「＋ 仮説を追加」（m5 Task 7。キャンバスの `.addhypo`）。
+                // **帯のボタンとは別経路**——あちらは「最後に触った課題」に足すが、
+                // これは**この課題**に足す（`index` を直に渡している）。
+                // 仮説を足す動線はキーから消えたので、開いた箱の中に必ず1つ要る。
+                // 場所（開いているときだけ・パネルと揃う左端）はレイアウトが決める
+                addHypothesis={
+                  <button
+                    type="button"
+                    className={`${buttonBase} ${ACTION_HEIGHT_CLASS} gap-1 border border-rule bg-surface px-1.5 text-sm text-ink hover:bg-canvas`}
+                    // **前半（`課題{N}`）は動かさない**——テストが前方一致で引く
+                    aria-label={`課題${index + 1}に仮説を追加`}
+                    onClick={() => apply(addHypothesis(data, index))}
+                  >
+                    <Plus aria-hidden className={ACTION_ICON_SIZE_CLASS} />
+                    仮説を追加
+                  </button>
+                }
                 eventToggle={
                   <button
                     type="button"
@@ -1058,6 +1082,10 @@ export function IssueTreeEditor({
                             )
                           }
                           onAddAsk={() => apply(addAsk(data, hi))}
+                          // **`askIndex` は押されたブロックが持つ**（`onAddFeedback`
+                          // の `askId` と同じ規律）。消した問いを指していた FB の
+                          // 付け替えは `removeAsk` の担当
+                          onRemoveAsk={(askIndex) => apply(removeAsk(data, hi, askIndex))}
                           // **`askId` は押されたブロックが持つ**（`addFeedback` は
                           // 既定値を与えず必須にしてある）。節の末尾の
                           // 「＋ FBを追加」だけが `null` を渡す
@@ -1065,6 +1093,12 @@ export function IssueTreeEditor({
                           onRemoveFeedback={(feedbackIndex) =>
                             apply(removeFeedback(data, hi, feedbackIndex))
                           }
+                          // **行き先の代わりを渡す**（`apply` の `fallback`）。
+                          // `deleteHypothesis` は前の仮説が無いとき `null` を返すので、
+                          // そのままだとフォーカスが宙に浮き、続けて打ったキーが
+                          // どこにも入らない——持ち主の課題へ返す。
+                          // **確認は出さない**（Undo は額縁のグローバル層）
+                          onDelete={() => apply(deleteHypothesis(data, hi), ownerIssueFocus(hi))}
                           judgementMenu={
                             <KindMenu
                               // **アクセシブル名の前半は動かさない**（テストが

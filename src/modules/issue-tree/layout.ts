@@ -48,6 +48,7 @@ import {
   ROW_INDENT,
   SECTION_GAP,
   TITLE_GAP,
+  TRASH_ICON_SIZE,
 } from './measure'
 
 /** 1つのフォント階級の測定器。エディタが DOM の見本から作る */
@@ -122,6 +123,19 @@ export interface IssuePlacement {
    * `node.events` の最新から引く（データを2箇所に写さない）
    */
   event: { badge: Rect; reason: Rect } | null
+  /**
+   * 展開した課題ノードの**末尾**に置く「＋ 仮説を追加」の帯（m5 Task 7）。
+   * 開いていなければ null。
+   *
+   * **高さ（`ACTION_HEIGHT`）は箱の高さに入っている。** 入れ忘れるとボタンが
+   * 箱の下端からはみ出すが、絶対配置なので画面は黙ってはみ出したまま描く
+   *（`layout.test.ts` の「末尾の『仮説を追加』の高さを勘定に入れる」が番人）。
+   *
+   * **幅は帯の全幅で、ボタンの幅は測らない**——`notes.adds`（節末の2つの
+   * ボタン）と同じ組み方で、描く側が帯の中に左寄せで並べる。左端は
+   * パネルと揃う（`PANEL_INDENT`。キャンバスの `.addhypo { margin-left: 12px }`）
+   */
+  addHypothesis: Rect | null
 }
 
 /**
@@ -205,9 +219,14 @@ export interface AskBlockRects {
    * 問いの見出し行。`icon` は問いの印（`askIndex` が null のときは描かない
    * ——**場所は空けたまま**にして、文言の左端をブロックどうしで揃える）、
    * `badge` は「FB待ち」（立っていなければ null。`HypothesisRowRects.feedbackBadge`
-   * と同じ形）、`add` はこの問いに FB を足すミニボタン
+   * と同じ形）、`add` はこの問いに FB を足すミニボタン、`remove` は問いの削除。
+   *
+   * **`remove` は問いのあるブロックだけ**（`askIndex` が `null` なら null）
+   *——「どの問いにも紐づかないFB」の受け皿には消す対象の問いが無い。
+   * 列は左から [アイコン][文言][FB待ち][＋FB][削除] で、**削除は FB 行と同じ
+   * 右端の列**（`FB_DELETE_WIDTH`）に座る
    */
-  head: { icon: Rect; text: Rect; badge: Rect | null; add: Rect }
+  head: { icon: Rect; text: Rect; badge: Rect | null; add: Rect; remove: Rect | null }
   /** このブロックに属する FB。**データの配列順のまま** */
   rows: FeedbackRowRects[]
 }
@@ -571,7 +590,13 @@ export function layoutIssueTree(
      */
     const hypoTitleH = textHeight(h.title, fonts.title, panelContentWidth)
     const detailH = textHeight(h.detail, fonts.body, panelContentWidth)
-    const solutionH = labelH + SECTION_GAP + hypoTitleH + SECTION_GAP + detailH
+    /**
+     * 見出しの帯にはゴミ箱（仮説の削除。m5 Task 7）が右端に並ぶので、
+     * **帯の高さは高い方に合わせる**——`judgeLabelH` がバッジで測っているのと
+     * 同じ組み方で、書体が小さい環境でアイコンが帯からはみ出さない
+     */
+    const solutionLabelH = Math.max(labelH, TRASH_ICON_SIZE)
+    const solutionH = solutionLabelH + SECTION_GAP + hypoTitleH + SECTION_GAP + detailH
 
     /** 価値仮説の節（見出し＋1つの欄） */
     const valueH = textHeight(h.value, fonts.body, panelContentWidth)
@@ -657,13 +682,20 @@ export function layoutIssueTree(
         askIndex !== null && awaits(askIndex)
           ? badgeWidth(QUESTION_LABELS.feedback, fonts.small)
           : 0
-      /** 見出しの列は [アイコン][文言][FB待ち][＋FB]。右の2つは幅が決まっている */
+      /**
+       * 見出しの列は [アイコン][文言][FB待ち][＋FB][削除]。文言以外は幅が
+       * 決まっている。**削除は問いのあるブロックだけ**（`askIndex` が `null` の
+       * 受け皿には消す対象の問いが無い）——**その席を測り忘れると、文言が
+       * ボタンの下へ潜る**（`FB_DELETE_WIDTH` を引いているのがその席）
+       */
+      const removable = askIndex !== null
       const headTextW = Math.max(
         blockContentWidth -
           FB_ICON_SIZE -
           FB_COL_GAP * 2 -
           miniAddW -
-          (badgeW === 0 ? 0 : badgeW + FB_COL_GAP),
+          (badgeW === 0 ? 0 : badgeW + FB_COL_GAP) -
+          (removable ? FB_DELETE_WIDTH + FB_COL_GAP : 0),
         MIN_FIELD_WIDTH,
       )
       const headTextH = textHeight(
@@ -681,7 +713,8 @@ export function layoutIssueTree(
         (rows.length === 0
           ? 0
           : ASK_GAP + rows.reduce((sum, r) => sum + r.height, 0) + ROW_GAP * (rows.length - 1))
-      return { askIndex, badgeW, headTextW, headTextH, headH, rows, height }
+      // `removable` は下の `build` も読む（削除の矩形を出すかどうか）ので計画に載せる
+      return { askIndex, badgeW, headTextW, headTextH, headH, rows, removable, height }
     }
 
     const askBlocks = [
@@ -729,7 +762,7 @@ export function layoutIssueTree(
         /** 節の見出しの帯を置いて本文の上端まで進める */
         const sectionLabel = (bandHeight = labelH): Rect => fullRow(bandHeight, SECTION_GAP)
 
-        const solutionLabel = sectionLabel()
+        const solutionLabel = sectionLabel(solutionLabelH)
         // 節の中の空きは見出しと同じ `SECTION_GAP`（キャンバスの `.sec` の gap）
         const hypoTitle = fullRow(hypoTitleH, SECTION_GAP)
         const detail = fullRow(detailH, PANEL_GAP)
@@ -763,8 +796,19 @@ export function layoutIssueTree(
           /** ブロックの中身の右端（＋FB とバッジはここから左へ並ぶ） */
           const right = bx + blockContentWidth
           let by = block.y + ASK_PADDING_Y
+          // 問いの削除は**右端の列**（FB 行の削除と同じ幅・同じ高さ）。
+          // 「＋FB」はその左へ寄る——右端から左へ並べるのは、この見出し行と
+          // FB の行で唯一の並べ方である（`head.badge` も `add` から逆算する）
+          const remove: Rect | null = bp.removable
+            ? {
+                x: right - FB_DELETE_WIDTH,
+                y: by,
+                width: FB_DELETE_WIDTH,
+                height: fonts.body.lineHeight,
+              }
+            : null
           const add: Rect = {
-            x: right - miniAddW,
+            x: (remove === null ? right : remove.x - FB_COL_GAP) - miniAddW,
             y: by,
             width: miniAddW,
             height: MINI_ACTION_HEIGHT,
@@ -789,6 +833,7 @@ export function layoutIssueTree(
                     height: BADGE_HEIGHT,
                   },
             add,
+            remove,
           }
           by += bp.headH
           const rows: FeedbackRowRects[] = bp.rows.map((rp, j) => {
@@ -961,6 +1006,15 @@ export function layoutIssueTree(
       height += TITLE_GAP + ROW_GAP * (rows.length - 1)
       for (const hi of rows) height += plans[hi].height
     }
+    /**
+     * **開いた課題ノードの末尾には「＋ 仮説を追加」が座る**（m5 Task 7。仮説を
+     * 足す動線はキーから消えたのでマウスにしかない）。**その高さを箱に足すこと**
+     *——足し忘れるとボタンが箱の下端からはみ出すが、絶対配置なので画面は
+     * 黙ってはみ出したまま描く。空きは行どうしと同じ `ROW_GAP`（ボタンは
+     * 最後の行に続く。開いている箱は必ず行を1本以上持つ＝`open` は
+     * `expandable` を含む）
+     */
+    if (open) height += ROW_GAP + ACTION_HEIGHT
     return {
       open,
       expandable,
@@ -1031,6 +1085,22 @@ export function layoutIssueTree(
         }
         cursor += box.reasonHeight
       }
+      if (box.rows.length > 0) cursor += TITLE_GAP
+      box.rows.forEach((hi, j) => {
+        if (j > 0) cursor += ROW_GAP
+        hypotheses[hi] = plans[hi].build(left, cursor)
+        cursor += plans[hi].height
+      })
+      // 末尾の「＋ 仮説を追加」。**左端はパネルと揃える**（`PANEL_INDENT`）。
+      // 帯は残りの幅いっぱいで、ボタン自身の幅は測らない（描く側が左寄せで置く）
+      const addHypothesis: Rect | null = box.open
+        ? {
+            x: left + PANEL_INDENT,
+            y: cursor + ROW_GAP,
+            width: box.contentWidth - PANEL_INDENT,
+            height: ACTION_HEIGHT,
+          }
+        : null
       issues[i] = {
         rect: { x: point.x, y: point.y, width: box.width, height: box.height },
         expanded: box.open,
@@ -1038,13 +1108,8 @@ export function layoutIssueTree(
         chevron,
         title,
         event,
+        addHypothesis,
       }
-      if (box.rows.length > 0) cursor += TITLE_GAP
-      box.rows.forEach((hi, j) => {
-        if (j > 0) cursor += ROW_GAP
-        hypotheses[hi] = plans[hi].build(left, cursor)
-        cursor += plans[hi].height
-      })
     }
     for (const child of node.children) walkPlace(child)
   }

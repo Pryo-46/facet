@@ -145,6 +145,32 @@ export const ACTION_HEIGHT = 24
 /** `ACTION_HEIGHT` と対のクラス（h-6 = 24px） */
 export const ACTION_HEIGHT_CLASS = 'h-6'
 /**
+ * 通常の大きさのボタンの中のアイコン（キャンバスの `.add > svg` /
+ * `.addhypo > svg` / `.del > svg` はいずれも 12px）。
+ *
+ * **`MINI_ICON_SIZE_CLASS`（10px）を借りないこと。** キャンバスは `.add` を
+ * 12px、`.miniadd` を 10px と**書き分けている**ので、借りるとミニボタンの
+ * アイコンを直したとき節末のボタンと FB の削除が黙って一緒に動く（m5 Task 7 で
+ * 実際に借りていた）。
+ *
+ * **数の対（`ACTION_ICON_SIZE`）を置かないのは、この 12px を測る場所が
+ * どこにも無いため。** 節末の `.add` と末尾の「＋ 仮説を追加」は幅いっぱいの
+ * 帯の中で flex に並び、`.del` の列幅は `FB_DELETE_WIDTH` が決めている
+ *（アイコンはその中で中央に座る）。読まれない数を置けば、それ自体が
+ * 静かに嘘になる定数になる——下の `ASK_*_CLASS` を消したのと同じ判断
+ */
+export const ACTION_ICON_SIZE_CLASS = 'size-3'
+/**
+ * 仮説の削除（キャンバスの `.trash`）。「ソリューション仮説」の見出しの帯の
+ * 右端に座る。**帯の高さはこれを勘定に入れる**（`layout.ts` の
+ * `solutionLabelH`）——見出しの文字より高ければ帯がその高さになる。
+ * 「検証結果」の帯がバッジの高さで測られている（`judgeLabelH`）のと同じ組み方で、
+ * **測る側と描く側が同じ数を見る**ための対である
+ */
+export const TRASH_ICON_SIZE = 16
+/** `TRASH_ICON_SIZE` と対のクラス（size-4 = 16px） */
+export const TRASH_ICON_SIZE_CLASS = 'size-4'
+/**
  * ボタンの左右の余白（px-1 = 4px）＋枠線 1px。**いまはどこからも読まれていない**
  *——m5 Task 4 で判断のトリガーが「検証結果」の見出しの帯へ移り、帯の中で
  * flex に並ぶようになったので、レイアウトがボタンの幅を測る必要が無くなった
@@ -172,20 +198,20 @@ export const ACTION_INSET_X = 5
  */
 export const ASK_PADDING_X = 8
 export const ASK_PADDING_Y = 6
-/**
- * `ASK_PADDING_X` / `ASK_PADDING_Y` と対のクラス（px-2 = 8px ／ py-1.5 = 6px）。
- * **いまはどこからも読まれていない**——問いブロックの子もすべて絶対配置なので、
- * 余白は `layout.ts` が座標で与えている（`ISSUE_BOX_CLASS` と同じ事情）。
- * flex で積む作りに変えるときの対として置いてある。下の `ASK_GAP_CLASS` /
- * `ASK_BLOCK_GAP_CLASS` / `FB_COL_GAP_CLASS` も同じ
- */
-export const ASK_PADDING_CLASS = 'px-2 py-1.5'
 export const ASK_GAP = 4
-/** `ASK_GAP` と対のクラス（gap-1 = 4px） */
-export const ASK_GAP_CLASS = 'gap-1'
 export const ASK_BLOCK_GAP = 4
-/** `ASK_BLOCK_GAP` と対のクラス（gap-1 = 4px） */
-export const ASK_BLOCK_GAP_CLASS = 'gap-1'
+/**
+ * **`ASK_PADDING_CLASS` / `ASK_GAP_CLASS` / `ASK_BLOCK_GAP_CLASS` /
+ * `FB_COL_GAP_CLASS` は m5 Task 7 で消した。**
+ *
+ * 「flex で積む作りに変えるときの対」として置いてあったが、問いブロックの子は
+ * **すべて絶対配置で置くと決めてある**（`ISSUE_BOX_CLASS` / `PANEL_BOX_CLASS` と
+ * 同じ事情で、余白は `layout.ts` が座標で与える）。予定の無い作りのための対は、
+ * **誰も読まないぶん、隣の数と食い違っても何も落ちない**——`px-2` のまま
+ * `ASK_PADDING_X` を 10 にしても検査は緑で、次に読む人は嘘を読む。
+ * flex で積む日が来たら、そのとき対で足すこと（`ISSUE_BOX_CLASS` のように
+ * **実際に当てているクラス**なら残す価値がある。消したのは当てていないものだけ）
+ */
 
 /**
  * FB（フィードバック）行。同アートボードの値。`FB_ICON_SIZE` はアイコンの
@@ -196,8 +222,6 @@ export const FB_ICON_SIZE = 16
 /** `FB_ICON_SIZE` と対のクラス（size-4 = 16px） */
 export const FB_ICON_SIZE_CLASS = 'size-4'
 export const FB_COL_GAP = 8
-/** `FB_COL_GAP` と対のクラス（gap-2 = 8px） */
-export const FB_COL_GAP_CLASS = 'gap-2'
 export const FB_DELETE_WIDTH = 20
 /** `FB_DELETE_WIDTH` と対のクラス（w-5 = 20px） */
 export const FB_DELETE_WIDTH_CLASS = 'w-5'
@@ -279,11 +303,11 @@ export const BODY_FIELD_CLASS = 'text-sm leading-normal'
 export const CHEVRON_SIZE = 14
 /** `CHEVRON_SIZE` と対のクラス（size-3.5 = 14px） */
 export const CHEVRON_SIZE_CLASS = 'size-3.5'
-export const CHEVRON_GAP = 6
 /**
- * `CHEVRON_GAP` と対のクラス（gap-1.5 = 6px）。**まだどこからも読まれていない**
- *——いまトグルとタイトルは flex で並んでおらず、`layout.ts` が
+ * トグルとタイトルの空き。**`CHEVRON_GAP_CLASS`（`gap-1.5`）は m5 Task 7 で
+ * 消した**——トグルとタイトルは flex で並んでおらず、`layout.ts` が
  * `CHEVRON_SIZE + CHEVRON_GAP` ぶんタイトルの矩形を右へ寄せている（箱の子は
- * すべて絶対配置）。flex で並べる作りに変えるときの対として置いてある
+ * すべて絶対配置）。理由は上の `ASK_*_CLASS` と同じで、**当てていないクラスの
+ * 対は誰も読まないぶん、隣の数と食い違っても何も落ちない**
  */
-export const CHEVRON_GAP_CLASS = 'gap-1.5'
+export const CHEVRON_GAP = 6

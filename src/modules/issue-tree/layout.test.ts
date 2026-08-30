@@ -5,12 +5,14 @@ import { ISSUE_EVENT_LABELS, poseQuestions } from './derive'
 import { layoutIssueTree, SECTION_LABELS, type IssueTreeFonts, type IssueTreeLayout } from './layout'
 import {
   ACTION_HEIGHT,
+  ASK_PADDING_X,
   BADGE_GAP,
   BADGE_HEIGHT,
   BOX_WIDTH,
   CHEVRON_GAP,
   CHEVRON_SIZE,
   EXPANDED_BOX_WIDTH,
+  FB_DELETE_WIDTH,
   ISSUE_INSET_X,
   ISSUE_INSET_Y,
   PANEL_INSET_Y,
@@ -316,6 +318,34 @@ describe('layoutIssueTree', () => {
    * 帯だけ 24px を空け続けると、**帯の 2px は誰も使わないまま根拠の欄を
    * 押し下げ、画面と測定が静かに食い違う**——測り直しの番人はここ
    */
+  /**
+   * **展開した課題ノードの末尾に「＋ 仮説を追加」の場所を空ける**（m5 Task 7）。
+   * 仮説を足す動線はキーから消えたのでマウスにしかなく、**その高さ
+   *（`ACTION_HEIGHT`）を箱の高さに入れ忘れると、ボタンが箱の下端からはみ出す**
+   *——絶対配置なので画面は「はみ出したまま描く」だけで、何も落ちない。
+   * ここが唯一の番人なので、**下端と一致すること（`toBe`）で見る**
+   */
+  it('展開した課題ノードは末尾の「仮説を追加」の高さを勘定に入れる', () => {
+    const data = make({ issues: [root], hypotheses: [h(1)] })
+    const folded = run(data)
+    // 畳んだ課題にボタンは無い（開いていない箱に末尾の操作は出ない）
+    expect(folded.issues[0]!.addHypothesis).toBeNull()
+
+    const open = run(data, 0)
+    const box = open.issues[0]!
+    const add = box.addHypothesis
+    expect(add).not.toBeNull()
+    expect(add!.height).toBe(ACTION_HEIGHT)
+    // 左端はパネルと揃う（`PANEL_INDENT` と `ROW_INDENT` は同じ原点の同じ値）
+    expect(add!.x).toBe(open.hypotheses[0]!.expanded!.panel.x)
+    // **最後のパネルの下**に座る
+    const panel = open.hypotheses[0]!.expanded!.panel
+    expect(add!.y).toBeGreaterThanOrEqual(panel.y + panel.height)
+    // **箱の下端にちょうど収まる**——`ACTION_HEIGHT` を高さの式から落とすと、
+    // ボタンの下端が箱の下端を超える
+    expect(add!.y + add!.height + ISSUE_INSET_Y).toBe(box.rect.y + box.rect.height)
+  })
+
   it('検証結果の帯はバッジの高さで測る（消えた文言ボタンのぶんを空けない）', () => {
     // 2つの定数が同じ値だと、この番人は何も区別しない
     expect(BADGE_HEIGHT).toBeLessThan(ACTION_HEIGHT)
@@ -403,6 +433,7 @@ describe('layoutIssueTree', () => {
         b.head.text,
         b.head.add,
         ...(b.head.badge === null ? [] : [b.head.badge]),
+        ...(b.head.remove === null ? [] : [b.head.remove]),
         ...b.rows.map((r) => r.rect),
       ]
       for (const r of parts) {
@@ -411,11 +442,25 @@ describe('layoutIssueTree', () => {
         expect(r.y).toBeGreaterThanOrEqual(b.block.y)
         expect(r.y + r.height).toBeLessThanOrEqual(b.block.y + b.block.height)
       }
-      // 見出しの列（アイコン → 文言 → FB待ち → ＋FB）は重ならない
+      // 見出しの列（アイコン → 文言 → FB待ち → ＋FB → 削除）は重ならない。
+      // **削除は問いのあるブロックだけ**（`null` のブロックには消す問いが無い）
       expect(b.head.icon.x + b.head.icon.width).toBeLessThanOrEqual(b.head.text.x)
       expect(b.head.text.x + b.head.text.width).toBeLessThanOrEqual(
         (b.head.badge ?? b.head.add).x,
       )
+      expect(b.head.badge === null || b.head.badge.x + b.head.badge.width <= b.head.add.x).toBe(true)
+      if (b.askIndex === null) {
+        expect(b.head.remove).toBeNull()
+        expect(b.head.add.x + b.head.add.width).toBe(b.block.x + b.block.width - ASK_PADDING_X)
+      } else {
+        expect(b.head.remove).not.toBeNull()
+        expect(b.head.add.x + b.head.add.width).toBeLessThanOrEqual(b.head.remove!.x)
+        // 削除はブロックの中身の右端（FB 行の削除と同じ列幅）
+        expect(b.head.remove!.width).toBe(FB_DELETE_WIDTH)
+        expect(b.head.remove!.x + b.head.remove!.width).toBe(
+          b.block.x + b.block.width - ASK_PADDING_X,
+        )
+      }
       // FB の列（アイコン → 本文 → 誰が・いつ → 削除）も重ならない
       for (const row of b.rows) {
         expect(row.icon.x + row.icon.width).toBeLessThanOrEqual(row.text.x)

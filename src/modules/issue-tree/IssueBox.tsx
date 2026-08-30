@@ -49,6 +49,16 @@ export interface IssueBoxProps {
    * 作れてしまう（`IssuePlacement.expanded` の解説）
    */
   onToggleExpand: () => void
+  /**
+   * 展開した課題ノードの末尾に置く「＋ 仮説を追加」。**必須にしてある**
+   *（`eventToggle` / `onToggleExpand` と同じ理由——押す場所を型で守る）。
+   * 仮説を足す動線はキーから消えた（m5）ので、これが抜けると
+   * **その課題に仮説を足す道が箱から消える**。
+   *
+   * **場所を決めるのはレイアウト**（`placement.addHypothesis`）で、畳んで
+   * いれば矩形が `null` になり、ここは描かれない
+   */
+  addHypothesis: React.ReactNode
   /** 仮説行（`HypothesisRow` の列）。箱の中に絶対配置で置かれる */
   children?: React.ReactNode
 }
@@ -254,6 +264,19 @@ export function IssueBox(props: IssueBoxProps) {
       {/* 仮説行。**行は自分の世界座標を持つので、箱の原点を引いて置く**
           （`HypothesisRow` に `origin` を渡してある） */}
       {props.children}
+
+      {/* 末尾の「＋ 仮説を追加」（m5 Task 7。キャンバスの `.addhypo`）。
+          **帯は幅いっぱいで、ボタンは左寄せ**（`align-self: flex-start` に
+          あたる）——レイアウトはボタンの幅を測っておらず、左端だけを
+          パネルと揃えている。**開いているときだけ矩形がある** */}
+      {placement.addHypothesis !== null && (
+        <div
+          className="absolute flex items-center"
+          style={inBox(placement.addHypothesis)}
+        >
+          {props.addHypothesis}
+        </div>
+      )}
     </div>
   )
 }
