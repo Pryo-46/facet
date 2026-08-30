@@ -1519,7 +1519,7 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説1' }))
   })
 
-  it('判断を選ぶとイベントが追記される（マウスの動線）', async () => {
+  it('未決の仮説に判断を付けると1件になる（マウスの動線）', async () => {
     const onChange = vi.fn()
     render(<Harness initial={file()} onChange={onChange} />)
     // 判断のトリガーは**展開パネルの中**にある（畳まれた行はバッジ1つ）
@@ -1527,11 +1527,13 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
     fireEvent.pointerDown(screen.getByRole('button', { name: '仮説1に判断を追加' }), { button: 0 })
     fireEvent.click(await screen.findByRole('menuitem', { name: EVENT_KIND_LABELS.rejected }))
     const next: IssueTreeSchemaVersion4 = onChange.mock.calls[0][0]
-    // `date` はエディタが `appendJudgement` を今日の日付（既定引数）で呼ぶ
+    // `date` はエディタが `setJudgement` を今日の日付（既定引数）で呼ぶ。
+    // **この it の入口は未決**（`file()` の仮説は `events` が空）なので、
+    // 差し替えの側は下の「判断を選び直すと差し替わり…」が見る
     expect(next.hypotheses[0].events).toEqual([{ kind: 'rejected', note: '', date: todayString() }])
     // 構造の変更は履歴をまとめない（1操作1コミット）
     expect(onChange.mock.calls[0][1]).toBe(null)
-    // **追記した根拠の欄までフォーカスが来ること。** Radix の既定（閉じたら
+    // **付けた判断の根拠の欄までフォーカスが来ること。** Radix の既定（閉じたら
     // トリガーへ戻す）に予約を奪われると、選んだ直後に根拠が打てない
     //（`KindMenu` の `picked` ref ＋ `onCloseAutoFocus` が塞いでいる機械）。
     // **この経路の予約先は条件付きでしか描かれない**——`data-cell` を持つのは
