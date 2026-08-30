@@ -2602,6 +2602,12 @@ npx vitest run src/modules/issue-tree/derive.test.ts src/modules/issue-tree/skil
 
 **(b) を直したテストは、番人が番をしていることを実証すること**——`poseQuestions` の抑制を「祖先ではなく木全体」に一時的に壊して FAIL を確認し、戻して PASS を確認する。**両方の出力を報告に貼る。**
 
+**(c) `src/modules/issue-tree/layout.test.ts` の `layoutWithFlag` に戻り値の型注釈を足す**
+
+`function layoutWithFlag(kind: 'deferred' | 'resolved') {` を `function layoutWithFlag(kind: 'deferred' | 'resolved'): IssueTreeLayout {` にする（`IssueTreeLayout` は `./layout` から `import type` する）。**本計画が渡したコードに注釈が無かったことが原因**で、同じ規約違反を Task 6 では Important として直している——**片方だけ直っている状態を残さない**。
+
+直したら `npx vitest run src/modules/issue-tree/layout.test.ts` が緑であることを確かめる。
+
 - [ ] **Step 1: 失敗するテストを書く（`skill-write.smoke.test.ts`）**
 
 フィクスチャ（`FIXTURE` と3つのインラインのデータ）を v3 の形に直す。あわせて:
