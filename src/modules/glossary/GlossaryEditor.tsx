@@ -56,6 +56,17 @@ const cellInput =
  */
 const colBorder = 'border-l border-l-rule-muted'
 
+/**
+ * ヘッダーの列の境界の縦罫。**データ行より一段濃い `--rule` を使う。**
+ *
+ * ライトの surface-muted（0.91）と rule-muted（0.89）はほぼ同明度なので、
+ * 一段沈んだ面であるヘッダーに薄い罫を引くと線が消える（データ行は
+ * surface（0.985）の上なので同じ色でも見える）。`--rule` は
+ * 「surface-muted 上でも 3:1」を条件に決めた色（palette.css）で、
+ * ヘッダー下罫と同じ濃さになる
+ */
+const headColBorder = 'border-l border-l-rule'
+
 const PLATFORM = currentPlatform()
 
 /**
@@ -314,7 +325,7 @@ export function GlossaryEditor({
                 return (
                   <th
                     key={col.field}
-                    className={`sticky top-0 z-10 relative border-b border-b-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${colBorder}`}`}
+                    className={`sticky top-0 z-10 relative border-b border-b-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${headColBorder}`}`}
                   >
                     {label}
                     {/* No 列は導出（データ配列の index+1）なのでハンドルを出さない。

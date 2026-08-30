@@ -481,6 +481,21 @@ describe('GlossaryEditor: ヘッダーの罫線', () => {
       expect(th.className).not.toMatch(/(^|\s)border-rule(-muted)?(\s|$)/)
     }
   })
+
+  it('列の境界の縦罫はヘッダーだけ一段濃い（薄い罫は沈んだ面の上で消える）', () => {
+    renderEditor(twoTerms)
+    const ths = screen.getAllByRole('columnheader')
+    // 先頭列（No）には引かない（M8 決定2）
+    expect(ths[0]?.className).not.toMatch(/border-l/)
+    for (const th of ths.slice(1)) {
+      expect(th.className).toMatch(/(^|\s)border-l-rule(\s|$)/)
+    }
+    // データ行は surface の上なので薄いまま（rule-muted でも線が見える）
+    const dataRow = screen.getAllByRole('row')[1]
+    if (dataRow === undefined) throw new Error('data row not found')
+    const cells = within(dataRow).getAllByRole('cell')
+    expect(cells[1]?.className).toMatch(/(^|\s)border-l-rule-muted(\s|$)/)
+  })
 })
 
 describe('GlossaryEditor: 列幅', () => {
