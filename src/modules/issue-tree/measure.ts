@@ -34,6 +34,29 @@ export const ISSUE_BOX_CLASS = 'border px-2.5 py-1.5'
  * 同じ定数を読む**——太字は細字より広いので、片方だけ変えると測定と描画がずれる
  */
 export const TITLE_FONT_CLASS = 'text-sm leading-normal font-semibold'
+/**
+ * 節見出しのフォント（段1 = text-sm 14px / 1.3 / 600）。**キャンバスの
+ * 「仮説の展開」アートボードは 16px で描かれているが、`src/index.css` の段
+ * （M23／M26）に節見出しは段1 と名指しされている（index.css:22）ので、
+ * サイズはそちらに合わせて落とす。** 展開タイトル（下）と同寸になって
+ * 階層が潰れるのを避けるため、サイズではなく太さ（`font-semibold`）で
+ * 見出しと本文を区別する（段の思想＝密度はサイズでなく行高で稼ぐ、
+ * index.css:53）。単行の見出しなので `leading-normal` は付けず、段1 の
+ * 既定行間 1.3 のままでよい
+ */
+export const SECTION_LABEL_FONT_CLASS = 'text-sm font-semibold'
+/**
+ * 展開時の課題タイトルのフォント（段2 = text-base 16px / 1.5 / 600）。
+ * **キャンバスの「仮説の展開」アートボードは 18px（27px 行高）で描かれて
+ * いるが、18px は `src/index.css` の段（14/16/22px の3サイズ、M23／M26）に
+ * 存在しないので、`text-base`（16px・24px 行高）に落とす。** 閉じている間は
+ * `TITLE_FONT_CLASS`（14px）のままで、展開すると 16px に差し替わる
+ */
+export const EXPANDED_TITLE_FONT_CLASS = 'text-base leading-normal font-semibold'
+/**
+ * ソリューション仮説のタイトルのフォント（14px / 21px / 500）。値は同アートボードから
+ */
+export const HYPO_TITLE_FONT_CLASS = 'text-sm leading-normal font-medium'
 
 /**
  * 課題の箱の幅（**固定。導出しない**）。**M24 で全種類の箱に広がった。**
@@ -55,6 +78,13 @@ export const TITLE_FONT_CLASS = 'text-sm leading-normal font-semibold'
 export const BOX_WIDTH = 320
 /** 箱の中の文章が使える幅 */
 export const BOX_CONTENT_WIDTH = BOX_WIDTH - ISSUE_INSET_X * 2
+
+/**
+ * 展開中の課題ノードの幅（**固定。導出しない**——`BOX_WIDTH` と同じ判断）。
+ * 展開すると仮説・問い・FB まで縦に積まれるので、320 のままでは1行が細く
+ * なりすぎる。値はデザインキャンバスの「仮説の展開」アートボードから
+ */
+export const EXPANDED_BOX_WIDTH = 780
 
 /** タイトルと最初の行・理由の行の空き（モックの `.issue` の gap） */
 export const TITLE_GAP = 5
@@ -108,3 +138,56 @@ export const ACTION_INSET_X = 5
 
 /** パネルの中の文章が使える幅（パネルは行の文言と同じ位置から始まる） */
 export const PANEL_CONTENT_WIDTH = BOX_CONTENT_WIDTH - PANEL_INDENT - PANEL_INSET_X * 2
+
+/**
+ * 問いブロック（Ask）。デザインキャンバス「仮説の展開」アートボードの値。
+ * `ASK_PADDING_X` / `ASK_PADDING_Y` は問いブロックの余白、`ASK_GAP` は
+ * ブロックの中の縦の空き（問いの文言と FB 行の間）、`ASK_BLOCK_GAP` は
+ * 問いブロックどうしの空き
+ */
+export const ASK_PADDING_X = 8
+export const ASK_PADDING_Y = 6
+/** `ASK_PADDING_X` / `ASK_PADDING_Y` と対のクラス（px-2 = 8px ／ py-1.5 = 6px） */
+export const ASK_PADDING_CLASS = 'px-2 py-1.5'
+export const ASK_GAP = 4
+/** `ASK_GAP` と対のクラス（gap-1 = 4px） */
+export const ASK_GAP_CLASS = 'gap-1'
+export const ASK_BLOCK_GAP = 4
+/** `ASK_BLOCK_GAP` と対のクラス（gap-1 = 4px） */
+export const ASK_BLOCK_GAP_CLASS = 'gap-1'
+
+/**
+ * FB（フィードバック）行。同アートボードの値。`FB_ICON_SIZE` はアイコンの
+ * 一辺、`FB_COL_GAP` は列（アイコン・文言・削除ボタン）どうしの空き、
+ * `FB_DELETE_WIDTH` は削除ボタンの列幅
+ */
+export const FB_ICON_SIZE = 16
+/** `FB_ICON_SIZE` と対のクラス（size-4 = 16px） */
+export const FB_ICON_SIZE_CLASS = 'size-4'
+export const FB_COL_GAP = 8
+/** `FB_COL_GAP` と対のクラス（gap-2 = 8px） */
+export const FB_COL_GAP_CLASS = 'gap-2'
+export const FB_DELETE_WIDTH = 20
+/** `FB_DELETE_WIDTH` と対のクラス（w-5 = 20px） */
+export const FB_DELETE_WIDTH_CLASS = 'w-5'
+
+/**
+ * 問いブロックの中の「＋FB」など、ミニボタンの行の高さ。**`ACTION_HEIGHT` と
+ * 同じ約束**——下のクラスと対で直すこと。クラスを当て忘れるとボタンの実高が
+ * 測定より低くなり、定数が嘘になる
+ */
+export const MINI_ACTION_HEIGHT = 20
+/** `MINI_ACTION_HEIGHT` と対のクラス（h-5 = 20px） */
+export const MINI_ACTION_HEIGHT_CLASS = 'h-5'
+
+/**
+ * 課題タイトル左の開閉トグル（シェブロン。Task 2 でレイアウトに組み込む）。
+ * `CHEVRON_SIZE` はアイコンの一辺、`CHEVRON_GAP` はタイトルとの空き。
+ * 値は同アートボードから
+ */
+export const CHEVRON_SIZE = 14
+/** `CHEVRON_SIZE` と対のクラス（size-3.5 = 14px） */
+export const CHEVRON_SIZE_CLASS = 'size-3.5'
+export const CHEVRON_GAP = 6
+/** `CHEVRON_GAP` と対のクラス（gap-1.5 = 6px） */
+export const CHEVRON_GAP_CLASS = 'gap-1.5'
