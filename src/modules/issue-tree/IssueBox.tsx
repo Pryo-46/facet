@@ -2,7 +2,7 @@ import { Badge } from '@/components/Badge'
 import { CellInput, type FieldState } from '@/components/CellInput'
 import type { Rect } from '@/core/canvas/viewport'
 import { badgeVariantOf } from './badge-variant'
-import { QUESTION_LABELS } from './derive'
+import { ISSUE_EVENT_LABELS, QUESTION_LABELS, type IssueEventKind } from './derive'
 import type { IssuePlacement } from './layout'
 import { ISSUE_BORDER, ISSUE_BOX_CLASS, ISSUE_PADDING_X, ISSUE_PADDING_Y, TITLE_FONT_CLASS } from './measure'
 
@@ -16,19 +16,21 @@ export interface IssueBoxProps {
   suppressed: boolean
   /** 「仮説なし」が立っているか */
   warn: boolean
-  /** 最新の見送りの理由（見送りが無ければ null）。理由は最新だけ編集できる */
-  deferralNote: string | null
-  deferralCellKey: string
+  /** 最新の旗の種別（旗が無ければ null）。**ラベルとアクセシブル名はここから引く** */
+  eventKind: IssueEventKind | null
+  /** 最新の旗の理由（旗が無ければ null）。理由は最新だけ編集できる */
+  eventNote: string | null
+  eventCellKey: string
   onTextChange: (next: string) => void
-  onDeferralNoteChange: (next: string) => void
+  onEventNoteChange: (next: string) => void
   onFieldKeyDown?: (e: React.KeyboardEvent, state: FieldState) => void
   /**
-   * 見送りのトグル（入り＝見送り済み／切り＝見送っていない）。**必須にしてある**
-   *——省略できると、見送りを付ける動線がマウスから消えていても型は通り、
+   * 旗のトグル（入り＝旗が立っている／切り＝立っていない）。**必須にしてある**
+   *——省略できると、旗を付ける動線がマウスから消えていても型は通り、
    * 画面は一見正常なまま「押す場所が無い」になる。
-   * 見送り済みの箱では、このトグル自身が見送りバッジを兼ねる（面はエディタが渡す）
+   * 旗が立っている箱では、このトグル自身が旗のバッジを兼ねる（面はエディタが渡す）
    */
-  deferralToggle: React.ReactNode
+  eventToggle: React.ReactNode
   /** 仮説行（`HypothesisRow` の列）。箱の中に絶対配置で置かれる */
   children?: React.ReactNode
 }
@@ -42,26 +44,28 @@ export interface IssueBoxProps {
  *
  * ロジックツリーのノードとの差は4つ:
  *
- * 1. 面が4種類ある（整合性エラー／抑制／見送り／通常）。**未決を面で見せない**
+ * 1. 面が4種類ある（整合性エラー／抑制／旗／通常）。**未決を面で見せない**
  *    ——立っている問いはタイトル行の右端のバッジが運ぶ。面で塗ると、
  *    「まだ埋めていない」箱が図の大半を占めて地の色が意味を失う
- * 2. 抑制された配下は**見送りの面ごとグレー**（`bg-surface-muted`）で、枠と文字を
+ * 2. 抑制された配下は**旗の面ごとグレー**（`bg-surface-muted`）で、枠と文字を
  *    `ink-faint` に落とす（M25 の実機確認で反転——それまで配下は `bg-surface` の
  *    白い面だった。白いままだと見送りの枝が「まだ生きている枝」に見える、という
  *    人間の観察）。**`bg-canvas`（地の色）には落とさない**——箱が背景に溶けて
  *    木の形が読めない。**`opacity-*` で薄くしない**（検算したコントラストを割る。
  *    `ink-faint` は `BACKGROUNDS` 3面——`surface-muted` を含む——への 3:1 が
  *    `palette.test.ts` で機械検査済み）
- * 3. **自分自身が見送りの箱は `bg-surface-muted` で塗る**（実機確認後に追加。
- *    `docs/issue-tree/仮説検証モジュール-設計ノート.md` D8）。未決とは違って
- *    見送りは稀で意図的な判断なので、1の理由（未決を面で塗ると図が警告で
- *    埋まる）はここには効かない。**M25 からは配下も同じ面を持つ**ので、
+ * 3. **自分自身が旗（見送り／解決）を掲げている箱は `bg-surface-muted` で塗る**
+ *    （実機確認後に追加。`docs/issue-tree/仮説検証モジュール-設計ノート.md` D8）。
+ *    未決とは違って旗は稀で意図的な判断なので、1の理由（未決を面で塗ると図が
+ *    警告で埋まる）はここには効かない。**M25 からは配下も同じ面を持つ**ので、
  *    面が運ぶのは「表明の所在」ではなく**凍結の範囲**になった——誰が掲げたかは
  *    文字の濃さ（当人＝`text-ink`／配下＝`ink-faint`）とバッジ（当人＝実線／
- *    配下＝faint）が運ぶ（D8 の M25 追記）。
+ *    配下＝faint）が運ぶ（D8 の M25 追記）。**見送りと解決は面を分けない**
+ *    ——面が運ぶのは凍結の範囲であって旗の種別ではなく、種別はバッジの文言が運ぶ
+ *    （D8 の規律。m4 で `resolved` 用の新しい面は足していない）。
  *    枠は他の面と揃えて `border-rule`（`rule` は `surface-muted` の上でも
  *    3:1 を満たす。理由は `face` 計算のコメントを見よ）
- * 4. 見送りのトグルを置く枠がある。**押されているかどうかはデータの導出**
+ * 4. 旗のトグルを置く枠がある。**押されているかどうかはデータの導出**
  *    ——`events` が空でなければ入り。ビュー側に開閉の状態を持たない
  *（判断のドロップダウンだけが、開閉の状態を親＝エディタに持たせている）
  */
@@ -72,25 +76,26 @@ export function IssueBox(props: IssueBoxProps) {
   // **面と枠のクラスは片方だけ出す。** 生成 CSS の順序に頼らず、条件分岐で
   // 排他にする（M8）。
   //
-  // **優先順位は 整合性エラー ＞ 抑制 ＞ 見送り ＞ 通常。** `placement.deferral`
-  // は layout.ts が「このノード自身が見送り済みか」だけで組む
-  // （`deferred = node.events.length > 0`。祖先は見ない）ので、自分自身の
-  // 見送りを判定するのに新しい prop は要らない。**`suppressed` を上に置くのが
-  // 要**——見送りが入れ子になったとき（祖先 B が見送り、配下 C も自分で見送りを
-  // 掲げている）、C は `suppressed`（祖先由来）が立つので faint の側に進む。
-  // M25 で面はどちらも `surface-muted` になったが、ここを逆にすると C だけ
-  // 文字が濃く戻り、薄い配下の中に濃い C が挟まる退行になる
+  // **優先順位は 整合性エラー ＞ 抑制 ＞ 旗 ＞ 通常。** `placement.event`
+  // は layout.ts が「このノード自身が旗（見送り／解決）を掲げているか」だけで組む
+  // （祖先は見ない）ので、自分自身の旗を判定するのに新しい prop は要らない。
+  // **`suppressed` を上に置くのが要**——旗が入れ子になったとき（祖先 B が
+  // 旗を掲げ、配下 C も自分で旗を掲げている）、C は `suppressed`（祖先由来）が
+  // 立つので faint の側に進む。M25 で面はどちらも `surface-muted` になったが、
+  // ここを逆にすると C だけ文字が濃く戻り、薄い配下の中に濃い C が挟まる退行になる
   // （`IssueTreeEditor.tsx` の `inheritedSuppressed` のコメントが指す退行と
   // 同じ形。実際にそのテストが「見送りが入れ子でも、配下は薄いまま」で見ている）。
   //
-  // 見送りの箱は一段沈んだ面（`surface-muted`）。`rule` はこの面の上でも
+  // 旗を掲げた箱は一段沈んだ面（`surface-muted`）。**見送りと解決で面を分けない**
+  // ——面が運ぶのは「凍結の範囲」であって旗の種別ではなく、種別はバッジの文言
+  // （`ISSUE_EVENT_LABELS`）が運ぶ（D8 の規律）。`rule` はこの面の上でも
   // 3:1 を満たす（`palette-requirements.ts` の `BACKGROUNDS` に入っている）。
   // 無効は赤い枠＋淡い面（`invalid-face`。rev 9章 規約2）
   const face = props.invalid
     ? 'border-invalid bg-invalid-face text-ink'
     : props.suppressed
       ? 'border-ink-faint bg-surface-muted text-ink-faint'
-      : placement.deferral !== null
+      : placement.event !== null
         ? 'border-rule bg-surface-muted text-ink'
         : 'border-rule bg-surface text-ink'
 
@@ -136,31 +141,31 @@ export function IssueBox(props: IssueBoxProps) {
         />
       </div>
 
-      {/* 見送りのトグル。**箱の外（left-full）へ逃がさない**——列の
+      {/* 旗のトグル。**箱の外（left-full）へ逃がさない**——列の
           間隔の中に置くと、隣の枝と重なる位置に出ることがある。
           **レイアウトはタイトル行の右上を常に1枠空けている**ので、
-          見送り済みなら測定した矩形へ、まだなら同じ枠（右寄せ）へ置けば、
+          旗が立っていれば測定した矩形へ、まだなら同じ枠（右寄せ）へ置けば、
           ホバー中に出るボタンがタイトルの文字に被らない（layout.ts の解説） */}
       <div
         className="absolute flex items-center justify-end"
         style={
-          placement.deferral === null
+          placement.event === null
             ? { top: ISSUE_PADDING_Y, right: ISSUE_PADDING_X }
-            : inBox(placement.deferral.badge)
+            : inBox(placement.event.badge)
         }
       >
-        {props.deferralToggle}
+        {props.eventToggle}
       </div>
 
-      {/* 「仮説なし」。**見送りバッジとは排他**（見送った課題は抑制されるので
+      {/* 「仮説なし」。**旗のバッジとは排他**（旗を掲げた課題は抑制されるので
           問いが立たない）。読み取り専用の表示だが aria-hidden にしない——
           名前の後半に同じ言葉が入っており、音声でも二重には読まれない。
 
-          **ホバー・フォーカス中は隠して、見送りのトグルと入れ替える。**
+          **ホバー・フォーカス中は隠して、旗のトグルと入れ替える。**
           右上の枠は1つで、レイアウトが空けているのは「バッジかトグルの
           広い方」1枠ぶんである（2枠ぶん空けるとタイトルが痩せる）。
           問いは名前の後半にも入っているので、隠しているあいだも音声からは消えない */}
-      {props.warn && placement.deferral === null && (
+      {props.warn && placement.event === null && (
         <div
           className="pointer-events-none absolute flex items-center justify-end group-hover/issue:invisible group-focus-within/issue:invisible"
           style={{ top: ISSUE_PADDING_Y, right: ISSUE_PADDING_X }}
@@ -169,23 +174,26 @@ export function IssueBox(props: IssueBoxProps) {
         </div>
       )}
 
-      {/* 見送りの理由。**最新の見送りだけが編集できる**（`setDeferralNote` が
+      {/* 旗の理由。**最新の旗だけが編集できる**（`setEventNote` が
           データ側で塞いでいる約束を、画面側でも塞ぐ）。
           `onFieldKeyDown` を渡さないのは、理由の欄で Enter に何も生やさせない
-          ため——ここは木の構造を増やす場所ではない */}
-      {placement.deferral !== null && props.deferralNote !== null && (
-        <div className="absolute" style={inBox(placement.deferral.reason)}>
+          ため——ここは木の構造を増やす場所ではない。
+          **`eventKind` が `null` を通る式のままにしてある**——`placement.event
+          !== null` と対なので実際には常にラベルが入るが、型で `null` を
+          除けないところに `!` を置くと、後から前提が変わったときに実行時に落ちる */}
+      {placement.event !== null && props.eventNote !== null && (
+        <div className="absolute" style={inBox(placement.event.reason)}>
           <CellInput
             multiline
             autoSize={false}
-            // 理由は `text-ink-muted`（モックの `.reason`）。見送りを掲げている
-            // 箱は通常の面で描くので、継承では本文と同じ濃さになってしまう
+            // 理由は `text-ink-muted`（モックの `.reason`）。旗を掲げている
+            // 箱は `text-ink` を継承するので、そのままでは本文と同じ濃さになってしまう
             className="h-full w-full resize-none overflow-hidden bg-transparent text-sm whitespace-pre-wrap break-all text-ink-muted outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-inset focus:ring-ring"
-            aria-label={`${label} の見送りの理由`}
+            aria-label={`${label} の${props.eventKind === null ? '' : ISSUE_EVENT_LABELS[props.eventKind]}の理由`}
             placeholder="理由"
-            data-cell={props.deferralCellKey}
-            value={props.deferralNote}
-            onValueChange={props.onDeferralNoteChange}
+            data-cell={props.eventCellKey}
+            value={props.eventNote}
+            onValueChange={props.onEventNoteChange}
           />
         </div>
       )}

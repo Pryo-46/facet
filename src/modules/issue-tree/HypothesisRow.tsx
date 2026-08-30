@@ -38,8 +38,9 @@ export interface HypothesisRowProps {
   placement: HypothesisPlacement
   /** 親の箱の左上（世界座標）。行は箱の中に絶対配置されるので差し引く */
   origin: { x: number; y: number }
-  text: string
-  rationale: string
+  /** ソリューション仮説のタイトル。**`detail` と `value` は m4 では描かない**（m5 が設計する） */
+  title: string
+  /** FB の文言だけ（`feedbacks[].text`）。**`by` / `sentiment` / `date` は m4 では描かない** */
   notes: readonly string[]
   events: readonly JudgementEvent[]
   /** 整合性検証で赤表示の対象になっているか */
@@ -49,18 +50,15 @@ export interface HypothesisRowProps {
   /** 展開しているか（`placement.expanded !== null` と一致する。エディタが両方を同じ状態から作る） */
   expanded: boolean
   onExpand: () => void
-  onTextChange: (next: string) => void
-  onRationaleChange: (next: string) => void
-  onNoteChange: (noteIndex: number, next: string) => void
+  onTitleChange: (next: string) => void
+  onFeedbackTextChange: (feedbackIndex: number, next: string) => void
   /** **最新イベントの根拠だけが編集できる**（`setEventNote` が同じ規則を持つ） */
   onEventNoteChange: (eventIndex: number, next: string) => void
-  /** FB1件を最新イベントの根拠へ移す */
-  onPromoteNote: (noteIndex: number) => void
-  onAddNote: () => void
+  onAddFeedback: () => void
   onFieldKeyDown?: (e: React.KeyboardEvent, state: FieldState, cell: HypothesisCell) => void
   /**
    * 判断イベントのドロップダウン。エディタが `menuPropsFor` で組んで渡す。
-   * **必須にしてある**（`IssueBox` の `deferralToggle` と同じ）——省略できると、
+   * **必須にしてある**（`IssueBox` の `eventToggle` と同じ）——省略できると、
    * 判断を付ける動線がマウスから消えていても型は通る
    */
   judgementMenu: React.ReactNode
@@ -88,9 +86,10 @@ const staticTextClass = 'absolute overflow-hidden text-sm leading-normal break-a
 /**
  * 仮説1件＝**課題の箱の中の1行**（M3 の文法）。
  *
- * 畳まれているときは「点・文言・行末のバッジ」の1行だけで、由来・根拠・FB・
+ * 畳まれているときは「点・文言・行末のバッジ」の1行だけで、根拠・FB・
  * 以前の判断は**展開したときにだけ**下のパネルへ出る。展開はビュー状態であり、
- * ファイルには書かない。
+ * ファイルには書かない。**`detail` / `value` / `asks` は m4 では描かない**
+ *（見せ方は m5 が設計する）。
  *
  * **畳まれた行の `<button>` と、展開後の文言の `<textarea>` は同じ `data-cell`
  * を名乗る。** エディタはその文字列でフォーカスを予約するので（Tab で行に
@@ -170,23 +169,23 @@ export function HypothesisRow(props: HypothesisRowProps) {
         {/* 畳まれた行は**必ず1行**。レイアウトも1行で測っているので、
             改行は空白に潰してから省略記号に任せる */}
         <span
-          className={`absolute truncate text-sm leading-normal ${props.text === '' ? mutedInk : ink}`}
+          className={`absolute truncate text-sm leading-normal ${props.title === '' ? mutedInk : ink}`}
           style={inRow(placement.text)}
         >
-          {props.text === '' ? '仮説' : props.text.replace(/\n/g, ' ')}
+          {props.title === '' ? '仮説' : props.title.replace(/\n/g, ' ')}
         </span>
         <span className="absolute flex items-center justify-end" style={inRow(placement.badge)}>
           <Badge variant={badgeVariantOf(group, props.suppressed)}>{BADGE_LABELS[group]}</Badge>
         </span>
-        {/* 「未判断」（M22）。**状態のバッジの後に描く**——先に置くと、
+        {/* 「FB待ち」（M22）。**状態のバッジの後に描く**——先に置くと、
             行の先頭の `inline-flex` を状態のバッジとして引いている検査が
             黙って別の要素を掴む。抑制された行には立たない（`derive.ts`） */}
-        {placement.judgementBadge !== null && (
+        {placement.feedbackBadge !== null && (
           <span
             className="absolute flex items-center justify-end"
-            style={inRow(placement.judgementBadge)}
+            style={inRow(placement.feedbackBadge)}
           >
-            <Badge variant="pending">{QUESTION_LABELS.judgement}</Badge>
+            <Badge variant="pending">{QUESTION_LABELS.feedback}</Badge>
           </span>
         )}
       </button>
@@ -220,8 +219,8 @@ export function HypothesisRow(props: HypothesisRowProps) {
           aria-label={label}
           placeholder="仮説"
           data-cell={cellOf({ cell: 'hypothesis' })}
-          value={props.text}
-          onValueChange={props.onTextChange}
+          value={props.title}
+          onValueChange={props.onTitleChange}
           onFieldKeyDown={(e, state) => props.onFieldKeyDown?.(e, state, { cell: 'hypothesis' })}
         />
       </div>
@@ -229,12 +228,12 @@ export function HypothesisRow(props: HypothesisRowProps) {
         <Badge variant={badgeVariantOf(group, props.suppressed)}>{BADGE_LABELS[group]}</Badge>
       </span>
       {/* 展開した頭部にも同じ形で出す（レイアウトは閉じた行と同じ幅を通る） */}
-      {placement.judgementBadge !== null && (
+      {placement.feedbackBadge !== null && (
         <span
           className="absolute flex items-center justify-end"
-          style={inBox(placement.judgementBadge)}
+          style={inBox(placement.feedbackBadge)}
         >
-          <Badge variant="pending">{QUESTION_LABELS.judgement}</Badge>
+          <Badge variant="pending">{QUESTION_LABELS.feedback}</Badge>
         </span>
       )}
 
@@ -302,55 +301,23 @@ export function HypothesisRow(props: HypothesisRowProps) {
         )
       })}
 
-      <div className={`${sectionLabelClass} ${mutedInk}`} style={inBox(panel.rationale.label)}>
-        {SECTION_LABELS.rationale}
-      </div>
-      <div className="absolute" style={inBox(panel.rationale.cell)}>
-        <CellInput
-          multiline
-          autoSize={false}
-          className={`${inputClass} text-sm leading-normal ${ink}`}
-          aria-label={`${label} の由来`}
-          placeholder="由来（任意）"
-          data-cell={cellOf({ cell: 'rationale' })}
-          value={props.rationale}
-          onValueChange={props.onRationaleChange}
-          onFieldKeyDown={(e, state) => props.onFieldKeyDown?.(e, state, { cell: 'rationale' })}
-        />
-      </div>
-
       <div className={`${sectionLabelClass} ${mutedInk}`} style={inBox(panel.notes.label)}>
         {SECTION_LABELS.notes}
       </div>
       {panel.notes.cells.map((r, i) => (
-        <div key={`note:${i}`} className="group/note absolute" style={inBox(r)}>
+        <div key={`feedback:${i}`} className="absolute" style={inBox(r)}>
           <CellInput
             multiline
             autoSize={false}
             className={`${inputClass} text-sm leading-normal ${ink}`}
             aria-label={`${label} のFB${i + 1}`}
-            data-cell={cellOf({ cell: 'note', noteIndex: i })}
+            data-cell={cellOf({ cell: 'feedback', feedbackIndex: i })}
             value={notes[i] ?? ''}
-            onValueChange={(next) => props.onNoteChange(i, next)}
+            onValueChange={(next) => props.onFeedbackTextChange(i, next)}
             onFieldKeyDown={(e, state) =>
-              props.onFieldKeyDown?.(e, state, { cell: 'note', noteIndex: i })
+              props.onFieldKeyDown?.(e, state, { cell: 'feedback', feedbackIndex: i })
             }
           />
-          {/* **イベントが1件以上あるときだけ出す**（0件では移動先が無く、
-              押しても何も起きないボタンになる）。**常時は出さない**——FB の
-              幅は測定した折り返し幅そのもので、上に不透明なボタンを重ねると
-              1行目の末尾が読めなくなる。ホバーだけでなく focus-within でも
-              出すので、キーボードでは FB の欄から Tab で辿り着ける */}
-          {events.length > 0 && (
-            <button
-              type="button"
-              className={`${buttonBase} invisible absolute top-0 right-0 border border-rule bg-surface px-1 text-sm ${ink} group-hover/note:visible group-focus-within/note:visible hover:bg-canvas`}
-              aria-label={`${label} のFB${i + 1} を根拠へ移す`}
-              onClick={() => props.onPromoteNote(i)}
-            >
-              根拠へ
-            </button>
-          )}
         </div>
       ))}
       <div className="absolute flex items-center" style={inBox(panel.notes.add)}>
@@ -358,7 +325,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
           type="button"
           className={`${buttonBase} ${ACTION_HEIGHT_CLASS} gap-1 border border-rule bg-surface px-1 text-sm ${mutedInk} hover:bg-canvas`}
           aria-label={`${label} にFBを足す`}
-          onClick={props.onAddNote}
+          onClick={props.onAddFeedback}
         >
           {ADD_NOTE_LABEL}
         </button>
