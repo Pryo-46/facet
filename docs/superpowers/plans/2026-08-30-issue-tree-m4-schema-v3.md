@@ -2539,7 +2539,9 @@ npx tsc -b
 npm run lint
 ```
 
-期待: **`npx tsc -b` と `npm run lint` は完全に緑。`npm test` は次の1件だけが赤で、それ以外は緑。**
+期待: **`npm run lint` は完全に緑。`npx tsc -b` は `src/modules/issue-tree/skill-write.smoke.test.ts` の4件だけが赤。`npm test` はその smoke テストと、下記のお手本の1件だけが赤で、それ以外は緑。**
+
+> **`skill-write.smoke.test.ts` は Task 10 の担当ファイルである。** 消えた derive の export（`deferralLine` / `deferredIssueCount` / `ISSUE_DEFERRED_LABEL` / `IssueTreeTally.judgement`）を参照したままなので、Task 4 の時点から赤い。**このタスクで直さないこと**——直すと Task 10 と衝突する。**型の波を閉じる（`tsc` と `lint` が完全に緑になる）のは Task 10 である。**
 
 > `src/modules/issue-tree/module.test.ts` の `お手本ファイル（sample-project）> schemaVersion 2 のお手本は editable で開け、保留が1件観測できる`
 >
@@ -2723,7 +2725,9 @@ npx tsc -b
 npm run lint
 ```
 
-期待: **`npx tsc -b` と `npm run lint` は完全に緑。`npm test` は Task 9 Step 5 と同じ1件——`module.test.ts` のお手本検証——だけが赤で、それ以外は緑**（お手本を v3 にするのは次の Task 11）。**この1件を緑にするためにお手本を先に書き換えないこと**——書き出しスクリプトを直し終えた状態で書き直すのが Task 11 の手順である。
+期待: **`npx tsc -b` と `npm run lint` が完全に緑になる。ここが型の波の終わりである**——`skill-write.smoke.test.ts` は Task 4 で消えた derive の export（`deferralLine` / `deferredIssueCount` / `ISSUE_DEFERRED_LABEL` / `IssueTreeTally.judgement`）を参照したまま赤く残っており、それを閉じるのがこの Task の Step 1 である。
+
+**`npm test` は Task 9 Step 5 と同じ1件——`module.test.ts` のお手本検証——だけが赤で、それ以外は緑**（お手本を v3 にするのは次の Task 11）。**この1件を緑にするためにお手本を先に書き換えないこと**——書き出しスクリプトを直し終えた状態で書き直すのが Task 11 の手順である。
 
 - [ ] **Step 7: コミット**
 
