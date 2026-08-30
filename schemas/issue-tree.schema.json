@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "issue-tree.schema.json",
-  "title": "課題ツリー (issueTree) schemaVersion 3",
+  "title": "課題ツリー (issueTree) schemaVersion 4",
   "description": "仕様整理ツール詰め合わせの課題ツリーファイル。PoCで「試さないと分からないこと」を課題として分解し、仮説・聞きたいこと・FB・判断を持つ。1ファイル＝1本の木（単一ルート。根はPoCテーマ等、種類は制約しない）。仮説・課題のステータスはミュータブルな値として持たず、イベント列の最新から導出する（仮説の判断も課題の旗も 0 件か 1 件。判断は差し替えでき、取り消して未決へ戻せる。旗は入り切りするトグル）。問いの立ち方は導出で決まる：子を持たない課題に仮説が無い／仮説のイベントが0件／最新が onHold／文言のある問い（asks）に FB が0件、の4つが問いとして立つ。祖先課題の最新イベントが deferred または resolved のとき配下の問いは立たない（抑制は導出であり、子に値をコピーしない）。キーの正規順序は本スキーマの properties 記載順とする。",
   "type": "object",
   "properties": {

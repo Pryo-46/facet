@@ -1,14 +1,14 @@
 import { FlaskConical } from 'lucide-react'
 import type { JsonSchema } from '@/core/canonical'
 import type { ToolModule } from '@/core/registry'
-import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import issueTreeSchema from '../../../schemas/issue-tree.schema.json'
 import { addRootIssue } from './commands'
 import { checkIssueTreeConsistency } from './consistency'
 import { IssueTreeEditor } from './IssueTreeEditor'
 import { migrateIssueTree } from './migrate'
 
-export const issueTreeModule: ToolModule<IssueTreeSchemaVersion3> = {
+export const issueTreeModule: ToolModule<IssueTreeSchemaVersion4> = {
   type: 'issueTree',
   displayName: '課題ツリー',
   icon: FlaskConical,

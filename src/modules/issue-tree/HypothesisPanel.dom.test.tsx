@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
-import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import { EVENT_KIND_LABELS, poseQuestions } from './derive'
 import { HypothesisPanel } from './HypothesisPanel'
 import {
@@ -51,7 +51,7 @@ const MENU_SENTINEL = '判断のトリガー（MENU）'
  * **判断は1件までである**——v4 のスキーマが `maxItems: 1` を課したので、
  * `Hypothesis['events']` は `[] | [JudgementEvent]` で、2件は型として作れない
  */
-const data: IssueTreeSchemaVersion3 = {
+const data: IssueTreeSchemaVersion4 = {
   schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',

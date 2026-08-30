@@ -7,7 +7,7 @@ import type {
   Feedback,
   Hypothesis,
   IssueNode,
-  IssueTreeSchemaVersion3,
+  IssueTreeSchemaVersion4,
   JudgementEvent,
 } from '@/types/issue-tree'
 import type { IssueEventKind } from './derive'
@@ -31,7 +31,7 @@ export type FocusTarget =
   | { cell: 'event'; index: number; eventIndex: number }
 
 export interface EditResult {
-  data: IssueTreeSchemaVersion3
+  data: IssueTreeSchemaVersion4
   /** 行き先が無いときは null */
   focus: FocusTarget | null
 }
@@ -58,7 +58,7 @@ type IssueEvents = IssueNode['events']
  *——ファイルにあるものが黙って減るのが一番たちが悪い（参照切れは
  * 整合性検証が赤くする）
  */
-export function normalizeOrder(data: IssueTreeSchemaVersion3): IssueTreeSchemaVersion3 {
+export function normalizeOrder(data: IssueTreeSchemaVersion4): IssueTreeSchemaVersion4 {
   const issues = orderFlatNodes(data.issues)
   const rank = new Map<string, number>()
   // ID 重複は先に現れた方を採る（core/canvas/flat-tree.ts と同じ規則）
@@ -82,7 +82,7 @@ function newIssue(parentId: string | null): IssueNode {
  * 課題の並びを動かさない。**通すのは仮説のため**——課題を動かすと
  * 「ぶら下がり先の課題の順」が崩れるので、ここで一緒に引き直す
  */
-function withIssues(data: IssueTreeSchemaVersion3, issues: IssueNode[]): IssueTreeSchemaVersion3 {
+function withIssues(data: IssueTreeSchemaVersion4, issues: IssueNode[]): IssueTreeSchemaVersion4 {
   return normalizeOrder({ ...data, issues })
 }
 
@@ -92,7 +92,7 @@ function withIssues(data: IssueTreeSchemaVersion3, issues: IssueNode[]): IssueTr
  * 呼び出し元が渡した index をそのまま使うと別の課題を操作する
  */
 function prepare(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
 ): { issues: IssueNode[]; built: BuiltTree; i: number } | null {
   const ref = data.issues[index]
@@ -108,14 +108,14 @@ function prepare(
  * 到達不能ノードを末尾へ寄せるため、末尾に足した新ルートは `withIssues` の
  * 正規化で前へ戻る。足した位置をそのまま使うと別の実在ノードを指す
  */
-export function addRootIssue(data: IssueTreeSchemaVersion3): EditResult {
+export function addRootIssue(data: IssueTreeSchemaVersion4): EditResult {
   const created = newIssue(null)
   const next = withIssues(data, [...orderFlatNodes(data.issues), created])
   return { data: next, focus: { cell: 'issue', index: next.issues.indexOf(created) } }
 }
 
 /** 末尾の子を足す（Tab／ノードの「+」ハンドルが呼ぶのはこの関数） */
-export function addChildIssue(data: IssueTreeSchemaVersion3, parentIndex: number): EditResult {
+export function addChildIssue(data: IssueTreeSchemaVersion4, parentIndex: number): EditResult {
   const p = prepare(data, parentIndex)
   if (p === null) return { data, focus: null }
   // 行きがけ順では「部分木の直後」がそのまま「末尾の子の位置」になる
@@ -129,7 +129,7 @@ export function addChildIssue(data: IssueTreeSchemaVersion3, parentIndex: number
  * **ルートの上では子を足す**——ルートに兄弟を作ると多重ルートになり、
  * 単一ルートの木という制約と両立しない
  */
-export function addSiblingIssueAfter(data: IssueTreeSchemaVersion3, index: number): EditResult {
+export function addSiblingIssueAfter(data: IssueTreeSchemaVersion4, index: number): EditResult {
   const p = prepare(data, index)
   if (p === null) return { data, focus: null }
   if (p.built.parents[p.i] === null) return addChildIssue(withIssues(data, p.issues), p.i)
@@ -146,7 +146,7 @@ export function addSiblingIssueAfter(data: IssueTreeSchemaVersion3, index: numbe
  * 確認ダイアログは挟まない（rev 5章。会議中の入力速度を削ぐため）。
  * 1操作1コミットの Undo で戻せる
  */
-export function deleteIssueSubtree(data: IssueTreeSchemaVersion3, index: number): EditResult {
+export function deleteIssueSubtree(data: IssueTreeSchemaVersion4, index: number): EditResult {
   const p = prepare(data, index)
   if (p === null) return { data, focus: null }
   const end = subtreeEnd(p.built, p.i)
@@ -178,7 +178,7 @@ export function deleteIssueSubtree(data: IssueTreeSchemaVersion3, index: number)
  *——先に削除すると後続が前へずれ、下方向への移動が1つ手前に着地する
  */
 export function moveIssueSibling(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   delta: -1 | 1,
 ): EditResult {
@@ -209,10 +209,10 @@ export function moveIssueSibling(
  * 入力中のノードの配列位置がずれてフォーカスを見失う
  */
 export function setIssueText(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   text: string,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   return { ...data, issues: data.issues.map((n, i) => (i === index ? { ...n, text } : n)) }
 }
 
@@ -230,10 +230,10 @@ function newHypothesis(issueId: string): Hypothesis {
 }
 
 function replaceHypothesis(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   next: Hypothesis,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   return { ...data, hypotheses: data.hypotheses.map((h, i) => (i === index ? next : h)) }
 }
 
@@ -244,7 +244,7 @@ function replaceHypothesis(
  * 制約違反にすると、形式的な子ノードを作る迂回入力を強いることになる。
  * 「仮説は？」の問いが葉にしか立たないのは別の話で、そちらは derive.ts の担当
  */
-export function addHypothesis(data: IssueTreeSchemaVersion3, issueIndex: number): EditResult {
+export function addHypothesis(data: IssueTreeSchemaVersion4, issueIndex: number): EditResult {
   const issue = data.issues[issueIndex]
   if (issue === undefined) return { data, focus: null }
   const created = newHypothesis(issue.id)
@@ -255,7 +255,7 @@ export function addHypothesis(data: IssueTreeSchemaVersion3, issueIndex: number)
 }
 
 /** 直後に仮説を足す（仮説セルでの Enter）。**同じ課題にぶら下げる** */
-export function addHypothesisAfter(data: IssueTreeSchemaVersion3, index: number): EditResult {
+export function addHypothesisAfter(data: IssueTreeSchemaVersion4, index: number): EditResult {
   const ref = data.hypotheses[index]
   if (ref === undefined) return { data, focus: null }
   const created = newHypothesis(ref.issueId)
@@ -264,7 +264,7 @@ export function addHypothesisAfter(data: IssueTreeSchemaVersion3, index: number)
 }
 
 /** 仮説を消す（空欄 Backspace）。イベントも FB も一緒に消える */
-export function deleteHypothesis(data: IssueTreeSchemaVersion3, index: number): EditResult {
+export function deleteHypothesis(data: IssueTreeSchemaVersion4, index: number): EditResult {
   if (data.hypotheses[index] === undefined) return { data, focus: null }
   const kept = removeAt(data.hypotheses, index)
   const at = index > 0 && kept[index - 1]?.issueId === data.hypotheses[index].issueId ? index - 1 : null
@@ -277,7 +277,7 @@ export function deleteHypothesis(data: IssueTreeSchemaVersion3, index: number): 
  * 「並び替え」が「付け替え」に化ける
  */
 export function moveHypothesis(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   delta: -1 | 1,
 ): EditResult {
@@ -297,30 +297,30 @@ export function moveHypothesis(
  * 配列が動くと、入力中の仮説の配列位置がずれてフォーカスを見失う。
  */
 export function setHypothesisTitle(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   title: string,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   const h = data.hypotheses[index]
   return h === undefined ? data : replaceHypothesis(data, index, { ...h, title })
 }
 
 /** 仮説の詳細（どう作るか）を置き換える。**並べ替えない**（`setHypothesisTitle` と同じ理由） */
 export function setHypothesisDetail(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   detail: string,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   const h = data.hypotheses[index]
   return h === undefined ? data : replaceHypothesis(data, index, { ...h, detail })
 }
 
 /** 価値仮説（なぜ効くか）を置き換える。**並べ替えない**（`setHypothesisTitle` と同じ理由） */
 export function setHypothesisValue(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   value: string,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   const h = data.hypotheses[index]
   return h === undefined ? data : replaceHypothesis(data, index, { ...h, value })
 }
@@ -330,7 +330,7 @@ function newAsk(): Ask {
 }
 
 /** 問いを1件足す（「＋ 聞きたいことを追加」ボタン） */
-export function addAsk(data: IssueTreeSchemaVersion3, index: number): EditResult {
+export function addAsk(data: IssueTreeSchemaVersion4, index: number): EditResult {
   const h = data.hypotheses[index]
   if (h === undefined) return { data, focus: null }
   const asks = [...h.asks, newAsk()]
@@ -342,11 +342,11 @@ export function addAsk(data: IssueTreeSchemaVersion3, index: number): EditResult
 
 /** 問いの文言を書き換える。**並べ替えない**（`setHypothesisTitle` と同じ理由） */
 export function setAskText(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   askIndex: number,
   text: string,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   const h = data.hypotheses[index]
   if (h === undefined || h.asks[askIndex] === undefined) return data
   return replaceHypothesis(data, index, {
@@ -371,7 +371,7 @@ export function setAskText(
  * その扱いは画面側（Task 5）の仕事で、ここでは何もしない
  */
 export function removeAsk(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   askIndex: number,
 ): EditResult {
@@ -399,7 +399,7 @@ function newFeedback(askId: string | null, today: string): Feedback {
  * 配線を忘れた「＋FB」が黙ってどの問いにも紐づかない FB を作る
  */
 export function addFeedback(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   askId: string | null,
   today: string = todayString(),
@@ -419,7 +419,7 @@ export function addFeedback(
  * フォーカスが展開パネルの一番下へ飛ぶ（`addHypothesisAfter` と同じ規律）
  */
 export function addFeedbackAfter(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   feedbackIndex: number,
   today: string = todayString(),
@@ -442,11 +442,11 @@ export function addFeedbackAfter(
  * 発言日が今日になる）
  */
 export function setFeedbackText(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   feedbackIndex: number,
   text: string,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   const h = data.hypotheses[index]
   if (h === undefined || h.feedbacks[feedbackIndex] === undefined) return data
   return replaceHypothesis(data, index, {
@@ -468,11 +468,11 @@ export function setFeedbackText(
  * `JUDGEMENT_MENU_ORDER` の註が名指ししている失敗と同じ形である
  */
 export function setFeedbackSentiment(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   feedbackIndex: number,
   sentiment: Feedback['sentiment'],
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   const h = data.hypotheses[index]
   const current = h?.feedbacks[feedbackIndex]
   // **同じ調子を選び直したら「動かなかった編集」**（`moveFeedback` と同じ約束で
@@ -495,7 +495,7 @@ export function setFeedbackSentiment(
  * 仮説の文言だけなので、そこへ返す
  */
 export function removeFeedback(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   feedbackIndex: number,
 ): EditResult {
@@ -518,7 +518,7 @@ export function removeFeedback(
  *（`moveHypothesis` と同じ約束。呼び出し側はこれで履歴の空振りを落とす）
  */
 export function moveFeedback(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   feedbackIndex: number,
   delta: -1 | 1,
@@ -561,7 +561,7 @@ export function moveFeedback(
  * 移す操作は分かりづらいわりに何も要約していない）
  */
 export function setJudgement(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   kind: JudgementEvent['kind'],
   today: string = todayString(),
@@ -605,7 +605,7 @@ export function setJudgement(
  * その形は開かなくなり、**生成される型がタプル（`[] | [JudgementEvent]`）に
  * なったので、2つの書き方の区別そのものが型から消えた**
  */
-export function clearJudgement(data: IssueTreeSchemaVersion3, index: number): EditResult {
+export function clearJudgement(data: IssueTreeSchemaVersion4, index: number): EditResult {
   const h = data.hypotheses[index]
   if (h === undefined || h.events.length === 0) return { data, focus: null }
   const events: JudgementEvents = []
@@ -640,14 +640,17 @@ export function clearJudgement(data: IssueTreeSchemaVersion3, index: number): Ed
  * 「別の旗が立っていたらどうするか」を自分で決めることになり、規則2が
  * 呼び出し箇所の数だけ生える。
  *
- * **消すのは最新の1件だけ。** v4 のスキーマは `maxItems: 1` を課したので、
- * 開けるファイルの列は高々1件である（それまでは手書きの2件以上が開けた）。
- * それでも「全部消す」に変えないのは、**「1件消す」と「空にする」の区別が
- * 実装から消える**ためで、列の規律が緩んだ日に、書いた人が見ていない過去の
- * 理由まで1押しで飛ぶ（`clearJudgement` も同じ形にしてある）
+ * **v3 まではここが `node.events.slice(0, -1)` に足す形だった。** スキーマが
+ * この列に `maxItems: 1` を課していなかったので**手書きの2件以上のファイルが
+ * 開け**、「全部消すと、書いた人が見ていない過去の理由まで1押しで飛ぶ」を
+ * 避ける必要があった（`schema.test.ts` にも「排他はスキーマの担当ではない」と
+ * いう逆向きの `it` が置かれていた。反転の経緯はそちらの註にある）。
+ * **v4 で `maxItems: 1` を課したのでその入力は開かなくなり、型もタプル
+ * （`[] | [IssueEvent]`）になって「残す前半」が表現できなくなった**
+ *（`clearJudgement` も同じ形にしてある）
  */
 export function toggleIssueEvent(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   kind: IssueEventKind,
   today: string = todayString(),
@@ -680,10 +683,10 @@ export function toggleIssueEvent(
  * 旗が1件も無い課題では**同じ参照を返す**——`apply` がそれを見て何もしない契約
  */
 export function setIssueEventNote(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   note: string,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   const node = data.issues[index]
   const current = node?.events[0]
   if (node === undefined || current === undefined) return data
@@ -704,11 +707,11 @@ export function setIssueEventNote(
  * 以外は書き換わらない。誤って付けた判断は `clearJudgement` が取り消す
  */
 export function setEventNote(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   eventIndex: number,
   note: string,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   const h = data.hypotheses[index]
   const current = h?.events[0]
   if (h === undefined || current === undefined || eventIndex !== h.events.length - 1) return data

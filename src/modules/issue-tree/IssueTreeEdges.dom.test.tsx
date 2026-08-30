@@ -5,7 +5,7 @@ import { edgePath } from '@/core/canvas/edges'
 import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { INITIAL_TRANSFORM } from '@/core/canvas/viewport'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
-import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import { poseQuestions, suppressedIssueIds } from './derive'
 import { IssueTreeEdges } from './IssueTreeEdges'
 import { layoutIssueTree } from './layout'
@@ -35,7 +35,7 @@ const fonts = {
  * 課題0（根）にだけ仮説の行を2本ぶら下げてある。行は箱の高さを押し広げるので、
  * **線が箱の矩形から引かれていれば座標が変わる。**
  */
-const data: IssueTreeSchemaVersion3 = {
+const data: IssueTreeSchemaVersion4 = {
   schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',

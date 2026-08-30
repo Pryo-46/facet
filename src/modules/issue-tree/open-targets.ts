@@ -1,4 +1,4 @@
-import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import type { FocusTarget } from './commands'
 import { awaitingAskCount, latestKind, type IssueEventKind, type PosedQuestions } from './derive'
 
@@ -52,7 +52,7 @@ export interface OpenTarget {
  * 「未決 2」なら2回で一巡する、が4種すべてで成り立つ。m5 Task 8）
  */
 export function listOpenTargets(
-  data: Pick<IssueTreeSchemaVersion3, 'issues' | 'hypotheses'>,
+  data: Pick<IssueTreeSchemaVersion4, 'issues' | 'hypotheses'>,
   posed: PosedQuestions,
 ): OpenTarget[] {
   /** 課題 ID → ぶら下がる仮説の添字（配列順） */
@@ -145,7 +145,7 @@ export function nextOpenTarget(
  * 種別を引数に取っているのと形が食い違い、片方だけ直される余地が生まれる
  */
 export function listFlaggedTargets(
-  data: Pick<IssueTreeSchemaVersion3, 'issues'>,
+  data: Pick<IssueTreeSchemaVersion4, 'issues'>,
   kind: IssueEventKind,
 ): FocusTarget[] {
   const out: FocusTarget[] = []

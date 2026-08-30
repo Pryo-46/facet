@@ -3,7 +3,7 @@ import type {
   Hypothesis,
   IssueEvent,
   IssueNode,
-  IssueTreeSchemaVersion3,
+  IssueTreeSchemaVersion4,
   JudgementEvent,
 } from '@/types/issue-tree'
 
@@ -165,7 +165,7 @@ export function awaitingAskCount(h: Pick<Hypothesis, 'asks' | 'feedbacks'>): num
  * `duplicate-id`）がそれを促す
  */
 export function poseQuestions(
-  data: Pick<IssueTreeSchemaVersion3, 'issues' | 'hypotheses'>,
+  data: Pick<IssueTreeSchemaVersion4, 'issues' | 'hypotheses'>,
 ): PosedQuestions {
   const suppressed = suppressedIssueIds(data.issues)
   const leaves = leafIssueIds(data.issues)
@@ -221,10 +221,16 @@ export const QUESTION_LABELS = {
 } as const
 
 /**
- * イベント種別の表示ラベル（展開したときの「以前の判断」に出る文言）。
+ * 判断の種別の表示ラベル（展開したパネルのバッジ・その根拠のアクセシブル名・
+ * 判断を選ぶドロップダウンの項目に出る文言）。
+ *
+ * **v4 まではここに「以前の判断」の節も含まれていた**——覆される前の判断を
+ * 読み取り専用で並べる節があり、その行のバッジがこの語を出していた。仮説の
+ * `events` が `maxItems: 1` になって覆りがデータに残らなくなったので、
+ * 節ごと消えた（設計ノート D2 の反転節）。
  *
  * **いまは `BADGE_LABELS` と同じ語しか並んでいない**——判断の種別を5語に畳んだ
- * ため、俯瞰のバッジと展開の行が同じ言葉を出す。それでも `BADGE_LABELS` と
+ * ため、俯瞰のバッジと展開のバッジが同じ言葉を出す。それでも `BADGE_LABELS` と
  * 別に置くのは、鍵が違う（こちらは `JudgementKind`、あちらは `BadgeGroup`）
  * からであり、俯瞰と詳細をまた別の言葉に分けたくなったとき、片方だけ動かせる
  * ようにしておくため（`ISSUE_EVENT_LABELS` を別に置いているのと同じ理由）

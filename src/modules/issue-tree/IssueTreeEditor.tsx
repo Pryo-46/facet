@@ -34,7 +34,7 @@ import {
 import { currentPlatform } from '@/core/keyboard/platform'
 import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
-import type { Hypothesis, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { Hypothesis, IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import { badgeVariantOf, FLAG_BADGE_GROUPS } from './badge-variant'
 import { cellKey, hypothesisCellKey, issueCellKey, issueEventCellKey } from './cell-keys'
 import {
@@ -345,7 +345,7 @@ function KindMenu(props: KindMenuProps) {
  * 変えた直後は差し替え後のデータで引かねばならないため（`goTo` の約束）
  */
 function ownerIssueKey(
-  source: IssueTreeSchemaVersion3,
+  source: IssueTreeSchemaVersion4,
   issueKeys: readonly string[],
   hypothesisIndex: number,
 ): string | null {
@@ -387,7 +387,7 @@ export function IssueTreeEditor({
   onChange,
   issues,
   modalOpen,
-}: EditorProps<IssueTreeSchemaVersion3>) {
+}: EditorProps<IssueTreeSchemaVersion4>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const titleProbeRef = useRef<HTMLSpanElement>(null)
   const expandedTitleProbeRef = useRef<HTMLSpanElement>(null)
@@ -633,7 +633,7 @@ export function IssueTreeEditor({
    * `source` は行き先の添字を読むデータ。**`apply` は差し替えた後のものを渡す**
    *——構造が変わった後の配列で鍵を作らないと、予約が別の行に当たる
    */
-  const goTo = (focus: FocusTarget, source: IssueTreeSchemaVersion3 = data): void => {
+  const goTo = (focus: FocusTarget, source: IssueTreeSchemaVersion4 = data): void => {
     const nextIssueKeys = computeRowKeys(source.issues)
     const nextHypothesisKeys = computeRowKeys(source.hypotheses)
     // **行き先が仮説の欄なら、先にその仮説の持ち主の課題を展開する。** 畳まれた行に

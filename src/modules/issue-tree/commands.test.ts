@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Feedback, Hypothesis, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { Feedback, Hypothesis, IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import {
   addAsk,
   addChildIssue,
@@ -29,7 +29,7 @@ const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
 
 /** 根(0) — 子(1) — 孫(2), 孫(4) ／ 根 — 子(3)。兄弟3つ・深さ2を含む */
-function base(): IssueTreeSchemaVersion3 {
+function base(): IssueTreeSchemaVersion4 {
   return {
     schemaVersion: 4,
     type: 'issueTree',
@@ -59,7 +59,7 @@ const Z = I(14)
  * 根 R — X, Y, Z（兄弟3つ）／ Y — Ychild。
  * 仮説の id は H(11)=X / H(12)=Y / H(13)=Ychild / H(14)=Z にぶら下がる
  */
-function branched(hypothesisIds: string[]): IssueTreeSchemaVersion3 {
+function branched(hypothesisIds: string[]): IssueTreeSchemaVersion4 {
   const issueOf: Record<string, string> = { [H(11)]: X, [H(12)]: Y, [H(13)]: YCHILD, [H(14)]: Z }
   return {
     schemaVersion: 4,
@@ -130,7 +130,7 @@ describe('課題の構造編集', () => {
   it('循環を含むファイルに根を足しても、フォーカスは足した課題を指す', () => {
     // 出力を正規化する以上、**位置は参照の同一性で引き直さないと**
     // 別の実在ノード（循環側）を指す——空欄だと思って打つと他人の文言を潰す
-    const d: IssueTreeSchemaVersion3 = {
+    const d: IssueTreeSchemaVersion4 = {
       schemaVersion: 4,
       type: 'issueTree',
       title: 'T',
@@ -235,7 +235,7 @@ describe('仮説とFB', () => {
    * 「全部を差し替える」実装と区別できない。FB も3件持たせる——2件だと
    * 上下の入れ替えが同じ結果になり、向きの取り違えを検出できない
    */
-  function withFeedbacks(): IssueTreeSchemaVersion3 {
+  function withFeedbacks(): IssueTreeSchemaVersion4 {
     const d = normalizeOrder(base())
     return {
       ...d,
@@ -386,7 +386,7 @@ describe('詳細・価値仮説・聞きたいこと（m5）', () => {
   })
 
   /** 問い3件を持つ仮説を用意する（`removeAsk` が末尾を消す実装でも件数だけで区別できないよう2件目を狙う） */
-  function withAsks(): IssueTreeSchemaVersion3 {
+  function withAsks(): IssueTreeSchemaVersion4 {
     const d = base()
     return {
       ...d,

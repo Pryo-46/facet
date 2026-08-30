@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
-import type { Hypothesis, IssueNode, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { Hypothesis, IssueNode, IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import { ISSUE_EVENT_LABELS, poseQuestions } from './derive'
 import { layoutIssueTree, SECTION_LABELS, type IssueTreeFonts, type IssueTreeLayout } from './layout'
 import {
@@ -47,11 +47,11 @@ const fonts: IssueTreeFonts = {
  * 選択された課題は、仮説を1本以上持っていれば開く——0本なら開かないまま
  * 末尾の「＋ 仮説を追加」だけを持つ
  */
-function run(data: IssueTreeSchemaVersion3, selectedIssueIndex = -1) {
+function run(data: IssueTreeSchemaVersion4, selectedIssueIndex = -1) {
   return layoutIssueTree(data, poseQuestions(data), fonts, selectedIssueIndex)
 }
 
-function make(over: Partial<IssueTreeSchemaVersion3>): IssueTreeSchemaVersion3 {
+function make(over: Partial<IssueTreeSchemaVersion4>): IssueTreeSchemaVersion4 {
   return { schemaVersion: 4, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
 }
 

@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { badgeClass, BADGE_BOX_HEIGHT, type BadgeVariant } from '@/components/badge-styles'
 import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { todayString } from '@/core/today'
-import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import { badgeVariantOf, FLAG_BADGE_GROUPS } from './badge-variant'
 import {
   BADGE_LABELS,
@@ -38,7 +38,7 @@ const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
  *——葉の直後で足すと `Tab`（子課題）と `Enter`（兄弟課題）が同じ配列位置・
  * 同じラベルになり、写像を差し替えても緑のままになる（logic-tree M1 が踏んだ形）
  */
-const file = (): IssueTreeSchemaVersion3 => ({
+const file = (): IssueTreeSchemaVersion4 => ({
   schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',
@@ -66,8 +66,8 @@ function Harness({
   initial,
   onChange,
 }: {
-  initial: IssueTreeSchemaVersion3
-  onChange?: (next: IssueTreeSchemaVersion3, mergeKey?: string | null) => void
+  initial: IssueTreeSchemaVersion4
+  onChange?: (next: IssueTreeSchemaVersion4, mergeKey?: string | null) => void
 }) {
   const [data, setData] = useState(initial)
   return (
@@ -398,7 +398,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
    *   いまいと薄い。入る線も破線
    */
   it('見送りが入れ子でも、配下は薄いまま（自分も見送っている C が濃く戻らない）', () => {
-    const nested: IssueTreeSchemaVersion3 = {
+    const nested: IssueTreeSchemaVersion4 = {
       schemaVersion: 4,
       type: 'issueTree',
       title: 'テスト',
@@ -470,7 +470,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
   // （ink-faint か否か）が運ぶ——それはこのテストと「入れ子でも配下は
   // 薄いまま」のテストが両側から見ている
   it('見送りの枝（当人と配下）だけが bg-surface-muted を持ち、通常の箱は持たない', () => {
-    const nested: IssueTreeSchemaVersion3 = {
+    const nested: IssueTreeSchemaVersion4 = {
       schemaVersion: 4,
       type: 'issueTree',
       title: 'テスト',
@@ -552,7 +552,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     const reason = screen.getByRole('textbox', { name: '課題1 の見送りの理由' })
     expect((reason as HTMLTextAreaElement).value).toBe('本開発の設計と一緒に決める')
     fireEvent.change(reason, { target: { value: '通知は本開発で扱う' } })
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion4 = onChange.mock.calls[0][0]
     expect(next.issues[0].events).toEqual([
       { kind: 'deferred', note: '通知は本開発で扱う', date: '2026-08-30' },
     ])
@@ -587,7 +587,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
     expect(toggle.getAttribute('aria-pressed')).toBe('true')
     fireEvent.click(toggle)
 
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion4 = onChange.mock.calls[0][0]
     expect(next.issues[0].events).toEqual([])
     // 理由の欄は消え、トグルは切りに戻る（面もバッジから小ボタンへ戻る）
     expect(screen.queryByRole('textbox', { name: '課題1 の見送りの理由' })).toBeNull()
@@ -605,7 +605,7 @@ describe('IssueTreeEditor（見送りと抑制）', () => {
  * 未決2件（同じ課題）と「仮説なし」1件が同時に立つ形。**同じ種類が2件ある**ので、
  * チップを押し続けたときの巡回（末尾なら先頭へ）が見える
  */
-const openFile = (): IssueTreeSchemaVersion3 => ({
+const openFile = (): IssueTreeSchemaVersion4 => ({
   schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',
@@ -625,7 +625,7 @@ const openFile = (): IssueTreeSchemaVersion3 => ({
  * 保留だけを別のファイルで見ると「どちらも警告色の枠」までしか言えず、
  * `kind === 'hold'` の分岐を壊しても緑になる。同じ帯に4つ並べて突き合わせる
  */
-const allKindsFile = (): IssueTreeSchemaVersion3 => ({
+const allKindsFile = (): IssueTreeSchemaVersion4 => ({
   schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',
@@ -670,7 +670,7 @@ const allKindsFile = (): IssueTreeSchemaVersion3 => ({
  * 判断を付けてあるのは、未決を立てないため（未決が立つと帯に別のチップが増える）。
  * 根は葉ではないので「仮説なし」も立たず、**帯に出るのは FB待ち だけ**になる
  */
-const askFile = (): IssueTreeSchemaVersion3 => ({
+const askFile = (): IssueTreeSchemaVersion4 => ({
   schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',
@@ -880,7 +880,7 @@ describe('IssueTreeEditor（帯）', () => {
       issueCell(1).focus()
     })
     fireEvent.click(screen.getByRole('button', { name: '仮説を追加' }))
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion4 = onChange.mock.calls[0][0]
     expect(next.hypotheses).toHaveLength(2)
     expect(next.hypotheses.some((h) => h.issueId === I(1))).toBe(true)
   })
@@ -897,14 +897,14 @@ describe('IssueTreeEditor（帯）', () => {
     openHypothesis(1)
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説1' }))
     fireEvent.click(screen.getByRole('button', { name: '仮説を追加' }))
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls.at(-1)?.[0]
+    const next: IssueTreeSchemaVersion4 = onChange.mock.calls.at(-1)?.[0]
     expect(next.hypotheses).toHaveLength(3)
     expect(next.hypotheses.filter((h) => h.issueId === I(2))).toHaveLength(3)
   })
 })
 
 /** 見送りを掲げた課題が2件（うち1件は入れ子）あるファイル */
-const deferredFile = (): IssueTreeSchemaVersion3 => ({
+const deferredFile = (): IssueTreeSchemaVersion4 => ({
   schemaVersion: 4,
   type: 'issueTree',
   title: '見送りの帯',
@@ -1059,7 +1059,7 @@ describe('IssueTreeEditor（解決の旗と帯のチップ）', () => {
     // 課題1に見送り・課題2に解決を立てる。**`FLAG_KINDS` を回さず「0件でない
     // 先頭の種別だけ描く」実装でも、片方だけを見るテストは両方とも緑を通る**
     //——だからこの1本で「2つが同時に並ぶ」経路を踏む
-    const bothFlagged: IssueTreeSchemaVersion3 = {
+    const bothFlagged: IssueTreeSchemaVersion4 = {
       ...base,
       issues: base.issues.map((n, i) => {
         if (i === 0) return { ...n, events: [{ kind: 'deferred' as const, note: '', date: '2026-08-30' }] }
@@ -1077,7 +1077,7 @@ describe('IssueTreeEditor（解決の旗と帯のチップ）', () => {
     cleanup()
 
     // **0件のほうは描かれないことも失わない**（解決だけが立つケース）
-    const onlyResolved: IssueTreeSchemaVersion3 = {
+    const onlyResolved: IssueTreeSchemaVersion4 = {
       ...base,
       issues: base.issues.map((n, i) =>
         i === 0 ? { ...n, events: [{ kind: 'resolved' as const, note: '', date: '2026-08-30' }] } : n,
@@ -1103,14 +1103,14 @@ describe('IssueTreeEditor（解決の旗と帯のチップ）', () => {
  */
 describe('IssueTreeEditor（旗の面と幅。m5 の実機確認）', () => {
   /** 課題1件だけの木。旗の有無と種別だけを変える */
-  const oneIssue = (events: IssueTreeSchemaVersion3['issues'][number]['events']): IssueTreeSchemaVersion3 => ({
+  const oneIssue = (events: IssueTreeSchemaVersion4['issues'][number]['events']): IssueTreeSchemaVersion4 => ({
     schemaVersion: 4,
     type: 'issueTree',
     title: 'テスト',
     issues: [{ id: I(1), parentId: null, text: '根', events }],
     hypotheses: [],
   })
-  const flagged = (kind: 'deferred' | 'resolved'): IssueTreeSchemaVersion3['issues'][number]['events'] => [
+  const flagged = (kind: 'deferred' | 'resolved'): IssueTreeSchemaVersion4['issues'][number]['events'] => [
     { kind, note: '理由', date: '2026-08-30' },
   ]
   const boxOf = (n: number): HTMLElement => {
@@ -1141,7 +1141,7 @@ describe('IssueTreeEditor（旗の面と幅。m5 の実機確認）', () => {
    * 凍結された枝の中で解決の箱だけが緑のバッジで灯る
    */
   it('祖先由来の抑制が立つと、見送りも解決もバッジは faint に落ちる', () => {
-    const nested: IssueTreeSchemaVersion3 = {
+    const nested: IssueTreeSchemaVersion4 = {
       schemaVersion: 4,
       type: 'issueTree',
       title: 'テスト',
@@ -1215,7 +1215,7 @@ describe('IssueTreeEditor（旗の面と幅。m5 の実機確認）', () => {
    * 読めてしまう
    */
   it('祖先が旗を掲げていれば、自分が解決でも surface-muted ＋ ink-faint に落ちる', () => {
-    const nested: IssueTreeSchemaVersion3 = {
+    const nested: IssueTreeSchemaVersion4 = {
       schemaVersion: 4,
       type: 'issueTree',
       title: 'テスト',
@@ -1279,7 +1279,7 @@ describe('IssueTreeEditor（旗の面と幅。m5 の実機確認）', () => {
     // 課題1に見送りを立てると課題2は祖先由来で抑制され、バッジが faint に
     // 落ちて「帯と同じ面か」を比べる意味が消える（実際に一度そうなった）。
     // 抑制は祖先由来だけなので、兄弟どうしなら互いに影響しない
-    const siblings: IssueTreeSchemaVersion3 = {
+    const siblings: IssueTreeSchemaVersion4 = {
       schemaVersion: 4,
       type: 'issueTree',
       title: 'テスト',
@@ -1417,7 +1417,7 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
    * 「常に出す」に変えた実装も、条件を反転した実装も、どちらかは緑で通る
    */
   it('「取り消す」は判断があるときだけ候補に並ぶ', async () => {
-    const judged: IssueTreeSchemaVersion3 = {
+    const judged: IssueTreeSchemaVersion4 = {
       ...file(),
       hypotheses: [
         { ...file().hypotheses[0], events: [{ kind: 'rejected', note: '実機で3秒超', date: '2026-08-13' }] },
@@ -1455,7 +1455,7 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
    */
   it('判断を選び直すと差し替わり（列は1件のまま）、課題は畳まれない', async () => {
     const onChange = vi.fn()
-    const judged: IssueTreeSchemaVersion3 = {
+    const judged: IssueTreeSchemaVersion4 = {
       ...file(),
       hypotheses: [
         { ...file().hypotheses[0], events: [{ kind: 'rejected', note: '実機で3秒超', date: '2026-08-13' }] },
@@ -1467,7 +1467,7 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
     fireEvent.pointerDown(screen.getByRole('button', { name: '仮説1に判断を追加' }), { button: 0 })
     fireEvent.click(await screen.findByRole('menuitem', { name: EVENT_KIND_LABELS.supported }))
 
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion4 = onChange.mock.calls[0][0]
     expect(next.hypotheses[0].events).toHaveLength(1)
     expect(next.hypotheses[0].events).toEqual([
       { kind: 'supported', note: '', date: todayString() },
@@ -1492,7 +1492,7 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
    */
   it('「取り消す」で判断が消え、バッジが未決に戻り、課題は畳まれない', async () => {
     const onChange = vi.fn()
-    const judged: IssueTreeSchemaVersion3 = {
+    const judged: IssueTreeSchemaVersion4 = {
       ...file(),
       hypotheses: [
         { ...file().hypotheses[0], events: [{ kind: 'rejected', note: '実機で3秒超', date: '2026-08-13' }] },
@@ -1507,7 +1507,7 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
     fireEvent.pointerDown(screen.getByRole('button', { name: '仮説1に判断を追加' }), { button: 0 })
     fireEvent.click(await screen.findByRole('menuitem', { name: CLEAR_JUDGEMENT_LABEL }))
 
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion4 = onChange.mock.calls[0][0]
     expect(next.hypotheses[0].events).toEqual([])
     expect(onChange.mock.calls[0][1]).toBe(null)
     // **開いたまま**であること
@@ -1526,7 +1526,7 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
     openHypothesis(1)
     fireEvent.pointerDown(screen.getByRole('button', { name: '仮説1に判断を追加' }), { button: 0 })
     fireEvent.click(await screen.findByRole('menuitem', { name: EVENT_KIND_LABELS.rejected }))
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion4 = onChange.mock.calls[0][0]
     // `date` はエディタが `appendJudgement` を今日の日付（既定引数）で呼ぶ
     expect(next.hypotheses[0].events).toEqual([{ kind: 'rejected', note: '', date: todayString() }])
     // 構造の変更は履歴をまとめない（1操作1コミット）
@@ -1562,7 +1562,7 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
   it('FB のアイコンから調子を選ぶと保存され、課題は畳まれない', async () => {
     const onChange = vi.fn()
     const base = file()
-    const withFeedback: IssueTreeSchemaVersion3 = {
+    const withFeedback: IssueTreeSchemaVersion4 = {
       ...base,
       hypotheses: [
         {
@@ -1588,7 +1588,7 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
     fireEvent.pointerDown(trigger, { button: 0 })
     fireEvent.click(await screen.findByRole('menuitem', { name: SENTIMENT_LABELS.concern }))
 
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion4 = onChange.mock.calls[0][0]
     expect(next.hypotheses[0].feedbacks[0]).toEqual({
       askId: null,
       text: '待ち表示があるなら離脱しない',
@@ -1615,13 +1615,13 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
     render(<Harness initial={allKindsFile()} onChange={onChange} />)
     openHypothesis(3)
     fireEvent.click(screen.getByRole('button', { name: '仮説3 の聞きたいこと1にFBを足す' }))
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion4 = onChange.mock.calls[0][0]
     expect(next.hypotheses[2].feedbacks).toEqual([
       { askId: 'ask_AAAAAAAAAA', text: '', by: '', sentiment: 'note', date: todayString() },
     ])
     // 節の末尾の「＋ FBを追加」はどの問いにも紐づかない FB を作る（対の動線）
     fireEvent.click(screen.getByRole('button', { name: '仮説3 にFBを足す' }))
-    const loose: IssueTreeSchemaVersion3 = onChange.mock.calls[1][0]
+    const loose: IssueTreeSchemaVersion4 = onChange.mock.calls[1][0]
     expect(loose.hypotheses[2].feedbacks.at(-1)?.askId).toBeNull()
   })
 
@@ -1663,7 +1663,7 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
  */
 describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task 7）', () => {
   /** 課題3 に仮説3件。**2件だと「常に末尾を消す」実装と区別が付かない** */
-  const threeHypotheses = (): IssueTreeSchemaVersion3 => {
+  const threeHypotheses = (): IssueTreeSchemaVersion4 => {
     const base = file()
     return {
       ...base,
@@ -1681,7 +1681,7 @@ describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task
     // 課題ごと開く（3本ともパネルになる）
     openHypothesis(2)
     fireEvent.click(screen.getByRole('button', { name: '仮説2を削除' }))
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion4 = onChange.mock.calls[0][0]
     // **件数を数えない**——「常に末尾を消す」実装も 3件→2件になる。残った文言で見る
     expect(next.hypotheses.map((h) => h.title)).toEqual(['仮説A', '仮説C'])
     // 構造の変更は履歴をまとめない（1操作1コミット）
@@ -1777,7 +1777,7 @@ describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task
    */
   it('展開したノード末尾のボタンでその課題に仮説が増える', () => {
     const base = file()
-    const initial: IssueTreeSchemaVersion3 = {
+    const initial: IssueTreeSchemaVersion4 = {
       ...base,
       hypotheses: [
         { ...base.hypotheses[0], id: H(1), issueId: I(2), title: '課題2の仮説' },
@@ -1792,7 +1792,7 @@ describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task
     })
     clickIssueBox(3)
     fireEvent.click(screen.getByRole('button', { name: '課題3に仮説を追加' }))
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion4 = onChange.mock.calls[0][0]
     expect(next.hypotheses.filter((h) => h.issueId === I(3))).toHaveLength(2)
     expect(next.hypotheses.filter((h) => h.issueId === I(2))).toHaveLength(1)
     unmount()
@@ -1804,12 +1804,12 @@ describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task
       issueCell(2).focus()
     })
     fireEvent.click(screen.getByRole('button', { name: '仮説を追加' }))
-    const banner: IssueTreeSchemaVersion3 = onBanner.mock.calls[0][0]
+    const banner: IssueTreeSchemaVersion4 = onBanner.mock.calls[0][0]
     expect(banner.hypotheses.filter((h) => h.issueId === I(2))).toHaveLength(2)
   })
 
   /** 問い3件。ゴミ箱と同じく**残った文言**で見る */
-  const threeAsks = (): IssueTreeSchemaVersion3 => {
+  const threeAsks = (): IssueTreeSchemaVersion4 => {
     const base = file()
     return {
       ...base,
@@ -1831,7 +1831,7 @@ describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task
     render(<Harness initial={threeAsks()} onChange={onChange} />)
     openHypothesis(1)
     fireEvent.click(screen.getByRole('button', { name: '仮説1 の聞きたいこと2を消す' }))
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion4 = onChange.mock.calls[0][0]
     expect(next.hypotheses[0].asks.map((a) => a.text)).toEqual(['問いA', '問いC'])
   })
 
@@ -2027,7 +2027,7 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
     render(<Harness initial={file()} onChange={onChange} />)
     clickIssueBox(1)
     fireEvent.click(screen.getByRole('button', { name: '課題1に仮説を追加' }))
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion4 = onChange.mock.calls[0][0]
     // **課題1 に1本**（既定の fixture の1本は課題3 にぶら下がっている）
     expect(next.hypotheses.filter((h) => h.issueId === I(1))).toHaveLength(1)
     expect(next.hypotheses.filter((h) => h.issueId === I(3))).toHaveLength(1)

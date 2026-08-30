@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { badgeClass } from '@/components/badge-styles'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
-import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
 import { BADGE_LABELS, poseQuestions } from './derive'
 import { HypothesisRow } from './HypothesisRow'
@@ -34,7 +34,7 @@ const ASK_SENTINEL = '待ち画面で離脱しないか（ASK）'
 /**
  * 課題2件・仮説3件のファイル。**退化した形（仮説1件・イベント1件）を避ける**
  */
-const data: IssueTreeSchemaVersion3 = {
+const data: IssueTreeSchemaVersion4 = {
   schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',

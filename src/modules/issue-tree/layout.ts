@@ -2,7 +2,7 @@ import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { layoutTree, type Size } from '@/core/canvas/tree-layout'
 import type { Rect } from '@/core/canvas/viewport'
 import { wrapWithin, type MeasureWidth } from '@/core/canvas/wrap'
-import type { Feedback, Hypothesis, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { Feedback, Hypothesis, IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import {
   awaitingAskCount,
   badgeGroupOf,
@@ -576,7 +576,7 @@ interface RowPlan {
  * 選択状態から違う図が出るようになった時点で「図は導出」が崩れる
  */
 export function layoutIssueTree(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   posed: PosedQuestions,
   fonts: IssueTreeFonts,
   /** 選択している**課題**の添字。無ければ -1 */

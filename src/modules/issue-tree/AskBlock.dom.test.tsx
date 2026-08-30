@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { badgeClass } from '@/components/badge-styles'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
-import type { Feedback, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { Feedback, IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import {
   addAsk,
   addFeedback,
@@ -70,7 +70,7 @@ const feedback = (over: Partial<Feedback>): Feedback => ({
  * 課題2件・仮説2件。仮説1は**問い2件（答えのある問い／FB待ちの問い）と、
  * 紐づかない FB・宙に浮いた `askId` の FB** を持つ。調子は4種そろえてある
  */
-const data: IssueTreeSchemaVersion3 = {
+const data: IssueTreeSchemaVersion4 = {
   schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',
@@ -124,7 +124,7 @@ const data: IssueTreeSchemaVersion3 = {
 }
 
 /** 祖先が見送っている木（抑制の番人）。仮説と問いはそのまま */
-const deferredData: IssueTreeSchemaVersion3 = {
+const deferredData: IssueTreeSchemaVersion4 = {
   ...data,
   issues: [
     {
@@ -142,10 +142,10 @@ const deferredData: IssueTreeSchemaVersion3 = {
  */
 function Harness(props: {
   index: number
-  initial?: IssueTreeSchemaVersion3
+  initial?: IssueTreeSchemaVersion4
   onAdd?: (askId: string | null) => void
   /** 書き戻された**ファイルそのもの**を受ける（保存された値を見るため） */
-  onFile?: (next: IssueTreeSchemaVersion3) => void
+  onFile?: (next: IssueTreeSchemaVersion4) => void
 }) {
   const [file, setFile] = useState(props.initial ?? data)
   // **調子のドロップダウンの開閉は鍵1つ**（本番は `IssueTreeEditor` の `openCell`）。
@@ -394,7 +394,7 @@ describe('AskBlock: 調子を選ぶ', () => {
     render(<Harness index={0} onFile={onFile} />)
     fireEvent.pointerDown(trigger(1), { button: 0 })
     fireEvent.click(await screen.findByRole('menuitem', { name: SENTIMENT_LABELS.question }))
-    const next: IssueTreeSchemaVersion3 = onFile.mock.calls[0][0]
+    const next: IssueTreeSchemaVersion4 = onFile.mock.calls[0][0]
     expect(next.hypotheses[0].feedbacks.map((f) => f.sentiment)).toEqual([
       'question',
       'note',
@@ -473,7 +473,7 @@ describe('AskBlock: 節の末尾のボタン', () => {
   })
 
   it('紐づかない FB が1件も無ければ、末尾のブロックは出ない', () => {
-    const clean: IssueTreeSchemaVersion3 = {
+    const clean: IssueTreeSchemaVersion4 = {
       ...data,
       hypotheses: [
         {

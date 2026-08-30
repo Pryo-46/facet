@@ -4,7 +4,7 @@ import { serialize } from '@/core/canonical'
 import { classifyFile } from '@/core/load'
 import { createSchemaValidator } from '@/core/schema-validation'
 import { appRegistry } from '@/modules'
-import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import { poseQuestions, tallyQuestions } from './derive'
 import { issueTreeModule } from './module'
 
@@ -77,7 +77,7 @@ describe('お手本ファイル（sample-project）', () => {
     const result = classifyFile(raw, appRegistry)
     expect(result.status).toBe('editable')
     if (result.status === 'editable') {
-      const data = result.data as IssueTreeSchemaVersion3
+      const data = result.data as IssueTreeSchemaVersion4
       expect(tallyQuestions(poseQuestions(data)).hold).toBe(1)
     }
   })

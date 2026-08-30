@@ -1,4 +1,4 @@
-import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 
 /**
  * 規約6: マイグレータ。**旧版 → 4 は `schemaVersion` の書き換えだけ**である。
@@ -21,7 +21,7 @@ import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
  * 移行後の検証は呼び出し側（`src/core/load.ts`）がやる。ここでは形を
  * 見ない（見ると、検証の規則が2箇所に生える）
  */
-export function migrateIssueTree(data: unknown, fromVersion: number): IssueTreeSchemaVersion3 {
-  if (fromVersion >= 4) return data as IssueTreeSchemaVersion3
-  return { ...(data as Record<string, unknown>), schemaVersion: 4 } as IssueTreeSchemaVersion3
+export function migrateIssueTree(data: unknown, fromVersion: number): IssueTreeSchemaVersion4 {
+  if (fromVersion >= 4) return data as IssueTreeSchemaVersion4
+  return { ...(data as Record<string, unknown>), schemaVersion: 4 } as IssueTreeSchemaVersion4
 }
