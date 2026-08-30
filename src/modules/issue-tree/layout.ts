@@ -146,24 +146,47 @@ export interface HypothesisPanel {
   notes: { label: Rect; cells: Rect[]; add: Rect }
 }
 
-export interface HypothesisPlacement {
-  /** 行の全体（畳まれていれば1行。展開していればパネルそのもの） */
-  rect: Rect
-  /**
-   * 畳まれた1行の中身。**展開していれば null**——開いた仮説に「点・文言・
-   * バッジ」の頭部は無く、パネルが全部を負う（計画「閉じた行と展開パネルは
-   * 責務が違い、同時に描かれることがない」）。頭部を残すと、パネルの
-   * 「ソリューション仮説」節と**同じ文言が2箇所に出る**
-   *
-   * - `text`: 文言（`body.lineHeight` ちょうどの1行。溢れは CSS で省略）
-   * - `badge`: 状態のバッジ（行末。高さ `BADGE_HEIGHT`）
-   * - `feedbackBadge`: 「FB待ち」が立っていれば、状態のバッジの左に
-   *   `BADGE_GAP` 空けて並ぶ。立っていなければ null
-   */
-  row: { text: Rect; badge: Rect; feedbackBadge: Rect | null } | null
-  /** 展開パネル。畳まれていれば null。**`row` とちょうど一方だけが非 null** */
-  expanded: HypothesisPanel | null
+/**
+ * 畳まれた1行の中身。
+ *
+ * - `text`: 文言（`body.lineHeight` ちょうどの1行。溢れは CSS で省略）
+ * - `badge`: 状態のバッジ（行末。高さ `BADGE_HEIGHT`）
+ * - `feedbackBadge`: 「FB待ち」が立っていれば、状態のバッジの左に
+ *   `BADGE_GAP` 空けて並ぶ。立っていなければ null
+ */
+export interface HypothesisRowRects {
+  text: Rect
+  badge: Rect
+  feedbackBadge: Rect | null
 }
+
+/**
+ * 仮説1本の置き場所。**畳まれた行（`row`）と展開パネル（`expanded`）は
+ * 判別子つきの合併で排他にしてある**——`row` を持つ枝の `expanded` は
+ * `null` 型そのものなので、**両方を埋めた値は型が通らない。**
+ *
+ * 独立した2つの `| null` にしていると、将来レイアウトが両方を埋めたときに
+ * 描く側の `if` の順で**行が勝ってパネルが静かに消える**（型は通ったまま）。
+ * `row !== null` / `expanded !== null` のどちらで絞っても、もう片方が
+ * 確定するのはこの形のおかげである。
+ *
+ * **開いた仮説に「点・文言・バッジ」の頭部は無い**——パネルが全部を負う
+ *（計画「閉じた行と展開パネルは責務が違い、同時に描かれることがない」）。
+ * 頭部を残すと、パネルの「ソリューション仮説」節と**同じ文言が2箇所に出る**
+ */
+export type HypothesisPlacement =
+  | {
+      /** 行の全体（畳まれた1行） */
+      rect: Rect
+      row: HypothesisRowRects
+      expanded: null
+    }
+  | {
+      /** 行の全体（展開していればパネルそのもの） */
+      rect: Rect
+      row: null
+      expanded: HypothesisPanel
+    }
 
 export interface IssueTreeLayout {
   /** issues と同じ添字。循環して根から到達できないものは null */
@@ -220,11 +243,15 @@ export const FIELD_PLACEHOLDERS = {
 /**
  * 検証結果の見出しに出す日付（キャンバスの `.date` ＝「2/13 更新」）。
  * **`YYYY-MM-DD` をそのまま出さない**——見出しの帯は1行で、年は判断の
- * 読み比べに要らない。想定外の形（移行前のファイルなど）はそのまま出す
+ * 読み比べに要らない。
+ *
+ * **形の違う日付は考えない。** スキーマが `date` のすべてに
+ * `^\d{4}-\d{2}-\d{2}$` を課しており（`schemas/issue-tree.schema.json`）、
+ * 違う形のファイルはレベル1検証で弾かれて**そもそも開けない**。
+ * 到達しない分岐を書くと、テストの当たらないコードが1本増えるだけである
  */
 export function judgementDateText(date: string): string {
-  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(date)
-  return m === null ? `${date} 更新` : `${Number(m[1])}/${Number(m[2])} 更新`
+  return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))} 更新`
 }
 
 /** 「＋ FB」のボタンの文言 */
@@ -322,41 +349,33 @@ export function layoutIssueTree(
      */
     const contentWidth = open ? EXPANDED_CONTENT_WIDTH : BOX_CONTENT_WIDTH
     const panelContentWidth = contentWidth - PANEL_INDENT - PANEL_INSET_X * 2
-    const group = badgeGroupOf(hypothesisStatus(h))
-    const badgeW = badgeWidth(BADGE_LABELS[group], fonts.small)
-    /**
-     * 「FB待ち」の行バッジ（M22。M4 で `pendingNotes` から `asks`/`feedbacks` へ
-     * 移った）。帯の集計（`tallyQuestions`）と行の表示を一対一にする——数だけが
-     * 増えて、どの行かが図から読めないのを防ぐ。
-     *
-     * **ここで `suppressed` を見る必要は無い**——抑制された仮説には
-     * `poseQuestions` が `feedback` を立てない（`derive.ts`）
-     */
-    const q = posed.hypothesisQuestions[hi]
-    const feedbackW =
-      q !== undefined && q.feedback > 0 ? badgeWidth(QUESTION_LABELS.feedback, fonts.small) : 0
-    /** 行末に並ぶバッジ全体の幅（2つ並ぶときは間の `BADGE_GAP` も含む） */
-    const badgesW = feedbackW === 0 ? badgeW : badgeW + BADGE_GAP + feedbackW
-    const textW = contentWidth - ROW_INDENT - BADGE_GAP - badgesW
-    /**
-     * FB待ちバッジは**状態のバッジから逆算する**（閉じた行と展開頭部で
-     * バッジの `y` の作り方が違うので、同じ位置に置くには受け取るしかない）
-     */
-    const feedbackBadgeLeftOf = (badge: Rect): Rect | null =>
-      feedbackW === 0
-        ? null
-        : {
-            x: badge.x - BADGE_GAP - feedbackW,
-            y: badge.y,
-            width: feedbackW,
-            height: BADGE_HEIGHT,
-          }
-    // 畳まれた行は**必ず1行**（溢れは CSS の truncate が省略記号にする）
-    const textH = fonts.body.lineHeight
-    // バッジは行の中で縦中央に座るので、文言より高ければ行がその高さになる
-    const rowH = Math.max(textH, BADGE_HEIGHT)
 
+    // --- 畳まれた1行 ---
+    // **バッジと文言の幅の式はこの枝にしか無い。** 開いた仮説に頭部は無く
+    //（`HypothesisPlacement` の解説）、パネルの中身は下でパネルの幅から組む
     if (!open) {
+      const group = badgeGroupOf(hypothesisStatus(h))
+      const badgeW = badgeWidth(BADGE_LABELS[group], fonts.small)
+      /**
+       * 「FB待ち」の行バッジ（M22。M4 で `pendingNotes` から `asks`/`feedbacks` へ
+       * 移った）。帯の集計（`tallyQuestions`）と行の表示を一対一にする——数だけが
+       * 増えて、どの行かが図から読めないのを防ぐ。
+       *
+       * **ここで `suppressed` を見る必要は無い**——抑制された仮説には
+       * `poseQuestions` が `feedback` を立てない（`derive.ts`）。
+       * **展開中は出ない**——問いブロックの側に出す（m5 Task 5）
+       */
+      const q = posed.hypothesisQuestions[hi]
+      const feedbackW =
+        q !== undefined && q.feedback > 0 ? badgeWidth(QUESTION_LABELS.feedback, fonts.small) : 0
+      /** 行末に並ぶバッジ全体の幅（2つ並ぶときは間の `BADGE_GAP` も含む） */
+      const badgesW = feedbackW === 0 ? badgeW : badgeW + BADGE_GAP + feedbackW
+      const textW = contentWidth - ROW_INDENT - BADGE_GAP - badgesW
+      // 畳まれた行は**必ず1行**（溢れは CSS の truncate が省略記号にする）
+      const textH = fonts.body.lineHeight
+      // バッジは行の中で縦中央に座るので、文言より高ければ行がその高さになる
+      const rowH = Math.max(textH, BADGE_HEIGHT)
+
       return {
         height: rowH,
         build: (x, y) => {
@@ -376,7 +395,16 @@ export function layoutIssueTree(
                 height: textH,
               },
               badge,
-              feedbackBadge: feedbackBadgeLeftOf(badge),
+              // FB待ちバッジは**状態のバッジから逆算する**（右端から左へ並ぶ）
+              feedbackBadge:
+                feedbackW === 0
+                  ? null
+                  : {
+                      x: badge.x - BADGE_GAP - feedbackW,
+                      y: badge.y,
+                      width: feedbackW,
+                      height: BADGE_HEIGHT,
+                    },
             },
             expanded: null,
           }

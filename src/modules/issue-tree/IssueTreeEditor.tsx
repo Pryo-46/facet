@@ -990,10 +990,12 @@ export function IssueTreeEditor({
                       key={rowKey}
                       onFocusCapture={() => setLastCell({ cell: 'hypothesis', key: rowKey })}
                     >
-                      {/* **畳まれた行と展開パネルは排他**（レイアウトの
-                          `row` / `expanded` のちょうど一方が非 null）。2つが同時に
-                          描かれると、同じ `data-cell`（`hyp:`）を名乗る要素が
-                          DOM に並び、フォーカスの予約が先頭を掴んで静かに外れる */}
+                      {/* **畳まれた行と展開パネルは排他**——レイアウトの
+                          `HypothesisPlacement` が判別子つきの合併なので、
+                          `row` を見た時点で `expanded` の有無も型として確定する
+                          （両方を埋めた値は作れない）。2つが同時に描かれると、
+                          同じ `data-cell`（`hyp:`）を名乗る要素が DOM に並び、
+                          フォーカスの予約が先頭を掴んで静かに外れる */}
                       {row.row !== null ? (
                         <HypothesisRow
                           hypothesisKey={rowKey}
@@ -1006,7 +1008,7 @@ export function IssueTreeEditor({
                           suppressed={issueSuppressed[index]}
                           onExpand={() => expandRowFor(hi)}
                         />
-                      ) : row.expanded === null ? null : (
+                      ) : (
                         <HypothesisPanel
                           hypothesisKey={rowKey}
                           label={`仮説${hi + 1}`}

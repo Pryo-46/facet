@@ -11,6 +11,7 @@ import {
   CHEVRON_SIZE,
   EXPANDED_BOX_WIDTH,
   ISSUE_INSET_X,
+  ISSUE_INSET_Y,
   PANEL_INSET_Y,
 } from './measure'
 
@@ -355,6 +356,70 @@ describe('layoutIssueTree', () => {
     expect(run(data, 0).hypotheses[0]!.expanded!.solution.title.height).toBeGreaterThan(
       fonts.body.lineHeight,
     )
+  })
+
+  /**
+   * **`EXPANDED_TITLE_FONT_CLASS` の接続の番人。** 開いた課題のタイトルは
+   * `IssueBox` が 16px（`text-base`）で描くので、**測る側も 16px の測定器で
+   * 測っていなければならない**。`layout.ts` の `open ? fonts.expandedTitle :
+   * fonts.title` が `fonts.title` 固定に戻ると、レイアウトは 14px で測り
+   * 画面は 16px で描く——高さ固定＋`overflow-hidden` の textarea なので、
+   * **長いタイトルの最終行が黙って消える**（tsc も lint も反応しない）。
+   *
+   * **高さの大小では見ない**——開くと箱が 320 → 780 に広がってタイトルの幅も
+   * 増えるので、字が大きくても行数は減りうる。**行高の倍数であること**で見る
+   *（`fonts` の概算器は title 24 / expandedTitle 27 とわざと違えてある）
+   */
+  it('展開した課題のタイトルは展開用の測定器で測る（描く書体と対）', () => {
+    const long = 'あ'.repeat(40)
+    const data = make({ issues: [{ ...root, text: long }], hypotheses: [h(1)] })
+    const folded = run(data).issues[0]!
+    const open = run(data, 0).issues[0]!
+
+    expect(folded.title.height % fonts.title.lineHeight).toBe(0)
+    expect(open.title.height % fonts.expandedTitle.lineHeight).toBe(0)
+    // **畳んだときの行高では割り切れない**＝切り替えを落とすとここが赤くなる
+    expect(open.title.height % fonts.title.lineHeight).not.toBe(0)
+
+    // シェブロンはタイトルの**1行目**に対して縦中央。開いた箱の行高で割る
+    expect(open.chevron.y - open.rect.y - ISSUE_INSET_Y).toBe(
+      Math.floor((fonts.expandedTitle.lineHeight - CHEVRON_SIZE) / 2),
+    )
+    expect(folded.chevron.y - folded.rect.y - ISSUE_INSET_Y).toBe(
+      Math.floor((fonts.title.lineHeight - CHEVRON_SIZE) / 2),
+    )
+  })
+
+  /**
+   * **複数行で測っていることの番人**（このタスクが増やした3つの欄）。
+   * `textHeight(...)` を `fonts.body.lineHeight`（1行固定）に置き換えても、
+   * パネル全体の高さの整合は**測定と配置が同じ数字を見ているかぎり通る**
+   *——測定側と描画側が揃って「1行」と思い込んだ状態は、そちらでは捕まらない。
+   *
+   * 壊れると、3行書いた詳細の2行目以降が textarea の外に落ちて読めなくなる。
+   * **ファイルには残るので、画面だけが嘘をつく**
+   */
+  it('詳細・価値仮説・判断の理由は複数行で測る（空なら1行）', () => {
+    const long = 'あ'.repeat(120)
+    const data = make({
+      issues: [root],
+      hypotheses: [
+        h(1, {
+          detail: long,
+          value: long,
+          events: [{ kind: 'supported', note: long, date: DATE }],
+        }),
+      ],
+    })
+    const p = run(data, 0).hypotheses[0]!.expanded!
+    expect(p.solution.detail.height).toBeGreaterThan(fonts.body.lineHeight)
+    expect(p.value.field.height).toBeGreaterThan(fonts.body.lineHeight)
+    expect(p.judgement.note.height).toBeGreaterThan(fonts.body.lineHeight)
+
+    // 空の欄は1行ぶん残す（潰すと、プレースホルダも押せる場所も消える）
+    const empty = run(make({ issues: [root], hypotheses: [h(1)] }), 0).hypotheses[0]!.expanded!
+    expect(empty.solution.detail.height).toBe(fonts.body.lineHeight)
+    expect(empty.value.field.height).toBe(fonts.body.lineHeight)
   })
 
   it('見送った課題はタイトル行の右端にバッジ、その下に理由の行を持つ', () => {

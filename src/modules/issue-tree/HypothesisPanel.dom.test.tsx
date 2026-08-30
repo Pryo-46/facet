@@ -206,6 +206,19 @@ describe('HypothesisPanel: ソリューション仮説と価値仮説', () => {
     ).toEqual([BADGE_LABELS.open])
   })
 
+  /**
+   * **`layout.test.ts` の `SECTION_LABELS` の鍵の並びテストと対の番人**
+   *（m4 から引き継ぎ、m5 Task 4 で行からパネルへ移した）。`Hypothesis` 型に
+   * `rationale` が無いので型も番人ではあるが、**画面の側にも置いておく**
+   *——v3 で廃止した欄が「詳細」や「価値仮説」の顔で復活するのを、
+   * 節を増やすときに気づける場所はここしかない
+   */
+  it('展開しても「由来」の欄は無い（v3 で廃止）', () => {
+    renderPanel(0)
+    expect(screen.queryByRole('textbox', { name: /の由来$/ })).toBeNull()
+    expect(screen.queryByText('由来')).toBeNull()
+  })
+
   it('問い（asks）はまだ出さない（Task 5 が設計する）', () => {
     renderPanel(0)
     expect(screen.queryByText(ASK_SENTINEL)).toBeNull()

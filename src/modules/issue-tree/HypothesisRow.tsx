@@ -4,7 +4,7 @@ import type { JudgementEvent } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
 import { hypothesisCellKey } from './cell-keys'
 import { badgeGroupOf, BADGE_LABELS, latestKind, QUESTION_LABELS } from './derive'
-import type { HypothesisPlacement } from './layout'
+import type { HypothesisRowRects } from './layout'
 import { BADGE_HEIGHT, ISSUE_BORDER, ROW_DOT_INSET, ROW_DOT_SIZE } from './measure'
 
 /**
@@ -21,11 +21,11 @@ export interface HypothesisRowProps {
   /** 行の外枠（`HypothesisPlacement.rect`）。**行は寸法を再計算しない** */
   rect: Rect
   /**
-   * 畳まれた行の中身（`HypothesisPlacement.row`）。**`null` では呼ばない**
-   *——開いている仮説は `HypothesisPanel` が丸ごと描く（エディタが
-   * `row` / `expanded` のどちらが非 null かで描き分ける）
+   * 畳まれた行の中身（`HypothesisPlacement` の畳まれた枝の `row`）。
+   * 開いている仮説は `HypothesisPanel` が丸ごと描く——**どちらを描くかは
+   * 型が決めている**（`row` を持つ枝の `expanded` は `null` 型そのもの）
    */
-  row: NonNullable<HypothesisPlacement['row']>
+  row: HypothesisRowRects
   /** 親の箱の左上（世界座標）。行は箱の中に絶対配置されるので差し引く */
   origin: { x: number; y: number }
   /** ソリューション仮説のタイトル。**詳細・価値仮説はパネルの担当** */
