@@ -2,8 +2,9 @@ import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { layoutTree, type Size } from '@/core/canvas/tree-layout'
 import type { Rect } from '@/core/canvas/viewport'
 import { wrapWithin, type MeasureWidth } from '@/core/canvas/wrap'
-import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { Feedback, Hypothesis, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import {
+  awaitingAskCount,
   badgeGroupOf,
   BADGE_LABELS,
   EVENT_KIND_LABELS,
@@ -14,6 +15,10 @@ import {
 } from './derive'
 import {
   ACTION_HEIGHT,
+  ASK_BLOCK_GAP,
+  ASK_GAP,
+  ASK_PADDING_X,
+  ASK_PADDING_Y,
   BADGE_BORDER,
   BADGE_GAP,
   BADGE_HEIGHT,
@@ -23,8 +28,18 @@ import {
   CHEVRON_GAP,
   CHEVRON_SIZE,
   EXPANDED_BOX_WIDTH,
+  FB_COL_GAP,
+  FB_DELETE_WIDTH,
+  FB_ICON_SIZE,
+  FB_INDENT,
   ISSUE_INSET_X,
   ISSUE_INSET_Y,
+  MIN_FIELD_WIDTH,
+  MINI_ACTION_BORDER,
+  MINI_ACTION_HEIGHT,
+  MINI_ACTION_PADDING_X,
+  MINI_ICON_GAP,
+  MINI_ICON_SIZE,
   PANEL_GAP,
   PANEL_INDENT,
   PANEL_INSET_X,
@@ -142,8 +157,59 @@ export interface HypothesisPanel {
   previousLabel: Rect | null
   /** 「以前の判断」。`events[0 .. length-2]` の順。読み取り専用 */
   previous: { badge: Rect; note: Rect }[]
-  /** FB（`feedbacks`）。`cells` は同じ添字。`add` は「＋ FB」のボタン行 */
-  notes: { label: Rect; cells: Rect[]; add: Rect }
+  /**
+   * FB の節。**中身は問いブロックの入れ子**（デザインキャンバスの `.ask`）で、
+   * `blocks` は `asks` の順に並び、最後に「どの問いにも紐づかないFB」の
+   * ブロックが**その中身が1件以上あるときだけ**付く。`adds` は
+   * 「聞きたいことを追加」「FBを追加」が横に並ぶ1行
+   */
+  notes: { label: Rect; blocks: AskBlockRects[]; adds: Rect }
+}
+
+/**
+ * FB 1行の置き場所。**`feedbackIndex` はデータ（`hypothesis.feedbacks`）の
+ * 添字であって、ブロックの中の順番ではない**——入れ子に並べ替えて描いても、
+ * 書き換え・削除・`data-cell` は元の席を指す必要がある
+ */
+export interface FeedbackRowRects {
+  feedbackIndex: number
+  /** 行の全体（アイコンから削除ボタンまで） */
+  rect: Rect
+  /** 調子（`sentiment`）のアイコン */
+  icon: Rect
+  /** 本文の欄（複数行。ここだけが伸びる） */
+  text: Rect
+  /** `{by} · {date}`。**幅は実測**（右端の削除ボタンから左へ置く） */
+  meta: Rect
+  /** 削除の `X` */
+  remove: Rect
+}
+
+/**
+ * 問いブロック1つ。**問いに答えとしての FB がぶら下がる**入れ子の単位。
+ *
+ * **`askIndex` が `null` のブロックは「どの問いにも紐づかないFB」の受け皿**で、
+ * `askId` が `null` の FB だけでなく、**実在しない `askId` を持つ FB もここに入る**
+ *（スキーマは「存在しない ask を指していてもファイルは開ける」と明記している）。
+ * 問いごとに `askId` で素朴に絞ると、そういう FB がどのブロックにも入らず
+ * **画面から黙って消える**——「ファイルにあるものが黙って減るのが一番たちが悪い」
+ * は `commands.ts` の `normalizeOrder` の註が述べている、このコードベースの価値である。
+ * 割り振りは常に**全 FB のちょうど1つのブロックへの分割**になっている
+ */
+export interface AskBlockRects {
+  /** `asks` の添字。null＝末尾の「どの問いにも紐づかないFB」ブロック */
+  askIndex: number | null
+  /** ブロックの面（キャンバスの `.ask`。中身はこの矩形の中に収まる） */
+  block: Rect
+  /**
+   * 問いの見出し行。`icon` は問いの印（`askIndex` が null のときは描かない
+   * ——**場所は空けたまま**にして、文言の左端をブロックどうしで揃える）、
+   * `badge` は「FB待ち」（立っていなければ null。`HypothesisRowRects.feedbackBadge`
+   * と同じ形）、`add` はこの問いに FB を足すミニボタン
+   */
+  head: { icon: Rect; text: Rect; badge: Rect | null; add: Rect }
+  /** このブロックに属する FB。**データの配列順のまま** */
+  rows: FeedbackRowRects[]
 }
 
 /**
@@ -238,6 +304,7 @@ export const SECTION_LABELS = {
 export const FIELD_PLACEHOLDERS = {
   detail: 'どう作るか',
   value: 'なぜ効くか',
+  ask: '聞きたいこと',
 } as const
 
 /**
@@ -251,11 +318,46 @@ export const FIELD_PLACEHOLDERS = {
  * 到達しない分岐を書くと、テストの当たらないコードが1本増えるだけである
  */
 export function judgementDateText(date: string): string {
-  return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))} 更新`
+  return `${shortDate(date)} 更新`
 }
 
-/** 「＋ FB」のボタンの文言 */
-export const ADD_NOTE_LABEL = '＋ FB'
+/**
+ * 画面に出す月日（`2/13`）。**`YYYY-MM-DD` をそのまま出さない**——年は
+ * 判断の読み比べにも FB の並びにも要らない。形の違う日付を考えないのは
+ * `judgementDateText` と同じ理由（レベル1検証が弾く＝そもそも開けない）
+ */
+function shortDate(date: string): string {
+  return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`
+}
+
+/**
+ * FB 行の右に出す「誰が・いつ」（キャンバスの `.meta` ＝「田中さん · 2/12」）。
+ *
+ * **測る側と描く側が同じ文字列を読む**——幅を実測して右端から置くので、
+ * 打ち直すと測定と描画がずれる。`by` は空文字を許す（会話に出ていなければ
+ * 推測して埋めない、というスキーマの規律）ので、**空なら日付だけ**にする
+ *——「 · 2/12」と中黒だけが浮くのは、誰が言ったか分からないことの表示として
+ * 読めない
+ */
+export function feedbackMetaText(f: Pick<Feedback, 'by' | 'date'>): string {
+  return f.by === '' ? shortDate(f.date) : `${f.by} · ${shortDate(f.date)}`
+}
+
+/**
+ * 「＋ FBを追加」のボタンの文言（節の末尾。**どの問いにも紐づかない FB を作る**）。
+ * 値はデザインキャンバスの `.adds` から逐語
+ */
+export const ADD_NOTE_LABEL = 'FBを追加'
+/** 「＋ 聞きたいことを追加」のボタンの文言。同上 */
+export const ADD_ASK_LABEL = '聞きたいことを追加'
+/** 問いブロックの中の小さな「＋FB」の文言（キャンバスの `.miniadd`） */
+export const MINI_ADD_NOTE_LABEL = 'FB'
+/**
+ * `askIndex` が `null` のブロックの見出し（キャンバスの逐語）。
+ * **編集できない固定文**——これは問いではなく「問いが無い」ことの名前なので、
+ * 打ち替えられると `askId === null` の意味と食い違う
+ */
+export const NO_ASK_TEXT = 'どの問いにも紐づかないFB'
 
 /**
  * 折り返した文章の高さ（余白は箱が1度だけ持つので、ここでは 0）。
@@ -276,6 +378,55 @@ function textHeight(text: string, font: IssueTreeFont, width: number): number {
  */
 function badgeWidth(label: string, font: IssueTreeFont): number {
   return Math.ceil(font.measure(label)) + BADGE_PADDING_X * 2 + BADGE_BORDER * 2
+}
+
+/**
+ * ミニボタン（問いブロックの「＋FB」）の幅。アイコン・空き・左右の余白・枠線を
+ * 文言の実測に足す（`badgeWidth` と同じ組み立て）
+ */
+function miniActionWidth(label: string, font: IssueTreeFont): number {
+  return (
+    Math.ceil(font.measure(label)) +
+    MINI_ICON_SIZE +
+    MINI_ICON_GAP +
+    MINI_ACTION_PADDING_X * 2 +
+    MINI_ACTION_BORDER * 2
+  )
+}
+
+/**
+ * FB を問いブロックへ振り分ける。**返すのは `feedbacks` の添字の配列で、
+ * すべての FB がちょうど1つのブロックに入る**（分割であって絞り込みではない）。
+ *
+ * - `attached[i]` … `asks[i]` を指す FB
+ * - `loose` … `askId` が `null` の FB **と、実在しない `askId` を持つ FB**
+ *
+ * **宙に浮いた `askId` を捨てないこと。** スキーマは「存在しない ask を指していても
+ * ファイルは開ける（整合性検証も今は見ない）」と明記しており、手書き・AI が書いた
+ * ファイルにはそういう FB がありうる。問いごとに `askId` で絞って残りを
+ * 「`askId === null`」だけで集めると、それらはどのブロックにも入らず画面から
+ * 黙って消える（`AskBlockRects` の解説）。
+ *
+ * **同じ id の問いが2つあるファイルでは、先に現れた方だけが答えを受け取る**
+ *（`core/canvas/flat-tree.ts` の「同じ id は先に現れた方を採る」と同じ規則）
+ *——両方に入れると、1件の FB が画面に2回出る（減るのと同じくらい嘘である）
+ */
+function groupFeedbacks(h: Pick<Hypothesis, 'asks' | 'feedbacks'>): {
+  attached: number[][]
+  loose: number[]
+} {
+  const askAt = new Map<string, number>()
+  h.asks.forEach((a, i) => {
+    if (!askAt.has(a.id)) askAt.set(a.id, i)
+  })
+  const attached: number[][] = h.asks.map(() => [])
+  const loose: number[] = []
+  h.feedbacks.forEach((f, i) => {
+    const at = f.askId === null ? undefined : askAt.get(f.askId)
+    if (at === undefined) loose.push(i)
+    else attached[at].push(i)
+  })
+  return { attached, loose }
 }
 
 /** 仮説行1本の計画。高さを先に確定させ、置く場所が決まってから矩形を組む */
@@ -457,11 +608,91 @@ export function layoutIssueTree(
           previous.reduce((sum, p) => sum + p.height, 0) +
           ROW_GAP * (previous.length - 1)
 
-    const noteHs = h.feedbacks.map((f) => textHeight(f.text, fonts.body, panelContentWidth))
+    /**
+     * FB の節。**問いブロックの入れ子**（キャンバスの `.ask`）で、`asks` の順に
+     * 並べ、最後に「どの問いにも紐づかないFB」のブロックを**中身があるときだけ**置く
+     */
+    const { attached, loose } = groupFeedbacks(h)
+    const blockContentWidth = panelContentWidth - ASK_PADDING_X * 2
+    const rowContentWidth = blockContentWidth - FB_INDENT
+    const miniAddW = miniActionWidth(MINI_ADD_NOTE_LABEL, fonts.small)
+    /**
+     * 「FB待ち」が立つ問いか。**ここで数え直さない**——条件を持っているのは
+     * `derive.ts` の `awaitingAskCount` だけであり（「この関数だけが『FB待ち』の
+     * 条件を持つ」）、問い1件だけの配列を渡して同じ関数に判定させる。
+     * 抑制（祖先の見送り・解決）は `posed` の側が既に落としているので、
+     * **仮説の件数が 0 なら1件も立たない**——抑制の規則をここへ写さないための門である
+     */
+    const awaitingCount = posed.hypothesisQuestions[hi]?.feedback ?? 0
+    const awaits = (askIndex: number): boolean => {
+      const ask = h.asks[askIndex]
+      if (ask === undefined || awaitingCount === 0) return false
+      return awaitingAskCount({ asks: [ask], feedbacks: h.feedbacks }) === 1
+    }
+
+    /** FB 1行の計画。列は [アイコン][本文][{by} · {date}][削除] */
+    const planFeedbackRow = (feedbackIndex: number) => {
+      const f = h.feedbacks[feedbackIndex]
+      const meta = feedbackMetaText(f)
+      /** アイコン・3つの空き・削除ボタンを引いた、本文と `meta` が分け合う幅 */
+      const room = rowContentWidth - FB_ICON_SIZE - FB_COL_GAP * 3 - FB_DELETE_WIDTH
+      const metaW = Math.min(
+        Math.ceil(fonts.small.measure(meta)),
+        Math.max(0, room - MIN_FIELD_WIDTH),
+      )
+      const textW = room - metaW
+      return {
+        feedbackIndex,
+        metaW,
+        textW,
+        // 本文が1行でもアイコンより低くならないようにする
+        height: Math.max(textHeight(f.text, fonts.body, textW), FB_ICON_SIZE),
+      }
+    }
+
+    /** 問いブロック1つの計画。`askIndex` が null なら「紐づかないFB」の受け皿 */
+    const planAskBlock = (askIndex: number | null, indices: readonly number[]) => {
+      const badgeW =
+        askIndex !== null && awaits(askIndex)
+          ? badgeWidth(QUESTION_LABELS.feedback, fonts.small)
+          : 0
+      /** 見出しの列は [アイコン][文言][FB待ち][＋FB]。右の2つは幅が決まっている */
+      const headTextW = Math.max(
+        blockContentWidth -
+          FB_ICON_SIZE -
+          FB_COL_GAP * 2 -
+          miniAddW -
+          (badgeW === 0 ? 0 : badgeW + FB_COL_GAP),
+        MIN_FIELD_WIDTH,
+      )
+      const headTextH = textHeight(
+        askIndex === null ? NO_ASK_TEXT : (h.asks[askIndex]?.text ?? ''),
+        fonts.body,
+        headTextW,
+      )
+      // 見出しの帯は「文言・バッジ・ミニボタン」の一番高いものに合わせる
+      //（検証結果の見出しが `judgeLabelH` を組んでいるのと同じ）
+      const headH = Math.max(headTextH, MINI_ACTION_HEIGHT, badgeW === 0 ? 0 : BADGE_HEIGHT)
+      const rows = indices.map(planFeedbackRow)
+      const height =
+        ASK_PADDING_Y * 2 +
+        headH +
+        (rows.length === 0
+          ? 0
+          : ASK_GAP + rows.reduce((sum, r) => sum + r.height, 0) + ROW_GAP * (rows.length - 1))
+      return { askIndex, badgeW, headTextW, headTextH, headH, rows, height }
+    }
+
+    const askBlocks = [
+      ...h.asks.map((_, i) => planAskBlock(i, attached[i] ?? [])),
+      // **1件も無ければブロックごと出さない**——空の受け皿は「紐づけ忘れがある」
+      // という誤った印になる。足す動線は節の末尾の「＋ FBを追加」が持つ
+      ...(loose.length === 0 ? [] : [planAskBlock(null, loose)]),
+    ]
     const notesSectionH =
       labelH +
       SECTION_GAP +
-      noteHs.reduce((sum, nh) => sum + nh + ROW_GAP, 0) +
+      askBlocks.reduce((sum, b) => sum + b.height + ASK_BLOCK_GAP, 0) +
       ACTION_HEIGHT
 
     const sectionHs = [solutionH, valueSectionH, judgementH, previousH, notesSectionH].filter(
@@ -525,12 +756,75 @@ export function layoutIssueTree(
 
         cursor += PANEL_GAP
         const notesLabel = sectionLabel()
-        const noteCells = noteHs.map((nh) => {
-          const r: Rect = { x: cx, y: cursor, width: panelContentWidth, height: nh }
-          cursor += nh + ROW_GAP
-          return r
+        const blocks: AskBlockRects[] = askBlocks.map((bp) => {
+          const block: Rect = { x: cx, y: cursor, width: panelContentWidth, height: bp.height }
+          const bx = block.x + ASK_PADDING_X
+          /** ブロックの中身の右端（＋FB とバッジはここから左へ並ぶ） */
+          const right = bx + blockContentWidth
+          let by = block.y + ASK_PADDING_Y
+          const add: Rect = {
+            x: right - miniAddW,
+            y: by,
+            width: miniAddW,
+            height: MINI_ACTION_HEIGHT,
+          }
+          const head = {
+            icon: { x: bx, y: by, width: FB_ICON_SIZE, height: fonts.body.lineHeight },
+            text: {
+              x: bx + FB_ICON_SIZE + FB_COL_GAP,
+              y: by,
+              width: bp.headTextW,
+              height: bp.headTextH,
+            },
+            // FB待ちのバッジは**＋FB から逆算する**（右端から左へ並ぶ。
+            // 畳まれた行が状態のバッジから逆算しているのと同じ）
+            badge:
+              bp.badgeW === 0
+                ? null
+                : {
+                    x: add.x - FB_COL_GAP - bp.badgeW,
+                    y: by,
+                    width: bp.badgeW,
+                    height: BADGE_HEIGHT,
+                  },
+            add,
+          }
+          by += bp.headH
+          const rows: FeedbackRowRects[] = bp.rows.map((rp, j) => {
+            by += j === 0 ? ASK_GAP : ROW_GAP
+            const rx = bx + FB_INDENT
+            const rect: Rect = { x: rx, y: by, width: rowContentWidth, height: rp.height }
+            const remove: Rect = {
+              x: rx + rowContentWidth - FB_DELETE_WIDTH,
+              y: by,
+              width: FB_DELETE_WIDTH,
+              height: fonts.body.lineHeight,
+            }
+            const out: FeedbackRowRects = {
+              feedbackIndex: rp.feedbackIndex,
+              rect,
+              icon: { x: rx, y: by, width: FB_ICON_SIZE, height: fonts.body.lineHeight },
+              text: {
+                x: rx + FB_ICON_SIZE + FB_COL_GAP,
+                y: by,
+                width: rp.textW,
+                height: rp.height,
+              },
+              meta: {
+                x: remove.x - FB_COL_GAP - rp.metaW,
+                y: by,
+                width: rp.metaW,
+                height: fonts.body.lineHeight,
+              },
+              remove,
+            }
+            by += rp.height
+            return out
+          })
+          cursor += bp.height + ASK_BLOCK_GAP
+          return { askIndex: bp.askIndex, block, head, rows }
         })
-        const addRect: Rect = { x: cx, y: cursor, width: panelContentWidth, height: ACTION_HEIGHT }
+        const addsRect: Rect = { x: cx, y: cursor, width: panelContentWidth, height: ACTION_HEIGHT }
 
         return {
           rect: { x, y, width: contentWidth, height },
@@ -542,7 +836,7 @@ export function layoutIssueTree(
             judgement: { label: judgeLabel, note: judgeNote },
             previousLabel,
             previous: previousRects,
-            notes: { label: notesLabel, cells: noteCells, add: addRect },
+            notes: { label: notesLabel, blocks, adds: addsRect },
           },
         }
       },

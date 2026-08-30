@@ -104,6 +104,7 @@ function renderPanel(index: number, opts: { suppressed?: boolean } = {}) {
   const owner = layout.issues[ownerIndex]
   if (owner === null) throw new Error('持ち主の課題が図に位置を持たない')
   const onAddFeedback = vi.fn()
+  const onAddAsk = vi.fn()
   const onDetailChange = vi.fn()
   const onValueChange = vi.fn()
   render(
@@ -118,9 +119,12 @@ function renderPanel(index: number, opts: { suppressed?: boolean } = {}) {
       onTitleChange={vi.fn()}
       onDetailChange={onDetailChange}
       onValueChange={onValueChange}
+      onAskTextChange={vi.fn()}
       onFeedbackTextChange={vi.fn()}
       onEventNoteChange={vi.fn()}
+      onAddAsk={onAddAsk}
       onAddFeedback={onAddFeedback}
+      onRemoveFeedback={vi.fn()}
       // 判断のドロップダウンはエディタが組む（パネルは置き場所だけを持つ）。
       // **トリガーの文言はレイアウトが持つ定数**——測った幅と描く幅を同じ
       // 文字列から出すので、ここでも打ち直さない
@@ -131,8 +135,15 @@ function renderPanel(index: number, opts: { suppressed?: boolean } = {}) {
       }
     />,
   )
-  return { onAddFeedback, onDetailChange, onValueChange }
+  return { onAddAsk, onAddFeedback, onDetailChange, onValueChange }
 }
+
+/**
+ * 節の見出しを引く。**`{ selector: 'span' }` が要る**——FB の節の見出しは
+ * `FB` で、問いブロックの中の「＋FB」ボタンの文言と同じ字面だからである
+ *（ボタンの側は `<button>`）
+ */
+const sectionLabel = (text: string): HTMLElement => screen.getByText(text, { selector: 'span' })
 
 /** DOM 順（＝描画順）で a が b より前にあるか */
 function precedes(a: Element, b: Element): boolean {
@@ -147,7 +158,7 @@ describe('HypothesisPanel: 節の構成', () => {
       SECTION_LABELS.value,
       SECTION_LABELS.judgement,
       SECTION_LABELS.notes,
-    ].map((text) => screen.getByText(text))
+    ].map(sectionLabel)
     for (let i = 1; i < labels.length; i += 1) {
       expect(precedes(labels[i - 1], labels[i])).toBe(true)
     }
@@ -160,9 +171,9 @@ describe('HypothesisPanel: 節の構成', () => {
    */
   it('「以前の判断」の節は判断が2件以上のときだけ、検証結果とFBの間に出る', () => {
     renderPanel(0)
-    const previous = screen.getByText(SECTION_LABELS.previous)
-    expect(precedes(screen.getByText(SECTION_LABELS.judgement), previous)).toBe(true)
-    expect(precedes(previous, screen.getByText(SECTION_LABELS.notes))).toBe(true)
+    const previous = sectionLabel(SECTION_LABELS.previous)
+    expect(precedes(sectionLabel(SECTION_LABELS.judgement), previous)).toBe(true)
+    expect(precedes(previous, sectionLabel(SECTION_LABELS.notes))).toBe(true)
     cleanup()
     renderPanel(1)
     expect(screen.queryByText(SECTION_LABELS.previous)).toBeNull()
@@ -219,9 +230,16 @@ describe('HypothesisPanel: ソリューション仮説と価値仮説', () => {
     expect(screen.queryByText('由来')).toBeNull()
   })
 
-  it('問い（asks）はまだ出さない（Task 5 が設計する）', () => {
+  /**
+   * 問い（`asks`）は FB の節の中の**ブロック**として出る（m5 Task 5）。
+   * 入れ子の中身は `AskBlock.dom.test.tsx` が見るので、ここでは
+   * 「節の中に出ている」ことだけを確かめる
+   */
+  it('問い（asks）は FB の節の中に出る', () => {
     renderPanel(0)
-    expect(screen.queryByText(ASK_SENTINEL)).toBeNull()
+    const ask = screen.getByRole('textbox', { name: '仮説1 の聞きたいこと1の文言' })
+    expect((ask as HTMLTextAreaElement).value).toBe(ASK_SENTINEL)
+    expect(precedes(sectionLabel(SECTION_LABELS.notes), ask)).toBe(true)
   })
 })
 
@@ -273,11 +291,15 @@ describe('HypothesisPanel: 検証結果', () => {
 })
 
 describe('HypothesisPanel: FB', () => {
-  it('FB は1件ずつ欄になり、末尾に「＋ FB」がある', () => {
-    const { onAddFeedback } = renderPanel(1)
+  it('FB は1件ずつ欄になり、末尾に2つの追加ボタンがある', () => {
+    const { onAddAsk, onAddFeedback } = renderPanel(1)
     expect(screen.getByRole('textbox', { name: '仮説2 のFB1' })).toBeTruthy()
     expect(screen.getByRole('textbox', { name: '仮説2 のFB2' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '仮説2 に聞きたいことを足す' }))
+    expect(onAddAsk).toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: '仮説2 にFBを足す' }))
-    expect(onAddFeedback).toHaveBeenCalled()
+    // **節の末尾の「＋ FBを追加」は、どの問いにも紐づかない FB を作る**
+    //（`addFeedback` の `askId` は必須。既定 `null` に頼らない）
+    expect(onAddFeedback).toHaveBeenCalledWith(null)
   })
 })

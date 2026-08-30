@@ -267,12 +267,16 @@ describe('layoutIssueTree', () => {
     const p = open.hypotheses[1]!.expanded!
     expect(p.previous).toHaveLength(1) // events 2件 → 以前の判断は1件
     expect(p.previousLabel).not.toBeNull()
-    expect(p.notes.cells).toHaveLength(2)
+    // FB は「どの問いにも紐づかないFB」のブロック1つに入る（問いが無いので）
+    expect(p.notes.blocks).toHaveLength(1)
+    expect(p.notes.blocks[0].askIndex).toBeNull()
+    expect(p.notes.blocks[0].rows.map((r) => r.feedbackIndex)).toEqual([0, 1])
     // 判断も FB も無い隣の仮説にもパネルは出る（節は「判断」と「FB」の2つ）
     const bare = open.hypotheses[0]!.expanded!
     expect(bare.previous).toEqual([])
     expect(bare.previousLabel).toBeNull()
-    expect(bare.notes.cells).toEqual([])
+    // FB も問いも無ければブロックは1つも出ない（空の受け皿を置かない）
+    expect(bare.notes.blocks).toEqual([])
     expect(open.issues[0]!.rect.height).toBeGreaterThan(folded.issues[0]!.rect.height)
     // 並びは配列順のまま。下の行は上の行のパネルのぶんだけ押し下げられる
     expect(open.hypotheses[1]!.rect.y).toBeGreaterThan(
@@ -294,7 +298,7 @@ describe('layoutIssueTree', () => {
     expect(p.previousLabel).not.toBeNull()
     expect(p.previousLabel!.y).toBeGreaterThan(p.judgement.note.y)
     expect(p.notes.label.y).toBeGreaterThan(p.previous[0].note.y)
-    expect(p.notes.add.y).toBeGreaterThan(p.notes.cells[1].y)
+    expect(p.notes.adds.y).toBeGreaterThan(p.notes.blocks[0].rows[1].rect.y)
     // 検証結果の根拠は見出しの帯の下に、パネルの全幅で座る（バッジ・日付・
     // トリガーは帯の中に flex で並ぶので、根拠の幅を削らない）
     expect(p.judgement.note.y).toBeGreaterThanOrEqual(
@@ -335,7 +339,77 @@ describe('layoutIssueTree', () => {
     // の下端と、パネルの下端（内側余白を引いた位置）が一致するはずで、由来の
     // ぶんの高さを `sectionHs` から消し忘れているとここに隙間が残る
     const p = panel!
-    expect(p.notes.add.y + ACTION_HEIGHT).toBe(p.panel.y + p.panel.height - PANEL_INSET_Y)
+    expect(p.notes.adds.y + ACTION_HEIGHT).toBe(p.panel.y + p.panel.height - PANEL_INSET_Y)
+  })
+
+  /**
+   * **問いブロックの中身がブロックからはみ出さないこと。** 測る側（ここ）と
+   * 描く側（`AskBlock`）は同じ矩形を見るので、入れ子の高さを測り損ねると
+   * 下のブロックの上に文字が重なる（measure.ts の「定数とクラスは対」の
+   * 入れ子版）。**割り振りの規則もここで固定する**——`asks` の順に並び、
+   * `askId` が `null` の FB と**実在しない `askId` を持つ FB**が末尾へ入る
+   */
+  it('問いブロックは asks の順に並び、中身がブロックの中に収まる', () => {
+    const A1 = 'ask_AAAAAAAAAA'
+    const A2 = 'ask_BBBBBBBBBB'
+    const data = make({
+      issues: [root],
+      hypotheses: [
+        h(1, {
+          asks: [
+            { id: A1, text: '3時間で十分か' },
+            { id: A2, text: '取りこぼしをどう防ぐか' },
+          ],
+          feedbacks: [
+            { askId: A2, text: '深夜帯は空けてよい', by: '佐藤さん', sentiment: 'like', date: DATE },
+            { askId: null, text: '媒体ごとに仕様が違う', by: '', sentiment: 'note', date: DATE },
+            // 実在しない問いを指す FB（手書き・AI が書いたファイル。スキーマは許す）
+            { askId: 'ask_ZZZZZZZZZZ', text: '消えた問いへの答え', by: '', sentiment: 'question', date: DATE },
+          ],
+        }),
+      ],
+    })
+    const p = run(data, 0).hypotheses[0]!.expanded!
+    expect(p.notes.blocks.map((b) => b.askIndex)).toEqual([0, 1, null])
+    expect(p.notes.blocks.map((b) => b.rows.map((r) => r.feedbackIndex))).toEqual([[], [0], [1, 2]])
+    // FB待ちが立つのは「文言があって答えの無い問い」だけ（`derive.ts` の導出）
+    expect(p.notes.blocks[0].head.badge).not.toBeNull()
+    expect(p.notes.blocks[1].head.badge).toBeNull()
+
+    let prevBottom = p.notes.label.y + p.notes.label.height
+    for (const b of p.notes.blocks) {
+      expect(b.block.y).toBeGreaterThanOrEqual(prevBottom)
+      expect(b.block.x).toBe(p.notes.label.x)
+      expect(b.block.width).toBe(p.notes.label.width)
+      const parts = [
+        b.head.icon,
+        b.head.text,
+        b.head.add,
+        ...(b.head.badge === null ? [] : [b.head.badge]),
+        ...b.rows.map((r) => r.rect),
+      ]
+      for (const r of parts) {
+        expect(r.x).toBeGreaterThanOrEqual(b.block.x)
+        expect(r.x + r.width).toBeLessThanOrEqual(b.block.x + b.block.width)
+        expect(r.y).toBeGreaterThanOrEqual(b.block.y)
+        expect(r.y + r.height).toBeLessThanOrEqual(b.block.y + b.block.height)
+      }
+      // 見出しの列（アイコン → 文言 → FB待ち → ＋FB）は重ならない
+      expect(b.head.icon.x + b.head.icon.width).toBeLessThanOrEqual(b.head.text.x)
+      expect(b.head.text.x + b.head.text.width).toBeLessThanOrEqual(
+        (b.head.badge ?? b.head.add).x,
+      )
+      // FB の列（アイコン → 本文 → 誰が・いつ → 削除）も重ならない
+      for (const row of b.rows) {
+        expect(row.icon.x + row.icon.width).toBeLessThanOrEqual(row.text.x)
+        expect(row.text.x + row.text.width).toBeLessThanOrEqual(row.meta.x)
+        expect(row.meta.x + row.meta.width).toBeLessThanOrEqual(row.remove.x)
+        expect(row.remove.x + row.remove.width).toBeLessThanOrEqual(row.rect.x + row.rect.width)
+        expect(row.rect.y).toBeGreaterThanOrEqual(b.head.text.y + b.head.text.height)
+      }
+      prevBottom = b.block.y + b.block.height
+    }
+    expect(p.notes.adds.y).toBeGreaterThanOrEqual(prevBottom)
   })
 
   it('イベントが1件だけの仮説には「以前の判断」の節が出ない', () => {
@@ -660,7 +734,7 @@ describe('layoutIssueTree', () => {
     }
     // 広がったぶんだけパネルの中身も広い（320 のまま測っていたら赤くなる）
     const narrow = run(data).hypotheses[0]!
-    expect(out.hypotheses[0]!.expanded!.notes.cells[0].width).toBeGreaterThan(
+    expect(out.hypotheses[0]!.expanded!.notes.blocks[0].rows[0].text.width).toBeGreaterThan(
       narrow.row!.text.width,
     )
   })

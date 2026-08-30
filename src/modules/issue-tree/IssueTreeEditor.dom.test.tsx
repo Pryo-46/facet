@@ -944,17 +944,21 @@ describe('IssueTreeEditor（行のFB待ちバッジ）', () => {
    * **開いた仮説に頭部は無い**（m5 Task 4）——「点・文言・バッジ」の1行は
    * 畳まれているときだけで、開くと `HypothesisPanel` が全部を負う。頭部を
    * 残すと、パネルの「ソリューション仮説」節と同じ文言が画面に2つ出る。
-   * **FB待ちのバッジは畳まれた行にしか出ない**——展開中は問いブロックの側に
-   * 出す（Task 5。それまでは展開中だけ見えない）
+   * **FB待ちのバッジは展開すると問いブロックの中へ移る**（m5 Task 5）
+   *——要対応の単位は問い1件なので、開いたら「どの問いが待っているか」を
+   * その問いの隣で言う。行の頭部として重ねて出すと、同じ1件が2箇所に出る
    */
-  it('展開した仮説に「FB待ち」バッジは出ない（問いブロックへ移る）', () => {
+  it('展開した仮説の「FB待ち」バッジは、待っている問いのブロックの中に出る', () => {
     render(<Harness initial={allKindsFile()} />)
     const box = openHypothesis(3).closest('[class*="pointer-events-auto"]')
     if (box === null) throw new Error('仮説3の箱が無い')
     const found = Array.from(box.querySelectorAll('[class*="inline-flex"]')).filter(
       (e) => e.textContent === QUESTION_LABELS.feedback,
     )
-    expect(found).toHaveLength(0)
+    // 画面に1つだけ（頭部にも出す実装なら2つになる）
+    expect(found).toHaveLength(1)
+    const group = screen.getByRole('group', { name: '仮説3 の聞きたいこと1' })
+    expect(group.contains(found[0])).toBe(true)
   })
 })
 
@@ -979,6 +983,26 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
     expect(document.activeElement).toBe(
       screen.getByRole('textbox', { name: `仮説1 の${EVENT_KIND_LABELS.rejected}の根拠` }),
     )
+  })
+
+  /**
+   * **エディタの配線の番人。** `addFeedback` の `askId` は既定値の無い必須引数で、
+   * 押されたブロックが自分の問いを渡す。ここが `null` に固定されていても
+   * 「FB が1件増える」テストは緑になるので、**保存された `askId` を見る**
+   */
+  it('問いブロックの「＋FB」で、その問いに紐づく FB が追記される', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={allKindsFile()} onChange={onChange} />)
+    openHypothesis(3)
+    fireEvent.click(screen.getByRole('button', { name: '仮説3 の聞きたいこと1にFBを足す' }))
+    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
+    expect(next.hypotheses[2].feedbacks).toEqual([
+      { askId: 'ask_AAAAAAAAAA', text: '', by: '', sentiment: 'note', date: todayString() },
+    ])
+    // 節の末尾の「＋ FBを追加」はどの問いにも紐づかない FB を作る（対の動線）
+    fireEvent.click(screen.getByRole('button', { name: '仮説3 にFBを足す' }))
+    const loose: IssueTreeSchemaVersion3 = onChange.mock.calls[1][0]
+    expect(loose.hypotheses[2].feedbacks.at(-1)?.askId).toBeNull()
   })
 
   // **FB の並び替え・挿入位置指定・削除、および仮説の Backspace 削除はキーから

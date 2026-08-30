@@ -167,7 +167,13 @@ export const ACTION_INSET_X = 5
  */
 export const ASK_PADDING_X = 8
 export const ASK_PADDING_Y = 6
-/** `ASK_PADDING_X` / `ASK_PADDING_Y` と対のクラス（px-2 = 8px ／ py-1.5 = 6px） */
+/**
+ * `ASK_PADDING_X` / `ASK_PADDING_Y` と対のクラス（px-2 = 8px ／ py-1.5 = 6px）。
+ * **いまはどこからも読まれていない**——問いブロックの子もすべて絶対配置なので、
+ * 余白は `layout.ts` が座標で与えている（`ISSUE_BOX_CLASS` と同じ事情）。
+ * flex で積む作りに変えるときの対として置いてある。下の `ASK_GAP_CLASS` /
+ * `ASK_BLOCK_GAP_CLASS` / `FB_COL_GAP_CLASS` も同じ
+ */
 export const ASK_PADDING_CLASS = 'px-2 py-1.5'
 export const ASK_GAP = 4
 /** `ASK_GAP` と対のクラス（gap-1 = 4px） */
@@ -199,6 +205,66 @@ export const FB_DELETE_WIDTH_CLASS = 'w-5'
 export const MINI_ACTION_HEIGHT = 20
 /** `MINI_ACTION_HEIGHT` と対のクラス（h-5 = 20px） */
 export const MINI_ACTION_HEIGHT_CLASS = 'h-5'
+/**
+ * ミニボタンの左右の余白（px-1.5 = 6px）と枠線。**キャンバスの `.miniadd` は
+ * 5px だが、バッジ（`BADGE_PADDING_X`）と同じ 6px に揃えた**——同じ高さ 20px の
+ * 小さな箱が2種類、1px 違う内寸で並ぶ理由が無い
+ */
+export const MINI_ACTION_PADDING_X = 6
+export const MINI_ACTION_BORDER = 1
+/** ミニボタンの中のアイコン（キャンバスの `.miniadd > svg`）と文言との空き */
+export const MINI_ICON_SIZE = 10
+/** `MINI_ICON_SIZE` と対のクラス（size-2.5 = 10px） */
+export const MINI_ICON_SIZE_CLASS = 'size-2.5'
+/**
+ * アイコンと文言の空き（gap-1 = 4px）。**キャンバスの `.miniadd` は 3px だが、
+ * Tailwind の間隔の段（4px 刻み）に無い**ので 1px 広い方へ倒す
+ *（狭い方へ倒すと文字が測定より右へはみ出す）
+ */
+export const MINI_ICON_GAP = 4
+/** `MINI_ICON_GAP` と対のクラス（gap-1 = 4px） */
+export const MINI_ICON_GAP_CLASS = 'gap-1'
+/**
+ * ミニボタンの書体。**`leading-none` はバッジと同じ理屈**——`text-sm`（14px）の
+ * 既定行間 1.3 は 18.2px で、枠線 2px を足すと 20.2px となり
+ * `MINI_ACTION_HEIGHT`（20px）を超える。行箱を 14px に潰し、枠 2px と合わせた
+ * 16px を `items-center` が 20px の箱の中で上下 2px ずつ空けて挟む
+ *（`badge-styles.ts` の `base` と同じ組み方）
+ */
+export const MINI_ACTION_FONT_CLASS = 'text-sm leading-none'
+
+/**
+ * FB 行の字下げ（キャンバスの `.fb` の padding-left）。問いの文言よりわずかに
+ * 内側から始めることで、答えが問いにぶら下がっていることを示す
+ */
+export const FB_INDENT = 11
+
+/**
+ * 文章の欄が潰れない最小幅。**発言者名（`by`）は自由記述**なので、長い名前が
+ * 来ると `{by} · {date}` が行を食い尽くし、FB の本文の幅が 0 以下になる
+ *——`wrapWithin` は幅が足りなければ1文字ずつ折るので、本文が縦に伸びて
+ * ブロックが破綻する。溢れた側（日付の並び）は `overflow-hidden` が切る
+ */
+export const MIN_FIELD_WIDTH = 80
+
+/**
+ * 入力欄の共通クラス。**面と文字色を持たない**——箱の面の上に透明で乗り、
+ * 文字色は呼び出し側が足す（抑制された配下がそのまま薄い文字に落ちる）。
+ *
+ * **余白も持たない。** レイアウトは各行を「余白 0」で測っているので、ここで
+ * padding を足すとブラウザが測定より早く折り返して文字が切れる。
+ * **`HypothesisPanel` と `AskBlock` が同じ文字列を読む**——片方だけに写すと、
+ * 測定の前提（余白 0）が画面の半分だけで破れる
+ */
+export const CELL_INPUT_CLASS =
+  'h-full w-full resize-none overflow-hidden bg-transparent whitespace-pre-wrap break-all outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-inset focus:ring-ring'
+
+/** 読み取り専用の文章（以前の判断の根拠・判断が無いときの案内・固定文の見出し）。文字色は同上 */
+export const STATIC_TEXT_CLASS =
+  'absolute overflow-hidden text-sm leading-normal break-all whitespace-pre-wrap'
+
+/** 本文の欄（詳細・価値仮説・根拠・問い・FB）のフォント。**測っているのは `fonts.body`** */
+export const BODY_FIELD_CLASS = 'text-sm leading-normal'
 
 /**
  * 課題タイトル左の開閉トグル（シェブロン。Task 2 でレイアウトに組み込む）。

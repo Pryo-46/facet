@@ -38,6 +38,7 @@ import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
 import { cellKey, hypothesisCellKey, issueCellKey, issueEventCellKey } from './cell-keys'
 import {
+  addAsk,
   addChildIssue,
   addFeedback,
   addHypothesis,
@@ -46,6 +47,8 @@ import {
   appendJudgement,
   deleteIssueSubtree,
   moveIssueSibling,
+  removeFeedback,
+  setAskText,
   setEventNote,
   setFeedbackText,
   setHypothesisDetail,
@@ -1026,6 +1029,12 @@ export function IssueTreeEditor({
                           onValueChange={(next) =>
                             onChange(setHypothesisValue(data, hi, next), `${rowKey}:value`)
                           }
+                          onAskTextChange={(askIndex, next) =>
+                            onChange(
+                              setAskText(data, hi, askIndex, next),
+                              `${rowKey}:ask:${askIndex}`,
+                            )
+                          }
                           onFeedbackTextChange={(feedbackIndex, next) =>
                             onChange(
                               setFeedbackText(data, hi, feedbackIndex, next),
@@ -1038,8 +1047,14 @@ export function IssueTreeEditor({
                               `${rowKey}:event:${eventIndex}`,
                             )
                           }
-                          // Task 5 で問いブロックから askId を渡すまでの暫定
-                          onAddFeedback={() => apply(addFeedback(data, hi, null))}
+                          onAddAsk={() => apply(addAsk(data, hi))}
+                          // **`askId` は押されたブロックが持つ**（`addFeedback` は
+                          // 既定値を与えず必須にしてある）。節の末尾の
+                          // 「＋ FBを追加」だけが `null` を渡す
+                          onAddFeedback={(askId) => apply(addFeedback(data, hi, askId))}
+                          onRemoveFeedback={(feedbackIndex) =>
+                            apply(removeFeedback(data, hi, feedbackIndex))
+                          }
                           judgementMenu={
                             <KindMenu
                               label={`仮説${hi + 1}に判断を追加`}
