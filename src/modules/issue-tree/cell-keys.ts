@@ -17,6 +17,9 @@ import type { FocusTarget } from './commands'
 /** 仮説の行（展開パネルを含む）の中の欄。`commands.ts` の `FocusTarget` と同じ名前で並べる */
 export type HypothesisCell =
   | { cell: 'hypothesis' }
+  | { cell: 'detail' }
+  | { cell: 'value' }
+  | { cell: 'ask'; askIndex: number }
   | { cell: 'feedback'; feedbackIndex: number }
   | { cell: 'event'; eventIndex: number }
 
@@ -46,6 +49,12 @@ export function hypothesisCellKey(hypothesisKey: string, cell: HypothesisCell): 
   switch (cell.cell) {
     case 'hypothesis':
       return `hyp:${hypothesisKey}`
+    case 'detail':
+      return `detail:${hypothesisKey}`
+    case 'value':
+      return `value:${hypothesisKey}`
+    case 'ask':
+      return `ask:${hypothesisKey}:${cell.askIndex}`
     case 'feedback':
       return `feedback:${hypothesisKey}:${cell.feedbackIndex}`
     case 'event':
@@ -73,6 +82,15 @@ export function cellKey(
       return issueEventCellKey(issueKeys[target.index])
     case 'hypothesis':
       return hypothesisCellKey(hypothesisKeys[target.index], { cell: 'hypothesis' })
+    case 'detail':
+      return hypothesisCellKey(hypothesisKeys[target.index], { cell: 'detail' })
+    case 'value':
+      return hypothesisCellKey(hypothesisKeys[target.index], { cell: 'value' })
+    case 'ask':
+      return hypothesisCellKey(hypothesisKeys[target.index], {
+        cell: 'ask',
+        askIndex: target.askIndex,
+      })
     case 'feedback':
       return hypothesisCellKey(hypothesisKeys[target.index], {
         cell: 'feedback',

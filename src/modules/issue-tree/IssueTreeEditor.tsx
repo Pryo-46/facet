@@ -986,7 +986,8 @@ export function IssueTreeEditor({
                             `${rowKey}:event:${eventIndex}`,
                           )
                         }
-                        onAddFeedback={() => apply(addFeedback(data, hi))}
+                        // Task 5 で問いブロックから askId を渡すまでの暫定
+                        onAddFeedback={() => apply(addFeedback(data, hi, null))}
                         judgementMenu={
                           <KindMenu
                             label={`仮説${hi + 1}に判断を追加`}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Feedback, Hypothesis, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import {
+  addAsk,
   addChildIssue,
   addFeedback,
   addFeedbackAfter,
@@ -12,8 +13,12 @@ import {
   moveHypothesis,
   moveIssueSibling,
   normalizeOrder,
+  removeAsk,
   removeFeedback,
+  setAskText,
   setEventNote,
+  setHypothesisDetail,
+  setHypothesisValue,
   setIssueEventNote,
   toggleIssueEvent,
 } from './commands'
@@ -216,7 +221,7 @@ describe('仮説とFB', () => {
   it('アプリが作る FB は「どの問いにも紐づかない・誰の発言か空・ただのメモ」で、日付だけが入る', () => {
     // **sentiment の既定が note なのは、m4 が調子を選ばせる画面を持たないからである。**
     // 嘘の分類（question 等）を既定にすると、選ばれていない分類が記録として残る
-    const next = addFeedback(base(), 0, '2026-08-30')
+    const next = addFeedback(base(), 0, null, '2026-08-30')
     expect(next.data.hypotheses[0].feedbacks).toEqual([
       { askId: null, text: '', by: '', sentiment: 'note', date: '2026-08-30' },
     ])
@@ -301,6 +306,133 @@ describe('仮説とFB', () => {
     const next = removeFeedback(d, 0, 0)
     expect(next.data.hypotheses[0].feedbacks).toEqual([])
     expect(next.focus).toEqual({ cell: 'hypothesis', index: 0 })
+  })
+})
+
+describe('詳細・価値仮説・聞きたいこと（m5）', () => {
+  it('setHypothesisDetail は該当の1件だけを書き換え、他の仮説を動かさない', () => {
+    const d = base()
+    const next = setHypothesisDetail(d, 1, '中身のメモ')
+    expect(next.hypotheses[1].detail).toBe('中身のメモ')
+    // 他は同一参照のまま（差し替えたのは対象の仮説だけ）
+    expect(next.hypotheses[0]).toBe(d.hypotheses[0])
+    expect(next.hypotheses[2]).toBe(d.hypotheses[2])
+  })
+
+  it('setHypothesisValue は該当の1件だけを書き換え、他の仮説を動かさない', () => {
+    const d = base()
+    const next = setHypothesisValue(d, 1, 'なぜ効くか')
+    expect(next.hypotheses[1].value).toBe('なぜ効くか')
+    expect(next.hypotheses[0]).toBe(d.hypotheses[0])
+    expect(next.hypotheses[2]).toBe(d.hypotheses[2])
+  })
+
+  it('存在しない仮説には書けない（同じ参照を返す）', () => {
+    const d = base()
+    expect(setHypothesisDetail(d, 99, 'x')).toBe(d)
+    expect(setHypothesisValue(d, 99, 'x')).toBe(d)
+  })
+
+  it('addAsk は ask_ 接頭辞の ID を採番し、行き先は末尾の問いを指す', () => {
+    const next = addAsk(base(), 0)
+    const h = next.data.hypotheses[0]
+    expect(h.asks).toHaveLength(1)
+    expect(h.asks[0].id.startsWith('ask_')).toBe(true)
+    expect(h.asks[0].text).toBe('')
+    expect(next.focus).toEqual({ cell: 'ask', index: 0, askIndex: 0 })
+  })
+
+  it('存在しない仮説には足せない', () => {
+    const d = base()
+    expect(addAsk(d, 99).data).toBe(d)
+    expect(addAsk(d, 99).focus).toBe(null)
+  })
+
+  /** 問い3件を持つ仮説を用意する（`removeAsk` が末尾を消す実装でも件数だけで区別できないよう2件目を狙う） */
+  function withAsks(): IssueTreeSchemaVersion3 {
+    const d = base()
+    return {
+      ...d,
+      hypotheses: d.hypotheses.map((h, i) =>
+        i === 0
+          ? {
+              ...h,
+              asks: [
+                { id: 'ask_0000000001', text: '問い1' },
+                { id: 'ask_0000000002', text: '問い2' },
+                { id: 'ask_0000000003', text: '問い3' },
+              ],
+            }
+          : h,
+      ),
+    }
+  }
+
+  it('setAskText は該当の問い1件だけを書き換える', () => {
+    const d = withAsks()
+    const next = setAskText(d, 0, 1, '書き換えた問い2')
+    expect(next.hypotheses[0].asks.map((a) => a.text)).toEqual(['問い1', '書き換えた問い2', '問い3'])
+  })
+
+  it('存在しない問いには書けない（同じ参照を返す）', () => {
+    const d = withAsks()
+    expect(setAskText(d, 0, 9, 'x')).toBe(d)
+    expect(setAskText(d, 99, 0, 'x')).toBe(d)
+  })
+
+  it('removeAsk は3件のうち2件目を消し、残る2件の文言が正しい', () => {
+    const d = withAsks()
+    const next = removeAsk(d, 0, 1)
+    expect(next.data.hypotheses[0].asks.map((a) => a.text)).toEqual(['問い1', '問い3'])
+    // 消した位置の1つ前へ行き先が付く
+    expect(next.focus).toEqual({ cell: 'ask', index: 0, askIndex: 0 })
+  })
+
+  it('先頭の問いを消したら仮説の文言へ戻る（前の問いが無いため）', () => {
+    const d = withAsks()
+    const next = removeAsk(d, 0, 0)
+    expect(next.data.hypotheses[0].asks.map((a) => a.text)).toEqual(['問い2', '問い3'])
+    expect(next.focus).toEqual({ cell: 'hypothesis', index: 0 })
+  })
+
+  it('存在しない問いは消せない（同じ参照を返す）', () => {
+    const d = withAsks()
+    expect(removeAsk(d, 0, 9).data).toBe(d)
+    expect(removeAsk(d, 99, 0).data).toBe(d)
+  })
+
+  it('removeAsk は、消した問いを指していた FB の askId を null にし、他の問いを指す FB の askId は変えない', () => {
+    const d = withAsks()
+    const withFb = {
+      ...d,
+      hypotheses: d.hypotheses.map((h, i) =>
+        i === 0
+          ? {
+              ...h,
+              feedbacks: [
+                { askId: 'ask_0000000002', text: '問い2への答え', by: '', sentiment: 'note' as const, date: '2026-08-30' },
+                { askId: 'ask_0000000003', text: '問い3への答え', by: '', sentiment: 'note' as const, date: '2026-08-30' },
+                { askId: null, text: 'どの問いにも紐づかない', by: '', sentiment: 'note' as const, date: '2026-08-30' },
+              ],
+            }
+          : h,
+      ),
+    }
+    const next = removeAsk(withFb, 0, 1) // 問い2（ask_0000000002）を消す
+    expect(next.data.hypotheses[0].feedbacks.map((f) => f.askId)).toEqual([
+      null, // 消した問いを指していたので null に付け替わる
+      'ask_0000000003', // 他の問いを指す FB は変わらない
+      null, // もともと null の FB も変わらない
+    ])
+  })
+
+  it('addFeedback は渡した askId を持つ FB を作る', () => {
+    const d = withAsks()
+    const withAsk = addFeedback(d, 0, 'ask_0000000002', '2026-08-30')
+    expect(withAsk.data.hypotheses[0].feedbacks[0].askId).toBe('ask_0000000002')
+
+    const withoutAsk = addFeedback(d, 0, null, '2026-08-30')
+    expect(withoutAsk.data.hypotheses[0].feedbacks[0].askId).toBe(null)
   })
 })
 

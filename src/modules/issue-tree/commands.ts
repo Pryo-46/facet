@@ -3,6 +3,7 @@ import { insertAt, moveItem, removeAt } from '@/core/list-ops'
 import { newId } from '@/core/new-id'
 import { todayString } from '@/core/today'
 import type {
+  Ask,
   Feedback,
   Hypothesis,
   IssueEvent,
@@ -24,6 +25,9 @@ export type FocusTarget =
   | { cell: 'issue'; index: number }
   | { cell: 'issueEvent'; index: number }
   | { cell: 'hypothesis'; index: number }
+  | { cell: 'detail'; index: number }
+  | { cell: 'value'; index: number }
+  | { cell: 'ask'; index: number; askIndex: number }
   | { cell: 'feedback'; index: number; feedbackIndex: number }
   | { cell: 'event'; index: number; eventIndex: number }
 
@@ -281,8 +285,6 @@ export function moveHypothesis(
 /**
  * ソリューション仮説のタイトルを置き換える。**並べ替えない**——打鍵のたびに
  * 配列が動くと、入力中の仮説の配列位置がずれてフォーカスを見失う。
- *
- * **`detail` / `value` の setter はここに無い**（m4 は出す画面を持たない。m5 が足す）
  */
 export function setHypothesisTitle(
   data: IssueTreeSchemaVersion3,
@@ -293,20 +295,108 @@ export function setHypothesisTitle(
   return h === undefined ? data : replaceHypothesis(data, index, { ...h, title })
 }
 
-/** アプリが作る FB。**調子は `note`（ただのメモ）が既定**——m4 は選ばせる画面を持たず、嘘の分類を残さないため */
-function newFeedback(today: string): Feedback {
-  return { askId: null, text: '', by: '', sentiment: 'note', date: today }
+/** 仮説の詳細（どう作るか）を置き換える。**並べ替えない**（`setHypothesisTitle` と同じ理由） */
+export function setHypothesisDetail(
+  data: IssueTreeSchemaVersion3,
+  index: number,
+  detail: string,
+): IssueTreeSchemaVersion3 {
+  const h = data.hypotheses[index]
+  return h === undefined ? data : replaceHypothesis(data, index, { ...h, detail })
 }
 
-/** FB を1件足す（「＋ FB」ボタン） */
+/** 価値仮説（なぜ効くか）を置き換える。**並べ替えない**（`setHypothesisTitle` と同じ理由） */
+export function setHypothesisValue(
+  data: IssueTreeSchemaVersion3,
+  index: number,
+  value: string,
+): IssueTreeSchemaVersion3 {
+  const h = data.hypotheses[index]
+  return h === undefined ? data : replaceHypothesis(data, index, { ...h, value })
+}
+
+function newAsk(): Ask {
+  return { id: newId('ask'), text: '' }
+}
+
+/** 問いを1件足す（「＋ 聞きたいことを追加」ボタン） */
+export function addAsk(data: IssueTreeSchemaVersion3, index: number): EditResult {
+  const h = data.hypotheses[index]
+  if (h === undefined) return { data, focus: null }
+  const asks = [...h.asks, newAsk()]
+  return {
+    data: replaceHypothesis(data, index, { ...h, asks }),
+    focus: { cell: 'ask', index, askIndex: asks.length - 1 },
+  }
+}
+
+/** 問いの文言を書き換える。**並べ替えない**（`setHypothesisTitle` と同じ理由） */
+export function setAskText(
+  data: IssueTreeSchemaVersion3,
+  index: number,
+  askIndex: number,
+  text: string,
+): IssueTreeSchemaVersion3 {
+  const h = data.hypotheses[index]
+  if (h === undefined || h.asks[askIndex] === undefined) return data
+  return replaceHypothesis(data, index, {
+    ...h,
+    asks: h.asks.map((a, i) => (i === askIndex ? { ...a, text } : a)),
+  })
+}
+
+/**
+ * 問いを1件消す。**行き先は `removeFeedback` と同じ規律**——前の問いがあれば
+ * それ、無ければ展開パネルの中で必ず存在する仮説の文言へ返す。
+ *
+ * **消した問いを指していた FB の `askId` を `null` に付け替える。** 放置すると、
+ * その FB は「どの問いのブロックにも属さず、`askId === null` のブロックにも
+ * 属さない」状態になり、画面から黙って消える（Task 5 の入れ子の描き方の帰結）。
+ * 「ファイルにあるものが黙って減るのが一番たちが悪い」は `normalizeOrder` の註が
+ * 既に述べている、このコードベースの価値である。付け替えれば「どの問いにも
+ * 紐づかない FB」のブロックに現れて残る。
+ *
+ * スキーマは「存在しない ask を指していてもファイルは開ける」と言っているので、
+ * 手書き／AI が書いたファイルには依然として宙に浮いた `askId` がありうる——
+ * その扱いは画面側（Task 5）の仕事で、ここでは何もしない
+ */
+export function removeAsk(
+  data: IssueTreeSchemaVersion3,
+  index: number,
+  askIndex: number,
+): EditResult {
+  const h = data.hypotheses[index]
+  const removed = h?.asks[askIndex]
+  if (h === undefined || removed === undefined) return { data, focus: null }
+  const asks = removeAt(h.asks, askIndex)
+  const feedbacks = h.feedbacks.map((f) => (f.askId === removed.id ? { ...f, askId: null } : f))
+  const at = askIndex > 0 ? askIndex - 1 : null
+  return {
+    data: replaceHypothesis(data, index, { ...h, asks, feedbacks }),
+    focus: at === null ? { cell: 'hypothesis', index } : { cell: 'ask', index, askIndex: at },
+  }
+}
+
+/** アプリが作る FB。**調子は `note`（ただのメモ）が既定**——m4 は選ばせる画面を持たず、嘘の分類を残さないため */
+function newFeedback(askId: string | null, today: string): Feedback {
+  return { askId, text: '', by: '', sentiment: 'note', date: today }
+}
+
+/**
+ * FB を1件足す（「＋ FB」ボタン）。**`askId` は既定値を与えず必須**——「＋FB」
+ * ボタンは必ずどこかのブロック（どの問いにも紐づかない／特定の問い）の中にあり、
+ * 呼ぶ側は自分がどの問いの下にいるかを知っている。既定 `null` にすると、
+ * 配線を忘れた「＋FB」が黙ってどの問いにも紐づかない FB を作る
+ */
 export function addFeedback(
   data: IssueTreeSchemaVersion3,
   index: number,
+  askId: string | null,
   today: string = todayString(),
 ): EditResult {
   const h = data.hypotheses[index]
   if (h === undefined) return { data, focus: null }
-  const feedbacks = [...h.feedbacks, newFeedback(today)]
+  const feedbacks = [...h.feedbacks, newFeedback(askId, today)]
   return {
     data: replaceHypothesis(data, index, { ...h, feedbacks }),
     focus: { cell: 'feedback', index, feedbackIndex: feedbacks.length - 1 },
@@ -330,7 +420,7 @@ export function addFeedbackAfter(
   return {
     data: replaceHypothesis(data, index, {
       ...h,
-      feedbacks: insertAt(h.feedbacks, at, newFeedback(today)),
+      feedbacks: insertAt(h.feedbacks, at, newFeedback(null, today)),
     }),
     focus: { cell: 'feedback', index, feedbackIndex: at },
   }
