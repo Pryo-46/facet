@@ -14,7 +14,6 @@ import {
 } from './derive'
 import {
   ACTION_HEIGHT,
-  ACTION_INSET_X,
   BADGE_BORDER,
   BADGE_GAP,
   BADGE_HEIGHT,
@@ -43,9 +42,26 @@ export interface IssueTreeFont {
 }
 
 export interface IssueTreeFonts {
-  /** 課題のタイトル（text-sm leading-normal font-semibold）。太字は幅が変わるので独立に測る */
+  /**
+   * 課題のタイトル（`TITLE_FONT_CLASS` = text-sm leading-normal font-semibold）。
+   * 太字は幅が変わるので独立に測る。
+   *
+   * **展開パネルの中のソリューション仮説のタイトルもこれで測る。**
+   * 描くのは `HYPO_TITLE_FONT_CLASS`（同じ 14px・同じ行間 1.5 で、太さだけ
+   * 500）なので、**測る側の方が太い＝広い**——測定は実際より早く折り返す側に
+   * 倒れ、描画が測定からはみ出すことはない（`badgeWidth` が枠線ぶんを常に
+   * 足しているのと同じ「広い方で空けておく」判断）。太さごとに見本を増やすより、
+   * 安全側の再利用を選んでいる
+   */
   title: IssueTreeFont
-  /** 仮説の文言・根拠・FB（text-sm leading-normal） */
+  /**
+   * 展開中の課題のタイトル（`EXPANDED_TITLE_FONT_CLASS` = text-base leading-normal
+   * font-semibold）。**畳んだ箱の 14px とはサイズが違うので独立に測る**
+   *——1本で兼ねると、開いた瞬間にタイトルが測定より広く描かれて末尾の行が
+   * 高さ固定の textarea から切れる（measure.ts の解説）
+   */
+  expandedTitle: IssueTreeFont
+  /** 仮説の詳細・価値仮説・根拠・FB（text-sm leading-normal） */
   body: IssueTreeFont
   /** 節の見出し・見送りの理由・バッジ（text-sm） */
   small: IssueTreeFont
@@ -93,15 +109,29 @@ export interface IssuePlacement {
   event: { badge: Rect; reason: Rect } | null
 }
 
-/** 展開パネルの中身。畳まれている行は持たない */
+/**
+ * 展開パネルの中身。畳まれている行は持たない。
+ *
+ * **節の見出しは「1行の帯」1つで表す**（`label`）。見出しの右にはバッジ・
+ * 日付・トリガー・ゴミ箱が並ぶが、**それぞれの矩形を測らない**——帯の中で
+ * flex に並べる（デザインキャンバスの `.label { display:flex; gap:8px }` そのもの）。
+ * 見出しの文字幅を測って隣を置く形にすると、節見出しの書体（`text-sm
+ * font-semibold`）専用の測定器がもう1本要る一方で、得られるのは
+ * 「絶対配置で置ける」だけである
+ */
 export interface HypothesisPanel {
   panel: Rect
+  /** 「ソリューション仮説」節。見出しの帯／仮説の文言／詳細（どちらも複数行） */
+  solution: { label: Rect; title: Rect; detail: Rect }
+  /** 「価値仮説」節。見出しの帯／価値仮説（複数行） */
+  value: { label: Rect; field: Rect }
   /**
-   * 「判断」節。最新イベントのバッジ＋根拠（編集可）＋種別を選ぶトリガー。
+   * 「検証結果」節。`label` の帯に最新イベントのバッジ・日付・種別を選ぶ
+   * トリガーが並び、その下が根拠（編集可）。
    * **イベント0件でもトリガーのために節は出る**——出さないと、マウスで
    * 判断を付ける動線が展開した仮説から消える
    */
-  judgement: { label: Rect; badge: Rect; note: Rect; trigger: Rect }
+  judgement: { label: Rect; note: Rect }
   /**
    * 「以前の判断」の見出し。1件も無ければ null（節ごと出ない）。
    *
@@ -117,18 +147,21 @@ export interface HypothesisPanel {
 }
 
 export interface HypothesisPlacement {
-  /** 行（畳まれていれば1行。展開していれば文言＋パネルの全体） */
+  /** 行の全体（畳まれていれば1行。展開していればパネルそのもの） */
   rect: Rect
-  /** 文言。畳まれていれば `body.lineHeight` ちょうどの1行（CSS で省略）。展開していれば折り返した高さ */
-  text: Rect
-  /** 状態のバッジ（行末。高さ `BADGE_HEIGHT`） */
-  badge: Rect
   /**
-   * 「FB待ち」が立っていれば、そのバッジ。立っていなければ null。
-   * 状態のバッジの左に `BADGE_GAP` 空けて並ぶ
+   * 畳まれた1行の中身。**展開していれば null**——開いた仮説に「点・文言・
+   * バッジ」の頭部は無く、パネルが全部を負う（計画「閉じた行と展開パネルは
+   * 責務が違い、同時に描かれることがない」）。頭部を残すと、パネルの
+   * 「ソリューション仮説」節と**同じ文言が2箇所に出る**
+   *
+   * - `text`: 文言（`body.lineHeight` ちょうどの1行。溢れは CSS で省略）
+   * - `badge`: 状態のバッジ（行末。高さ `BADGE_HEIGHT`）
+   * - `feedbackBadge`: 「FB待ち」が立っていれば、状態のバッジの左に
+   *   `BADGE_GAP` 空けて並ぶ。立っていなければ null
    */
-  feedbackBadge: Rect | null
-  /** 展開パネル。畳まれていれば null */
+  row: { text: Rect; badge: Rect; feedbackBadge: Rect | null } | null
+  /** 展開パネル。畳まれていれば null。**`row` とちょうど一方だけが非 null** */
   expanded: HypothesisPanel | null
 }
 
@@ -142,8 +175,10 @@ export interface IssueTreeLayout {
 }
 
 /**
- * 「判断」節のトリガーの文言。**幅を測るのはレイアウトなので、文言もここに置く**
- *——エディタが別の文字列を渡すと、空けた幅と描く幅がずれて根拠に被る
+ * 「検証結果」節のトリガーの文言。**画面だけの言葉を節見出しと同じ場所に置く**
+ *——エディタが別の文字列を打ち直すと、同じボタンの呼び名が2箇所に散る。
+ * m5 Task 4 でトリガーは見出しの帯の中に flex で並ぶようになったので、
+ * **レイアウトはもうこの幅を測っていない**（測っているのは帯の高さだけ）
  */
 export const JUDGEMENT_TRIGGER_LABELS = {
   /** イベント0件（まだ何も判断していない） */
@@ -152,15 +187,45 @@ export const JUDGEMENT_TRIGGER_LABELS = {
   latest: '判断を変える',
 } as const
 
-/** 「判断」節でイベントが1件も無いときに根拠の場所へ出す文言 */
-export const NO_JUDGEMENT_TEXT = '判断はまだ無い'
+/**
+ * 「検証結果」節でイベントが1件も無いときに根拠の場所へ出す文言
+ *（デザインキャンバスの `.field.ph`）。**空欄を警告にしない**——判断を
+ * 選ぶまで根拠は書けない、という手順の案内であって欠落の印ではない
+ */
+export const NO_JUDGEMENT_TEXT = '理由（判断を選ぶと書ける）'
 
-/** 節の見出し。**`derive.ts` には置かない**——Skill の報告には出ない画面だけの言葉 */
+/**
+ * 節の見出し。**`derive.ts` には置かない**——Skill の報告には出ない画面だけの言葉。
+ * **並びは描く順**（キャンバスの「仮説の展開」アートボード）: ソリューション仮説 →
+ * 価値仮説 → 検証結果 →（以前の判断）→ FB
+ */
 export const SECTION_LABELS = {
-  judgement: '判断',
+  solution: 'ソリューション仮説',
+  value: '価値仮説',
+  judgement: '検証結果',
   previous: '以前の判断',
   notes: 'FB',
 } as const
+
+/**
+ * 空の欄に出す案内。**プレースホルダは高さに効かない**（測るのは値の側）ので
+ * レイアウトは使わないが、**節見出しと同じ「画面だけの言葉」なので隣に置く**
+ *——部品ごとに打ち直すと、同じ欄の呼び名が節見出しとずれる
+ */
+export const FIELD_PLACEHOLDERS = {
+  detail: 'どう作るか',
+  value: 'なぜ効くか',
+} as const
+
+/**
+ * 検証結果の見出しに出す日付（キャンバスの `.date` ＝「2/13 更新」）。
+ * **`YYYY-MM-DD` をそのまま出さない**——見出しの帯は1行で、年は判断の
+ * 読み比べに要らない。想定外の形（移行前のファイルなど）はそのまま出す
+ */
+export function judgementDateText(date: string): string {
+  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(date)
+  return m === null ? `${date} 更新` : `${Number(m[1])}/${Number(m[2])} 更新`
+}
 
 /** 「＋ FB」のボタンの文言 */
 export const ADD_NOTE_LABEL = '＋ FB'
@@ -184,11 +249,6 @@ function textHeight(text: string, font: IssueTreeFont, width: number): number {
  */
 function badgeWidth(label: string, font: IssueTreeFont): number {
   return Math.ceil(font.measure(label)) + BADGE_PADDING_X * 2 + BADGE_BORDER * 2
-}
-
-/** 小さなボタン（`buttonBase` ＋ `px-1` ＋ 枠線）の幅 */
-function actionWidth(label: string, font: IssueTreeFont): number {
-  return Math.ceil(font.measure(label)) + ACTION_INSET_X * 2
 }
 
 /** 仮説行1本の計画。高さを先に確定させ、置く場所が決まってから矩形を組む */
@@ -291,32 +351,33 @@ export function layoutIssueTree(
             width: feedbackW,
             height: BADGE_HEIGHT,
           }
-    // 畳まれた行は**必ず1行**（溢れは CSS の truncate が省略記号にする）。
-    // 展開している行だけが折り返して縦に伸びる
-    const textH = open ? textHeight(h.title, fonts.body, textW) : fonts.body.lineHeight
+    // 畳まれた行は**必ず1行**（溢れは CSS の truncate が省略記号にする）
+    const textH = fonts.body.lineHeight
     // バッジは行の中で縦中央に座るので、文言より高ければ行がその高さになる
-    const headH = Math.max(textH, BADGE_HEIGHT)
+    const rowH = Math.max(textH, BADGE_HEIGHT)
 
     if (!open) {
       return {
-        height: headH,
+        height: rowH,
         build: (x, y) => {
           const badge: Rect = {
             x: x + contentWidth - badgeW,
-            y: y + Math.floor((headH - BADGE_HEIGHT) / 2),
+            y: y + Math.floor((rowH - BADGE_HEIGHT) / 2),
             width: badgeW,
             height: BADGE_HEIGHT,
           }
           return {
-            rect: { x, y, width: contentWidth, height: headH },
-            text: {
-              x: x + ROW_INDENT,
-              y: y + Math.floor((headH - textH) / 2),
-              width: textW,
-              height: textH,
+            rect: { x, y, width: contentWidth, height: rowH },
+            row: {
+              text: {
+                x: x + ROW_INDENT,
+                y: y + Math.floor((rowH - textH) / 2),
+                width: textW,
+                height: textH,
+              },
+              badge,
+              feedbackBadge: feedbackBadgeLeftOf(badge),
             },
-            badge,
-            feedbackBadge: feedbackBadgeLeftOf(badge),
             expanded: null,
           }
         },
@@ -326,19 +387,33 @@ export function layoutIssueTree(
     // --- 展開パネルの中身を測る ---
     const labelH = fonts.small.lineHeight
     const latest = h.events.length === 0 ? null : h.events[h.events.length - 1]
-    // 最新の判断は保存された種別の文言（`EVENT_KIND_LABELS`）で出す。判断を5語に
-    // 畳んだいまは俯瞰のバッジと同じ語になるが、引く先は分けたまま（derive.ts の註）。
-    // イベントが無いときだけ、導出の「未決」を出す
-    const latestLabel = latest === null ? BADGE_LABELS.open : EVENT_KIND_LABELS[latest.kind]
-    const latestBadgeW = badgeWidth(latestLabel, fonts.small)
-    const triggerW = actionWidth(
-      JUDGEMENT_TRIGGER_LABELS[latest === null ? 'empty' : 'latest'],
-      fonts.small,
+
+    /**
+     * ソリューション仮説の節。**タイトルは `fonts.title` で測る**（描くのは
+     * `HYPO_TITLE_FONT_CLASS`。`IssueTreeFonts.title` の解説＝安全側の再利用）。
+     * 詳細は本文と同じ書体で、**空でも1行ぶんの高さを取る**——空欄には
+     * プレースホルダが出るので、潰すと押せる場所が消える
+     */
+    const hypoTitleH = textHeight(h.title, fonts.title, panelContentWidth)
+    const detailH = textHeight(h.detail, fonts.body, panelContentWidth)
+    const solutionH = labelH + SECTION_GAP + hypoTitleH + SECTION_GAP + detailH
+
+    /** 価値仮説の節（見出し＋1つの欄） */
+    const valueH = textHeight(h.value, fonts.body, panelContentWidth)
+    const valueSectionH = labelH + SECTION_GAP + valueH
+
+    /**
+     * 検証結果の節。**見出しの帯にバッジ・日付・トリガーが同居する**ので、
+     * 帯の高さはその3つの一番高いものに合わせる（幅は測らない。
+     * `HypothesisPanel` の解説）。根拠はその下に**パネルの全幅**で座る
+     */
+    const judgeLabelH = Math.max(labelH, BADGE_HEIGHT, ACTION_HEIGHT)
+    const judgeNoteH = textHeight(
+      latest === null ? NO_JUDGEMENT_TEXT : latest.note,
+      fonts.body,
+      panelContentWidth,
     )
-    const judgeNoteW = panelContentWidth - latestBadgeW - BADGE_GAP - triggerW - BADGE_GAP
-    const judgeNoteH = textHeight(latest === null ? NO_JUDGEMENT_TEXT : latest.note, fonts.body, judgeNoteW)
-    const judgeRowH = Math.max(BADGE_HEIGHT, ACTION_HEIGHT, judgeNoteH)
-    const judgementH = labelH + SECTION_GAP + judgeRowH
+    const judgementH = judgeLabelH + SECTION_GAP + judgeNoteH
 
     // 以前の判断は追記専用の記録。**最新1件を除いた全部**を古い順に出す
     const previous = h.events.slice(0, -1).map((e) => {
@@ -361,48 +436,49 @@ export function layoutIssueTree(
       noteHs.reduce((sum, nh) => sum + nh + ROW_GAP, 0) +
       ACTION_HEIGHT
 
-    const sectionHs = [judgementH, previousH, notesSectionH].filter((s) => s > 0)
+    const sectionHs = [solutionH, valueSectionH, judgementH, previousH, notesSectionH].filter(
+      (s) => s > 0,
+    )
     const panelH =
       PANEL_INSET_Y * 2 +
       sectionHs.reduce((sum, s) => sum + s, 0) +
       PANEL_GAP * (sectionHs.length - 1)
-    const height = headH + ROW_GAP + panelH
+    // **開いた仮説に頭部は無い**（`HypothesisPlacement.row` の解説）。行の高さは
+    // パネルそのもの
+    const height = panelH
 
     return {
       height,
       build: (x, y) => {
-        // **パネルの左端は行の文言の左端と揃う**（`PANEL_INDENT` と
+        // **パネルの左端は畳まれた行の文言の左端と揃う**（`PANEL_INDENT` と
         // `ROW_INDENT` は同じ原点から測った同じ値。measure.ts の解説）
         const panel: Rect = {
           x: x + PANEL_INDENT,
-          y: y + headH + ROW_GAP,
+          y,
           width: contentWidth - PANEL_INDENT,
           height: panelH,
         }
         const cx = panel.x + PANEL_INSET_X
         let cursor = panel.y + PANEL_INSET_Y
-        /** 節の見出しを置いて本文の上端まで進める */
-        const sectionLabel = (): Rect => {
-          const r: Rect = { x: cx, y: cursor, width: panelContentWidth, height: labelH }
-          cursor += labelH + SECTION_GAP
+        /** パネルの全幅を使う1行を置いて、次の行の上端まで進める */
+        const fullRow = (rowHeight: number, gap: number): Rect => {
+          const r: Rect = { x: cx, y: cursor, width: panelContentWidth, height: rowHeight }
+          cursor += rowHeight + gap
           return r
         }
+        /** 節の見出しの帯を置いて本文の上端まで進める */
+        const sectionLabel = (bandHeight = labelH): Rect => fullRow(bandHeight, SECTION_GAP)
 
-        const judgeLabel = sectionLabel()
-        const judgeBadge: Rect = { x: cx, y: cursor, width: latestBadgeW, height: BADGE_HEIGHT }
-        const judgeNote: Rect = {
-          x: cx + latestBadgeW + BADGE_GAP,
-          y: cursor,
-          width: judgeNoteW,
-          height: judgeNoteH,
-        }
-        const judgeTrigger: Rect = {
-          x: cx + panelContentWidth - triggerW,
-          y: cursor,
-          width: triggerW,
-          height: ACTION_HEIGHT,
-        }
-        cursor += judgeRowH
+        const solutionLabel = sectionLabel()
+        // 節の中の空きは見出しと同じ `SECTION_GAP`（キャンバスの `.sec` の gap）
+        const hypoTitle = fullRow(hypoTitleH, SECTION_GAP)
+        const detail = fullRow(detailH, PANEL_GAP)
+
+        const valueLabel = sectionLabel()
+        const valueField = fullRow(valueH, PANEL_GAP)
+
+        const judgeLabel = sectionLabel(judgeLabelH)
+        const judgeNote = fullRow(judgeNoteH, 0)
 
         const previousRects: { badge: Rect; note: Rect }[] = []
         let previousLabel: Rect | null = null
@@ -428,26 +504,14 @@ export function layoutIssueTree(
         })
         const addRect: Rect = { x: cx, y: cursor, width: panelContentWidth, height: ACTION_HEIGHT }
 
-        const badge: Rect = {
-          x: x + contentWidth - badgeW,
-          y: y + Math.floor((fonts.body.lineHeight - BADGE_HEIGHT) / 2),
-          width: badgeW,
-          height: BADGE_HEIGHT,
-        }
-
         return {
           rect: { x, y, width: contentWidth, height },
-          text: { x: x + ROW_INDENT, y, width: textW, height: textH },
-          badge,
-          feedbackBadge: feedbackBadgeLeftOf(badge),
+          row: null,
           expanded: {
             panel,
-            judgement: {
-              label: judgeLabel,
-              badge: judgeBadge,
-              note: judgeNote,
-              trigger: judgeTrigger,
-            },
+            solution: { label: solutionLabel, title: hypoTitle, detail },
+            value: { label: valueLabel, field: valueField },
+            judgement: { label: judgeLabel, note: judgeNote },
             previousLabel,
             previous: previousRects,
             notes: { label: notesLabel, cells: noteCells, add: addRect },
@@ -474,6 +538,12 @@ export function layoutIssueTree(
     contentWidth: number
     titleWidth: number
     titleHeight: number
+    /**
+     * タイトルの行高。**開いた課題は `EXPANDED_TITLE_FONT_CLASS`（16px）で
+     * 描かれる**ので、シェブロンを1行目の中央に置く計算もその行高で行う
+     *——14px の行高で割ると、開いた瞬間にシェブロンだけが上にずれる
+     */
+    titleLineHeight: number
     /** 見送りバッジ（無ければ 0）。タイトルの右に空ける幅は `BADGE_GAP + これ` */
     badgeWidth: number
     reasonHeight: number | null
@@ -550,7 +620,14 @@ export function layoutIssueTree(
     const titleInset = CHEVRON_SIZE + CHEVRON_GAP
     const titleWidth = contentWidth - titleInset - reserve
 
-    const titleHeight = textHeight(node.text, fonts.title, titleWidth)
+    /**
+     * **展開中の課題タイトルは一段大きい**（`EXPANDED_TITLE_FONT_CLASS` ＝
+     * text-base 16px）。**測る側と描く側（`IssueBox`）が同じ条件で切り替わること。**
+     * 片方だけだと、測定より広く描いて折り返しが1行増え、高さ固定＋
+     * `overflow-hidden` の textarea で末尾の行が黙って見えなくなる
+     */
+    const titleFont = open ? fonts.expandedTitle : fonts.title
+    const titleHeight = textHeight(node.text, titleFont, titleWidth)
     const reasonHeight = flagged
       ? textHeight(latestFlag.note, fonts.small, contentWidth - ROW_INDENT)
       : null
@@ -568,6 +645,7 @@ export function layoutIssueTree(
       contentWidth,
       titleWidth,
       titleHeight,
+      titleLineHeight: titleFont.lineHeight,
       badgeWidth: badgeW,
       reasonHeight,
       height,
@@ -600,7 +678,7 @@ export function layoutIssueTree(
       // 行頭の点をバッジに揃えているのと同じ理屈）
       const chevron: Rect = {
         x: left,
-        y: cursor + Math.floor((fonts.title.lineHeight - CHEVRON_SIZE) / 2),
+        y: cursor + Math.floor((box.titleLineHeight - CHEVRON_SIZE) / 2),
         width: CHEVRON_SIZE,
         height: CHEVRON_SIZE,
       }

@@ -26,6 +26,9 @@ const DATE = '2026-08-30'
  */
 const fonts: IssueTreeFonts = {
   title: { measure: createEstimateMeasurer(16), lineHeight: 24 },
+  // 展開中の課題タイトルは一段大きい（`EXPANDED_TITLE_FONT_CLASS` = 16px）。
+  // **概算器も大きくしておく**——同じ値だと「切り替えていない」実装でも緑になる
+  expandedTitle: { measure: createEstimateMeasurer(18), lineHeight: 27 },
   body: { measure: createEstimateMeasurer(16), lineHeight: 24 },
   small: { measure: createEstimateMeasurer(14), lineHeight: 18 },
 }
@@ -91,7 +94,7 @@ describe('layoutIssueTree', () => {
     // タイトルの下に来る
     expect(rows[0].y).toBeGreaterThanOrEqual(out.issues[0]!.title.y + out.issues[0]!.title.height)
     // 文言の右にバッジの場所が空く（重ねない）
-    const first = out.hypotheses[0]!
+    const first = out.hypotheses[0]!.row!
     expect(first.badge.x).toBeGreaterThanOrEqual(first.text.x + first.text.width)
     expect(first.badge.x + first.badge.width).toBeLessThanOrEqual(box.x + box.width)
   })
@@ -120,8 +123,8 @@ describe('layoutIssueTree', () => {
     expect(posed.hypothesisQuestions[1].feedback).toBe(0)
 
     const out = run(data)
-    const pending = out.hypotheses[0]!
-    const plain = out.hypotheses[1]!
+    const pending = out.hypotheses[0]!.row!
+    const plain = out.hypotheses[1]!.row!
 
     // 立っていない行は従来どおり（バッジは1つ）
     expect(plain.feedbackBadge).toBeNull()
@@ -141,19 +144,15 @@ describe('layoutIssueTree', () => {
     expect(pending.text.width).toBe(plain.text.width - BADGE_GAP - jb.width)
     expect(pending.text.x + pending.text.width).toBeLessThanOrEqual(jb.x)
 
-    // **展開した課題の頭部も同じ**（頭部の組み立ては閉じた行と同じ幅の式を通る）。
-    // ただし箱が広がるので、幅そのものは畳んだときと一致しない——同じ
-    // レイアウトの中の、FB待ちが立っていない行と突き合わせる
+    // **展開した仮説に頭部は無い**（m5 Task 4）——「点・文言・バッジ」の1行は
+    // 畳まれているときだけで、開くとパネルが全部を負う。**FB待ちのバッジも
+    // 畳まれた行にしか出ない**（展開中は問いブロックの側に出す。Task 5）。
+    // 頭部を残すと、パネルの「ソリューション仮説」節と同じ文言が2箇所に出る
     const openLayout = run(data, 0)
-    const open = openLayout.hypotheses[0]!
-    const openPlain = openLayout.hypotheses[1]!
-    const ojb = open.feedbackBadge!
-    expect(ojb.width).toBe(jb.width)
-    expect(ojb.y).toBe(open.badge.y)
-    expect(ojb.x + ojb.width + BADGE_GAP).toBe(open.badge.x)
-    expect(open.text.width).toBe(openPlain.text.width - BADGE_GAP - ojb.width)
-    // 展開した課題の行は、畳まれていたときより広い（押し広げが効いている）
-    expect(open.text.width).toBeGreaterThan(pending.text.width)
+    expect(openLayout.hypotheses[0]!.row).toBeNull()
+    expect(openLayout.hypotheses[0]!.expanded).not.toBeNull()
+    // 展開した課題の中身は、畳まれていたときより広い（押し広げが効いている）
+    expect(openLayout.hypotheses[0]!.expanded!.panel.width).toBeGreaterThan(pending.text.width)
   })
 
   /**
@@ -283,15 +282,25 @@ describe('layoutIssueTree', () => {
     expect(p.panel.y + p.panel.height).toBeLessThanOrEqual(
       open.hypotheses[1]!.rect.y + open.hypotheses[1]!.rect.height,
     )
-    // 節は上から 判断 → 以前の判断 → FB の順（由来は v3 で廃止された）
+    // 節は上から ソリューション仮説 → 価値仮説 → 検証結果 → 以前の判断 → FB の順
+    //（由来は v3 で廃止された）。**y で見る**——描く側の DOM 順は
+    // `HypothesisPanel.dom.test.tsx` が別に見ている
+    expect(p.solution.title.y).toBeGreaterThan(p.solution.label.y)
+    expect(p.solution.detail.y).toBeGreaterThan(p.solution.title.y)
+    expect(p.value.label.y).toBeGreaterThan(p.solution.detail.y)
+    expect(p.value.field.y).toBeGreaterThan(p.value.label.y)
+    expect(p.judgement.label.y).toBeGreaterThan(p.value.field.y)
     expect(p.previousLabel).not.toBeNull()
+    expect(p.previousLabel!.y).toBeGreaterThan(p.judgement.note.y)
     expect(p.notes.label.y).toBeGreaterThan(p.previous[0].note.y)
     expect(p.notes.add.y).toBeGreaterThan(p.notes.cells[1].y)
-    // 判断の行はバッジ・根拠・トリガーが横に並ぶ（重ならない）
-    expect(p.judgement.note.x).toBeGreaterThanOrEqual(p.judgement.badge.x + p.judgement.badge.width)
-    expect(p.judgement.trigger.x).toBeGreaterThanOrEqual(
-      p.judgement.note.x + p.judgement.note.width,
+    // 検証結果の根拠は見出しの帯の下に、パネルの全幅で座る（バッジ・日付・
+    // トリガーは帯の中に flex で並ぶので、根拠の幅を削らない）
+    expect(p.judgement.note.y).toBeGreaterThanOrEqual(
+      p.judgement.label.y + p.judgement.label.height,
     )
+    expect(p.judgement.note.x).toBe(p.judgement.label.x)
+    expect(p.judgement.note.width).toBe(p.judgement.label.width)
   })
 
   it('展開パネルに「由来」の節が無い（rationale の廃止）', () => {
@@ -313,7 +322,13 @@ describe('layoutIssueTree', () => {
     const withRationaleGone = layoutIssueTree(data, posed, fonts, 0)
     const panel = withRationaleGone.hypotheses[0]?.expanded
     expect(panel).not.toBeNull()
-    expect(Object.keys(SECTION_LABELS)).toEqual(['judgement', 'previous', 'notes'])
+    expect(Object.keys(SECTION_LABELS)).toEqual([
+      'solution',
+      'value',
+      'judgement',
+      'previous',
+      'notes',
+    ])
     // **SECTION_LABELS の鍵だけでは「矩形が残っていないか」しか見ない。**
     // パネルの実測が節3つぶんぴったりであることも見る——最後の内容（＋FBボタン）
     // の下端と、パネルの下端（内側余白を引いた位置）が一致するはずで、由来の
@@ -335,8 +350,11 @@ describe('layoutIssueTree', () => {
   it('展開した仮説の文言は折り返した高さになる（畳むと1行）', () => {
     const long = 'あ'.repeat(60)
     const data = make({ issues: [root], hypotheses: [h(1, { title: long })] })
-    expect(run(data).hypotheses[0]!.text.height).toBe(fonts.body.lineHeight)
-    expect(run(data, 0).hypotheses[0]!.text.height).toBeGreaterThan(fonts.body.lineHeight)
+    expect(run(data).hypotheses[0]!.row!.text.height).toBe(fonts.body.lineHeight)
+    // 展開すると、文言はパネルの「ソリューション仮説」節の中で折り返す
+    expect(run(data, 0).hypotheses[0]!.expanded!.solution.title.height).toBeGreaterThan(
+      fonts.body.lineHeight,
+    )
   })
 
   it('見送った課題はタイトル行の右端にバッジ、その下に理由の行を持つ', () => {
@@ -577,7 +595,9 @@ describe('layoutIssueTree', () => {
     }
     // 広がったぶんだけパネルの中身も広い（320 のまま測っていたら赤くなる）
     const narrow = run(data).hypotheses[0]!
-    expect(out.hypotheses[0]!.expanded!.notes.cells[0].width).toBeGreaterThan(narrow.text.width)
+    expect(out.hypotheses[0]!.expanded!.notes.cells[0].width).toBeGreaterThan(
+      narrow.row!.text.width,
+    )
   })
 
   /**

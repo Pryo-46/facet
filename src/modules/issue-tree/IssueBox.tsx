@@ -7,6 +7,7 @@ import { ISSUE_EVENT_LABELS, QUESTION_LABELS, type IssueEventKind } from './deri
 import type { IssuePlacement } from './layout'
 import {
   CHEVRON_SIZE_CLASS,
+  EXPANDED_TITLE_FONT_CLASS,
   ISSUE_BORDER,
   ISSUE_BOX_CLASS,
   ISSUE_PADDING_X,
@@ -176,7 +177,12 @@ export function IssueBox(props: IssueBoxProps) {
         <CellInput
           multiline
           autoSize={false}
-          className={`h-full w-full resize-none overflow-hidden bg-transparent whitespace-pre-wrap break-all ${TITLE_FONT_CLASS} outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-inset focus:ring-ring`}
+          // **開いた課題のタイトルは一段大きい**（`EXPANDED_TITLE_FONT_CLASS`
+          // ＝ text-base 16px。畳んでいれば `TITLE_FONT_CLASS` ＝ 14px）。
+          // **`layout.ts` が同じ条件で測定器を切り替えている**——片方だけ
+          // 変えると、測定より広く描いて折り返しが1行増え、高さ固定＋
+          // `overflow-hidden` の textarea で末尾の行が黙って見えなくなる
+          className={`h-full w-full resize-none overflow-hidden bg-transparent whitespace-pre-wrap break-all ${placement.expanded ? EXPANDED_TITLE_FONT_CLASS : TITLE_FONT_CLASS} outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-inset focus:ring-ring`}
           aria-label={name}
           // **`QUESTION_LABELS.hypothesis` をプレースホルダにしない**
           // ——空の箱のタイトルが「仮説なし」に見える。問いはバッジが運ぶ

@@ -940,16 +940,21 @@ describe('IssueTreeEditor（行のFB待ちバッジ）', () => {
     expect(leftOf(pending)).toBeLessThan(leftOf(rowBadges(3)[0]))
   })
 
-  it('展開した仮説の頭部にも「FB待ち」バッジが残る', () => {
-    // 頭部は閉じた行と別の分岐で描かれる（`inRow` と `inBox`）ので、別に見る
+  /**
+   * **開いた仮説に頭部は無い**（m5 Task 4）——「点・文言・バッジ」の1行は
+   * 畳まれているときだけで、開くと `HypothesisPanel` が全部を負う。頭部を
+   * 残すと、パネルの「ソリューション仮説」節と同じ文言が画面に2つ出る。
+   * **FB待ちのバッジは畳まれた行にしか出ない**——展開中は問いブロックの側に
+   * 出す（Task 5。それまでは展開中だけ見えない）
+   */
+  it('展開した仮説に「FB待ち」バッジは出ない（問いブロックへ移る）', () => {
     render(<Harness initial={allKindsFile()} />)
     const box = openHypothesis(3).closest('[class*="pointer-events-auto"]')
     if (box === null) throw new Error('仮説3の箱が無い')
     const found = Array.from(box.querySelectorAll('[class*="inline-flex"]')).filter(
       (e) => e.textContent === QUESTION_LABELS.feedback,
     )
-    expect(found).toHaveLength(1)
-    expect((found[0] as HTMLElement).className).toBe(badgeClass('pending'))
+    expect(found).toHaveLength(0)
   })
 })
 
@@ -1165,9 +1170,10 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
     expect(screen.getAllByText(EVENT_KIND_LABELS.rejected)).toHaveLength(1)
 
     openHypothesis(1)
-    // **展開すると同じ語が2つ出る**——行末の俯瞰バッジと、判断の節のバッジ。
-    // 5語に畳む前は後者だけが「検証せず棄却」で、2つは別の語だった
-    expect(screen.getAllByText(EVENT_KIND_LABELS.rejected)).toHaveLength(2)
+    // **開いても語は1つのまま**——行末の俯瞰バッジは頭部ごと消え、判断の語を
+    // 運ぶのは「検証結果」節のバッジだけになった（m5 Task 4。頭部を残すと
+    // 同じ文言が2箇所に出る）
+    expect(screen.getAllByText(EVENT_KIND_LABELS.rejected)).toHaveLength(1)
     expect(screen.getByRole('button', { name: '仮説1に判断を追加' }).textContent).toBe(
       JUDGEMENT_TRIGGER_LABELS.latest,
     )

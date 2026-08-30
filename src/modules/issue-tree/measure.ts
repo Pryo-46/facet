@@ -139,7 +139,13 @@ export const SECTION_GAP = 4
 export const ACTION_HEIGHT = 24
 /** `ACTION_HEIGHT` と対のクラス（h-6 = 24px） */
 export const ACTION_HEIGHT_CLASS = 'h-6'
-/** ボタンの左右の余白（px-1 = 4px）＋枠線 1px。幅は文言の実測＋これ */
+/**
+ * ボタンの左右の余白（px-1 = 4px）＋枠線 1px。**いまはどこからも読まれていない**
+ *——m5 Task 4 で判断のトリガーが「検証結果」の見出しの帯へ移り、帯の中で
+ * flex に並ぶようになったので、レイアウトがボタンの幅を測る必要が無くなった
+ *（`layout.ts` の `actionWidth` はそれで消えた）。**小さなボタンを絶対配置で
+ * 置く場所が再び出たときの対として残してある**（幅は文言の実測＋これ）
+ */
 export const ACTION_INSET_X = 5
 
 /**

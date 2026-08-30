@@ -17,6 +17,7 @@ const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
 
 const fonts = {
   title: { measure: createEstimateMeasurer(16), lineHeight: 24 },
+  expandedTitle: { measure: createEstimateMeasurer(18), lineHeight: 27 },
   body: { measure: createEstimateMeasurer(16), lineHeight: 24 },
   small: { measure: createEstimateMeasurer(14), lineHeight: 18 },
 }

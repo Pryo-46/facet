@@ -48,7 +48,9 @@ import {
   moveIssueSibling,
   setEventNote,
   setFeedbackText,
+  setHypothesisDetail,
   setHypothesisTitle,
+  setHypothesisValue,
   setIssueEventNote,
   setIssueText,
   toggleIssueEvent,
@@ -68,11 +70,12 @@ import {
   type IssueEventKind,
   type JudgementKind,
 } from './derive'
+import { HypothesisPanel } from './HypothesisPanel'
 import { HypothesisRow } from './HypothesisRow'
 import { IssueBox } from './IssueBox'
 import { IssueTreeEdges } from './IssueTreeEdges'
 import { JUDGEMENT_TRIGGER_LABELS, layoutIssueTree, type IssueTreeFonts } from './layout'
-import { ACTION_HEIGHT_CLASS, TITLE_FONT_CLASS } from './measure'
+import { ACTION_HEIGHT_CLASS, EXPANDED_TITLE_FONT_CLASS, TITLE_FONT_CLASS } from './measure'
 import {
   listFlaggedTargets,
   listOpenTargets,
@@ -180,8 +183,10 @@ const TRIGGER_BASE =
  * 小さなボタンの面。**呼び出し側が必ず渡す**（足すのではなく差し替える）
  *——判断ドロップダウンと「＋ FB」が使う。旗のトグルは `DEFER_TRIGGER_FACE` を使う
  *（旗が立っている課題ではトグル自身が旗のバッジを兼ねるため、幾何をバッジに揃えてある）。
- * **幅を測っているのは `layout.ts` の `actionWidth`**（`ACTION_INSET_X` は
- * ここの `px-1` ＋ 枠線 1px）なので、余白のクラスは対で直すこと
+ * **幅はもう測っていない**——m5 Task 4 で判断のトリガーは「検証結果」の見出しの
+ * 帯の中に flex で並ぶようになり、「＋ FB」も全幅の行の中で自分の幅を取る。
+ * **高さだけがレイアウトの前提**（`ACTION_HEIGHT` と対の `ACTION_HEIGHT_CLASS`）
+ * なので、高さのクラスは対で直すこと
  */
 const TRIGGER_FACE =
   'rounded-sm border border-rule bg-surface px-1 text-sm text-ink-muted hover:bg-canvas'
@@ -307,11 +312,16 @@ export function IssueTreeEditor({
 }: EditorProps<IssueTreeSchemaVersion3>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const titleProbeRef = useRef<HTMLSpanElement>(null)
+  const expandedTitleProbeRef = useRef<HTMLSpanElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const smallProbeRef = useRef<HTMLSpanElement>(null)
   // **課題のタイトルは太字**（`TITLE_FONT_CLASS`）で、同じ 14px でも細字より
   // 広い。1本の測定器を使い回すと、タイトルが測定より早く折り返して字が切れる
   const [titleFont, setTitleFont] = useState<CanvasFont>(FALLBACK_CANVAS_FONT)
+  // **開いた課題のタイトルは 16px**（`EXPANDED_TITLE_FONT_CLASS`）。サイズが
+  // 違うので畳んだときの見本では測れない——1本で兼ねると、開いた瞬間に
+  // タイトルが測定より広く描かれて末尾の行が切れる
+  const [expandedTitleFont, setExpandedTitleFont] = useState<CanvasFont>(FALLBACK_CANVAS_FONT)
   const [font, setFont] = useState<CanvasFont>(FALLBACK_CANVAS_FONT)
   const [smallFont, setSmallFont] = useState<CanvasFont>(FALLBACK_SMALL_FONT)
 
@@ -366,6 +376,10 @@ export function IssueTreeEditor({
       const next = readCanvasFont(titleProbeRef.current)
       return sameFont(prev, next) ? prev : next
     })
+    setExpandedTitleFont((prev) => {
+      const next = readCanvasFont(expandedTitleProbeRef.current)
+      return sameFont(prev, next) ? prev : next
+    })
     setFont((prev) => {
       const next = readCanvasFont(probeRef.current)
       return sameFont(prev, next) ? prev : next
@@ -397,13 +411,14 @@ export function IssueTreeEditor({
   // 成立させるのはこちらである。
   // **2種類のフォントを1つの入れ物に持つ**——鍵は文字列だけで、どちらの
   // フォントで測ったかを持っていないので、混ぜると片方が他方の幅を返す
-  const measurerKey = `${titleFont.font}|${titleFont.lineHeight}|${font.font}|${font.lineHeight}|${smallFont.font}|${smallFont.lineHeight}|${fontGeneration}`
+  const measurerKey = `${titleFont.font}|${titleFont.lineHeight}|${expandedTitleFont.font}|${expandedTitleFont.lineHeight}|${font.font}|${font.lineHeight}|${smallFont.font}|${smallFont.lineHeight}|${fontGeneration}`
   const measurerRef = useRef<{ key: string; fonts: IssueTreeFonts } | null>(null)
   if (measurerRef.current === null || measurerRef.current.key !== measurerKey) {
     measurerRef.current = {
       key: measurerKey,
       fonts: {
         title: cachedMeasurer(titleFont),
+        expandedTitle: cachedMeasurer(expandedTitleFont),
         body: cachedMeasurer(font),
         small: cachedMeasurer(smallFont),
       },
@@ -482,6 +497,11 @@ export function IssueTreeEditor({
     const h = data.hypotheses[index]
     // 行の中の欄はどれも行全体（＝展開パネルを含む矩形）を見せる
     rects.set(hypothesisCellKey(key, { cell: 'hypothesis' }), placement.rect)
+    // 詳細・価値仮説は展開パネルの中にしか無いが、**鍵は畳んでいても登録する**
+    //（`goTo` は先に持ち主の課題を開いてから予約を当てるので、寄せる先は
+    // 開いた後の矩形になる）
+    rects.set(hypothesisCellKey(key, { cell: 'detail' }), placement.rect)
+    rects.set(hypothesisCellKey(key, { cell: 'value' }), placement.rect)
     h.feedbacks.forEach((_f, feedbackIndex) => {
       rects.set(hypothesisCellKey(key, { cell: 'feedback', feedbackIndex }), placement.rect)
     })
@@ -748,16 +768,29 @@ export function IssueTreeEditor({
       {/* 測定用の見本。**描画されるセルと同じフォントのクラスを持たせる**ことで、
           測定と描画が同一の情報源を見る（rev 9章）。opacity-0 で見せないだけに
           するのは、display:none だと getComputedStyle がフォントを返さない環境が
-          あるため。見本が2本あるのは、課題ノード・仮説の文言（`BODY_FONT_CLASS`
-          = text-sm + leading-normal）と節見出し・バッジ（`SMALL_FONT_CLASS` = text-sm）で
-          フォント階級が違うため——M26 でサイズは 14px に並んだが行間が違う（1.5 と 1.3）
-          ので、1本を両方に使い回すと片方の高さを見誤る。
-          **課題のタイトル（太字）も別に測る**——同じ 14px でも太字は幅が違い、
-          細字で測るとタイトルが切れる */}
+          あるため。見本が4本あるのは、フォント階級が4つあるため:
+
+          - `TITLE_FONT_CLASS`（畳んだ課題のタイトル。14px 太字）——同じ 14px でも
+            太字は幅が違い、細字で測るとタイトルが切れる。**展開パネルの中の
+            ソリューション仮説のタイトルもこの見本で測る**（`IssueTreeFonts.title`）
+          - `EXPANDED_TITLE_FONT_CLASS`（開いた課題のタイトル。16px 太字）——
+            サイズが違うので上では測れない（m5 Task 4 で追加）
+          - `BODY_FONT_CLASS`（仮説の詳細・価値仮説・根拠・FB。14px / 行間 1.5）
+          - `SMALL_FONT_CLASS`（節見出し・バッジ。14px / 行間 1.3）
+
+          M26 で `BODY` と `SMALL` はサイズが 14px に並んだが行間が違う（1.5 と 1.3）
+          ので、1本を両方に使い回すと片方の高さを見誤る */}
       <span
         ref={titleProbeRef}
         aria-hidden="true"
         className={`${TITLE_FONT_CLASS} pointer-events-none absolute top-0 left-0 select-none opacity-0`}
+      >
+        あ
+      </span>
+      <span
+        ref={expandedTitleProbeRef}
+        aria-hidden="true"
+        className={`${EXPANDED_TITLE_FONT_CLASS} pointer-events-none absolute top-0 left-0 select-none opacity-0`}
       >
         あ
       </span>
@@ -957,53 +990,71 @@ export function IssueTreeEditor({
                       key={rowKey}
                       onFocusCapture={() => setLastCell({ cell: 'hypothesis', key: rowKey })}
                     >
-                      <HypothesisRow
-                        hypothesisKey={rowKey}
-                        label={`仮説${hi + 1}`}
-                        placement={row}
-                        origin={placement.rect}
-                        title={h.title}
-                        notes={h.feedbacks.map((f) => f.text)}
-                        events={h.events}
-                        invalid={invalidHypotheses.has(hi)}
-                        suppressed={issueSuppressed[index]}
-                        // **行の開閉はレイアウトが決めている**——課題が開いて
-                        // いれば、その課題の仮説はすべてパネルを持つ
-                        expanded={row.expanded !== null}
-                        onExpand={() => expandRowFor(hi)}
-                        onTitleChange={(next) =>
-                          onChange(setHypothesisTitle(data, hi, next), `${rowKey}:title`)
-                        }
-                        onFeedbackTextChange={(feedbackIndex, next) =>
-                          onChange(
-                            setFeedbackText(data, hi, feedbackIndex, next),
-                            `${rowKey}:feedback:${feedbackIndex}`,
-                          )
-                        }
-                        onEventNoteChange={(eventIndex, next) =>
-                          onChange(
-                            setEventNote(data, hi, eventIndex, next),
-                            `${rowKey}:event:${eventIndex}`,
-                          )
-                        }
-                        // Task 5 で問いブロックから askId を渡すまでの暫定
-                        onAddFeedback={() => apply(addFeedback(data, hi, null))}
-                        judgementMenu={
-                          <KindMenu
-                            label={`仮説${hi + 1}に判断を追加`}
-                            // **文言はレイアウトが持つ**——空けた幅と描く幅を
-                            // 同じ文字列から出す（`layout.ts` が測っている）
-                            triggerText={
-                              JUDGEMENT_TRIGGER_LABELS[h.events.length === 0 ? 'empty' : 'latest']
-                            }
-                            // 高さは `ACTION_HEIGHT` で場所を空けてある（対のクラス）
-                            triggerClassName={`${TRIGGER_FACE} ${ACTION_HEIGHT_CLASS}`}
-                            kinds={JUDGEMENT_KINDS}
-                            onPick={(kind) => apply(appendJudgement(data, hi, kind))}
-                            {...menuPropsFor(judgementMenuKey(rowKey))}
-                          />
-                        }
-                      />
+                      {/* **畳まれた行と展開パネルは排他**（レイアウトの
+                          `row` / `expanded` のちょうど一方が非 null）。2つが同時に
+                          描かれると、同じ `data-cell`（`hyp:`）を名乗る要素が
+                          DOM に並び、フォーカスの予約が先頭を掴んで静かに外れる */}
+                      {row.row !== null ? (
+                        <HypothesisRow
+                          hypothesisKey={rowKey}
+                          label={`仮説${hi + 1}`}
+                          rect={row.rect}
+                          row={row.row}
+                          origin={placement.rect}
+                          title={h.title}
+                          events={h.events}
+                          suppressed={issueSuppressed[index]}
+                          onExpand={() => expandRowFor(hi)}
+                        />
+                      ) : row.expanded === null ? null : (
+                        <HypothesisPanel
+                          hypothesisKey={rowKey}
+                          label={`仮説${hi + 1}`}
+                          panel={row.expanded}
+                          origin={placement.rect}
+                          hypothesis={h}
+                          invalid={invalidHypotheses.has(hi)}
+                          suppressed={issueSuppressed[index]}
+                          onTitleChange={(next) =>
+                            onChange(setHypothesisTitle(data, hi, next), `${rowKey}:title`)
+                          }
+                          onDetailChange={(next) =>
+                            onChange(setHypothesisDetail(data, hi, next), `${rowKey}:detail`)
+                          }
+                          onValueChange={(next) =>
+                            onChange(setHypothesisValue(data, hi, next), `${rowKey}:value`)
+                          }
+                          onFeedbackTextChange={(feedbackIndex, next) =>
+                            onChange(
+                              setFeedbackText(data, hi, feedbackIndex, next),
+                              `${rowKey}:feedback:${feedbackIndex}`,
+                            )
+                          }
+                          onEventNoteChange={(eventIndex, next) =>
+                            onChange(
+                              setEventNote(data, hi, eventIndex, next),
+                              `${rowKey}:event:${eventIndex}`,
+                            )
+                          }
+                          // Task 5 で問いブロックから askId を渡すまでの暫定
+                          onAddFeedback={() => apply(addFeedback(data, hi, null))}
+                          judgementMenu={
+                            <KindMenu
+                              label={`仮説${hi + 1}に判断を追加`}
+                              // **文言はレイアウトが持つ**——描く文字列を
+                              // 1箇所から出す（`layout.ts` の定数）
+                              triggerText={
+                                JUDGEMENT_TRIGGER_LABELS[h.events.length === 0 ? 'empty' : 'latest']
+                              }
+                              // 高さは `ACTION_HEIGHT` で場所を空けてある（対のクラス）
+                              triggerClassName={`${TRIGGER_FACE} ${ACTION_HEIGHT_CLASS}`}
+                              kinds={JUDGEMENT_KINDS}
+                              onPick={(kind) => apply(appendJudgement(data, hi, kind))}
+                              {...menuPropsFor(judgementMenuKey(rowKey))}
+                            />
+                          }
+                        />
+                      )}
                     </div>
                   )
                 })}
