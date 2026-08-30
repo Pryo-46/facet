@@ -57,15 +57,15 @@ function makeMigratingRegistry() {
     type: 'issueTree',
     displayName: 'issueTree',
     icon: () => null,
-    schemaVersion: 2,
+    schemaVersion: 3,
     schema: issueTreeSchema,
-    idPrefixes: ['issue', 'hypothesis'],
+    idPrefixes: ['issue', 'hypothesis', 'ask'],
     Editor: () => null,
     checkConsistency: () => [],
     outputs: [],
     singleton: false,
-    // 1 → 2 は schemaVersion の書き換えだけ（実物の migrateIssueTree と同じ形）
-    migrate: (d, from) => (from < 2 ? { ...(d as Record<string, unknown>), schemaVersion: 2 } : d),
+    // 旧版 → 3 は schemaVersion の書き換えだけ（実物の migrateIssueTree と同じ形）
+    migrate: (d, from) => (from < 3 ? { ...(d as Record<string, unknown>), schemaVersion: 3 } : d),
     createEmpty: () => ({}),
   }
   registry.register(mod)
@@ -120,11 +120,12 @@ describe('classifyFile', () => {
   })
 
   it('既知 type × 旧 schemaVersion は module.migrate で移してから検証し、editable になる（rev 5章）', () => {
-    // 課題ツリーの v1（onHold を含まない）。移行後の data は schemaVersion 2
+    // 課題ツリーの旧版（issues・hypotheses が空なので、v3 で増えた title/detail/value・
+    // asks・feedbacks・date の要不要が要素の中身に現れない）。移行後の data は schemaVersion 3
     const text = JSON.stringify({ schemaVersion: 1, type: 'issueTree', title: '旧版', issues: [], hypotheses: [] })
     const out = classifyFile(text, makeMigratingRegistry())
     expect(out.status).toBe('editable')
-    if (out.status === 'editable') expect((out.data as { schemaVersion: number }).schemaVersion).toBe(2)
+    if (out.status === 'editable') expect((out.data as { schemaVersion: number }).schemaVersion).toBe(3)
   })
 
   it('移行後にスキーマ検証へ落ちるファイルは rejected（移行が検証を飛ばさない）', () => {
