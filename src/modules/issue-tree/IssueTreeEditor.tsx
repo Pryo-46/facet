@@ -280,6 +280,24 @@ function KindMenu(props: KindMenuProps) {
 }
 
 /**
+ * 仮説がぶら下がる課題の行鍵。ぶら下がり先が図に無ければ null。
+ *
+ * **展開の単位が課題ノードになった（m5）ので、「この仮説を見せたい」から
+ * 「どの課題を開くか」を引く口が要る。** `source` を引数に取るのは、構造を
+ * 変えた直後は差し替え後のデータで引かねばならないため（`goTo` の約束）
+ */
+function ownerIssueKey(
+  source: IssueTreeSchemaVersion3,
+  issueKeys: readonly string[],
+  hypothesisIndex: number,
+): string | null {
+  const issueId = source.hypotheses[hypothesisIndex]?.issueId
+  if (issueId === undefined) return null
+  const at = source.issues.findIndex((n) => n.id === issueId)
+  return at < 0 ? null : (issueKeys[at] ?? null)
+}
+
+/**
  * 課題ツリーのエディタ（規約3）。
  *
  * 土台は `src/modules/logic-tree/LogicTreeEditor.tsx`——フォントの世代管理・
@@ -338,11 +356,17 @@ export function IssueTreeEditor({
    */
   const [lastCell, setLastCell] = useState<LastCell | null>(null)
 
-  // 詳細（判断・以前の判断・FB）を出している仮説の行鍵。**同時に1本だけ。**
+  // 詳細を出している**課題**の行鍵。**同時に1件だけ**（開くと箱が 320 → 780 に
+  // 広がるので、複数開くと図が読めなくなる）。
+  //
+  // **開くのは課題ノードであって仮説1本ではない**（m5。M3〜m4 は仮説単位だった）
+  // ——開いた課題にぶら下がる仮説はまとめてパネルを持つ。仮説どうしを見比べる
+  // 場面で、開くたびに隣が畳まれると比較そのものができないため。
+  //
   // **これはビュー状態であり、データには書かない**——座標と同じく、
   // 「いまどれを開いていたか」をファイルへ持ち込まない（rev 3章）。
   // 配列位置ではなく鍵で持つのも `lastCell` と同じ理由
-  const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  const [expandedIssueKey, setExpandedIssueKey] = useState<string | null>(null)
 
   const readFont = (): void => {
     setTitleFont((prev) => {
@@ -411,8 +435,9 @@ export function IssueTreeEditor({
     const at = hypothesisKeys.indexOf(lastCell.key)
     return at < 0 ? null : { cell: 'hypothesis', index: at }
   })()
-  const expandedIndex = expandedKey === null ? -1 : hypothesisKeys.indexOf(expandedKey)
-  const layout = layoutIssueTree(data, posed, fonts, expandedIndex)
+  const expandedIssueIndex =
+    expandedIssueKey === null ? -1 : issueKeys.indexOf(expandedIssueKey)
+  const layout = layoutIssueTree(data, posed, fonts, expandedIssueIndex)
   /** 課題 ID → ぶら下がる仮説の添字（配列順）。行は箱の中に描く */
   const rowsOf = new Map<string, number[]>()
   data.hypotheses.forEach((h, i) => {
@@ -508,13 +533,14 @@ export function IssueTreeEditor({
   const goTo = (focus: FocusTarget, source: IssueTreeSchemaVersion3 = data): void => {
     const nextIssueKeys = computeRowKeys(source.issues)
     const nextHypothesisKeys = computeRowKeys(source.hypotheses)
-    // **行き先が仮説の欄なら、先にその仮説を展開する。** 畳まれた行に
+    // **行き先が仮説の欄なら、先にその仮説の持ち主の課題を展開する。** 畳まれた行に
     // 判断の根拠・FB の欄は無いので、展開しないまま予約しても当たらない
     //（同じ更新の中でよい——予約を当てる effect は描画後に querySelector する）。
     // 仮説の文言そのものは、畳まれた行の `<button>` と展開後の `<textarea>` が
-    // 同じ `data-cell` を名乗るのでどちらでも当たる
+    // 同じ `data-cell` を名乗るのでどちらでも当たる。
+    // **開くのは課題**なので、`source`（＝差し替えた後のデータ）で持ち主を引く
     if (focus.cell !== 'issue' && focus.cell !== 'issueEvent') {
-      setExpandedKey(nextHypothesisKeys[focus.index] ?? null)
+      setExpandedIssueKey(ownerIssueKey(source, nextIssueKeys, focus.index))
     }
     // 画面の外なら寄せるのは、予約を当てる effect の仕事（`ensureVisible`）
     setPendingFocus(cellKey(focus, nextIssueKeys, nextHypothesisKeys))
@@ -539,15 +565,28 @@ export function IssueTreeEditor({
   }
 
   /**
-   * 仮説の行を開き、文言の欄へフォーカスを予約する。
+   * 仮説の行を押したときの動き: **持ち主の課題を開き**、その仮説の文言の欄へ
+   * フォーカスを予約する。
    *
    * **畳まれた行の `<button>` と展開後の `<textarea>` は同じ `data-cell` を
    * 名乗る**ので、この予約は「開いた後の textarea」に当たる（`HypothesisRow`
-   * が両方を同時に描かないことで成立している継ぎ目）
+   * が両方を同時に描かないことで成立している継ぎ目）。
+   *
+   * **フォーカスが入っただけでは開かない**（m5）——`HypothesisRow` から
+   * `onFocus` を外した。畳まれた行に `Tab` で入ると開いて textarea へ移る形は、
+   * 1回の `Tab` でフォーカスが2回動くのと同じことで、キーで木を歩くときに
+   * 行き先が読めなくなっていた（`open-issues.md`）
    */
-  const expandRow = (key: string): void => {
-    setExpandedKey(key)
+  const expandRowFor = (hypothesisIndex: number): void => {
+    const key = hypothesisKeys[hypothesisIndex]
+    if (key === undefined) return
+    setExpandedIssueKey(ownerIssueKey(data, issueKeys, hypothesisIndex))
     setPendingFocus(hypothesisCellKey(key, { cell: 'hypothesis' }))
+  }
+
+  /** 課題の開閉トグル。**同じ課題をもう一度押すと閉じる** */
+  const toggleIssueExpanded = (key: string): void => {
+    setExpandedIssueKey((prev) => (prev === key ? null : key))
   }
 
   /** data-cell 鍵のセルへ移る。戻り値 true＝移った（＝キーを消費した） */
@@ -990,6 +1029,11 @@ export function IssueTreeEditor({
                   onChange(setIssueEventNote(data, index, next), `${key}:event`)
                 }
                 onFieldKeyDown={(e, state) => onIssueKeyDown(e, index, state)}
+                // 展開は**課題ノード単位**（m5）。仮説を1本も持たない課題は
+                // 開くものが無いので、トグルは場所を空けたまま隠れる
+                expanded={expandedIssueKey === key}
+                expandable={(rowsOf.get(node.id) ?? []).length > 0}
+                onToggleExpand={() => toggleIssueExpanded(key)}
                 eventToggle={
                   <button
                     type="button"
@@ -1043,8 +1087,10 @@ export function IssueTreeEditor({
                         events={h.events}
                         invalid={invalidHypotheses.has(hi)}
                         suppressed={issueSuppressed[index]}
-                        expanded={expandedKey === rowKey}
-                        onExpand={() => expandRow(rowKey)}
+                        // **行の開閉はレイアウトが決めている**——課題が開いて
+                        // いれば、その課題の仮説はすべてパネルを持つ
+                        expanded={row.expanded !== null}
+                        onExpand={() => expandRowFor(hi)}
                         onTitleChange={(next) =>
                           onChange(setHypothesisTitle(data, hi, next), `${rowKey}:title`)
                         }

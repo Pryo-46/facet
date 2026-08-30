@@ -97,11 +97,13 @@ const posed = poseQuestions(data)
 
 function renderRow(index: number, opts: { expanded?: boolean; suppressed?: boolean } = {}) {
   const expanded = opts.expanded === true
-  const layout = layoutIssueTree(data, posed, fonts, expanded ? index : -1)
-  const placement = layout.hypotheses[index]
-  if (placement === null) throw new Error(`仮説${index + 1}が図に位置を持たない`)
   const h = data.hypotheses[index]
   const ownerIndex = data.issues.findIndex((n) => n.id === h.issueId)
+  // **`layoutIssueTree` の第4引数は「展開している課題の添字」**（m5 で仮説の
+  // 添字から変わった）。行を開くには、その行がぶら下がる課題を開く
+  const layout = layoutIssueTree(data, posed, fonts, expanded ? ownerIndex : -1)
+  const placement = layout.hypotheses[index]
+  if (placement === null) throw new Error(`仮説${index + 1}が図に位置を持たない`)
   const owner = layout.issues[ownerIndex]
   if (owner === null) throw new Error('持ち主の課題が図に位置を持たない')
   const onExpand = vi.fn()
@@ -147,9 +149,17 @@ describe('HypothesisRow: 畳まれた行', () => {
     expect(screen.queryByRole('textbox')).toBeNull()
   })
 
-  it('フォーカスが入ると開く（Tab で行に着いた瞬間に文言を打てる継ぎ目）', () => {
+  /**
+   * **押したときだけ開く。** m5 より前は `onFocus` でも開いており、`Tab` で行に
+   * 着いた瞬間に textarea へ移っていた——1回の `Tab` でフォーカスが2回動くので、
+   * キーで木を歩くときに行き先が読めない（`open-issues.md` に上がっていた欠陥）
+   */
+  it('押すと開く。フォーカスが入っただけでは開かない', () => {
     const { onExpand } = renderRow(0)
-    fireEvent.focus(screen.getByRole('button', { name: '仮説1を開く' }))
+    const row = screen.getByRole('button', { name: '仮説1を開く' })
+    fireEvent.focus(row)
+    expect(onExpand).not.toHaveBeenCalled()
+    fireEvent.click(row)
     expect(onExpand).toHaveBeenCalled()
   })
 

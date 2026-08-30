@@ -1,10 +1,18 @@
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/Badge'
 import { CellInput, type FieldState } from '@/components/CellInput'
 import type { Rect } from '@/core/canvas/viewport'
 import { badgeVariantOf } from './badge-variant'
 import { ISSUE_EVENT_LABELS, QUESTION_LABELS, type IssueEventKind } from './derive'
 import type { IssuePlacement } from './layout'
-import { ISSUE_BORDER, ISSUE_BOX_CLASS, ISSUE_PADDING_X, ISSUE_PADDING_Y, TITLE_FONT_CLASS } from './measure'
+import {
+  CHEVRON_SIZE_CLASS,
+  ISSUE_BORDER,
+  ISSUE_BOX_CLASS,
+  ISSUE_PADDING_X,
+  ISSUE_PADDING_Y,
+  TITLE_FONT_CLASS,
+} from './measure'
 
 export interface IssueBoxProps {
   nodeKey: string
@@ -31,6 +39,19 @@ export interface IssueBoxProps {
    * 旗が立っている箱では、このトグル自身が旗のバッジを兼ねる（面はエディタが渡す）
    */
   eventToggle: React.ReactNode
+  /**
+   * 詳細を開いているか（**課題ノード単位**。m5）。`aria-expanded` に出る
+   */
+  expanded: boolean
+  /**
+   * 開閉トグルを押せるか＝**仮説を1本以上持つか**。持たない課題では
+   * 開くものが無いので、**場所は空けたままボタンを隠す**（`invisible`）。
+   * `display: none` にすると同じ列の中でタイトルの左端が揃わない
+   *（`visibility: hidden` はタブ順からも外れるので、キーの動線も汚さない）
+   */
+  expandable: boolean
+  /** 開閉トグル。**必須にしてある**（`eventToggle` と同じ理由——押す場所を型で守る） */
+  onToggleExpand: () => void
   /** 仮説行（`HypothesisRow` の列）。箱の中に絶対配置で置かれる */
   children?: React.ReactNode
 }
@@ -65,7 +86,12 @@ export interface IssueBoxProps {
  *    （D8 の規律。m4 で `resolved` 用の新しい面は足していない）。
  *    枠は他の面と揃えて `border-rule`（`rule` は `surface-muted` の上でも
  *    3:1 を満たす。理由は `face` 計算のコメントを見よ）
- * 4. 旗のトグルを置く枠がある。**押されているかどうかはデータの導出**
+ * 4. **タイトルの左に開閉トグル（シェブロン）がある**（m5）。展開の単位は
+ *    課題ノードで、開くと箱が `BOX_WIDTH` → `EXPANDED_BOX_WIDTH` に広がり、
+ *    その課題の仮説がまとめてパネルを持つ。**仮説を持たない課題では場所を
+ *    空けたまま隠す**（`invisible`）——`display: none` にすると同じ列の中で
+ *    タイトルの左端が揃わない
+ * 5. 旗のトグルを置く枠がある。**押されているかどうかはデータの導出**
  *    ——`events` が空でなければ入り。ビュー側に開閉の状態を持たない
  *（判断のドロップダウンだけが、開閉の状態を親＝エディタに持たせている）
  */
@@ -125,6 +151,31 @@ export function IssueBox(props: IssueBoxProps) {
       className={`group/issue pointer-events-auto absolute rounded-sm ${ISSUE_BOX_CLASS} ${face}`}
       style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
     >
+      {/* 開閉トグル（m5）。**展開の単位は課題ノード**なので、押すと
+          その課題にぶら下がる仮説がまとめて開く。
+          **レイアウトが場所を空けている**（`placement.chevron`）ので、
+          仮説を持たない箱でも `invisible` で隠すだけにしてタイトルの
+          左端を列の中で揃える。アイコンは lucide の SVG（絵文字は使わない）、
+          寸法は `CHEVRON_SIZE` と対の `CHEVRON_SIZE_CLASS` */}
+      <button
+        type="button"
+        className={`pointer-events-auto absolute inline-flex items-center justify-center rounded-sm text-ink-muted outline-none transition-colors hover:text-ink focus:ring-2 focus:ring-inset focus:ring-ring${
+          props.expandable ? '' : ' invisible'
+        }`}
+        style={inBox(placement.chevron)}
+        // **アクセシブル名の前半（`課題{N}`）は動かさない**——テストが前方一致で引く。
+        // 開いているかは `aria-expanded` が運ぶ（名前と二重に述べない）
+        aria-label={`${label}の詳細`}
+        aria-expanded={props.expanded}
+        onClick={props.onToggleExpand}
+      >
+        {props.expanded ? (
+          <ChevronDown aria-hidden className={CHEVRON_SIZE_CLASS} />
+        ) : (
+          <ChevronRight aria-hidden className={CHEVRON_SIZE_CLASS} />
+        )}
+      </button>
+
       <div className="absolute" style={inBox(placement.title)}>
         <CellInput
           multiline

@@ -1065,25 +1065,40 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
    * DOM でそれを当てる——**2つが同時に DOM にあると `querySelector` が先頭を
    * 掴み、予約が静かに外れる**（落ちるテストが他に無いので、ここで見る）
    */
-  it('畳まれた行にフォーカスが入ると、同じ仮説の textarea へ移る', () => {
+  it('畳まれた行を押すと、同じ仮説の textarea へ移る', () => {
     render(<Harness initial={file()} />)
     const row = screen.getByRole('button', { name: '仮説1を開く' })
     act(() => {
-      fireEvent.focus(row)
+      fireEvent.click(row)
     })
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説1' }))
     // ボタンは DOM から消えている（同じ鍵の要素が2つ残らない）
     expect(screen.queryByRole('button', { name: '仮説1を開く' })).toBeNull()
   })
 
-  it('課題セルの Ctrl+Enter で生えた仮説は、展開された状態でフォーカスを受ける', () => {
+  /**
+   * **フォーカスが入っただけでは開かない**（m5）。畳まれた行に `Tab` で着いた
+   * 瞬間に開いて textarea へ移す形は、1回の `Tab` でフォーカスが2回動くのと
+   * 同じで、キーで木を歩くときに行き先が読めなかった（`open-issues.md`）
+   */
+  it('仮説の行にフォーカスしても展開しない', () => {
     render(<Harness initial={file()} />)
-    fireEvent.keyDown(issueCell(3), { key: 'Enter', ctrlKey: true })
-    // 新しい仮説は配列の末尾（仮説2）。畳まれたままだと打つ場所が無い
-    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説2' }))
+    const row = screen.getByRole('button', { name: '仮説1を開く' })
+    act(() => {
+      row.focus()
+      fireEvent.focus(row)
+    })
+    // 行はボタンのまま。パネルの節見出しも現れない
+    expect(document.activeElement).toBe(row)
+    expect(screen.queryByRole('textbox', { name: '仮説1' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '仮説1に判断を追加' })).toBeNull()
   })
 
-  it('展開しているのは同時に1つ（別の行を開くと前の行はボタンに戻る）', () => {
+  /**
+   * 展開の単位は**課題ノード**（m5）。押すと箱ごと開き、その課題の仮説が
+   * まとめてパネルを持つ。もう一度押すと閉じる
+   */
+  it('課題のトグルを押すと展開し、もう一度押すと閉じる', () => {
     const base = file()
     render(
       <Harness
@@ -1096,11 +1111,68 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
         }}
       />,
     )
-    openHypothesis(1)
-    expect(screen.queryByRole('button', { name: '仮説1を開く' })).toBeNull()
-    openHypothesis(2)
-    // 前の行は畳まれて、詳細は1本ぶんだけ画面に出る
+    // **`aria-expanded` で見る**（クラス名やレイアウトに依存しない）
+    const toggle = () => screen.getByRole('button', { name: '課題3の詳細' })
+    expect(toggle().getAttribute('aria-expanded')).toBe('false')
+
+    fireEvent.click(toggle())
+    expect(toggle().getAttribute('aria-expanded')).toBe('true')
+    // **その課題の仮説はすべて開く**（1本だけではない）
+    expect(screen.getByRole('textbox', { name: '仮説1' })).toBeTruthy()
+    expect(screen.getByRole('textbox', { name: '仮説2' })).toBeTruthy()
+
+    fireEvent.click(toggle())
+    expect(toggle().getAttribute('aria-expanded')).toBe('false')
     expect(screen.getByRole('button', { name: '仮説1を開く' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '仮説2を開く' })).toBeTruthy()
+  })
+
+  it('仮説を持たない課題のトグルは場所を空けたまま隠れる（タブ順にも出ない）', () => {
+    // **`display: none` にしない**——同じ列の中でタイトルの左端が揃わなくなる。
+    // `invisible`（visibility: hidden）なら場所は残り、タブ順からは外れる
+    render(<Harness initial={file()} />)
+    // 課題1・2 は仮説を持たない（仮説がぶら下がるのは課題3）
+    expect(screen.getByRole('button', { name: '課題1の詳細' }).className).toContain('invisible')
+    expect(screen.getByRole('button', { name: '課題3の詳細' }).className).not.toContain('invisible')
+  })
+
+  it('課題セルの Ctrl+Enter で生えた仮説は、展開された状態でフォーカスを受ける', () => {
+    render(<Harness initial={file()} />)
+    fireEvent.keyDown(issueCell(3), { key: 'Enter', ctrlKey: true })
+    // 新しい仮説は配列の末尾（仮説2）。畳まれたままだと打つ場所が無い
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説2' }))
+  })
+
+  /**
+   * **開いているのは同時に1つの課題**（m5。それまでは仮説1本だった）。
+   * 箱が 320 → 780 に広がるので、複数開くと図が読めない。
+   * **同じ課題の仮説どうしは畳み合わない**——見比べるために課題ごと開いている
+   */
+  it('展開しているのは同時に1つの課題（別の課題を開くと前の課題は畳まれる）', () => {
+    const base = file()
+    render(
+      <Harness
+        initial={{
+          ...base,
+          hypotheses: [
+            // 課題3 に2本
+            base.hypotheses[0],
+            { ...base.hypotheses[0], id: H(2), title: '受信を待つ作りに切り替える' },
+            // 課題2 に1本
+            { ...base.hypotheses[0], id: H(3), issueId: I(2), title: '受付IDだけ先に返す' },
+          ],
+        }}
+      />,
+    )
+    openHypothesis(1)
+    // **同じ課題の隣の行も開いたまま**（1本だけ開く実装なら赤くなる）
+    expect(screen.queryByRole('button', { name: '仮説1を開く' })).toBeNull()
+    expect(screen.getByRole('textbox', { name: '仮説2' })).toBeTruthy()
+
+    // 別の課題を開くと、前の課題は畳まれる
+    openHypothesis(3)
+    expect(screen.getByRole('button', { name: '仮説1を開く' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '仮説2を開く' })).toBeTruthy()
     expect(screen.queryByRole('textbox', { name: '仮説1' })).toBeNull()
   })
 

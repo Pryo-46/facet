@@ -3,7 +3,16 @@ import { createEstimateMeasurer } from '@/core/canvas/wrap'
 import type { Hypothesis, IssueNode, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import { ISSUE_EVENT_LABELS, poseQuestions } from './derive'
 import { layoutIssueTree, SECTION_LABELS, type IssueTreeFonts, type IssueTreeLayout } from './layout'
-import { ACTION_HEIGHT, BADGE_GAP, BOX_WIDTH, ISSUE_INSET_X, PANEL_INSET_Y } from './measure'
+import {
+  ACTION_HEIGHT,
+  BADGE_GAP,
+  BOX_WIDTH,
+  CHEVRON_GAP,
+  CHEVRON_SIZE,
+  EXPANDED_BOX_WIDTH,
+  ISSUE_INSET_X,
+  PANEL_INSET_Y,
+} from './measure'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
@@ -21,8 +30,13 @@ const fonts: IssueTreeFonts = {
   small: { measure: createEstimateMeasurer(14), lineHeight: 18 },
 }
 
-function run(data: IssueTreeSchemaVersion3, expandedIndex = -1) {
-  return layoutIssueTree(data, poseQuestions(data), fonts, expandedIndex)
+/**
+ * **第4引数は「展開している課題の添字」**（issue-tree m5 Task 2 で仮説の添字から
+ * 変わった）。展開の単位が課題ノードになったので、開いた課題にぶら下がる仮説は
+ * まとめてパネルを持つ
+ */
+function run(data: IssueTreeSchemaVersion3, expandedIssueIndex = -1) {
+  return layoutIssueTree(data, poseQuestions(data), fonts, expandedIssueIndex)
 }
 
 function make(over: Partial<IssueTreeSchemaVersion3>): IssueTreeSchemaVersion3 {
@@ -127,13 +141,19 @@ describe('layoutIssueTree', () => {
     expect(pending.text.width).toBe(plain.text.width - BADGE_GAP - jb.width)
     expect(pending.text.x + pending.text.width).toBeLessThanOrEqual(jb.x)
 
-    // **展開した行の頭部も同じ**（頭部の組み立ては閉じた行と同じ幅を通る）
-    const open = run(data, 0).hypotheses[0]!
+    // **展開した課題の頭部も同じ**（頭部の組み立ては閉じた行と同じ幅の式を通る）。
+    // ただし箱が広がるので、幅そのものは畳んだときと一致しない——同じ
+    // レイアウトの中の、FB待ちが立っていない行と突き合わせる
+    const openLayout = run(data, 0)
+    const open = openLayout.hypotheses[0]!
+    const openPlain = openLayout.hypotheses[1]!
     const ojb = open.feedbackBadge!
     expect(ojb.width).toBe(jb.width)
     expect(ojb.y).toBe(open.badge.y)
     expect(ojb.x + ojb.width + BADGE_GAP).toBe(open.badge.x)
-    expect(open.text.width).toBe(pending.text.width)
+    expect(open.text.width).toBe(openPlain.text.width - BADGE_GAP - ojb.width)
+    // 展開した課題の行は、畳まれていたときより広い（押し広げが効いている）
+    expect(open.text.width).toBeGreaterThan(pending.text.width)
   })
 
   /**
@@ -222,7 +242,7 @@ describe('layoutIssueTree', () => {
     expect(box.title.x + box.title.width).toBeLessThanOrEqual(box.rect.x + box.rect.width)
   })
 
-  it('展開した仮説だけパネルを持ち、箱はその分だけ高くなる', () => {
+  it('展開した課題ではぶら下がる仮説がすべてパネルを持ち、箱はその分だけ高くなる', () => {
     const data = make({
       issues: [root],
       hypotheses: [
@@ -241,15 +261,23 @@ describe('layoutIssueTree', () => {
       ],
     })
     const folded = run(data)
-    const open = run(data, 1)
+    // **課題ごと開く**（m5）。仮説1本だけを開く道はもう無い
+    const open = run(data, 0)
     expect(folded.hypotheses[1]!.expanded).toBeNull()
     const p = open.hypotheses[1]!.expanded!
     expect(p.previous).toHaveLength(1) // events 2件 → 以前の判断は1件
     expect(p.previousLabel).not.toBeNull()
     expect(p.notes.cells).toHaveLength(2)
+    // 判断も FB も無い隣の仮説にもパネルは出る（節は「判断」と「FB」の2つ）
+    const bare = open.hypotheses[0]!.expanded!
+    expect(bare.previous).toEqual([])
+    expect(bare.previousLabel).toBeNull()
+    expect(bare.notes.cells).toEqual([])
     expect(open.issues[0]!.rect.height).toBeGreaterThan(folded.issues[0]!.rect.height)
-    // 展開していない隣の行は動かない（上の行）／下の行は押し下げられる
-    expect(open.hypotheses[0]!.rect.y).toBe(folded.hypotheses[0]!.rect.y)
+    // 並びは配列順のまま。下の行は上の行のパネルのぶんだけ押し下げられる
+    expect(open.hypotheses[1]!.rect.y).toBeGreaterThan(
+      open.hypotheses[0]!.rect.y + open.hypotheses[0]!.rect.height - 1,
+    )
     expect(open.hypotheses[2]!.rect.y).toBeGreaterThan(folded.hypotheses[2]!.rect.y)
     // パネルの矩形は行の矩形の中
     expect(p.panel.y + p.panel.height).toBeLessThanOrEqual(
@@ -352,7 +380,7 @@ describe('layoutIssueTree', () => {
     expect(c.y).toBeGreaterThan(b.y)
   })
 
-  it('展開した仮説の高さは兄弟の間隔に効く（次の兄弟はその下に来る）', () => {
+  it('展開した課題の高さは兄弟の間隔に効く（次の兄弟はその下に来る）', () => {
     // ブロック（＝箱）の高さを木のレイアウトへ渡していることを見る。
     // 展開したぶんを数え落とすと、次の兄弟がパネルに重なる
     const data = make({
@@ -372,10 +400,15 @@ describe('layoutIssueTree', () => {
         { ...h(2), issueId: I(1) },
       ],
     })
-    const out = run(data, 0)
+    // **仮説がぶら下がっている I(1) を開く**（根を開いても行が無く、パネルの
+    // 高さが木に効いていることを見られない）
+    const out = run(data, 1)
     const box = out.issues[1]!.rect
     const next = out.issues[2]!.rect
+    expect(out.hypotheses[0]!.expanded).not.toBeNull()
     expect(next.y).toBeGreaterThan(box.y + box.height - 1)
+    // 畳んだときより実際に高い（パネルのぶんを数え落としていたら赤くなる）
+    expect(box.height).toBeGreaterThan(run(data).issues[1]!.rect.height)
   })
 
   it('循環して根から到達できない課題は位置を持たない（図に描かれない）', () => {
@@ -400,6 +433,93 @@ describe('layoutIssueTree', () => {
     const out = run(data)
     expect(out.hypotheses[0]).not.toBe(null)
     expect(out.hypotheses[1]).toBe(null)
+  })
+
+  /**
+   * **展開の単位は課題ノードである**（m5 Task 2）。開いた課題だけが幅を広げ、
+   * 同じ列の他の箱は 320 のまま——`tree-layout.ts` の `columnXs` が深さごとの
+   * 最大幅で列の x を決めるので、押し広げは列の側で自動的に効く
+   */
+  it('展開した課題ノードだけ幅が広がり、閉じたノードは320のまま', () => {
+    const data = make({ issues: [root, child], hypotheses: [h(1)] })
+    const layout = run(data, 0)
+    expect(layout.issues[0]!.rect.width).toBe(EXPANDED_BOX_WIDTH)
+    expect(layout.issues[1]!.rect.width).toBe(BOX_WIDTH)
+    // 閉じれば元に戻る（幅がデータではなくビュー状態から出ている）
+    expect(run(data).issues[0]!.rect.width).toBe(BOX_WIDTH)
+  })
+
+  it('展開した課題の仮説はすべてパネルを持つ', () => {
+    // 課題1件・仮説3件。**1件では「先頭だけ開く」実装と区別できない**
+    const data = make({ issues: [root], hypotheses: [h(1), h(2), h(3)] })
+    const open = run(data, 0)
+    for (const [i, p] of open.hypotheses.entries()) {
+      expect(p!.expanded, `仮説${i + 1}`).not.toBeNull()
+    }
+    // 閉じていれば1件も持たない
+    for (const [i, p] of run(data).hypotheses.entries()) {
+      expect(p!.expanded, `仮説${i + 1}`).toBeNull()
+    }
+  })
+
+  it('別の課題を展開しても、その課題にぶら下がらない仮説は畳まれたまま', () => {
+    // root に h(1)、child に h(2)。child を開いても root の行は開かない
+    const data = make({
+      issues: [root, child],
+      hypotheses: [h(1), { ...h(2), issueId: I(1) }],
+    })
+    const out = run(data, 1)
+    expect(out.hypotheses[0]!.expanded).toBeNull()
+    expect(out.hypotheses[1]!.expanded).not.toBeNull()
+    expect(out.issues[0]!.rect.width).toBe(BOX_WIDTH)
+    expect(out.issues[1]!.rect.width).toBe(EXPANDED_BOX_WIDTH)
+  })
+
+  it('課題のタイトルは開閉トグルのぶんだけ右へ寄り、その場所は開いても閉じても空く', () => {
+    // **仮説を持たない課題でも空ける**——空けないと、同じ列の中でタイトルの
+    // 左端が箱ごとにずれる（`IssueBox` は仮説を持たない箱でトグルを
+    // `invisible` にするだけで、場所は残す）
+    const data = make({ issues: [root, child], hypotheses: [h(1)] })
+    const folded = run(data)
+    const chevronBox = folded.issues[0]!
+    expect(chevronBox.chevron.width).toBe(CHEVRON_SIZE)
+    expect(chevronBox.chevron.height).toBe(CHEVRON_SIZE)
+    expect(chevronBox.chevron.x + CHEVRON_SIZE + CHEVRON_GAP).toBe(chevronBox.title.x)
+    expect(chevronBox.title.x).toBe(chevronBox.rect.x + ISSUE_INSET_X + CHEVRON_SIZE + CHEVRON_GAP)
+    // 仮説を持たない箱でも同じ場所（列の中で左端が揃う）
+    const leaf = folded.issues[1]!
+    expect(leaf.title.x - leaf.rect.x).toBe(chevronBox.title.x - chevronBox.rect.x)
+    // タイトルは箱からはみ出さない
+    expect(chevronBox.title.x + chevronBox.title.width).toBeLessThanOrEqual(
+      chevronBox.rect.x + chevronBox.rect.width,
+    )
+  })
+
+  it('展開した課題では、仮説の行もパネルも広がった箱の中に収まる', () => {
+    const data = make({
+      issues: [root],
+      hypotheses: [
+        h(1, {
+          feedbacks: [{ askId: null, text: 'FB1', by: '', sentiment: 'note', date: DATE }],
+          events: [{ kind: 'supported', note: '実測で確認', date: DATE }],
+        }),
+        h(2),
+      ],
+    })
+    const out = run(data, 0)
+    const box = out.issues[0]!.rect
+    expect(box.width).toBe(EXPANDED_BOX_WIDTH)
+    for (const p of out.hypotheses) {
+      const r = p!.rect
+      expect(r.x).toBeGreaterThanOrEqual(box.x)
+      expect(r.x + r.width).toBeLessThanOrEqual(box.x + box.width)
+      expect(r.y + r.height).toBeLessThanOrEqual(box.y + box.height)
+      const panel = p!.expanded!.panel
+      expect(panel.x + panel.width).toBeLessThanOrEqual(box.x + box.width - ISSUE_INSET_X)
+    }
+    // 広がったぶんだけパネルの中身も広い（320 のまま測っていたら赤くなる）
+    const narrow = run(data).hypotheses[0]!
+    expect(out.hypotheses[0]!.expanded!.notes.cells[0].width).toBeGreaterThan(narrow.text.width)
   })
 
   /**

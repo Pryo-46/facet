@@ -47,8 +47,13 @@ export interface HypothesisRowProps {
   invalid: boolean
   /** 祖先の見送りで抑制されているか */
   suppressed: boolean
-  /** 展開しているか（`placement.expanded !== null` と一致する。エディタが両方を同じ状態から作る） */
+  /**
+   * 展開しているか（`placement.expanded !== null` と一致する。エディタが両方を
+   * 同じレイアウトから作る）。**開閉の単位は課題ノード**（m5）なので、
+   * 同じ課題にぶら下がる行はまとめて開く
+   */
   expanded: boolean
+  /** 畳まれた行を**押した**ときに開く（フォーカスでは開かない。下の `onFocus` の註） */
   onExpand: () => void
   onTitleChange: (next: string) => void
   onFeedbackTextChange: (feedbackIndex: number, next: string) => void
@@ -88,7 +93,8 @@ const staticTextClass = 'absolute overflow-hidden text-sm leading-normal break-a
  *
  * 畳まれているときは「点・文言・行末のバッジ」の1行だけで、根拠・FB・
  * 以前の判断は**展開したときにだけ**下のパネルへ出る。展開はビュー状態であり、
- * ファイルには書かない。**`detail` / `value` / `asks` は m4 では描かない**
+ * ファイルには書かない。**開くのは課題ノードごと**（m5）なので、同じ課題に
+ * ぶら下がる行は同時に開く。**`detail` / `value` / `asks` は m4 では描かない**
  *（見せ方は m5 が設計する）。
  *
  * **畳まれた行の `<button>` と、展開後の文言の `<textarea>` は同じ `data-cell`
@@ -156,9 +162,10 @@ export function HypothesisRow(props: HypothesisRowProps) {
         style={inBox(placement.rect)}
         aria-label={`${label}を開く`}
         data-cell={cellOf({ cell: 'hypothesis' })}
-        // **Tab で行に着いた瞬間に開く。** エディタが同じ `data-cell` へ
-        // フォーカスを予約するので、描画後に textarea へ移る
-        onFocus={props.onExpand}
+        // **フォーカスが入っただけでは開かない**（m5 で `onFocus` を外した）
+        // ——`Tab` で行に着いた瞬間に開いて textarea へ移す形だと、1回の `Tab` で
+        // フォーカスが2回動き、キーで木を歩くときに行き先が読めなくなる
+        //（`open-issues.md` に上がっていた欠陥）。押したときだけ開く
         onClick={props.onExpand}
       >
         <span

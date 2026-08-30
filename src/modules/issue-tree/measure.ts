@@ -136,7 +136,13 @@ export const ACTION_HEIGHT_CLASS = 'h-6'
 /** ボタンの左右の余白（px-1 = 4px）＋枠線 1px。幅は文言の実測＋これ */
 export const ACTION_INSET_X = 5
 
-/** パネルの中の文章が使える幅（パネルは行の文言と同じ位置から始まる） */
+/**
+ * パネルの中の文章が使える幅（パネルは行の文言と同じ位置から始まる）。
+ *
+ * **これは畳んでいる箱（`BOX_WIDTH`）の値である。** 展開している課題の箱は
+ * `EXPANDED_BOX_WIDTH` に広がるので、`layout.ts` は同じ式をその幅から組み直す
+ *（m5 Task 2）——**片方だけ直さないこと**
+ */
 export const PANEL_CONTENT_WIDTH = BOX_CONTENT_WIDTH - PANEL_INDENT - PANEL_INSET_X * 2
 
 /**
