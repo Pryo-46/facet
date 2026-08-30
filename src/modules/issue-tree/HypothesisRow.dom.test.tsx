@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { badgeClass } from '@/components/badge-styles'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
-import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
 import { BADGE_LABELS, EVENT_KIND_LABELS } from './derive'
 import { HypothesisRow } from './HypothesisRow'
@@ -29,11 +29,24 @@ const fonts: IssueTreeFonts = {
 }
 
 /**
+ * **「まだ出していない」ことを番人で押さえる。** 暫定の見た目を置くと、
+ * m5 がそれを剥がす手間と、剥がし忘れの両方が生まれる。
+ *
+ * **目印の文字列を使う。** 「出していない」を空の値で見ると、
+ * 何もしなくても緑になる（退化ケース）——フィクスチャに実在する
+ * 文字列を入れ、それが画面に無いことを見る。だからフィクスチャ
+ * （下の `data`）にも実在させる
+ */
+const DETAIL_SENTINEL = '受信を待たずに画面を返す（DETAIL）'
+const VALUE_SENTINEL = '応募者を待たせない（VALUE）'
+const ASK_SENTINEL = '待ち画面で離脱しないか（ASK）'
+
+/**
  * 課題2件・仮説3件のファイル。**退化した形（仮説1件・イベント1件）を避ける**
  * ——「最新だけ編集できる」は要素が1つだと「全部編集できる」と区別が付かない
  */
-const data: IssueTreeSchemaVersion2 = {
-  schemaVersion: 2,
+const data: IssueTreeSchemaVersion3 = {
+  schemaVersion: 3,
   type: 'issueTree',
   title: 'テスト',
   issues: [
@@ -44,29 +57,38 @@ const data: IssueTreeSchemaVersion2 = {
     {
       id: H(1),
       issueId: I(1),
-      text: '同期取得で間に合う',
-      rationale: '先行プロジェクトの実測',
+      title: '同期取得で間に合う',
+      detail: DETAIL_SENTINEL,
+      value: VALUE_SENTINEL,
+      asks: [{ id: 'ask_AAAAAAAAAA', text: ASK_SENTINEL }],
+      feedbacks: [],
       events: [
-        { kind: 'supported', note: '前回の実測値がそのまま使える' },
-        { kind: 'rejected', note: '実機では3秒を超えた' },
+        { kind: 'supported', note: '前回の実測値がそのまま使える', date: '2026-08-01' },
+        { kind: 'rejected', note: '実機では3秒を超えた', date: '2026-08-02' },
       ],
-      pendingNotes: [],
     },
     {
       id: H(2),
       issueId: I(1),
-      text: 'webhook受信に切り替える',
-      rationale: '',
+      title: 'webhook受信に切り替える',
+      detail: '',
+      value: '',
+      asks: [],
+      feedbacks: [
+        { askId: null, text: '受信の重複をどう畳むか', by: '', sentiment: 'note', date: '2026-08-01' },
+        { askId: null, text: '再送の窓は何分か', by: '', sentiment: 'note', date: '2026-08-01' },
+      ],
       events: [],
-      pendingNotes: ['受信の重複をどう畳むか', '再送の窓は何分か'],
     },
     {
       id: H(3),
       issueId: I(0),
-      text: '先に受付IDだけ返す',
-      rationale: '既存APIの前例',
-      events: [{ kind: 'supported', note: '' }],
-      pendingNotes: ['画面側の待ち表示は別課題'],
+      title: '先に受付IDだけ返す',
+      detail: '',
+      value: '',
+      asks: [],
+      feedbacks: [{ askId: null, text: '画面側の待ち表示は別課題', by: '', sentiment: 'note', date: '2026-08-01' }],
+      events: [{ kind: 'supported', note: '', date: '2026-08-01' }],
     },
   ],
 }
@@ -83,28 +105,24 @@ function renderRow(index: number, opts: { expanded?: boolean; suppressed?: boole
   const owner = layout.issues[ownerIndex]
   if (owner === null) throw new Error('持ち主の課題が図に位置を持たない')
   const onExpand = vi.fn()
-  const onPromoteNote = vi.fn()
-  const onAddNote = vi.fn()
+  const onAddFeedback = vi.fn()
   render(
     <HypothesisRow
       hypothesisKey={`row${index}`}
       label={`仮説${index + 1}`}
       placement={placement}
       origin={owner.rect}
-      text={h.text}
-      rationale={h.rationale}
-      notes={h.pendingNotes}
+      title={h.title}
+      notes={h.feedbacks.map((f) => f.text)}
       events={h.events}
       invalid={false}
       suppressed={opts.suppressed === true}
       expanded={expanded}
       onExpand={onExpand}
-      onTextChange={vi.fn()}
-      onRationaleChange={vi.fn()}
-      onNoteChange={vi.fn()}
+      onTitleChange={vi.fn()}
+      onFeedbackTextChange={vi.fn()}
       onEventNoteChange={vi.fn()}
-      onPromoteNote={onPromoteNote}
-      onAddNote={onAddNote}
+      onAddFeedback={onAddFeedback}
       // 判断のドロップダウンはエディタが組む（行は置き場所だけを持つ）。
       // **トリガーの文言はレイアウトが持つ定数**——測った幅と描く幅を同じ
       // 文字列から出すので、ここでも打ち直さない
@@ -115,7 +133,7 @@ function renderRow(index: number, opts: { expanded?: boolean; suppressed?: boole
       }
     />,
   )
-  return { onExpand, onPromoteNote, onAddNote }
+  return { onExpand, onAddFeedback }
 }
 
 describe('HypothesisRow: 畳まれた行', () => {
@@ -125,9 +143,8 @@ describe('HypothesisRow: 畳まれた行', () => {
     expect(row.textContent).toContain('同期取得で間に合う')
     // 行末に出るのは俯瞰の5語のバッジ（最新の判断＝棄却）
     expect(row.textContent).toContain(BADGE_LABELS.no)
-    // 畳まれている行に詳細は無い（由来・FB・以前の判断は出さない）
+    // 畳まれている行に詳細は無い（FB・以前の判断は出さない）
     expect(screen.queryByRole('textbox')).toBeNull()
-    expect(screen.queryByText(SECTION_LABELS.rationale)).toBeNull()
   })
 
   it('フォーカスが入ると開く（Tab で行に着いた瞬間に文言を打てる継ぎ目）', () => {
@@ -144,7 +161,7 @@ describe('HypothesisRow: 畳まれた行', () => {
 })
 
 describe('HypothesisRow: 展開した行', () => {
-  it('文言が textarea になり、判断・以前の判断・由来・FB の節が出る', () => {
+  it('文言が textarea になり、判断・以前の判断・FB の節が出る（由来抜き）', () => {
     renderRow(0, { expanded: true })
     expect(screen.getByRole('textbox', { name: '仮説1' })).toBeInstanceOf(HTMLTextAreaElement)
     // **畳まれた行のボタンは消えている。** 同じ `data-cell` を名乗る2つが
@@ -153,6 +170,24 @@ describe('HypothesisRow: 展開した行', () => {
     for (const label of Object.values(SECTION_LABELS)) {
       expect(screen.getByText(label)).toBeTruthy()
     }
+  })
+
+  it('展開しても「由来」の欄は無い（v3 で廃止）', () => {
+    renderRow(0, { expanded: true })
+    expect(screen.queryByRole('textbox', { name: /の由来$/ })).toBeNull()
+  })
+
+  /**
+   * **「まだ出していない」ことの番人。** `detail` / `value` / `asks` は
+   * `HypothesisRowProps` に存在しないので、実は一番強い番人は型そのものである
+   *（型が通らないので渡しようがない）。この `it` は「props を増やして
+   * 描き始めたら赤くなる」ための番人で、型の番人が外された後に効く
+   */
+  it('detail / value / asks は画面に出さない（m5 が設計する）', () => {
+    renderRow(0, { expanded: true })
+    expect(screen.queryByText(DETAIL_SENTINEL)).toBeNull()
+    expect(screen.queryByText(VALUE_SENTINEL)).toBeNull()
+    expect(screen.queryByText(ASK_SENTINEL)).toBeNull()
   })
 
   /**
@@ -204,21 +239,10 @@ describe('HypothesisRow: 展開した行', () => {
   })
 
   it('FB は1件ずつ欄になり、末尾に「＋ FB」がある', () => {
-    const { onAddNote } = renderRow(1, { expanded: true })
+    const { onAddFeedback } = renderRow(1, { expanded: true })
     expect(screen.getByRole('textbox', { name: '仮説2 のFB1' })).toBeTruthy()
     expect(screen.getByRole('textbox', { name: '仮説2 のFB2' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '仮説2 にFBを足す' }))
-    expect(onAddNote).toHaveBeenCalled()
-  })
-
-  it('FB の「根拠へ」はイベントが1件以上あるときだけ出る', () => {
-    renderRow(1, { expanded: true })
-    // イベント0件では移動先が無い＝押しても何も起きないボタンを作らない
-    expect(screen.queryByRole('button', { name: '仮説2 のFB1 を根拠へ移す' })).toBeNull()
-    cleanup()
-
-    const { onPromoteNote } = renderRow(2, { expanded: true })
-    fireEvent.click(screen.getByRole('button', { name: '仮説3 のFB1 を根拠へ移す' }))
-    expect(onPromoteNote).toHaveBeenCalledWith(0)
+    expect(onAddFeedback).toHaveBeenCalled()
   })
 })

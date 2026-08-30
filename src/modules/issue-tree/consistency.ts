@@ -1,7 +1,7 @@
 import type { ConsistencyIssue, ConsistencyLocation } from '@/core/consistency'
 import { buildTree } from '@/core/canvas/flat-tree'
 import { findDuplicates } from '@/core/duplicate'
-import type { Hypothesis, IssueNode, IssueTreeSchemaVersion2 } from '@/types/issue-tree'
+import type { Hypothesis, IssueNode, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 
 /** 文言で指す。空のものは配列位置で呼ぶ（「（未記入）」だけだと区別できない） */
 function label(text: string, index: number): string {
@@ -19,7 +19,7 @@ function at(id: string, index: number, field: string): ConsistencyLocation {
  * D1 で明示的に許した形であり、指摘すると「当たりをつける」入力が
  * 制約違反として赤くなる
  */
-export function checkIssueTreeConsistency(data: IssueTreeSchemaVersion2): ConsistencyIssue[] {
+export function checkIssueTreeConsistency(data: IssueTreeSchemaVersion3): ConsistencyIssue[] {
   const out: ConsistencyIssue[] = []
   const issues = data.issues
   const built = buildTree(issues)
@@ -82,7 +82,7 @@ export function checkIssueTreeConsistency(data: IssueTreeSchemaVersion2): Consis
     out.push({
       rule: 'missing-issue',
       message: `ぶら下がり先の課題が見つからない仮説があります（${dangling.length}件）: ${dangling
-        .map(({ h, i }) => label(h.text, i))
+        .map(({ h, i }) => label(h.title, i))
         .join('、')}`,
       locations: dangling.map(({ h, i }) => at(h.id, i, 'issueId')),
     })
