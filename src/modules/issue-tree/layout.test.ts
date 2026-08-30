@@ -492,6 +492,17 @@ describe('layoutIssueTree', () => {
       // 右端が揃う＝「x を足しただけ」の実装ならここで落ちる
       expect(field.x + field.width, name).toBeLessThanOrEqual(band.x + band.width)
     }
+    // **以前の判断の根拠は、バッジの右から帯の右端までを使う。**
+    // 上の `pairs` が以前の判断について見ているのは**バッジだけ**で、バッジは幅が
+    // 小さいので「右端を越えない」を素通りする——`noteW` を広い幅（`panelContentWidth`）
+    // に戻す変異が、それだけでは捕まらなかった。根拠の面は `STATIC_TEXT_CLASS`
+    //（`absolute overflow-hidden`）なので、壊れると**折り返しが 14px 広い幅で数えられて
+    // 末尾の行が黙って消え**、面の右端も帯の外へ出る。
+    // **`noteW` は測る側と描く側が読む同じ1つの数**（幅にも `textHeight` の引数にも
+    // 同じ変数が渡る）なので、この1行が両側の番人になる
+    expect(p.previous[0].note.x + p.previous[0].note.width).toBe(
+      p.previousLabel!.x + p.previousLabel!.width,
+    )
     // 帯そのものはパネルの内容の左端に座ったまま（見出しは動かさない）
     expect(p.value.label.x).toBe(p.panel.x + PANEL_INSET_X)
     expect(p.notes.label.width).toBe(p.notes.blocks[0].block.width + FIELD_INDENT)
@@ -501,6 +512,64 @@ describe('layoutIssueTree', () => {
     expect(p.detail.field.height).toBe(fonts.body.lineHeight * 2)
     expect(p.value.field.height).toBe(fonts.body.lineHeight * 2)
     expect(p.judgement.note.height).toBe(fonts.body.lineHeight * 2)
+  })
+
+  /**
+   * **以前の判断の根拠の、測る側だけを狙った番人。**
+   *
+   * 上のテストの幅の1行（`note.x + note.width` が帯の右端と一致する）は、
+   * **`noteW` という1つの数**を固定する——いまの実装はその同じ変数を
+   * 幅にも `textHeight` の引数にも渡しているので、そこを広い幅へ戻す変異は
+   * あれで赤くなる。**ここが見るのはその先**で、`textHeight` の引数だけを
+   * 別の式に差し替える（＝測る側と描く側が別々の数を見る形に割る）変異である。
+   *
+   * **固定の文字数を置けない。** 根拠が使える幅はバッジの語（判断の種別）の
+   * 幅で決まる。実測すると、既定の書体で「支持」のとき根拠は 656px、
+   * 変異後は 670px で、**どちらも全角41文字ちょうどを収める**
+   *（41×16＝656 ≤ 656 かつ ≤ 670／42×16＝672 はどちらも超える）
+   * ——つまりその組み合わせでは**どんな長さの文字列でも行数が変わらず、
+   * 高さの検査は番人にならない**。だから
+   *
+   * 1. 幅を**実測してから**境界の長さを作る
+   * 2. **境界が2つの幅の間にあること自体を前提として検査する**
+   *
+   * こうしておくと、書体やバッジの余白が動いて境界が消えた日には
+   * 「番人が効かなくなった」ことが**静かにではなく赤で**分かる
+   */
+  it('以前の判断の根拠も、字下げのぶん狭い幅で折り返す（測る側）', () => {
+    /** 根拠の文言だけを差し替えて、以前の判断の矩形を1つ取る */
+    const previousNote = (note: string) => {
+      const data = make({
+        issues: [root],
+        hypotheses: [
+          h(1, {
+            events: [
+              // **語の広い種別を選ぶ**（「見送り」＝3文字）。バッジが広いほど
+              // 根拠の幅が 16px の格子から外れ、下の前提が成り立ちやすい
+              { kind: 'deferred', note, date: DATE },
+              { kind: 'rejected', note: '最新', date: DATE },
+            ],
+          }),
+        ],
+      })
+      return run(data, 0).hypotheses[0]!.expanded!.previous[0].note
+    }
+
+    const room = previousNote('短い根拠').width
+    /** 全角1文字の幅（概算器は 16px）。**打ち直さず測定器に聞く** */
+    const em = fonts.body.measure('あ')
+    const perLine = Math.floor(room / em)
+    // **前提**: 14px 広い幅なら1行に入る文字数が増えること。増えないなら
+    // 行数では2つの幅を区別できず、この検査は何も守っていない
+    expect(
+      Math.floor((room + FIELD_INDENT) / em),
+      '字下げのぶんを戻しても1行の文字数が変わらない＝この番人は成立しない',
+    ).toBeGreaterThan(perLine)
+
+    // 狭い幅（実装）では2行、広い幅（変異）では1行に収まる長さ
+    const boundary = 'あ'.repeat(perLine + 1)
+    expect(boundary.length * em).toBeLessThanOrEqual(room + FIELD_INDENT)
+    expect(previousNote(boundary).height).toBe(fonts.body.lineHeight * 2)
   })
 
   it('検証結果の帯はバッジの高さで測る（消えた文言ボタンのぶんを空けない）', () => {
