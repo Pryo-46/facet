@@ -1,6 +1,6 @@
-import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import type { FocusTarget } from './commands'
-import { latestKind, type PosedQuestions } from './derive'
+import { latestKind, type IssueEventKind, type PosedQuestions } from './derive'
 
 /**
  * 「次の要対応へ」の巡回列（帯のチップが押されたときの行き先）。
@@ -17,7 +17,7 @@ import { latestKind, type PosedQuestions } from './derive'
  */
 
 /** 問いの4種。`QUESTION_LABELS` の鍵と同じ（文言はあちらから引く） */
-export type OpenKind = 'hypothesis' | 'result' | 'hold' | 'judgement'
+export type OpenKind = 'hypothesis' | 'result' | 'hold' | 'feedback'
 
 export interface OpenTarget {
   kind: OpenKind
@@ -35,7 +35,7 @@ export interface OpenTarget {
  * それに寄りかかると、手で編んだファイル（正規化を通っていない）で図と列が食い違う。
  *
  * 1つの仮説に複数の問いが立つ（保留のまま FB が残っている等）ときは
- * 未決 → 保留 → 未判断 の順。`tallyLine` の内訳の並びに合わせてある。
+ * 未決 → 保留 → FB待ち の順。`tallyLine` の内訳の並びに合わせてある。
  *
  * **ぶら下がり先の課題が図に無い仮説は列に入らない。** そういう仮説はどの箱にも
  * 描かれておらず（参照切れは整合性検証が赤くする）、行き先にしても視点は動かない
@@ -44,7 +44,7 @@ export interface OpenTarget {
  * チップの数より列が短くなることがある**
  */
 export function listOpenTargets(
-  data: Pick<IssueTreeSchemaVersion2, 'issues' | 'hypotheses'>,
+  data: Pick<IssueTreeSchemaVersion3, 'issues' | 'hypotheses'>,
   posed: PosedQuestions,
 ): OpenTarget[] {
   /** 課題 ID → ぶら下がる仮説の添字（配列順） */
@@ -69,7 +69,16 @@ export function listOpenTargets(
       const focus: FocusTarget = { cell: 'hypothesis', index: hi }
       if (q.result) out.push({ kind: 'result', focus })
       if (q.hold) out.push({ kind: 'hold', focus })
-      if (q.judgement) out.push({ kind: 'judgement', focus })
+      // **FB待ちは問い（ask）1件ずつが要対応だが、行き先は仮説につき1つしか出さない。**
+      // m4 には問いを1件ずつ指せる DOM のセルが無いので、問いごとに行き先を作ると
+      // 同じ場所へ何度も飛ぶ列になり、押しても視点が動かず巡回がそこで止まる
+      //（「ぶら下がり先が図に無い仮説を列に入れない」のと同じ理由）。
+      //
+      // **結果として、チップの数（問いの数）が列の長さ（仮説の数）を上回りうる。**
+      // 集計と列が同じ根（`posed`）から出ているという性質は保たれているが、
+      // 「未決 2」なら2回で一巡する、が FB待ちについては成り立たない。
+      // **m5 が問いに固有のセルを与えたときに、ここを問いごとの行き先に戻す**
+      if (q.feedback > 0) out.push({ kind: 'feedback', focus })
     }
   })
   return out
@@ -99,25 +108,29 @@ export function nextOpenTarget(
 }
 
 /**
- * 「次の見送りへ」の巡回列（帯のグレーのチップの行き先。M25 D17）。
+ * 「次の旗へ」の巡回列（帯のグレーのチップの行き先。M25 D17）。
  *
- * **見送りを掲げた課題**だけが行き先で、配下（抑制）は入らない。条件は
- * `deferredIssueCount`（derive.ts）と同じ `latestKind` から引く——チップの
+ * **その旗を掲げた課題**だけが行き先で、配下（抑制）は入らない。条件は
+ * `issueEventCount`（derive.ts）と同じ `latestKind` から引く——チップの
  * 数と列の長さが同じ条件から出るので、「見送り 2」と言いながら1件にしか
- * 飛べない、が起きない（`listOpenTargets` と `tallyQuestions` の関係と同じ）
+ * 飛べない、が起きない（`listOpenTargets` と `tallyQuestions` の関係と同じ）。
+ *
+ * **種別を引数に取る。** 見送りと解決で2本の関数に分けると、`issueEventCount` が
+ * 種別を引数に取っているのと形が食い違い、片方だけ直される余地が生まれる
  */
-export function listDeferredTargets(
-  data: Pick<IssueTreeSchemaVersion2, 'issues'>,
+export function listFlaggedTargets(
+  data: Pick<IssueTreeSchemaVersion3, 'issues'>,
+  kind: IssueEventKind,
 ): FocusTarget[] {
   const out: FocusTarget[] = []
   data.issues.forEach((node, index) => {
-    if (latestKind(node.events) !== null) out.push({ cell: 'issue', index })
+    if (latestKind(node.events) === kind) out.push({ cell: 'issue', index })
   })
   return out
 }
 
 /** `nextOpenTarget` と同じ剰余の巡回。kind の絞り込みが無いだけ */
-export function nextDeferredTarget(
+export function nextFlaggedTarget(
   targets: readonly FocusTarget[],
   current: FocusTarget | null,
 ): FocusTarget | null {

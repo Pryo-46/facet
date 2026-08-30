@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "type": "issueTree",
   "title": "適性検査サービス連携PoC",
   "issues": [
@@ -46,7 +46,8 @@
       "events": [
         {
           "kind": "deferred",
-          "note": "初回受検フローの成立が先。次回のPoC選定で再検討"
+          "note": "初回受検フローの成立が先。次回のPoC選定で再検討",
+          "date": "2026-08-18"
         }
       ]
     },
@@ -66,7 +67,13 @@
       "id": "issue_GVSuierbYh",
       "parentId": "issue_uFL1ENjyRj",
       "text": "結果表示画面に何を出すか",
-      "events": []
+      "events": [
+        {
+          "kind": "resolved",
+          "note": "スコアはサマリ表示で確定。PoCではこれ以上の検証は不要と判断した",
+          "date": "2026-08-27"
+        }
+      ]
     },
     {
       "id": "issue_O2uN5LnCT8",
@@ -79,81 +86,127 @@
     {
       "id": "hypothesis_ryGwAD5LeM",
       "issueId": "issue_RBzhbN9Fvw",
-      "text": "同期取得で間に合う",
-      "rationale": "",
+      "title": "同期取得で間に合う",
+      "detail": "",
+      "value": "",
+      "asks": [],
+      "feedbacks": [],
       "events": [
         {
           "kind": "rejected",
-          "note": "類似連携の実測が3〜8秒。同期待ちは体験として成立しない"
+          "note": "類似連携の実測が3〜8秒。同期待ちは体験として成立しない",
+          "date": "2026-08-20"
         }
-      ],
-      "pendingNotes": []
+      ]
     },
     {
       "id": "hypothesis_yMnRAktn70",
       "issueId": "issue_RBzhbN9Fvw",
-      "text": "webhook受信＋非同期表示に切り替えれば体験が成立する",
-      "rationale": "同期待ちを落としたあと、応募者を待たせずに済む道として出てきた",
+      "title": "webhook受信＋非同期表示に切り替えれば体験が成立する",
+      "detail": "受検結果APIのwebhook通知を受信し、結果取得ジョブを起動する。画面はポーリングではなく通知契機で更新する",
+      "value": "同期待ちを落としたあと、応募者を待たせずに済む道として出てきた",
+      "asks": [],
+      "feedbacks": [],
       "events": [
         {
           "kind": "supported",
-          "note": "スパイクで受信まで中央値4.2秒。非同期表示で成立（n=50）"
+          "note": "スパイクで受信まで中央値4.2秒。非同期表示で成立（n=50）",
+          "date": "2026-08-22"
         }
-      ],
-      "pendingNotes": []
+      ]
     },
     {
       "id": "hypothesis_DYvoDgCTLE",
       "issueId": "issue_YMPgEnB5Qy",
-      "text": "送信を夜間バッチに寄せれば制限内に収まる",
-      "rationale": "レート制限は日次の上限だと聞いていたので、時間帯を寄せれば収まると考えた",
+      "title": "送信を夜間バッチに寄せれば制限内に収まる",
+      "detail": "",
+      "value": "レート制限は日次の上限だと聞いていたので、時間帯を寄せれば収まると考えた",
+      "asks": [],
+      "feedbacks": [],
       "events": [
         {
           "kind": "rejected",
-          "note": "制限は日次でなく分単位窓と判明。夜間に寄せても超過する"
+          "note": "制限は日次でなく分単位窓と判明。夜間に寄せても超過する",
+          "date": "2026-08-21"
         }
-      ],
-      "pendingNotes": []
+      ]
     },
     {
       "id": "hypothesis_dcowMldEcQ",
       "issueId": "issue_UzridFog33",
-      "text": "取り込みは結果確定イベント起点だけでよい（途中経過は不要）",
-      "rationale": "",
+      "title": "取り込みは結果確定イベント起点だけでよい（途中経過は不要）",
+      "detail": "",
+      "value": "",
+      "asks": [
+        {
+          "id": "ask_EMyryNTAQU",
+          "text": "他チームでも同様の要件が今後出ないか、来月のロードマップ会議で確認する"
+        },
+        {
+          "id": "ask_eqkNaHkNgF",
+          "text": "結果確定イベントが来ない失敗ケースを運用側はどう検知しているか"
+        }
+      ],
+      "feedbacks": [
+        {
+          "askId": "ask_eqkNaHkNgF",
+          "text": "現状はタイムアウト監視で拾っている。イベント方式に変えても監視はそのまま流用できる",
+          "by": "運用担当",
+          "sentiment": "like",
+          "date": "2026-08-23"
+        }
+      ],
       "events": [
         {
           "kind": "supported",
-          "note": "PdM確認済み。途中経過を使う業務要件は存在しない"
+          "note": "PdM確認済み。途中経過を使う業務要件は存在しない",
+          "date": "2026-08-24"
         }
-      ],
-      "pendingNotes": []
+      ]
     },
     {
       "id": "hypothesis_5m5zlXif3h",
       "issueId": "issue_GVSuierbYh",
-      "text": "スコアはサマリのみで足りる（設問別は不要）",
-      "rationale": "",
+      "title": "スコアはサマリのみで足りる（設問別は不要）",
+      "detail": "",
+      "value": "",
+      "asks": [
+        {
+          "id": "ask_oPu3MHF6qK",
+          "text": "設問別スコアの要望が本当に無いか、営業に確認する"
+        }
+      ],
+      "feedbacks": [],
       "events": [
         {
           "kind": "deferred",
-          "note": "画面の詳細は本開発の設計で扱う。PoCはAPI疎通に集中"
+          "note": "画面の詳細は本開発の設計で扱う。PoCはAPI疎通に集中",
+          "date": "2026-08-26"
         }
-      ],
-      "pendingNotes": []
+      ]
     },
     {
       "id": "hypothesis_m9ZvA5LtyQ",
       "issueId": "issue_O2uN5LnCT8",
-      "text": "再送は応募者から再送依頼が来る前提でよい",
-      "rationale": "現行の紙の案内でも、再送は問い合わせ起点で回っている",
+      "title": "再送は応募者から再送依頼が来る前提でよい",
+      "detail": "",
+      "value": "現行の紙の案内でも、再送は問い合わせ起点で回っている",
+      "asks": [],
+      "feedbacks": [
+        {
+          "askId": null,
+          "text": "案内メールが迷惑メールに入る例が月に数件ある。依頼を待つ運用で辞退につながらないか",
+          "by": "採用担当",
+          "sentiment": "concern",
+          "date": "2026-08-24"
+        }
+      ],
       "events": [
         {
           "kind": "onHold",
-          "note": "応募者からの再送依頼の頻度が分からず、PoC では判断を持ち越す"
+          "note": "応募者からの再送依頼の頻度が分からず、PoC では判断を持ち越す",
+          "date": "2026-08-25"
         }
-      ],
-      "pendingNotes": [
-        "採用担当レビュー: 案内メールが迷惑メールに入る例が月に数件ある。依頼を待つ運用で辞退につながらないか"
       ]
     }
   ]

@@ -5,7 +5,7 @@ import { edgePath } from '@/core/canvas/edges'
 import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { INITIAL_TRANSFORM } from '@/core/canvas/viewport'
 import { createEstimateMeasurer } from '@/core/canvas/wrap'
-import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import { poseQuestions, suppressedIssueIds } from './derive'
 import { IssueTreeEdges } from './IssueTreeEdges'
 import { layoutIssueTree } from './layout'
@@ -34,20 +34,43 @@ const fonts = {
  * 課題0（根）にだけ仮説の行を2本ぶら下げてある。行は箱の高さを押し広げるので、
  * **線が箱の矩形から引かれていれば座標が変わる。**
  */
-const data: IssueTreeSchemaVersion2 = {
-  schemaVersion: 2,
+const data: IssueTreeSchemaVersion3 = {
+  schemaVersion: 3,
   type: 'issueTree',
   title: 'テスト',
   issues: [
     { id: I(0), parentId: null, text: '結果取得を画面遷移の中で待てるか', events: [] },
-    { id: I(1), parentId: I(0), text: '再受検の扱い', events: [{ kind: 'deferred', note: '初回受検フローの成立が先' }] },
+    {
+      id: I(1),
+      parentId: I(0),
+      text: '再受検の扱い',
+      events: [{ kind: 'deferred', note: '初回受検フローの成立が先', date: '2026-08-30' }],
+    },
     { id: I(2), parentId: I(1), text: '受検IDの再発行が要るか', events: [] },
     { id: I(3), parentId: I(0), text: '待てないなら何を先に返すか', events: [] },
     { id: I(4), parentId: I(0), text: '通知の宛先をどこから引くか', events: [] },
   ],
   hypotheses: [
-    { id: H(1), issueId: I(0), text: '同期取得で間に合う', rationale: '先行プロジェクトの実測', events: [], pendingNotes: [] },
-    { id: H(2), issueId: I(0), text: 'webhook受信に切り替える', rationale: '', events: [], pendingNotes: ['再送の窓は何分か'] },
+    {
+      id: H(1),
+      issueId: I(0),
+      title: '同期取得で間に合う',
+      detail: '',
+      value: '',
+      asks: [],
+      feedbacks: [],
+      events: [],
+    },
+    {
+      id: H(2),
+      issueId: I(0),
+      title: 'webhook受信に切り替える',
+      detail: '',
+      value: '',
+      asks: [],
+      feedbacks: [{ askId: null, text: '再送の窓は何分か', by: '', sentiment: 'note', date: '2026-08-30' }],
+      events: [],
+    },
   ],
 }
 
