@@ -1,6 +1,6 @@
 import { Badge } from '@/components/Badge'
 import { buttonBase } from '@/components/button-styles'
-import { CellInput, type FieldState } from '@/components/CellInput'
+import { CellInput } from '@/components/CellInput'
 import type { Rect } from '@/core/canvas/viewport'
 import type { JudgementEvent } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
@@ -60,7 +60,6 @@ export interface HypothesisRowProps {
   /** **最新イベントの根拠だけが編集できる**（`setEventNote` が同じ規則を持つ） */
   onEventNoteChange: (eventIndex: number, next: string) => void
   onAddFeedback: () => void
-  onFieldKeyDown?: (e: React.KeyboardEvent, state: FieldState, cell: HypothesisCell) => void
   /**
    * 判断イベントのドロップダウン。エディタが `menuPropsFor` で組んで渡す。
    * **必須にしてある**（`IssueBox` の `eventToggle` と同じ）——省略できると、
@@ -87,6 +86,14 @@ const sectionLabelClass = 'absolute overflow-hidden text-sm leading-none font-me
 
 /** 読み取り専用の文章（以前の判断の根拠・「判断はまだ無い」）。文字色は同上 */
 const staticTextClass = 'absolute overflow-hidden text-sm leading-normal break-all whitespace-pre-wrap'
+
+// 仮説の欄は操作言語を通らない（キーは課題だけが取る。m5 の決定）。
+// ただし Enter だけは消費する——閉じた行は1行で測っており、改行が入ると
+// 測定と描画がずれて下の行に被る。rev 10章「ツール側で e.key を見ない」の
+// 明示的な例外で、コマンドへの写像は行わない
+const swallowEnter = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>): void => {
+  if (e.key === 'Enter' && !e.nativeEvent.isComposing) e.preventDefault()
+}
 
 /**
  * 仮説1件＝**課題の箱の中の1行**（M3 の文法）。
@@ -228,7 +235,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
           data-cell={cellOf({ cell: 'hypothesis' })}
           value={props.title}
           onValueChange={props.onTitleChange}
-          onFieldKeyDown={(e, state) => props.onFieldKeyDown?.(e, state, { cell: 'hypothesis' })}
+          onFieldKeyDown={swallowEnter}
         />
       </div>
       <span className="absolute flex items-center justify-end" style={inBox(placement.badge)}>
@@ -274,9 +281,6 @@ export function HypothesisRow(props: HypothesisRowProps) {
             data-cell={cellOf({ cell: 'event', eventIndex: latestIndex })}
             value={latest.note}
             onValueChange={(next) => props.onEventNoteChange(latestIndex, next)}
-            onFieldKeyDown={(e, state) =>
-              props.onFieldKeyDown?.(e, state, { cell: 'event', eventIndex: latestIndex })
-            }
           />
         </div>
       )}
@@ -321,9 +325,6 @@ export function HypothesisRow(props: HypothesisRowProps) {
             data-cell={cellOf({ cell: 'feedback', feedbackIndex: i })}
             value={notes[i] ?? ''}
             onValueChange={(next) => props.onFeedbackTextChange(i, next)}
-            onFieldKeyDown={(e, state) =>
-              props.onFieldKeyDown?.(e, state, { cell: 'feedback', feedbackIndex: i })
-            }
           />
         </div>
       ))}

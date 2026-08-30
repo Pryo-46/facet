@@ -36,28 +36,16 @@ import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
 import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
-import {
-  cellKey,
-  hypothesisCellKey,
-  issueCellKey,
-  issueEventCellKey,
-  type HypothesisCell,
-} from './cell-keys'
+import { cellKey, hypothesisCellKey, issueCellKey, issueEventCellKey } from './cell-keys'
 import {
   addChildIssue,
   addFeedback,
-  addFeedbackAfter,
   addHypothesis,
-  addHypothesisAfter,
   addRootIssue,
   addSiblingIssueAfter,
   appendJudgement,
-  deleteHypothesis,
   deleteIssueSubtree,
-  moveFeedback,
-  moveHypothesis,
   moveIssueSibling,
-  removeFeedback,
   setEventNote,
   setFeedbackText,
   setHypothesisTitle,
@@ -101,11 +89,16 @@ const BODY_FONT_CLASS = 'text-sm leading-normal'
 /** 節の見出し・見送りの理由・バッジに当たるクラス */
 const SMALL_FONT_CLASS = 'text-sm'
 
-/** 木の操作ヒント。`$mod` / `$alt` は KeyHints が解決する */
+/**
+ * 木の操作ヒント。`$mod` / `$alt` は KeyHints が解決する。
+ *
+ * **キーで操作するのは課題の追加・削除・移動だけ**（m5）——仮説の追加・削除・
+ * 判断の変更はマウスのボタンへ移った（Task 6・7）ので、`$mod+Enter` の行は無い。
+ * `src/modules/logic-tree/LogicTreeEditor.tsx` の `TREE_HINTS` と同じ4つ
+ */
 const ISSUE_TREE_HINTS: readonly KeyHint[] = [
   { keys: 'Enter', label: '兄弟を追加' },
   { keys: 'Tab', label: '子課題を追加' },
-  { keys: '$mod+Enter', label: '仮説／判断を追加' },
   { keys: '←→', label: '親子移動' },
   { keys: '$alt+↑↓', label: '並び替え' },
 ]
@@ -617,19 +610,7 @@ export function IssueTreeEditor({
     return pos < 0 ? false : focusIssueAt(siblings[pos + delta])
   }
 
-  /**
-   * 同じ課題にぶら下がる仮説の中で1つ動く。**課題をまたがない**
-   *——またぐと図の別の枝へ飛び、いま見ている課題の文脈が外れる
-   */
-  const focusHypothesisSibling = (index: number, delta: -1 | 1): boolean => {
-    const ref = data.hypotheses[index]
-    const to = data.hypotheses[index + delta]
-    if (ref === undefined || to === undefined || to.issueId !== ref.issueId) return false
-    const key = hypothesisKeys[index + delta]
-    return key === undefined ? false : focusCell(hypothesisCellKey(key, { cell: 'hypothesis' }))
-  }
-
-  /** 仮説の持ち主の課題（`deleteHypothesis` が行き先を持たなかったときの戻り先） */
+  /** 仮説の持ち主の課題。「仮説を追加」の帯ボタンが、最後に触っていた仮説から辿る戻り先 */
   const ownerIssueFocus = (index: number): FocusTarget | null => {
     const issueId = data.hypotheses[index]?.issueId
     const at = issueId === undefined ? -1 : data.issues.findIndex((n) => n.id === issueId)
@@ -676,87 +657,16 @@ export function IssueTreeEditor({
         return focusIssueAt(built.parents[index])
       case 'focus-child':
         return focusIssueAt(built.children[index]?.[0])
-      // **主修飾キー＋Enter を「そのセルの主たる副操作」に写像する**（rev 10章
-      // 「意味の解決はコアのまま、写像だけツール側」。sequence M2 と同じ層の適用）。
-      // 課題セルでは仮説の追加——発散フェーズで最も打鍵数が多い操作であり、
-      // `Tab`（子課題）と `Enter`（兄弟課題）は家族標準に押さえられている
+      // **主修飾キー＋Enter はここでは使わない（m5）。** かつては課題セルの
+      // 副操作として仮説を追加していたが、仮説の追加はマウスのボタンへ移った
+      // （Task 6）——空いた `Ctrl+Enter` に別の意味を割り当てない
       case 'toggle-item-state':
-        apply(addHypothesis(data, index))
-        return true
+        return false
       case 'cancel':
         blurActive()
         return true
       default:
         // undo / redo は額縁のグローバル層が取る
-        return false
-    }
-  }
-
-  /** コマンドを仮説の行の構造へ写像する。戻り値 true＝消費した */
-  const runRowCommand = (cmd: Command, index: number, cell: HypothesisCell): boolean => {
-    switch (cmd) {
-      case 'insert-item-after':
-        if (cell.cell === 'hypothesis') {
-          apply(addHypothesisAfter(data, index))
-          return true
-        }
-        // FB の Enter は**押した位置の次**（コアのコマンド名どおり insert-item-after）。
-        // 末尾に足すと、3件の1件目で押したときに生まれるのは4件目になり、
-        // フォーカスが展開パネルの一番下へ飛ぶ。末尾に足すのは、展開パネルの
-        // 「＋ FB」ボタン（`HypothesisRow.tsx` の `panel.notes.add`）だけである
-        //（帯にあるのは「課題を追加」「仮説を追加」の2つで、こちらは末尾専用ではない）
-        if (cell.cell === 'feedback') {
-          apply(addFeedbackAfter(data, index, cell.feedbackIndex))
-          return true
-        }
-        // イベントの根拠から次を生やさない（イベントは追記操作でしか増えない）
-        return false
-      case 'delete-item':
-        // deletableField を立てている欄（仮説の文言・FB）からしか来ない
-        if (cell.cell === 'hypothesis') {
-          // **前の仮説が無いときは持ち主の課題へ返す**——`deleteHypothesis` は
-          // 行き先に null を返すので、そのままだとフォーカスが宙に浮き、
-          // 続けて打とうとしたキーがどこにも入らない
-          apply(deleteHypothesis(data, index), ownerIssueFocus(index))
-          return true
-        }
-        if (cell.cell === 'feedback') {
-          apply(removeFeedback(data, index, cell.feedbackIndex))
-          return true
-        }
-        return false
-      case 'move-item-up':
-      case 'move-item-down': {
-        const delta = cmd === 'move-item-up' ? -1 : 1
-        if (cell.cell === 'hypothesis') {
-          apply(moveHypothesis(data, index, delta))
-          return true
-        }
-        if (cell.cell === 'feedback') {
-          apply(moveFeedback(data, index, cell.feedbackIndex, delta))
-          return true
-        }
-        // イベントは1件ずつ／追記専用なので並び替えの意味が無い
-        return false
-      }
-      case 'focus-prev':
-        return cell.cell === 'hypothesis' ? focusHypothesisSibling(index, -1) : false
-      case 'focus-next':
-        return cell.cell === 'hypothesis' ? focusHypothesisSibling(index, 1) : false
-      case 'toggle-item-state':
-        // 仮説の文言では判断イベントのドロップダウンを開く（追記する種別を選ばせる）。
-        // FB は判断へ移さない——判断の理由は人が書く。FB セルでは何もしない
-        //（＝キーを消費しない）
-        if (cell.cell === 'hypothesis') {
-          setOpenCell(judgementMenuKey(hypothesisKeys[index]))
-          return true
-        }
-        return false
-      case 'cancel':
-        blurActive()
-        return true
-      default:
-        // undo / redo は額縁のグローバル層が、Tab の欄移動は DOM の順序が取る
         return false
     }
   }
@@ -782,35 +692,6 @@ export function IssueTreeEditor({
     const cmd = resolveCommand(toKeyEventLike(e), context)
     if (cmd === null) return
     if (runIssueCommand(cmd, index)) e.preventDefault()
-  }
-
-  /** 仮説の行（と展開パネル）の中のセルのキー入力 */
-  const onRowKeyDown = (
-    e: React.KeyboardEvent,
-    index: number,
-    state: FieldState,
-    cell: HypothesisCell,
-  ): void => {
-    const context: KeyContext = {
-      platform: PLATFORM,
-      modalOpen,
-      editing: true,
-      fieldEmpty: state.empty,
-      // **「その欄が空になったら要素ごと消してよいか」で決める。**
-      // イベントの根拠は false——空にしただけでイベントが消えると、
-      // 書き直すたびに消えることになる
-      deletableField: cell.cell === 'hypothesis' || cell.cell === 'feedback',
-      caretAtStart: state.caretAtStart,
-      caretAtEnd: state.caretAtEnd,
-      arrowsOwnedByField: false,
-      reorderEnabled: true,
-      // 仮説の側に「子」という意味は無い。Tab は欄移動（DOM 順）に委ねる
-      hierarchical: false,
-      horizontal: false,
-    }
-    const cmd = resolveCommand(toKeyEventLike(e), context)
-    if (cmd === null) return
-    if (runRowCommand(cmd, index, cell)) e.preventDefault()
   }
 
   /** 帯の「課題を追加」。0件なら根を作り、あれば末尾の課題の隣（根の上では子）に足す */
@@ -1106,7 +987,6 @@ export function IssueTreeEditor({
                           )
                         }
                         onAddFeedback={() => apply(addFeedback(data, hi))}
-                        onFieldKeyDown={(e, state, cell) => onRowKeyDown(e, hi, state, cell)}
                         judgementMenu={
                           <KindMenu
                             label={`仮説${hi + 1}に判断を追加`}

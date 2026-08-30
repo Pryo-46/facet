@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { badgeClass, BADGE_BOX_HEIGHT } from '@/components/badge-styles'
 import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { todayString } from '@/core/today'
-import type { Feedback, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
 import {
   BADGE_LABELS,
@@ -21,15 +21,11 @@ import {
 } from './derive'
 import { IssueTreeEditor } from './IssueTreeEditor'
 import { JUDGEMENT_TRIGGER_LABELS } from './layout'
-import { BOX_WIDTH, EXPANDED_BOX_WIDTH } from './measure'
 
 afterEach(cleanup)
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
-
-/** アプリが作る FB と同じ形（`commands.test.ts` の `fb` と同じ規約） */
-const fb = (text: string): Feedback => ({ askId: null, text, by: '', sentiment: 'note', date: '2026-08-30' })
 
 /**
  * 課題3件（根→中間→葉）・仮説1件。**中間ノードが子を持っている形を選ぶ**
@@ -142,36 +138,32 @@ describe('IssueTreeEditor（木の操作）', () => {
   })
 })
 
-describe('IssueTreeEditor（主修飾キー＋Enter の写像）', () => {
-  // 写像が入れ替わっても画面は一見正常なので、ここでしか捕まらない
+describe('IssueTreeEditor（仮説は操作言語を持たない。m5）', () => {
+  // m5 でキーによる操作は課題の追加・削除・移動だけになった。仮説の追加・削除・
+  // 判断の変更はマウスのボタンへ移り（Task 6・7）、仮説側のセルはキーを取らない
 
-  it('課題セルでは仮説を足す', () => {
+  it('仮説の文言で Enter を打っても仮説は増えない（キーは課題だけが取る）', () => {
     const onChange = vi.fn()
     render(<Harness initial={file()} onChange={onChange} />)
-    expect(fireEvent.keyDown(issueCell(3), { key: 'Enter', ctrlKey: true })).toBe(false)
-    const next: IssueTreeSchemaVersion3 = onChange.mock.calls[0][0]
-    expect(next.hypotheses).toHaveLength(2)
-    // 足したのは「押した課題」にぶら下がる仮説であること
-    expect(next.hypotheses.filter((h) => h.issueId === I(3))).toHaveLength(2)
-    // 課題は増えていない（Enter の兄弟追加と取り違えていない）
-    expect(next.issues).toHaveLength(3)
+    // **戻り値も見る。** `false`＝既定動作（改行）を消費して止めた——閉じた行は
+    // 1行で測っているので、改行が入ると測定と描画がずれる（`swallowEnter` の役目）
+    expect(fireEvent.keyDown(openHypothesis(1), { key: 'Enter' })).toBe(false)
+    expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('仮説セルでは判断のドロップダウンを開く（仮説は増えない）', async () => {
+  it('仮説の文言が空でも Backspace で仮説は消えない', () => {
+    const base = file()
     const onChange = vi.fn()
-    render(<Harness initial={file()} onChange={onChange} />)
-    expect(fireEvent.keyDown(openHypothesis(1), { key: 'Enter', ctrlKey: true })).toBe(false)
-    // **項目名は EVENT_KIND_LABELS から引く**（打ち直すと Skill の報告と食い違う）
-    await screen.findByRole('menuitem', { name: EVENT_KIND_LABELS.supported })
-    // **件数を数えない。** かつてここは `toHaveLength(6)` で、`JUDGEMENT_KINDS` が
-    // 手書きの `readonly JudgementKind[]` だったため、スキーマへ `onHold` を
-    // 足しても配列は6件のまま——**アプリからは選べない判断**が静かに残り、
-    // このテストは緑のままだった。`EVENT_KIND_LABELS`（`Record<JudgementKind, string>`）
-    // の値の集合と突き合わせれば、種別が増えたときに必ず落ちる
-    expect(screen.getAllByRole('menuitem').map((el) => el.textContent).sort()).toEqual(
-      Object.values(EVENT_KIND_LABELS).sort(),
+    render(
+      <Harness
+        initial={{ ...base, hypotheses: [{ ...base.hypotheses[0], title: '' }] }}
+        onChange={onChange}
+      />,
     )
+    // Backspace はどの操作にも写像されないので既定動作のまま（消費しない＝true）
+    expect(fireEvent.keyDown(openHypothesis(1), { key: 'Backspace' })).toBe(true)
     expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('textbox', { name: '仮説1' })).toBeTruthy()
   })
 })
 
@@ -737,14 +729,15 @@ describe('IssueTreeEditor（帯）', () => {
     expect(screen.queryByText('ルートが2件あります')).toBeNull()
   })
 
-  it('操作ヒントを5件出す（表記が互いに重ならない）', () => {
+  it('操作ヒントを4件出す（表記が互いに重ならない。m5 で課題だけに絞った）', () => {
     render(<Harness initial={file()} />)
     const hintSpan = (text: string) =>
       screen.getByText((_, element) => element?.tagName === 'SPAN' && element.textContent === text)
     expect(hintSpan('Enter: 兄弟を追加')).toBeTruthy()
     expect(hintSpan('Tab: 子課題を追加')).toBeTruthy()
-    // $mod / $alt は KeyHints が解決する（jsdom は mac 判定にならない）
-    expect(hintSpan('Ctrl+Enter: 仮説／判断を追加')).toBeTruthy()
+    // $mod / $alt は KeyHints が解決する（jsdom は mac 判定にならない）。
+    // **`Ctrl+Enter: 仮説／判断を追加` の行は無い**——仮説の追加はボタンへ移った
+    expect(screen.queryByText((_, element) => element?.tagName === 'SPAN' && element.textContent === 'Ctrl+Enter: 仮説／判断を追加')).toBeNull()
     expect(hintSpan('←→: 親子移動')).toBeTruthy()
     expect(hintSpan('Alt+↑↓: 並び替え')).toBeTruthy()
   })
@@ -983,80 +976,11 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
     )
   })
 
-  it('FB の Enter は押した位置の次に足す（末尾ではない）', () => {
-    const base = file()
-    const onChange = vi.fn()
-    render(
-      <Harness
-        initial={{
-          ...base,
-          hypotheses: [{ ...base.hypotheses[0], feedbacks: [fb('A'), fb('B'), fb('C')] }],
-        }}
-        onChange={onChange}
-      />,
-    )
-    // **真ん中で押す**——末尾で押すと「末尾に足す実装」と結果が区別できない
-    openHypothesis(1)
-    expect(
-      fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のFB2' }), { key: 'Enter' }),
-    ).toBe(false)
-    const texts = (onChange.mock.calls[0][0].hypotheses[0].feedbacks as Feedback[]).map((f) => f.text)
-    expect(texts).toEqual(['A', 'B', '', 'C'])
-  })
-
-  it('FB の Alt+↑ で並びが入れ替わる（写像が feedbackIndex と向きを正しく渡す）', () => {
-    const base = file()
-    const onChange = vi.fn()
-    render(
-      <Harness
-        initial={{
-          ...base,
-          hypotheses: [{ ...base.hypotheses[0], feedbacks: [fb('A'), fb('B'), fb('C')] }],
-        }}
-        onChange={onChange}
-      />,
-    )
-    openHypothesis(1)
-    expect(
-      fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のFB2' }), {
-        key: 'ArrowUp',
-        altKey: true,
-      }),
-    ).toBe(false)
-    const texts = (onChange.mock.calls[0][0].hypotheses[0].feedbacks as Feedback[]).map((f) => f.text)
-    expect(texts).toEqual(['B', 'A', 'C'])
-  })
-
-  it('FB セルの主修飾キー＋Enter はキーを消費しない（判断イベントは仮説の文言でしか開かない）', () => {
-    // v3 で「根拠へ移す」は廃止した。FB セルに toggle-item-state を割り当てる先が
-    // 無いので、キーは消費されない（＝preventDefault されない）ことを見る唯一のテスト
-    const base = file()
-    const onChange = vi.fn()
-    render(
-      <Harness
-        initial={{ ...base, hypotheses: [{ ...base.hypotheses[0], feedbacks: [fb('A')] }] }}
-        onChange={onChange}
-      />,
-    )
-    openHypothesis(1)
-    expect(
-      fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1 のFB1' }), {
-        key: 'Enter',
-        ctrlKey: true,
-      }),
-    ).toBe(true)
-    expect(onChange).not.toHaveBeenCalled()
-  })
-
-  it('空欄の仮説を Backspace で消すと、持ち主の課題へフォーカスが返る', () => {
-    // `deleteHypothesis` は前の仮説が無いとき行き先に null を返す。
-    // そのままだとフォーカスが宙に浮き、続けて打ったキーがどこにも入らない
-    const base = file()
-    render(<Harness initial={{ ...base, hypotheses: [{ ...base.hypotheses[0], title: '' }] }} />)
-    expect(fireEvent.keyDown(openHypothesis(1), { key: 'Backspace' })).toBe(false)
-    expect(screen.queryByRole('textbox', { name: '仮説1' })).toBeNull()
-    expect(document.activeElement).toBe(issueCell(3))
-  })
+  // **FB の並び替え・挿入位置指定・削除、および仮説の Backspace 削除はキーから
+  // 消えた（m5）。** 追加（`onAddFeedback` の「＋ FB」ボタン）だけがマウスの
+  // 動線として残り、削除・並び替え・挿入位置の指定はいまはどの動線からも
+  // 到達できない（`addFeedbackAfter` / `moveFeedback` / `removeFeedback` /
+  // `deleteHypothesis` は `commands.ts` に残るが呼び出し元が無い。Task 3 報告参照）
 })
 
 describe('IssueTreeEditor（展開の継ぎ目）', () => {
@@ -1128,43 +1052,10 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
     expect(screen.getByRole('button', { name: '仮説2を開く' })).toBeTruthy()
   })
 
-  /**
-   * **開いた課題から最後の仮説が消えたら、箱は畳まれる。**
-   *
-   * m4 までは `expandedKey` が**仮説**の鍵だったので、仮説が消えれば
-   * `indexOf` が -1 になって自動的に畳まれていた。課題の鍵に変えた m5 では
-   * その自動解除が効かない——鍵は課題を指したまま残るので、**行が1本も無い
-   * 780 幅の箱**が残り、トグルは `invisible`（仮説が無いので押せない）。
-   * 列が 460px 右へずれたまま戻せなくなる。
-   *
-   * 直しは**レイアウト側**にある（「行が0本なら開かない」）ので、
-   * `aria-expanded` と箱の実寸の両方を見る——片方だけだと、
-   * 「見た目は畳んだが幅は 780 のまま」を見逃す
-   */
-  it('展開した課題から最後の仮説が消えると、箱は畳まれる', () => {
-    const base = file()
-    render(
-      <Harness
-        initial={{ ...base, hypotheses: [{ ...base.hypotheses[0], title: '' }] }}
-      />,
-    )
-    const toggle = () => screen.getByRole('button', { name: '課題3の詳細' })
-    // 課題3 の箱（仮説はここにぶら下がる）
-    const boxOf = (n: number): HTMLElement =>
-      issueCell(n).closest('[class*="pointer-events-auto"]') as HTMLElement
-
-    fireEvent.click(toggle())
-    expect(toggle().getAttribute('aria-expanded')).toBe('true')
-    expect(boxOf(3).style.width).toBe(`${EXPANDED_BOX_WIDTH}px`)
-
-    // 空欄の仮説を消す（`deleteHypothesis` は行き先を課題へ返すので、
-    // `goTo` は展開の鍵に触らない＝鍵は課題を指したまま残る）
-    fireEvent.keyDown(screen.getByRole('textbox', { name: '仮説1' }), { key: 'Backspace' })
-    expect(screen.queryByRole('textbox', { name: '仮説1' })).toBeNull()
-
-    expect(toggle().getAttribute('aria-expanded')).toBe('false')
-    expect(boxOf(3).style.width).toBe(`${BOX_WIDTH}px`)
-  })
+  // **「開いた課題から最後の仮説が消えると箱は畳まれる」は m4 まではここで
+  // 見ていたが、消す動線（キーボードの Backspace）が m5 で無くなった。** 仮説の
+  // 削除は Task 7 でゴミ箱ボタンに移る予定——そのときこの性質（レイアウトが
+  // 「行が0本なら開かない」に戻ること）をボタン経由で見直すこと（Task 3 報告参照）
 
   it('仮説を持たない課題のトグルは場所を空けたまま隠れる（タブ順にも出ない）', () => {
     // **`display: none` にしない**——同じ列の中でタイトルの左端が揃わなくなる。
@@ -1175,9 +1066,18 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
     expect(screen.getByRole('button', { name: '課題3の詳細' }).className).not.toContain('invisible')
   })
 
-  it('課題セルの Ctrl+Enter で生えた仮説は、展開された状態でフォーカスを受ける', () => {
+  /**
+   * **かつてはこの経路が課題セルの Ctrl+Enter だった**（m5 でボタンへ移った）。
+   * `apply` → `goTo` が展開と予約を担うのは経路によらず共通なので、いまは
+   * 帯の「仮説を追加」ボタンでこの性質（生えた仮説が展開された状態でフォーカスを
+   * 受ける）を確かめる
+   */
+  it('「仮説を追加」で生えた仮説は、展開された状態でフォーカスを受ける', () => {
     render(<Harness initial={file()} />)
-    fireEvent.keyDown(issueCell(3), { key: 'Enter', ctrlKey: true })
+    act(() => {
+      issueCell(3).focus()
+    })
+    fireEvent.click(screen.getByRole('button', { name: '仮説を追加' }))
     // 新しい仮説は配列の末尾（仮説2）。畳まれたままだと打つ場所が無い
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説2' }))
   })
