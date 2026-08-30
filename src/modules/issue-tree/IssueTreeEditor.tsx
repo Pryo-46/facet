@@ -909,10 +909,19 @@ export function IssueTreeEditor({
               ——`MissingTally` の parts は「total の内訳」という契約なので、
               そこへ混ぜると合計と内訳が合わない帯になる。旗を**掲げた課題の数**
               だけを種別ごとに出し（配下の凍結中の問いは数えない。人間の裁定）、
-              0件なら描かない。面は rev 9章の見送りの描き方そのもの
-              （badgeClass('deferred')＝surface-muted の面・rule の枠・
-              ink-muted の文字）を**解決にも使い回す**——「解決」に別の色や
-              アイコンを当てるのは見え方の設計であり m5 の担当 */}
+              0件なら描かない。
+
+              **面は箱のバッジと同じ写像（`FLAG_BADGE_GROUPS`）から引く**
+              ——見送り＝`surface-muted` の面・`rule` の枠・`ink-muted` の文字、
+              解決＝判断の緑。**写像を2箇所に書かないこと**——ここを
+              `badgeClass('deferred')` の決め打ちに戻すと、**同じ「解決」の語が
+              帯では灰・箱では緑**になる（m5 の実機確認まで実際にそうだった）。
+              `IssueTreeEditor.dom.test.tsx` の「帯の別枠チップと箱のバッジは
+              同じ面を出す」が両側から見ている。
+
+              **`badgeVariantOf` を通さないのは、帯に抑制が無いから**——
+              チップは木全体の集計であって、どの枝の下にも居ない。
+              `false` を渡す形にすると「抑制されうる」と読めてしまう */}
           {FLAG_KINDS.map((kind) => {
             const count = issueEventCount(data.issues, kind)
             if (count === 0) return null
@@ -920,7 +929,7 @@ export function IssueTreeEditor({
               <button
                 key={kind}
                 type="button"
-                className={`shrink-0 transition-colors ${badgeClass('deferred')}`}
+                className={`shrink-0 transition-colors ${badgeClass(FLAG_BADGE_GROUPS[kind])}`}
                 aria-label={`次の${ISSUE_EVENT_LABELS[kind]}へ`}
                 title={ISSUE_EVENT_NOTES[kind]}
                 onClick={() => goToNextFlagged(kind)}

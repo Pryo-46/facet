@@ -24,9 +24,16 @@ export function badgeVariantOf(group: BadgeGroup, suppressed: boolean): BadgeVar
  *   キャンバスの「バッジ語彙」アートボードが解決を `b-yes` と定めている
  * - `deferred` → `deferred`（見送りの群＝`surface-muted` の面・`rule` の枠）
  *
- * **`badgeVariantOf` へ渡すこと。** 抑制された配下では旗の種別によらず
+ * **読み手は2つある**——課題の箱の旗のバッジと、帯の別枠チップ（どちらも
+ * `IssueTreeEditor.tsx`）。**同じ語が場所によって色を変えないための1箇所**なので、
+ * どちらかに写像を書き写さないこと。両方が同じ面を出すことは
+ * `IssueTreeEditor.dom.test.tsx` の「帯の別枠チップと箱のバッジは同じ面を出す」が見る。
+ *
+ * **箱の側は `badgeVariantOf` へ渡すこと。** 抑制された配下では旗の種別によらず
  * `faint` へ落ちる（第2引数）——「いま作業する面ではない」が種別より優先する。
- * 直に `badgeClass` へ渡すと、その落とし込みが消える
+ * 直に `badgeClass` へ渡すと、その落とし込みが消える。
+ * **帯のチップは通さない**——木全体の集計であって、どの枝の下にも居ないため
+ *（`false` を渡す形にすると「抑制されうる」と読めてしまう）
  */
 export const FLAG_BADGE_GROUPS: Record<IssueEventKind, BadgeGroup> = {
   deferred: 'deferred',

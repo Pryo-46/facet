@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
-import { badgeClass, BADGE_BOX_HEIGHT } from '@/components/badge-styles'
+import { badgeClass, BADGE_BOX_HEIGHT, type BadgeVariant } from '@/components/badge-styles'
 import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { todayString } from '@/core/today'
 import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
@@ -1228,6 +1228,71 @@ describe('IssueTreeEditor（旗の面と幅。m5 の実機確認）', () => {
     // C：ただの配下も同じ（枝全体がひとかたまりのグレー）
     expect(boxOf(3).className.split(' ')).toContain('bg-surface-muted')
     expect(boxOf(3).className.split(' ')).toContain('text-ink-faint')
+  })
+
+  /**
+   * **同じ語が場所によって色を変えないこと。** 「解決」は帯の別枠チップにも
+   * 課題の箱のバッジにも出る。写像（`FLAG_BADGE_GROUPS`）は1つなので、
+   * **どちらか片方だけを決め打ちに戻すとここが赤くなる。**
+   *
+   * **どの面かをこのテストが名指ししないのが要**——一方の DOM から取り出した面が
+   * もう一方にも現れることだけを見る。「解決＝緑」を両側に書くと、写像を
+   * 書き換えたとき期待値も一緒に動いて何も固定しない（上の2本が字面で
+   * `'yes'` / `'deferred'` を押さえているので、値の側の番人は別にある）。
+   *
+   * **variant の一覧は `Record<BadgeVariant, true>` の鍵から作る**——手書きの
+   * 配列にすると variant が増えたとき黙って古びる（`find` が外れて
+   * `toBeDefined` で落ちるので事故にはならないが、原因が分かりにくい）
+   */
+  it('帯の別枠チップと箱のバッジは、同じ種別について同じ面を出す', () => {
+    const ALL_VARIANTS = Object.keys({
+      open: true,
+      hold: true,
+      invalid: true,
+      pending: true,
+      yes: true,
+      no: true,
+      deferred: true,
+      faint: true,
+    } satisfies Record<BadgeVariant, true>) as BadgeVariant[]
+
+    // **旗を立てる2件は兄弟にする。** `file()` の木は縦一列（1→2→3）なので、
+    // 課題1に見送りを立てると課題2は祖先由来で抑制され、バッジが faint に
+    // 落ちて「帯と同じ面か」を比べる意味が消える（実際に一度そうなった）。
+    // 抑制は祖先由来だけなので、兄弟どうしなら互いに影響しない
+    const siblings: IssueTreeSchemaVersion3 = {
+      schemaVersion: 3,
+      type: 'issueTree',
+      title: 'テスト',
+      issues: [
+        { id: I(1), parentId: null, text: '根（旗なし）', events: [] },
+        {
+          id: I(2),
+          parentId: I(1),
+          text: '兄（見送り）',
+          events: [{ kind: 'deferred', note: '', date: '2026-08-30' }],
+        },
+        {
+          id: I(3),
+          parentId: I(1),
+          text: '弟（解決）',
+          events: [{ kind: 'resolved', note: '', date: '2026-08-30' }],
+        },
+      ],
+      hypotheses: [],
+    }
+    render(<Harness initial={siblings} />)
+    for (const [kind, issueNo] of [
+      ['deferred', 2],
+      ['resolved', 3],
+    ] as const) {
+      const label = ISSUE_EVENT_LABELS[kind]
+      const chip = screen.getByRole('button', { name: `次の${label}へ` })
+      const badge = screen.getByRole('button', { name: `課題${issueNo}の${label}` })
+      const face = ALL_VARIANTS.map(badgeClass).find((f) => chip.className.includes(f))
+      expect(face, `帯の「${label}」チップがバッジの面を持たない`).toBeDefined()
+      expect(badge.className, `「${label}」の面が帯と箱で違う`).toContain(face)
+    }
   })
 })
 
