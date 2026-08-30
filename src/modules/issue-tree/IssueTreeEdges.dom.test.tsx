@@ -36,7 +36,7 @@ const fonts = {
  * **線が箱の矩形から引かれていれば座標が変わる。**
  */
 const data: IssueTreeSchemaVersion3 = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',
   issues: [

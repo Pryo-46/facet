@@ -12,7 +12,7 @@ export const issueTreeModule: ToolModule<IssueTreeSchemaVersion3> = {
   type: 'issueTree',
   displayName: '課題ツリー',
   icon: FlaskConical,
-  schemaVersion: 3,
+  schemaVersion: 4,
   schema: issueTreeSchema as JsonSchema,
   // プレフィクスはエンティティ単位（rev 5章）。ツール単位で1つに統一しない。
   // **ask は v3 で増えた3つ目**——聞きたいこと（asks）は feedbacks から
@@ -30,5 +30,5 @@ export const issueTreeModule: ToolModule<IssueTreeSchemaVersion3> = {
   // **ルートの課題1件で作る。** ID の採番を commands.ts の1箇所に保つため
   // addRootIssue を通す（ここで newId を直接呼ばない）
   createEmpty: (title) =>
-    addRootIssue({ schemaVersion: 3, type: 'issueTree', title, issues: [], hypotheses: [] }).data,
+    addRootIssue({ schemaVersion: 4, type: 'issueTree', title, issues: [], hypotheses: [] }).data,
 }

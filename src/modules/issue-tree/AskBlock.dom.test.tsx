@@ -71,7 +71,7 @@ const feedback = (over: Partial<Feedback>): Feedback => ({
  * 紐づかない FB・宙に浮いた `askId` の FB** を持つ。調子は4種そろえてある
  */
 const data: IssueTreeSchemaVersion3 = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   type: 'issueTree',
   title: 'テスト',
   issues: [

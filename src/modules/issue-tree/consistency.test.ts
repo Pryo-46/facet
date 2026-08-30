@@ -6,7 +6,7 @@ const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
 
 function make(over: Partial<IssueTreeSchemaVersion3>): IssueTreeSchemaVersion3 {
-  return { schemaVersion: 3, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
+  return { schemaVersion: 4, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
 }
 
 /** v3 の仮説。全キー常在（date を除き空を許す） */
