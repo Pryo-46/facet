@@ -57,7 +57,8 @@ describe('listOpenTargets（要対応の並び）', () => {
       ['hypothesis', { cell: 'issue', index: 1 }],
       ['hold', { cell: 'hypothesis', index: 0 }], // B
       ['result', { cell: 'hypothesis', index: 1 }], // A
-      ['feedback', { cell: 'hypothesis', index: 2 }], // C
+      // FB待ちの行き先は**問いの欄**（m5 Task 8）。仮説 C の問いは1件
+      ['feedback', { cell: 'ask', index: 2, askIndex: 0 }], // C
     ])
   })
 
@@ -93,7 +94,7 @@ describe('listOpenTargets（要対応の並び）', () => {
     ]
     expect(targetsOf(issues, hypotheses)).toEqual([
       ['hold', { cell: 'hypothesis', index: 0 }],
-      ['feedback', { cell: 'hypothesis', index: 0 }],
+      ['feedback', { cell: 'ask', index: 0, askIndex: 0 }],
     ])
   })
 
@@ -117,9 +118,15 @@ describe('listOpenTargets（要対応の並び）', () => {
     expect(targetsOf(issues, hypotheses)).toEqual([['result', { cell: 'hypothesis', index: 0 }]])
   })
 
-  it('FB待ちの行き先は仮説につき1つ（問いが2件でも列は1つ）', () => {
-    // **チップの数と列の長さが食い違うことを、意図として固定する。**
-    // m5 が問いに固有のセルを与えたら、この it は「問いごとに1つ」へ書き換わる
+  /**
+   * **チップの数と列の長さが一致する**（m5 Task 8）。m4 は「問いを1件ずつ指せる
+   * DOM のセルが無い」ために仮説につき1つしか出せず、**「FB待ち 2」と言いながら
+   * 2回で一巡しない**破れを受け入れていた。m5 が `ask` のセルを与えたので戻す。
+   *
+   * ここで見るのは**数の一致そのもの**である——「問いごとに1つ」を仮説ごとに
+   * 戻した実装は、`toEqual` を直しても件数で落ちる
+   */
+  it('FB待ちの行き先は問いごとに1つ（チップの数と列の長さが一致する）', () => {
     const issues: IssueNode[] = [{ id: id(0), parentId: null, text: '根', events: [] }]
     const h = hypothesis(1, id(0), {
       asks: [
@@ -130,8 +137,56 @@ describe('listOpenTargets（要対応の並び）', () => {
     })
     const data = { issues, hypotheses: [h] }
     const posed = poseQuestions(data)
+    const feedbackTargets = listOpenTargets(data, posed).filter((t) => t.kind === 'feedback')
     expect(tallyQuestions(posed).feedback).toBe(2)
-    expect(listOpenTargets(data, posed).filter((t) => t.kind === 'feedback')).toHaveLength(1)
+    expect(feedbackTargets).toHaveLength(tallyQuestions(posed).feedback)
+    expect(feedbackTargets.map((t) => t.focus)).toEqual([
+      { cell: 'ask', index: 0, askIndex: 0 },
+      { cell: 'ask', index: 0, askIndex: 1 },
+    ])
+  })
+
+  /**
+   * **問いの条件をここで書き直していないこと。** 「FB待ち」の条件を持つのは
+   * `derive.ts` の `awaitingAskCount` だけで、列は問い1件だけの配列を渡して
+   * 同じ関数に判定させる（`layout.ts` の `awaits` と同じ手）。
+   *
+   * 答えの返った問い・文言の空の問いを**飛ばす**ことを、集計との数の一致で縛る
+   *——`asks` を素直に舐める実装（条件の二度書きを忘れた実装）はここで落ちる
+   */
+  it('答えの返った問い・文言の空の問いは列に入らない（集計と同じ数のまま）', () => {
+    const issues: IssueNode[] = [{ id: id(0), parentId: null, text: '根', events: [] }]
+    const h = hypothesis(1, id(0), {
+      asks: [
+        { id: 'ask_AAAAAAAAAA', text: '答えの返った問い' },
+        { id: 'ask_BBBBBBBBBB', text: '' }, // 文言が空＝まだ数えない
+        { id: 'ask_CCCCCCCCCC', text: '待っている問い' },
+      ],
+      feedbacks: [
+        { askId: 'ask_AAAAAAAAAA', text: '確認した', by: '', sentiment: 'note', date: '2026-08-30' },
+      ],
+    })
+    const data = { issues, hypotheses: [h] }
+    const posed = poseQuestions(data)
+    const feedbackTargets = listOpenTargets(data, posed).filter((t) => t.kind === 'feedback')
+    expect(tallyQuestions(posed).feedback).toBe(1)
+    expect(feedbackTargets).toHaveLength(tallyQuestions(posed).feedback)
+    // **3件目**（0 番でも 1 番でもない）——席をずらして数えている実装と区別する
+    expect(feedbackTargets.map((t) => t.focus)).toEqual([{ cell: 'ask', index: 0, askIndex: 2 }])
+  })
+
+  it('抑制された配下の問いは列に入らない（posed の 0 が門になっている）', () => {
+    const issues: IssueNode[] = [
+      { id: id(0), parentId: null, text: '根', events: [] },
+      { id: id(1), parentId: id(0), text: '見送り', events: [{ kind: 'deferred', note: '', date: '2026-08-30' }] },
+    ]
+    const data = {
+      issues,
+      hypotheses: [hypothesis(1, id(1), { asks: [{ id: 'ask_AAAAAAAAAA', text: 'FB' }] })],
+    }
+    const posed = poseQuestions(data)
+    expect(tallyQuestions(posed).feedback).toBe(0)
+    expect(listOpenTargets(data, posed)).toEqual([])
   })
 })
 
@@ -157,6 +212,24 @@ describe('nextOpenTarget（次の1件）', () => {
     expect(nextOpenTarget(targets, 'result', { cell: 'hypothesis', index: 5 })).toEqual(at(0))
     expect(nextOpenTarget(targets, 'result', { cell: 'issue', index: 0 })).toEqual(at(0))
     expect(nextOpenTarget(targets, 'result', null)).toEqual(at(0))
+  })
+
+  /**
+   * **`ask` は仮説の中の席（`askIndex`）まで見る。** `cell` と `index` だけを
+   * 見る同一性だと、同じ仮説の2件目以降の問いが1件目と同一視され、
+   * **押しても同じ問いへ返り続けて巡回が止まる**（「押し続ければ一巡する」が
+   * FB待ちだけ成り立たない、が m4 の破れそのものだった）
+   */
+  it('ask は askIndex まで見る（同じ仮説の別の問いを同一視しない）', () => {
+    const ask = (index: number, askIndex: number): OpenTarget => ({
+      kind: 'feedback',
+      focus: { cell: 'ask', index, askIndex },
+    })
+    const asks: OpenTarget[] = [ask(0, 0), ask(0, 1), ask(1, 0)]
+    expect(nextOpenTarget(asks, 'feedback', { cell: 'ask', index: 0, askIndex: 0 })).toEqual(ask(0, 1))
+    expect(nextOpenTarget(asks, 'feedback', { cell: 'ask', index: 0, askIndex: 1 })).toEqual(ask(1, 0))
+    // 末尾の次は先頭へ戻る
+    expect(nextOpenTarget(asks, 'feedback', { cell: 'ask', index: 1, askIndex: 0 })).toEqual(ask(0, 0))
   })
 
   it('同じ添字でも cell が違えば別のセル（課題の欄と仮説の欄を取り違えない）', () => {

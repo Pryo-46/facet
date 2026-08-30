@@ -20,7 +20,7 @@ import {
   tallyQuestions,
 } from './derive'
 import { IssueTreeEditor } from './IssueTreeEditor'
-import { NO_ASK_TEXT } from './layout'
+import { NO_ASK_TEXT, SECTION_LABELS } from './layout'
 import { BOX_WIDTH, EXPANDED_BOX_WIDTH } from './measure'
 
 afterEach(cleanup)
@@ -612,6 +612,43 @@ const allKindsFile = (): IssueTreeSchemaVersion3 => ({
   ],
 })
 
+/**
+ * FB待ちが**同じ仮説に2件**立つ形（m5 Task 8）。行き先が問いごとになったので、
+ * 「2回押すと2件目の問いへ行く」を見るには同じ仮説の中に2件要る
+ *——別々の仮説に散らすと、仮説単位の行き先へ戻した実装でも巡回して見える。
+ *
+ * 判断を付けてあるのは、未決を立てないため（未決が立つと帯に別のチップが増える）。
+ * 根は葉ではないので「仮説なし」も立たず、**帯に出るのは FB待ち だけ**になる
+ */
+const askFile = (): IssueTreeSchemaVersion3 => ({
+  schemaVersion: 3,
+  type: 'issueTree',
+  title: 'テスト',
+  issues: [
+    { id: I(1), parentId: null, text: '根', events: [] },
+    { id: I(2), parentId: I(1), text: '仮説を持つ葉', events: [] },
+  ],
+  hypotheses: [
+    {
+      id: H(1),
+      issueId: I(2),
+      title: '仮説A',
+      detail: '',
+      value: '',
+      asks: [
+        { id: 'ask_AAAAAAAAAA', text: '離脱しないか' },
+        { id: 'ask_BBBBBBBBBB', text: '制限に当たらないか' },
+      ],
+      feedbacks: [],
+      events: [{ kind: 'supported', note: '実測で確認', date: '2026-08-30' }],
+    },
+  ],
+})
+
+/** 問いの文言の欄。**畳まれた行にも畳まれた課題にも無い**（展開パネルの中だけ） */
+const askCell = (h: number, a: number): HTMLTextAreaElement =>
+  screen.getByRole('textbox', { name: `仮説${h} の聞きたいこと${a}の文言` }) as HTMLTextAreaElement
+
 /** 帯のチップ（「次の◯◯へ」）。0件の種類は描かれないので queryBy で引く */
 const chip = (kind: keyof typeof QUESTION_LABELS): HTMLButtonElement | null =>
   screen.queryByRole('button', { name: `次の${QUESTION_LABELS[kind]}へ` }) as HTMLButtonElement | null
@@ -716,6 +753,36 @@ describe('IssueTreeEditor（帯）', () => {
     // 種類が違えば別の列。「仮説なし」は**課題の欄**へ飛ぶ
     fireEvent.click(chip('hypothesis') as HTMLButtonElement)
     expect(document.activeElement).toBe(issueCell(3))
+  })
+
+  /**
+   * **飛び先の課題を開いてから当てる**（m5 Task 8）。問いの欄は展開パネルの中に
+   * しか無いので、開かないまま予約しても `data-cell` が DOM に無く、
+   * **フォーカスは当たらない**（黙って外れる——落ちるテストが無い種類のずれ）。
+   *
+   * **開いたことと当たったことの両方を見る。** 開くだけの実装（予約が外れる）でも、
+   * 当てるだけの実装（そもそも要素が無い）でも落ちる
+   */
+  it('閉じている課題の中の問いへ飛ぶと、その課題が開いて問いの欄にフォーカスが当たる', () => {
+    render(<Harness initial={askFile()} />)
+    // 最初はどの課題も畳まれている＝パネルの節見出しは画面に無い
+    expect(screen.queryByText(SECTION_LABELS.value)).toBeNull()
+    expect(chip('feedback')?.textContent).toBe(`${QUESTION_LABELS.feedback} 2`)
+
+    fireEvent.click(chip('feedback') as HTMLButtonElement)
+    // 開いた（パネルの節見出しが出る）
+    expect(screen.getByText(SECTION_LABELS.value)).toBeTruthy()
+    // かつ、1件目の問いの欄に当たっている
+    expect(document.activeElement).toBe(askCell(1, 1))
+
+    // **2回目は2件目の問いへ。** 同じ仮説の中なので、行き先を仮説単位に
+    // 潰した実装（または `askIndex` を見ない同一性）はここで1件目に留まる
+    fireEvent.click(chip('feedback') as HTMLButtonElement)
+    expect(document.activeElement).toBe(askCell(1, 2))
+
+    // 3回目は末尾の次＝先頭へ戻る（押し続ければ一巡する＝見落としが無い）
+    fireEvent.click(chip('feedback') as HTMLButtonElement)
+    expect(document.activeElement).toBe(askCell(1, 1))
   })
 
   it('指摘の一覧はエディタが出さない（額縁の IssueBanner が出す）', () => {

@@ -34,7 +34,7 @@ import {
 import { currentPlatform } from '@/core/keyboard/platform'
 import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
-import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { Hypothesis, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
 import { cellKey, hypothesisCellKey, issueCellKey, issueEventCellKey } from './cell-keys'
 import {
@@ -151,11 +151,15 @@ const PLATFORM = currentPlatform()
  * 最後にフォーカスがあったセル。**行の鍵で持つ**（配列位置ではない）
  *——構造操作や取り消しで位置は動くが鍵は動かない。
  *
- * 粒度は「課題の箱」か「仮説の行」までで、行の中のどの欄かは持たない
- *（帯が要るのは行き先の起点だけで、`listOpenTargets` が出す行き先も
- * この2種しかない）
+ * 粒度は「課題の箱」「仮説の行」、そして**問いなら行の中の席まで**である。
+ * 行の中のどの欄かを持たないままだと、`listOpenTargets` が出す問いの行き先
+ *（m5 Task 8）と突き合わせられず、**FB待ちのチップが何度押しても1件目へ返る**
+ *——起点が「仮説の行」に潰れているので、列の中に自分が見つからない。
+ * 逆に言えば、**席まで持つのは列に出る行き先の種類と同じところまで**でよい
  */
-type LastCell = { cell: 'issue' | 'hypothesis'; key: string }
+type LastCell =
+  | { cell: 'issue' | 'hypothesis'; key: string }
+  | { cell: 'ask'; key: string; askIndex: number }
 
 /**
  * 幅の測定器（キャッシュ付き）。**キャッシュはフォントに紐づく**ので、
@@ -314,6 +318,24 @@ function ownerIssueKey(
 }
 
 /**
+ * 仮説の行の中でフォーカスが入った先を `LastCell` に直す。**問いの欄なら
+ * その席（`askIndex`）まで、それ以外の欄はまとめて「仮説の行」**とする
+ *——列に出る行き先の種類（`listOpenTargets`）と同じところまで持てば足りる。
+ *
+ * **`data-cell` の文字列をここで解かない。** 席を数えて `cell-keys.ts` に
+ * 組ませ、返ってきた文字列と突き合わせる——接頭辞の書式を2箇所に持つと、
+ * 片方だけ変えたときに「起点が見つからず、チップが毎回先頭へ返る」が
+ * 静かに起きる（`cell-keys.ts` を作った理由そのもの）
+ */
+function lastCellIn(rowKey: string, h: Hypothesis, target: EventTarget | null): LastCell {
+  const cell = target instanceof Element ? target.getAttribute('data-cell') : null
+  const askIndex = h.asks.findIndex(
+    (_ask, index) => hypothesisCellKey(rowKey, { cell: 'ask', askIndex: index }) === cell,
+  )
+  return askIndex < 0 ? { cell: 'hypothesis', key: rowKey } : { cell: 'ask', key: rowKey, askIndex }
+}
+
+/**
  * 課題ツリーのエディタ（規約3）。
  *
  * 土台は `src/modules/logic-tree/LogicTreeEditor.tsx`——フォントの世代管理・
@@ -459,7 +481,10 @@ export function IssueTreeEditor({
       return at < 0 ? null : { cell: 'issue', index: at }
     }
     const at = hypothesisKeys.indexOf(lastCell.key)
-    return at < 0 ? null : { cell: 'hypothesis', index: at }
+    if (at < 0) return null
+    return lastCell.cell === 'ask'
+      ? { cell: 'ask', index: at, askIndex: lastCell.askIndex }
+      : { cell: 'hypothesis', index: at }
   })()
   const expandedIssueIndex =
     expandedIssueKey === null ? -1 : issueKeys.indexOf(expandedIssueKey)
@@ -520,6 +545,11 @@ export function IssueTreeEditor({
     // 開いた後の矩形になる）
     rects.set(hypothesisCellKey(key, { cell: 'detail' }), placement.rect)
     rects.set(hypothesisCellKey(key, { cell: 'value' }), placement.rect)
+    // 問いの欄も同じ（帯の「FB待ち」はここへ飛ぶ）。**畳んでいても登録する**
+    //——`goTo` が持ち主の課題を開いてから当てるので、寄せる先は開いた後の矩形
+    h.asks.forEach((_a, askIndex) => {
+      rects.set(hypothesisCellKey(key, { cell: 'ask', askIndex }), placement.rect)
+    })
     h.feedbacks.forEach((_f, feedbackIndex) => {
       rects.set(hypothesisCellKey(key, { cell: 'feedback', feedbackIndex }), placement.rect)
     })
@@ -1025,7 +1055,11 @@ export function IssueTreeEditor({
                     // 絶対配置は箱を基準にしたまま。中身が全て絶対配置なので高さも 0
                     <div
                       key={rowKey}
-                      onFocusCapture={() => setLastCell({ cell: 'hypothesis', key: rowKey })}
+                      // **問いの欄に入ったら席まで覚える**（m5 Task 8）——帯の
+                      // 「FB待ち」の列は問いごとなので、起点が「仮説の行」に
+                      // 潰れていると自分が列の中に見つからず、何度押しても
+                      // 先頭へ返る（一巡できない＝見落としの有無が分からない）
+                      onFocusCapture={(e) => setLastCell(lastCellIn(rowKey, h, e.target))}
                     >
                       {/* **畳まれた行と展開パネルは排他**——レイアウトの
                           `HypothesisPlacement` が判別子つきの合併なので、
