@@ -187,7 +187,7 @@ function cachedMeasurer(font: CanvasFont): { measure: MeasureWidth; lineHeight: 
  * ドロップダウンのトリガーと**旗のトグル**（見送り／解決）に共通の土台。
  * **`buttonBase` を敷かないのは角丸のため。**
  * `buttonBase` は `rounded-sm` を持つが、**いまはどちらのトリガーも面がバッジ**
- *（判断は `badgeClass`、旗は `DEFER_TRIGGER_FACE`）で、バッジが `rounded-sm` を
+ *（判断は `badgeClass`、旗は `FLAG_TRIGGER_FACE`）で、バッジが `rounded-sm` を
  * 持っている——**角丸を2つ並べると勝つのは生成 CSS の順序であってクラス名の
  * 順序**なので、**角丸は面が決める**ことにして口を1つにする。
  * 失うのは `justify-center` と `disabled:*` だけで、このトリガーは無効化しない。
@@ -202,16 +202,18 @@ const TRIGGER_BASE =
  * 旗トグルの未入力面。**バッジの箱と同じ幾何**（`src/components/badge-styles.ts`
  * の base と対——`h-[20px]`・`px-1.5`・枠 1px・`rounded-sm`・`leading-none font-medium`。
  * `BADGE_BOX_HEIGHT` を変えるときは片方だけ変えないこと。DOM テストが対を見る）。
- * このトグルは押すと同じ要素が旗のバッジ（`badgeClass('deferred')`）になるので、
+ * このトグルは押すと同じ場所が旗のバッジ（`badgeClass('deferred')`）になるので、
  * 2つの面で箱の形が揃っていないと押した瞬間に跳ねる。色だけが「押せる面」
  * （surface＋rule＋ink-muted、ホバーで canvas）で、幾何はバッジが決める。
- * 幅も同じ理由で `layout.ts` の `slotW` が `badgeWidth(ISSUE_EVENT_LABELS.deferred, …)`
- * （`actionWidth` ではない）で測っている——片方だけ変えないこと（対で直す）。
+ * **見送りと解決で面を分けない**——`FLAG_KINDS` の註のとおり、実効は同じ
+ * 「配下を止める」で意味だけが逆なので、見た目の系統は分けない。
+ * 幅も同じ理由で `layout.ts` の `slotW` が `badgeWidth`（`actionWidth` ではない）
+ * で測っている。**旗の無い箱にはこの面のボタンが2つ並ぶ**ので、あちらは
+ * `triggersW` が2つぶん＋`BADGE_GAP` を予約している——片方だけ変えないこと（対で直す）。
  * **`DEFER_TRIGGER_LABEL` は Task 7 で削除された**——描くのも測るのも
- * `ISSUE_EVENT_LABELS.deferred` の1つで、幅を測る文字列と描く文字列が
- * 同じ定数から出ている
+ * `ISSUE_EVENT_LABELS` の1つで、幅を測る文字列と描く文字列が同じ定数から出ている
  */
-const DEFER_TRIGGER_FACE =
+const FLAG_TRIGGER_FACE =
   'h-[20px] rounded-sm border border-rule bg-surface px-1.5 text-sm leading-none font-medium whitespace-nowrap text-ink-muted hover:bg-canvas'
 
 interface KindMenuProps {
@@ -1013,35 +1015,58 @@ export function IssueTreeEditor({
                   </button>
                 }
                 eventToggle={
-                  <button
-                    type="button"
-                    // **アクセシブル名は「何を入り切りするボタンか」で決める。**
-                    // 押されているかは `aria-pressed` が運ぶ（名前と二重に述べない）。
-                    // 旗が立っていない箱では、押すと付くのは見送りなので「見送り」
-                    aria-label={`課題${index + 1}の${ISSUE_EVENT_LABELS[flagKind ?? 'deferred']}`}
-                    aria-pressed={flagKind !== null}
-                    // 旗が立っていれば、**このトグルが旗のバッジを兼ねる**
-                    //（同じ場所に2つ置かない）。まだなら、ホバーと
-                    // focus-within のときだけ出す小さなボタンにする。
-                    // **どちらの面もレイアウトが枠を空けている**——`layout.ts` の
-                    // `slotW` が、旗が立っていればバッジ幅、まだならボタン幅
-                    //（`ISSUE_EVENT_LABELS.deferred`）で測る（幾何がバッジと
-                    // 同じになったので、いまはどちらの状態も `badgeWidth` の式で測っている）
-                    className={`${TRIGGER_BASE} ${
-                      flagKind === null
-                        ? `${DEFER_TRIGGER_FACE} invisible group-hover/issue:visible group-focus-within/issue:visible`
-                        : badgeClass(badgeVariantOf('deferred', suppressed))
-                    }`}
-                    // **立っている旗を押すと、その旗が外れる**（差し替えではない）。
-                    // **旗の無い箱を押すと必ず `deferred` が付く——`resolved` を
-                    // 新規に立てる動線は m4 も m5 も足していない。担当は未定**
-                    //（`docs/open-issues.md` の「`resolved` を新規に付ける動線が
-                    // 画面に無い」を参照。m4 は「m5 の担当」と残し、m5 は
-                    // 「実装済み」と誤認して着手しなかった）
-                    onClick={() => apply(toggleIssueEvent(data, index, flagKind ?? 'deferred'))}
-                  >
-                    {ISSUE_EVENT_LABELS[flagKind ?? 'deferred']}
-                  </button>
+                  /**
+                   * **旗が立っていなければボタンを2つ並べる**（見送り／解決）。
+                   * 押した方の旗が立つ——`FLAG_KINDS` を回すので、**並びも文言も
+                   * 帯のチップと同じ1つの出所**（`ISSUE_EVENT_LABELS`）から出る。
+                   * 帯と同じ理由で**2つは同じ形**にする（実効は同じ「配下を止める」で
+                   * 意味だけが逆なので、見た目の系統を分けない）。
+                   *
+                   * **キーボード経路は割り当てない**——旗は2つあってキーは1つなので、
+                   * `$mod+Enter` は未割り当てのまま（`ISSUE_TREE_HINTS` に行が無い）。
+                   *
+                   * **レイアウトはこの2つぶんの枠を空けている**（`layout.ts` の
+                   * `triggersW`）。**描く数を変えたら測る式も対で直すこと**
+                   */
+                  flagKind === null ? (
+                    FLAG_KINDS.map((kind) => (
+                      <button
+                        key={kind}
+                        type="button"
+                        // **アクセシブル名は「何を入り切りするボタンか」で決める。**
+                        // 押されているかは `aria-pressed` が運ぶ（名前と二重に述べない）。
+                        // **前半（`課題{N}`）は動かさない**——テストが前方一致で引く
+                        aria-label={`課題${index + 1}の${ISSUE_EVENT_LABELS[kind]}`}
+                        aria-pressed={false}
+                        // ホバーと focus-within のときだけ出す小さなボタン。
+                        // **面は種別で分けない**（`FLAG_TRIGGER_FACE` の註）
+                        className={`${TRIGGER_BASE} ${FLAG_TRIGGER_FACE} invisible group-hover/issue:visible group-focus-within/issue:visible`}
+                        onClick={() => apply(toggleIssueEvent(data, index, kind))}
+                      >
+                        {ISSUE_EVENT_LABELS[kind]}
+                      </button>
+                    ))
+                  ) : (
+                    <button
+                      type="button"
+                      // 旗が立っている箱の名前は**立っている旗の語**で決まる
+                      //（既存のテストがこの名前で引く）
+                      aria-label={`課題${index + 1}の${ISSUE_EVENT_LABELS[flagKind]}`}
+                      aria-pressed
+                      // 旗が立っていれば、**このトグルが旗のバッジを兼ねる**
+                      //（同じ場所に2つ置かない）。**面は種別で分けない**——
+                      // 面が運ぶのは凍結の範囲であって旗の種別ではない（D8）。
+                      // 幅はレイアウトが `badgeWidth(ISSUE_EVENT_LABELS[kind])` で空けている
+                      className={`${TRIGGER_BASE} ${badgeClass(badgeVariantOf('deferred', suppressed))}`}
+                      // **立っている旗を押すと、その旗が外れる**（差し替えではない）。
+                      // **見送り→解決へ直に変える動線は作らない**——2回押す
+                      //（外す→立てる）で足りる。`toggleIssueEvent` は別種別を
+                      // 渡せば入れ替える機械を持つが、ここでは使わない
+                      onClick={() => apply(toggleIssueEvent(data, index, flagKind))}
+                    >
+                      {ISSUE_EVENT_LABELS[flagKind]}
+                    </button>
+                  )
                 }
               >
                 {/* 仮説は**この箱の中の行**。ぶら下がり先の課題が図に無い仮説は

@@ -37,7 +37,11 @@ export interface IssueBoxProps {
    * 旗のトグル（入り＝旗が立っている／切り＝立っていない）。**必須にしてある**
    *——省略できると、旗を付ける動線がマウスから消えていても型は通り、
    * 画面は一見正常なまま「押す場所が無い」になる。
-   * 旗が立っている箱では、このトグル自身が旗のバッジを兼ねる（面はエディタが渡す）
+   * 旗が立っている箱では、このトグル自身が旗のバッジを兼ねる（面はエディタが渡す）。
+   *
+   * **旗が無い箱では要素が2つ来る**（見送り／解決。エディタの `FLAG_KINDS` を
+   * 回して作る）。ここは受け取った物を置くだけだが、**間の空きは
+   * この包み（`gap-2`）が持ち、`layout.ts` の `triggersW` と対になっている**
    */
   eventToggle: React.ReactNode
   /**
@@ -208,9 +212,15 @@ export function IssueBox(props: IssueBoxProps) {
           間隔の中に置くと、隣の枝と重なる位置に出ることがある。
           **レイアウトはタイトル行の右上を常に1枠空けている**ので、
           旗が立っていれば測定した矩形へ、まだなら同じ枠（右寄せ）へ置けば、
-          ホバー中に出るボタンがタイトルの文字に被らない（layout.ts の解説） */}
+          ホバー中に出るボタンがタイトルの文字に被らない（layout.ts の解説）。
+
+          **`gap-2` は `BADGE_GAP`（8px）と対。** 旗の無い箱では
+          `eventToggle` がボタン2つ（見送り／解決）を返し、ここがその間の
+          空きを持つ——`layout.ts` の `triggersW` が同じ 8px を足して枠を
+          予約している。**片方だけ変えると、予約した枠より描画が広くなって
+          タイトルにはみ出す**（旗が立っていれば子は1つなので効かない） */}
       <div
-        className="absolute flex items-center justify-end"
+        className="absolute flex items-center justify-end gap-2"
         style={
           placement.event === null
             ? { top: ISSUE_PADDING_Y, right: ISSUE_PADDING_X }

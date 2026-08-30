@@ -6,8 +6,10 @@ import { layoutIssueTree, SECTION_LABELS, type IssueTreeFonts, type IssueTreeLay
 import {
   ACTION_HEIGHT,
   ASK_PADDING_X,
+  BADGE_BORDER,
   BADGE_GAP,
   BADGE_HEIGHT,
+  BADGE_PADDING_X,
   BOX_WIDTH,
   CHEVRON_GAP,
   CHEVRON_SIZE,
@@ -238,11 +240,43 @@ describe('layoutIssueTree', () => {
    * テストの測定器から導く
    */
   it('一番広い枠（仮説なしバッジ）を引いても、タイトルは日本語8字ぶんを残す', () => {
+    // **名前の括弧は歴史的な但し書きである。** 旗のトグルが2つになってからは、
+    // 旗の無い箱で一番広い枠を作るのは「仮説なし」バッジではなく**トグル2つ**
+    //（`Math.max` の勝者が入れ替わった）。この `it` が踏む経路は変わらず
+    // 「旗の無い箱の一番広い枠」なので、見ている不変条件は同じである
     const data = make({ issues: [{ ...root, text: '' }] })
     expect(poseQuestions(data).issueNeedsHypothesis[0]).toBe(true)
     const box = run(data).issues[0]!
     expect(box.title.width).toBeGreaterThanOrEqual(fonts.title.measure('あ'.repeat(8)))
     // タイトルは箱からはみ出さない
+    expect(box.title.x + box.title.width).toBeLessThanOrEqual(box.rect.x + box.rect.width)
+  })
+
+  /**
+   * **「測定と描画は対で直す」の測定側の番人。** 旗の無い箱の右上に出る
+   * トグルは**2つ**（見送り／解決。`IssueTreeEditor` の `FLAG_KINDS`）なので、
+   * `layout.ts` は**2つの合計幅＋間の `BADGE_GAP`** を空ける。片方ぶんの式に
+   * 戻すと、予約した枠より描画が広くなってホバー中にボタンがタイトルへはみ出す。
+   *
+   * **定数式との厳密一致で見る。** 「十分広い」だけを見る形にすると、
+   * `Math.max` の相手（「仮説なし」バッジ）に救われて片方ぶんの実装でも緑を通る
+   *——だから**「仮説なし」が立たない箱**（子を持つ中間の課題）を選び、
+   * 枠を決めているのがトグル2つであることを紛れさせない
+   */
+  it('旗の無い箱は、旗のトグル2つぶん（＋間の空き）の枠をタイトルの右に空ける', () => {
+    const data = make({ issues: [root, child] })
+    // 根は子を持つので「仮説なし」は立たない＝`badgeW` は 0
+    expect(poseQuestions(data).issueNeedsHypothesis[0]).toBe(false)
+    const box = run(data).issues[0]!
+    const badgeW = (label: string): number =>
+      Math.ceil(fonts.small.measure(label)) + BADGE_PADDING_X * 2 + BADGE_BORDER * 2
+    /** 描く側（`IssueBox` の `gap-2` の flex）と同じ組み立て */
+    const triggersW =
+      badgeW(ISSUE_EVENT_LABELS.deferred) + BADGE_GAP + badgeW(ISSUE_EVENT_LABELS.resolved)
+    expect(box.title.width).toBe(
+      BOX_WIDTH - ISSUE_INSET_X * 2 - (CHEVRON_SIZE + CHEVRON_GAP) - BADGE_GAP - triggersW,
+    )
+    // タイトルは箱からはみ出さない（枠を広げすぎていないことは上の8字テストが見る）
     expect(box.title.x + box.title.width).toBeLessThanOrEqual(box.rect.x + box.rect.width)
   })
 

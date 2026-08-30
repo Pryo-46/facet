@@ -962,6 +962,75 @@ describe('IssueTreeEditor（解決の旗と帯のチップ）', () => {
     expect(onChange.mock.calls[0][0].issues[0].events).toEqual([])
   })
 
+  /**
+   * **`resolved` を新規に立てる動線の番人**（m4 は「m5 の担当」と残し、m5 の計画は
+   * 「m4 で実装済み」と誤認して着手しなかった穴。依頼者の指示で m5 の中で作った）。
+   *
+   * **見るのは保存された JSON の `kind` である。** バッジの文字だけを見る形にすると、
+   * **どちらのボタンも `deferred` を付ける実装**（＝退行そのもの）でも
+   * 「解決」と描かれてしまい、緑を通る
+   */
+  it('旗の無い箱には見送りと解決が同じ形で並び、「解決」を押すと resolved が立つ', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={file()} onChange={onChange} />)
+
+    // 課題1にはまだ旗が無い。**2つ並ぶ**（並びは `FLAG_KINDS` の順＝見送り→解決）
+    const defer = screen.getByRole('button', { name: `課題1の${ISSUE_EVENT_LABELS.deferred}` })
+    const resolve = screen.getByRole('button', { name: `課題1の${ISSUE_EVENT_LABELS.resolved}` })
+    expect(defer.getAttribute('aria-pressed')).toBe('false')
+    expect(resolve.getAttribute('aria-pressed')).toBe('false')
+    expect(defer.textContent).toBe(ISSUE_EVENT_LABELS.deferred)
+    expect(resolve.textContent).toBe(ISSUE_EVENT_LABELS.resolved)
+    // **同じ形で並べる**（`FLAG_KINDS` の註。実効は同じで意味だけが逆なので
+    // 見た目の系統を分けない）。切りの面はバッジの面ではない
+    expect(resolve.className).toBe(defer.className)
+    expect(defer.className).toContain(`h-[${BADGE_BOX_HEIGHT}px]`)
+    expect(defer.className).not.toContain(badgeClass(badgeVariantOf('deferred', false)))
+    // DOM の並びは 見送り → 解決
+    expect(defer.compareDocumentPosition(resolve) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(resolve)
+    // **文字ではなく保存された `kind` を見る**
+    expect(onChange.mock.calls[0][0].issues[0].events).toEqual([
+      { kind: 'resolved', note: '', date: todayString() },
+    ])
+    // 立てた直後は**理由の欄**へフォーカスが移る（`toggleIssueEvent` の行き先）
+    expect(document.activeElement).toBe(
+      screen.getByRole('textbox', { name: `課題1 の${ISSUE_EVENT_LABELS.resolved}の理由` }),
+    )
+
+    // **旗が立ったらボタンは1つ**（バッジ兼トグル）。もう一方は消える
+    expect(
+      screen.queryByRole('button', { name: `課題1の${ISSUE_EVENT_LABELS.deferred}` }),
+    ).toBeNull()
+    const flagged = screen.getByRole('button', { name: `課題1の${ISSUE_EVENT_LABELS.resolved}` })
+    expect(flagged.getAttribute('aria-pressed')).toBe('true')
+    expect(flagged.className).toContain(badgeClass(badgeVariantOf('deferred', false)))
+    // **押すと外れる（差し替えではない）。** 見送りへ直に変える動線は作らない
+    fireEvent.click(flagged)
+    expect(onChange.mock.calls.at(-1)![0].issues[0].events).toEqual([])
+  })
+
+  /**
+   * 上と対の退行防止。**2つのボタンの写像が入れ替わっていない**ことを見る
+   *——`FLAG_KINDS` を回す実装で `kind` の代わりに定数を渡してしまうと、
+   * 片側だけのテストでは気づけない
+   */
+  it('旗の無い箱で「見送り」を押すと deferred が立つ（解決と取り違えていない）', () => {
+    const onChange = vi.fn()
+    render(<Harness initial={file()} onChange={onChange} />)
+    fireEvent.click(screen.getByRole('button', { name: `課題1の${ISSUE_EVENT_LABELS.deferred}` }))
+    expect(onChange.mock.calls[0][0].issues[0].events).toEqual([
+      { kind: 'deferred', note: '', date: todayString() },
+    ])
+    expect(document.activeElement).toBe(
+      screen.getByRole('textbox', { name: `課題1 の${ISSUE_EVENT_LABELS.deferred}の理由` }),
+    )
+    expect(
+      screen.queryByRole('button', { name: `課題1の${ISSUE_EVENT_LABELS.resolved}` }),
+    ).toBeNull()
+  })
+
   it('帯には見送りと解決が別々のチップとして並ぶ（両方同時に立ち、0件のほうは描かれない）', () => {
     const base = file()
     // 課題1に見送り・課題2に解決を立てる。**`FLAG_KINDS` を回さず「0件でない

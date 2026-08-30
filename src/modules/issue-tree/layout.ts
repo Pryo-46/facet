@@ -943,9 +943,9 @@ export function layoutIssueTree(
      * タイトル行の右上は**常に1枠空ける**。ここに出るのは3つで、
      * いずれも同じ場所に右寄せで置かれる:
      *
-     * - 見送りバッジ（見送り済み。これ自身が見送りのトグルを兼ねる）
+     * - 旗のバッジ（旗が立っている。これ自身が旗のトグルを兼ねる）
      * - 「仮説なし」バッジ（問いが立っている）
-     * - 見送りのトグル（まだ見送っていない。ホバー・フォーカス中だけ出る小さなボタン）
+     * - 旗のトグル（まだ旗が無い。ホバー・フォーカス中だけ出る小さなボタンが**2つ**）
      *
      * **バッジがあるときだけ空ける形にしない。** そうすると普通の箱では
      * ホバー中に不透明なボタンがタイトルの1行目の末尾に被り、読めなくなる
@@ -953,15 +953,25 @@ export function layoutIssueTree(
      * 箱の外へ出す道は採らない——列の間隔に置くと隣の枝と重なる。
      * 「仮説なし」の箱ではバッジとトリガーが同じ枠を奪い合うので、
      * **ホバー中はバッジを隠してトグルと入れ替える**（IssueBox）。
-     * 見送り済みの箱では2つが同じ要素なので、広い方＝バッジの幅でよい
+     * 旗が立っている箱では2つが同じ要素なので、広い方＝バッジの幅でよい
      */
-    // まだ見送っていない箱のトリガーは `IssueTreeEditor` の `DEFER_TRIGGER_FACE`
+    // まだ旗の無い箱のトリガーは `IssueTreeEditor` の `FLAG_TRIGGER_FACE`
     // ＝バッジと同じ幾何（`px-1.5` ＋ 枠 1px）を描くので、幅も `actionWidth`
     // （`px-1` 前提）ではなく `badgeWidth` で測る。**描く面が変わったら測る式も
-    // 対で直すこと**——片方だけ変えると、予約した枠より描画が広くなってはみ出す
-    const slotW = flagged
-      ? badgeW
-      : Math.max(badgeW, badgeWidth(ISSUE_EVENT_LABELS.deferred, fonts.small))
+    // 対で直すこと**——片方だけ変えると、予約した枠より描画が広くなってはみ出す。
+    //
+    // **旗の無い箱にはトリガーが2つ並ぶ**（見送り／解決。`IssueTreeEditor` の
+    // `FLAG_KINDS`）ので、**合計幅＋間の `BADGE_GAP` で測る**——描く側の
+    // `IssueBox` が同じ枠を `gap-2`（＝`BADGE_GAP` の 8px）の flex で並べている。
+    // 片方ぶんで測っていた版に戻すと、ホバー中に見送りのボタンがタイトルへ
+    // はみ出す（`layout.test.ts` の「旗の無い箱は、旗のトグル2つぶんの枠を空ける」）。
+    // **語ごとに測って畳む**——`ISSUE_EVENT_LABELS` に種別が増えれば測る側は
+    // 自動で追随し、足りない方（＝はみ出す方）へは倒れない
+    const triggersW = Object.values(ISSUE_EVENT_LABELS).reduce(
+      (sum, label, i) => sum + (i === 0 ? 0 : BADGE_GAP) + badgeWidth(label, fonts.small),
+      0,
+    )
+    const slotW = flagged ? badgeW : Math.max(badgeW, triggersW)
     const reserve = BADGE_GAP + slotW
 
     // **箱の幅は導出しない**（`measure.ts` の `BOX_WIDTH` の解説）。
