@@ -2531,7 +2531,7 @@ npx vitest run src/modules/issue-tree/IssueTreeEditor.dom.test.tsx
 
 `:49`〜`:50` の仮説と、課題の `events` に `date` を足すだけ。**`it` の主張（抑制の伝播）は変えない。**
 
-- [ ] **Step 5: テストが通ることを確認する。ここで全件緑になる**
+- [ ] **Step 5: テストが通ることを確認する。ここで型の波が終わる**
 
 ```
 npm test
@@ -2539,9 +2539,15 @@ npx tsc -b
 npm run lint
 ```
 
-期待: **3つとも緑。** ここが波の終わりである。**3つの出力の末尾を報告に貼る。**
+期待: **`npx tsc -b` と `npm run lint` は完全に緑。`npm test` は次の1件だけが赤で、それ以外は緑。**
 
-緑にならない場合、**残っている赤が「このタスクの積み残し」なのか「前のタスクの取りこぼし」なのかを切り分けて報告する**（辻褄を合わせて黙って直さない）。
+> `src/modules/issue-tree/module.test.ts` の `お手本ファイル（sample-project）> schemaVersion 2 のお手本は editable で開け、保留が1件観測できる`
+>
+> **これは想定どおりである。** この `it` は追跡対象のお手本 `sample-project/課題ツリー.json` を実物として読み、`classifyFile` に通している。お手本はまだ v2 のままで、**移行は版番号を書き換えるだけ**（ユーザー決定）なので `rejected` になる。**お手本を v3 に書き直すのは Task 11 で、そこで初めてこの1件が緑に戻る**——お手本の書き直しは登録 Skill の書き出しスクリプトを通して行う（Task 10 が先）ので、ここより前には置けない。
+>
+> **この1件を緑にするために、お手本を先に書き換えたり、`it` を消したり `skip` したりしないこと。**
+
+ほかに赤が残る場合、**それが「このタスクの積み残し」なのか「前のタスクの取りこぼし」なのかを切り分けて報告する**（辻褄を合わせて黙って直さない）。**3つの出力の末尾を報告に貼る。**
 
 - [ ] **Step 6: コミット**
 
@@ -2675,10 +2681,12 @@ node .claude/skills/issue-tree-register/scripts/issue-tree-write.mjs --check sam
 - [ ] **Step 6: テストが通ることを確認する**
 
 ```
-npm test && npx tsc -b && npm run lint
+npm test
+npx tsc -b
+npm run lint
 ```
 
-期待: **3つとも緑**（Task 9 以降は全件で回す）。
+期待: **`npx tsc -b` と `npm run lint` は完全に緑。`npm test` は Task 9 Step 5 と同じ1件——`module.test.ts` のお手本検証——だけが赤で、それ以外は緑**（お手本を v3 にするのは次の Task 11）。**この1件を緑にするためにお手本を先に書き換えないこと**——書き出しスクリプトを直し終えた状態で書き直すのが Task 11 の手順である。
 
 - [ ] **Step 7: コミット**
 
@@ -2694,12 +2702,15 @@ git commit -m "feat(issue-tree): 登録 Skill のスクリプトを v3 へ（ask
 **Files:**
 - Modify: `.claude/skills/issue-tree-register/SKILL.md`
 - Modify: `sample-project/課題ツリー.json`
+- Modify: `src/modules/issue-tree/module.test.ts`（お手本を読む `describe` の1件）
 - Modify: `src/core/reading-guide.md`
 - Modify: `README.md`
 
 **Interfaces:**
 - Consumes: Task 10 のスクリプト
 - Produces: v3 で書ける手順書と、v3 のお手本
+
+**このタスクが型の波の最後の1件を閉じる。** `src/modules/issue-tree/module.test.ts` の `お手本ファイル（sample-project）` の `it` は、追跡対象のお手本を実物として読んで `classifyFile` に通しているため、**お手本が v2 のあいだは `rejected` になり、Task 2 から赤いままである**（移行は版番号の書き換えだけ、というユーザー決定の帰結）。**Step 1 でお手本を v3 にしたら、この `it` も同じタスクの中で直すこと**——`it` の名前（「schemaVersion 2 のお手本は…」）と、観測している問いの内容（保留が1件、など）を、書き直したお手本の実際の内容に合わせる。**`it` を消したり `skip` したりしないこと**（お手本が実際に開けることを見ている唯一の検査である）。
 
 - [ ] **Step 1: お手本を v3 に書き直す**
 
@@ -2769,13 +2780,13 @@ node .claude/skills/issue-tree-register/scripts/issue-tree-write.mjs --in sample
 
 **`reading-guide.test.ts` は本文を固定していない**（先頭500文字の注意書きとファイル名だけ）ので、本文の書き換えでテストは赤くならない。**だからこそ、書き換え漏れに気づく仕組みが無い**——上の5点を1つずつ「それを述べている文はどれか」を指させる形で確認すること（通読して違和感が無いことは確認ではない）。
 
-- [ ] **Step 4: 全件で確認する**
+- [ ] **Step 4: 全件で確認する。ここで初めて例外の無い全件緑になる**
 
 ```
 npm test && npx tsc -b && npm run lint
 ```
 
-期待: 3つとも緑。**出力の末尾を報告に貼る。**
+期待: **3つとも完全に緑。** Task 9・Task 10 で唯一許していた例外（`module.test.ts` のお手本検証）が、Step 1 のお手本の書き直しと、そこで一緒に直す `module.test.ts` で閉じているはずである。**まだ赤いなら、お手本の内容と `it` の主張が食い違っている**——どちらが正かを判断して直し、報告に書く。**出力の末尾を報告に貼る。**
 
 あわせて、大きく書き換えた4ファイルに NUL バイトが混入していないことを確かめる:
 
