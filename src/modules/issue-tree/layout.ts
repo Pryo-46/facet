@@ -918,6 +918,20 @@ export function layoutIssueTree(
     height: number
     rows: number[]
   }
+  /**
+   * **旗の無い箱の右上に並ぶトリガー2つ**（見送り／解決。`IssueTreeEditor` の
+   * `FLAG_KINDS`）の合計幅＋間の `BADGE_GAP`。描く側の `IssueBox` が同じ枠を
+   * `gap-2`（＝`BADGE_GAP` の 8px）の flex で並べている。
+   *
+   * **箱ごとに変わらない**（`fonts` はループの外）ので、`boxes` の外で1回だけ
+   * 畳む。**語ごとに測って畳む**——`ISSUE_EVENT_LABELS` に種別が増えれば
+   * 測る側は自動で追随し、足りない方（＝はみ出す方）へは倒れない
+   *（`FLAG_KINDS` は `IssueEventKind[]` なので、ここが型として上界になる）
+   */
+  const flagTriggersW = Object.values(ISSUE_EVENT_LABELS).reduce(
+    (sum, label, idx) => sum + (idx === 0 ? 0 : BADGE_GAP) + badgeWidth(label, fonts.small),
+    0,
+  )
   const boxes: BoxPlan[] = data.issues.map((node, i) => {
     const rows = rowsOf.get(node.id) ?? []
     // **開くものが無ければ開かない。** 鍵が自分を指していても仮説が0本なら
@@ -960,18 +974,11 @@ export function layoutIssueTree(
     // （`px-1` 前提）ではなく `badgeWidth` で測る。**描く面が変わったら測る式も
     // 対で直すこと**——片方だけ変えると、予約した枠より描画が広くなってはみ出す。
     //
-    // **旗の無い箱にはトリガーが2つ並ぶ**（見送り／解決。`IssueTreeEditor` の
-    // `FLAG_KINDS`）ので、**合計幅＋間の `BADGE_GAP` で測る**——描く側の
-    // `IssueBox` が同じ枠を `gap-2`（＝`BADGE_GAP` の 8px）の flex で並べている。
-    // 片方ぶんで測っていた版に戻すと、ホバー中に見送りのボタンがタイトルへ
-    // はみ出す（`layout.test.ts` の「旗の無い箱は、旗のトグル2つぶんの枠を空ける」）。
-    // **語ごとに測って畳む**——`ISSUE_EVENT_LABELS` に種別が増えれば測る側は
-    // 自動で追随し、足りない方（＝はみ出す方）へは倒れない
-    const triggersW = Object.values(ISSUE_EVENT_LABELS).reduce(
-      (sum, label, i) => sum + (i === 0 ? 0 : BADGE_GAP) + badgeWidth(label, fonts.small),
-      0,
-    )
-    const slotW = flagged ? badgeW : Math.max(badgeW, triggersW)
+    // **旗の無い箱にはトリガーが2つ並ぶ**ので、その合計幅（`flagTriggersW`。
+    // 組み立ては宣言のところ）で測る。片方ぶんで測っていた版に戻すと、ホバー中に
+    // 見送りのボタンがタイトルへはみ出す（`layout.test.ts` の
+    // 「旗の無い箱は、旗のトグル2つぶん（＋間の空き）の枠をタイトルの右に空ける」）
+    const slotW = flagged ? badgeW : Math.max(badgeW, flagTriggersW)
     const reserve = BADGE_GAP + slotW
 
     // **箱の幅は導出しない**（`measure.ts` の `BOX_WIDTH` の解説）。
