@@ -1,5 +1,5 @@
 import type { BadgeVariant } from '@/components/badge-styles'
-import type { BadgeGroup } from './derive'
+import type { BadgeGroup, IssueEventKind } from './derive'
 
 /**
  * 課題ツリーの語彙（`BadgeGroup`）を共通部品の variant へ写す。
@@ -11,6 +11,26 @@ import type { BadgeGroup } from './derive'
 export function badgeVariantOf(group: BadgeGroup, suppressed: boolean): BadgeVariant {
   if (suppressed) return 'faint'
   return group
+}
+
+/**
+ * 課題の**旗**（`IssueEventKind`）を、仮説の判断と同じ `BadgeGroup` へ写す。
+ *
+ * **`Record<IssueEventKind, BadgeGroup>` にしてある**——旗の種別が増えたら
+ * `tsc` がここで落ちる（`switch` や手書きの三項に畳むと黙って古びる。
+ * `derive.ts` の `ISSUE_EVENT_LABELS` と同じ理由）。
+ *
+ * - `resolved` → `yes`（判断の緑）。「答えが出た」は仮説の**支持**と同じ結論の色。
+ *   キャンバスの「バッジ語彙」アートボードが解決を `b-yes` と定めている
+ * - `deferred` → `deferred`（見送りの群＝`surface-muted` の面・`rule` の枠）
+ *
+ * **`badgeVariantOf` へ渡すこと。** 抑制された配下では旗の種別によらず
+ * `faint` へ落ちる（第2引数）——「いま作業する面ではない」が種別より優先する。
+ * 直に `badgeClass` へ渡すと、その落とし込みが消える
+ */
+export const FLAG_BADGE_GROUPS: Record<IssueEventKind, BadgeGroup> = {
+  deferred: 'deferred',
+  resolved: 'yes',
 }
 
 /**

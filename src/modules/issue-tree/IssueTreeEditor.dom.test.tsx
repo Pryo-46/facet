@@ -6,7 +6,7 @@ import { badgeClass, BADGE_BOX_HEIGHT } from '@/components/badge-styles'
 import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { todayString } from '@/core/today'
 import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
-import { badgeVariantOf } from './badge-variant'
+import { badgeVariantOf, FLAG_BADGE_GROUPS } from './badge-variant'
 import {
   BADGE_LABELS,
   EVENT_KIND_LABELS,
@@ -1005,7 +1005,11 @@ describe('IssueTreeEditor（解決の旗と帯のチップ）', () => {
     ).toBeNull()
     const flagged = screen.getByRole('button', { name: `課題1の${ISSUE_EVENT_LABELS.resolved}` })
     expect(flagged.getAttribute('aria-pressed')).toBe('true')
-    expect(flagged.className).toContain(badgeClass(badgeVariantOf('deferred', false)))
+    // **立った旗のバッジは種別で分かれる**（`FLAG_BADGE_GROUPS`）。解決は判断の緑。
+    // 詳しい退行防止は下の「解決の旗のバッジ…」の2本が持つ
+    expect(flagged.className).toContain(
+      badgeClass(badgeVariantOf(FLAG_BADGE_GROUPS.resolved, false)),
+    )
     // **押すと外れる（差し替えではない）。** 見送りへ直に変える動線は作らない
     fireEvent.click(flagged)
     expect(onChange.mock.calls.at(-1)![0].issues[0].events).toEqual([])
@@ -1063,6 +1067,167 @@ describe('IssueTreeEditor（解決の旗と帯のチップ）', () => {
     render(<Harness initial={onlyResolved} />)
     expect(screen.getByRole('button', { name: '次の解決へ' }).textContent).toBe('解決 1')
     expect(screen.queryByRole('button', { name: '次の見送りへ' })).toBeNull()
+  })
+})
+
+/**
+ * **旗の見え方は種別で分かれる**（issue-tree m5 の実機確認。設計ノート D8）。
+ *
+ * 実機で見つかった欠陥は、`IssueTreeEditor` が立った旗のバッジを
+ * `badgeVariantOf('deferred', …)` と**決め打ち**していたこと——`flagKind` が
+ * `resolved` でも見送りのグレーで描かれていた。写像は `FLAG_BADGE_GROUPS` が持つ。
+ *
+ * **`FLAG_BADGE_GROUPS` 経由の期待値を書かない。** それでは写像を書き換えた
+ * 瞬間に期待値も一緒に動き、何も固定しない（トートロジー）。**ここだけは
+ * 変異が効くように `'yes'` / `'deferred'` を字面で置く**——`badgeClass` の
+ * 戻り値と照合するので、クラス名そのものは打ち直していない
+ */
+describe('IssueTreeEditor（旗の面と幅。m5 の実機確認）', () => {
+  /** 課題1件だけの木。旗の有無と種別だけを変える */
+  const oneIssue = (events: IssueTreeSchemaVersion3['issues'][number]['events']): IssueTreeSchemaVersion3 => ({
+    schemaVersion: 3,
+    type: 'issueTree',
+    title: 'テスト',
+    issues: [{ id: I(1), parentId: null, text: '根', events }],
+    hypotheses: [],
+  })
+  const flagged = (kind: 'deferred' | 'resolved'): IssueTreeSchemaVersion3['issues'][number]['events'] => [
+    { kind, note: '理由', date: '2026-08-30' },
+  ]
+  const boxOf = (n: number): HTMLElement => {
+    const box = issueCell(n).closest('[class*="pointer-events-auto"]')
+    if (box === null) throw new Error(`課題${n}の箱が無い`)
+    return box as HTMLElement
+  }
+
+  it('解決の旗のバッジは判断の緑（yes）で描かれる', () => {
+    render(<Harness initial={oneIssue(flagged('resolved'))} />)
+    const badge = screen.getByRole('button', { name: `課題1の${ISSUE_EVENT_LABELS.resolved}` })
+    expect(badge.className).toContain(badgeClass('yes'))
+    // **見送りの面ではない。** 決め打ちに戻すとここが赤くなる
+    expect(badge.className).not.toContain(badgeClass('deferred'))
+  })
+
+  it('見送りの旗のバッジは従来どおり見送りの面（deferred）のまま', () => {
+    render(<Harness initial={oneIssue(flagged('deferred'))} />)
+    const badge = screen.getByRole('button', { name: `課題1の${ISSUE_EVENT_LABELS.deferred}` })
+    expect(badge.className).toContain(badgeClass('deferred'))
+    // **緑に振り替わっていない**（写像を両方 `yes` にする変異を捕まえる）
+    expect(badge.className).not.toContain(badgeClass('yes'))
+  })
+
+  /**
+   * **抑制された配下では種別によらず `faint`**（`badgeVariantOf` の第2引数）。
+   * `FLAG_BADGE_GROUPS[flagKind]` を `badgeClass` へ直に渡す実装にすると、
+   * 凍結された枝の中で解決の箱だけが緑のバッジで灯る
+   */
+  it('祖先由来の抑制が立つと、見送りも解決もバッジは faint に落ちる', () => {
+    const nested: IssueTreeSchemaVersion3 = {
+      schemaVersion: 3,
+      type: 'issueTree',
+      title: 'テスト',
+      issues: [
+        {
+          id: I(1),
+          parentId: null,
+          text: 'A 見送り（祖先）',
+          events: [{ kind: 'deferred', note: '今回は追わない', date: '2026-08-30' }],
+        },
+        {
+          id: I(2),
+          parentId: I(1),
+          text: 'B 配下だが自分は解決',
+          events: [{ kind: 'resolved', note: '答えは出た', date: '2026-08-30' }],
+        },
+        {
+          id: I(3),
+          parentId: I(1),
+          text: 'C 配下だが自分は見送り',
+          events: [{ kind: 'deferred', note: '本開発で扱う', date: '2026-08-30' }],
+        },
+      ],
+      hypotheses: [],
+    }
+    render(<Harness initial={nested} />)
+    const faint = badgeClass('faint')
+    expect(
+      screen.getByRole('button', { name: `課題2の${ISSUE_EVENT_LABELS.resolved}` }).className,
+    ).toContain(faint)
+    expect(
+      screen.getByRole('button', { name: `課題3の${ISSUE_EVENT_LABELS.deferred}` }).className,
+    ).toContain(faint)
+    // 掲げている当人（課題1＝根）は落ちない
+    expect(
+      screen.getByRole('button', { name: `課題1の${ISSUE_EVENT_LABELS.deferred}` }).className,
+    ).toContain(badgeClass('deferred'))
+  })
+
+  /**
+   * **箱の面**。依頼者の理由は「一目で『解決方針が決まった課題』＝これ以上
+   * 考えなくてよい とわかるから」（設計ノート D8 の m5 追記）。
+   *
+   * **`split(' ')` の完全一致で見る**——`bg-judge-yes-face` は文字列として
+   * `bg-judge-yes` を含むので、`toContain` では濃い面と淡い面を弁別できない
+   *（既存の `bg-surface` / `bg-surface-muted` と同じ穴）
+   */
+  it('解決を掲げた箱は淡い緑（judge-yes-face）、見送りの箱は surface-muted のまま', () => {
+    render(<Harness initial={oneIssue(flagged('resolved'))} />)
+    expect(boxOf(1).className.split(' ')).toContain('bg-judge-yes-face')
+    expect(boxOf(1).className.split(' ')).not.toContain('bg-surface-muted')
+    // 掲げた当人なので文字は濃いまま（抑制ではない）
+    expect(boxOf(1).className.split(' ')).toContain('text-ink')
+    cleanup()
+
+    render(<Harness initial={oneIssue(flagged('deferred'))} />)
+    expect(boxOf(1).className.split(' ')).toContain('bg-surface-muted')
+    expect(boxOf(1).className.split(' ')).not.toContain('bg-judge-yes-face')
+    cleanup()
+
+    // 旗が無ければどちらでもない
+    render(<Harness initial={oneIssue([])} />)
+    expect(boxOf(1).className.split(' ')).toContain('bg-surface')
+    expect(boxOf(1).className.split(' ')).not.toContain('bg-judge-yes-face')
+  })
+
+  /**
+   * **祖先由来の抑制が勝つ優先順位は m5 でも動いていない**（`IssueBox.tsx` の
+   * `face` の分岐で `suppressed` が旗より上にある）。ここを逆にすると、
+   * 凍結された枝の途中に淡い緑の箱が1つだけ灯り、「その1件はまだ考える」と
+   * 読めてしまう
+   */
+  it('祖先が旗を掲げていれば、自分が解決でも surface-muted ＋ ink-faint に落ちる', () => {
+    const nested: IssueTreeSchemaVersion3 = {
+      schemaVersion: 3,
+      type: 'issueTree',
+      title: 'テスト',
+      issues: [
+        {
+          id: I(1),
+          parentId: null,
+          text: 'A 解決（祖先）',
+          events: [{ kind: 'resolved', note: '答えは出た', date: '2026-08-30' }],
+        },
+        {
+          id: I(2),
+          parentId: I(1),
+          text: 'B 配下だが自分も解決',
+          events: [{ kind: 'resolved', note: '同じく', date: '2026-08-30' }],
+        },
+        { id: I(3), parentId: I(1), text: 'C ただの配下', events: [] },
+      ],
+      hypotheses: [],
+    }
+    render(<Harness initial={nested} />)
+    // A：掲げた当人は淡い緑、文字は濃い
+    expect(boxOf(1).className.split(' ')).toContain('bg-judge-yes-face')
+    expect(boxOf(1).className.split(' ')).not.toContain('text-ink-faint')
+    // B：自分も解決だが、祖先由来の抑制が勝つ
+    expect(boxOf(2).className.split(' ')).toContain('bg-surface-muted')
+    expect(boxOf(2).className.split(' ')).not.toContain('bg-judge-yes-face')
+    expect(boxOf(2).className.split(' ')).toContain('text-ink-faint')
+    // C：ただの配下も同じ（枝全体がひとかたまりのグレー）
+    expect(boxOf(3).className.split(' ')).toContain('bg-surface-muted')
+    expect(boxOf(3).className.split(' ')).toContain('text-ink-faint')
   })
 })
 
@@ -1548,7 +1713,7 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
 
   /**
    * **開いているのは同時に1つの課題**（m5。それまでは仮説1本だった）。
-   * 箱が 320 → 780 に広がるので、複数開くと図が読めない。
+   * 箱が `BOX_WIDTH` → `EXPANDED_BOX_WIDTH` に広がるので、複数開くと図が読めない。
    * **同じ課題の仮説どうしは畳み合わない**——見比べるために課題ごと開いている
    */
   it('展開しているのは同時に1つの課題（別の課題を開くと前の課題は畳まれる）', () => {

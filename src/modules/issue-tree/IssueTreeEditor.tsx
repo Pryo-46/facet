@@ -35,7 +35,7 @@ import { currentPlatform } from '@/core/keyboard/platform'
 import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
 import type { Hypothesis, IssueTreeSchemaVersion3 } from '@/types/issue-tree'
-import { badgeVariantOf } from './badge-variant'
+import { badgeVariantOf, FLAG_BADGE_GROUPS } from './badge-variant'
 import { cellKey, hypothesisCellKey, issueCellKey, issueEventCellKey } from './cell-keys'
 import {
   addAsk,
@@ -119,7 +119,9 @@ const ISSUE_TREE_HINTS: readonly KeyHint[] = [
 ]
 
 /** 別枠のチップ。**見送りと解決を同じ形で並べる**——実効は同じ「配下を止める」で、
-    意味だけが逆（追わない／答えが出た）なので、見た目の系統は分けない。
+    意味だけが逆（追わない／答えが出た）なので、**帯のチップとまだ押していない
+    トグルは**見た目の系統を分けない。**立った旗のバッジと箱の面は種別で分かれる**
+    ——実機確認で改めた（`FLAG_BADGE_GROUPS` と設計ノート D8）。
     データにも props にも依存しないのでモジュール直下に置く（毎レンダ作り直さない） */
 const FLAG_KINDS: readonly IssueEventKind[] = ['deferred', 'resolved']
 
@@ -202,11 +204,12 @@ const TRIGGER_BASE =
  * 旗トグルの未入力面。**バッジの箱と同じ幾何**（`src/components/badge-styles.ts`
  * の base と対——`h-[20px]`・`px-1.5`・枠 1px・`rounded-sm`・`leading-none font-medium`。
  * `BADGE_BOX_HEIGHT` を変えるときは片方だけ変えないこと。DOM テストが対を見る）。
- * このトグルは押すと同じ場所が旗のバッジ（`badgeClass('deferred')`）になるので、
+ * このトグルは押すと同じ場所が旗のバッジ（`FLAG_BADGE_GROUPS` の群）になるので、
  * 2つの面で箱の形が揃っていないと押した瞬間に跳ねる。色だけが「押せる面」
  * （surface＋rule＋ink-muted、ホバーで canvas）で、幾何はバッジが決める。
- * **見送りと解決で面を分けない**——`FLAG_KINDS` の註のとおり、実効は同じ
- * 「配下を止める」で意味だけが逆なので、見た目の系統は分けない。
+ * **まだ押していない面は見送りと解決で分けない**——どちらも「押せる空きの枠」
+ * であって、まだ何も表明していないからである。**立ったあとの面は種別で分かれる**
+ *（解決＝判断の緑。実機確認で改めた。設計ノート D8）。
  * 幅も同じ理由で `layout.ts` の `slotW` が `badgeWidth`（`actionWidth` ではない）
  * で測っている。**旗の無い箱にはこの面のボタンが2つ並ぶ**ので、あちらは
  * `triggersW` が2つぶん＋`BADGE_GAP` を予約している——片方だけ変えないこと（対で直す）。
@@ -401,7 +404,8 @@ export function IssueTreeEditor({
    */
   const [lastCell, setLastCell] = useState<LastCell | null>(null)
 
-  // 詳細を出している**課題**の行鍵。**同時に1件だけ**（開くと箱が 320 → 780 に
+  // 詳細を出している**課題**の行鍵。**同時に1件だけ**
+  //（開くと箱が `BOX_WIDTH` → `EXPANDED_BOX_WIDTH` に
   // 広がるので、複数開くと図が読めなくなる）。
   //
   // **開くのは課題ノードであって仮説1本ではない**（m5。M3〜m4 は仮説単位だった）
@@ -1054,10 +1058,14 @@ export function IssueTreeEditor({
                       aria-label={`課題${index + 1}の${ISSUE_EVENT_LABELS[flagKind]}`}
                       aria-pressed
                       // 旗が立っていれば、**このトグルが旗のバッジを兼ねる**
-                      //（同じ場所に2つ置かない）。**面は種別で分けない**——
-                      // 面が運ぶのは凍結の範囲であって旗の種別ではない（D8）。
+                      //（同じ場所に2つ置かない）。**バッジの群は旗の種別から引く**
+                      //（`FLAG_BADGE_GROUPS`。解決＝判断の緑 `yes`／見送り＝`deferred`）
+                      //——ここを `'deferred'` の決め打ちに戻すと、解決の旗が
+                      // 見送りの見た目で描かれる（実機確認で見つかった欠陥）。
+                      // **抑制された配下では種別によらず `faint` へ落ちる**
+                      //（`badgeVariantOf` の第2引数。種別より「いま作業する面ではない」が勝つ）。
                       // 幅はレイアウトが `badgeWidth(ISSUE_EVENT_LABELS[kind])` で空けている
-                      className={`${TRIGGER_BASE} ${badgeClass(badgeVariantOf('deferred', suppressed))}`}
+                      className={`${TRIGGER_BASE} ${badgeClass(badgeVariantOf(FLAG_BADGE_GROUPS[flagKind], suppressed))}`}
                       // **立っている旗を押すと、その旗が外れる**（差し替えではない）。
                       // **見送り→解決へ直に変える動線は作らない**——2回押す
                       //（外す→立てる）で足りる。`toggleIssueEvent` は別種別を

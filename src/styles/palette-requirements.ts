@@ -53,6 +53,7 @@ export const TOKENS = [
   'pending-face',
   'judge-yes',
   'judge-yes-fg',
+  'judge-yes-face',
   'judge-no',
   'judge-no-fg',
 ] as const
@@ -109,8 +110,10 @@ export const BACKGROUNDS = ['canvas', 'surface', 'surface-muted'] as const
  * **淡い面（`*-face`。M21 の実機確認で追加）も同じ表で見る。** 淡い面は
  * `BACKGROUNDS` には入れない——地ではなく「ここが欠けている／無効だ」と
  * 示すための局所的な面であり、全トークンをその上で測る対象ではない。
- * 代わりに、その面の上に実際に載る3色（`ink` の本文・`ink-muted` の
- * 抑えた文字・同じ軸の線色）だけをここで課す。
+ * 代わりに、その面の上に**実際に載る3色**（`ink` の本文・`ink-muted` の
+ * 抑えた文字・枠に使う色）だけをここで課す。枠に使う色は面によって違う
+ *——欠落・無効・着信は同じ軸の線色、判断（`judge-yes-face`）は `rule` である
+ *（下の註を見よ）。
  *
  * **淡い面と `BACKGROUNDS` の分離は測っていない**——淡さ（L 0.93〜0.96）と
  * 1.2:1 以上の分離は両立しないため。ライトの `missing-face` は `canvas` と
@@ -130,6 +133,15 @@ export const FACE_REQUIREMENTS = [
   { token: 'ink', face: 'pending-face', min: 4.5, use: '着信の淡い面の本文' },
   { token: 'ink-muted', face: 'pending-face', min: 4.5, use: '着信の淡い面の抑えた文字' },
   { token: 'pending', face: 'pending-face', min: 4.5, use: '着信の淡い面の線と文字' },
+  // **判断の淡い面（`judge-yes-face`）だけ3行目が `rule` である。**
+  // 他の3面は自軸の線色（`missing` / `invalid` / `pending`）を枠に使うが、
+  // 判断軸には線色のトークンが無い——解決した課題の箱は他の面と揃えて
+  // `border-rule` で描く（`IssueBox.tsx`）ので、**その面に実際に載る色**は
+  // ink・ink-muted・rule の3つになる。線ではなく枠なので閾値は 3:1
+  //（WCAG 1.4.11。`REQUIREMENTS` の `rule` と同じ根拠）
+  { token: 'ink', face: 'judge-yes-face', min: 4.5, use: '解決の淡い面の本文' },
+  { token: 'ink-muted', face: 'judge-yes-face', min: 4.5, use: '解決の淡い面の抑えた文字（旗の理由）' },
+  { token: 'rule', face: 'judge-yes-face', min: 3.0, use: '解決の淡い面に載る箱の枠' },
 ] as const
 
 /**
@@ -147,9 +159,13 @@ export const FACE_PAIRS = [{ a: 'judge-yes', b: 'judge-no', min: 3.0 }] as const
  * **満たせないときは 0.08 まで下げてよい。** 下げたらこの定数の隣に
  * 実測値と理由を書く。閾値を黙って消さない（設計スペック 決定5）
  *
- * **淡い面（`missing-face` / `invalid-face` / `pending-face`）はここに入れない。**
+ * **淡い面（`missing-face` / `invalid-face` / `pending-face` / `judge-yes-face`）は
+ * ここに入れない。**
  * 欠落・無効・着信の識別を運ぶのは線の色と線種（破線／実線）であり、その6組は
- * 上の表で既に3色覚ぶん検査している。淡い面は「目に留まる」ための強調で、
+ * 上の表で既に3色覚ぶん検査している。**判断の緑が欠落の黄・着信の青と紛れないか**も
+ * 同じ表の `missing`/`judge-yes`・`pending`/`judge-yes`・`invalid`/`judge-yes` の3組が
+ * 見ており、`judge-yes-face` を足しても識別の担い手はそちら（濃い方）のままである。
+ * 淡い面は「目に留まる」ための強調で、
  * 識別の担い手ではない——L 0.93〜0.95 まで白へ寄せた面どうしの色差は
  * 原理的に小さく、実測でも ΔE 0.05 前後（ライトの missing-face / invalid-face が
  * 標準 0.053・D型 0.045）しか出ない。ここへ足せば閾値 0.10 は即座に割れ、

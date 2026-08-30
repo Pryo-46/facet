@@ -86,17 +86,21 @@ export interface IssueBoxProps {
  *    木の形が読めない。**`opacity-*` で薄くしない**（検算したコントラストを割る。
  *    `ink-faint` は `BACKGROUNDS` 3面——`surface-muted` を含む——への 3:1 が
  *    `palette.test.ts` で機械検査済み）
- * 3. **自分自身が旗（見送り／解決）を掲げている箱は `bg-surface-muted` で塗る**
+ * 3. **自分自身が旗（見送り／解決）を掲げている箱は面を持つ**
  *    （実機確認後に追加。`docs/issue-tree/仮説検証モジュール-設計ノート.md` D8）。
  *    未決とは違って旗は稀で意図的な判断なので、1の理由（未決を面で塗ると図が
  *    警告で埋まる）はここには効かない。**M25 からは配下も同じ面を持つ**ので、
  *    面が運ぶのは「表明の所在」ではなく**凍結の範囲**になった——誰が掲げたかは
  *    文字の濃さ（当人＝`text-ink`／配下＝`ink-faint`）とバッジ（当人＝実線／
- *    配下＝faint）が運ぶ（D8 の M25 追記）。**見送りと解決は面を分けない**
- *    ——面が運ぶのは凍結の範囲であって旗の種別ではなく、種別はバッジの文言が運ぶ
- *    （D8 の規律。m4 で `resolved` 用の新しい面は足していない）。
- *    枠は他の面と揃えて `border-rule`（`rule` は `surface-muted` の上でも
- *    3:1 を満たす。理由は `face` 計算のコメントを見よ）
+ *    配下＝faint）が運ぶ（D8 の M25 追記）。**見送りと解決は面を分ける**
+ *    ——見送りは `bg-surface-muted`、解決は `bg-judge-yes-face`（淡い緑）。
+ *    M25 は「分けない」と決めていたが、issue-tree m5 の実機確認で覆った
+ *    （D8 の m5 追記。理由は「一目で『解決方針が決まった課題』＝これ以上
+ *    考えなくてよい とわかる」）。**祖先由来の抑制が勝つ優先順位は動いていない**
+ *    ——祖先が旗を掲げている配下は、自分が解決でも `bg-surface-muted` ＋
+ *    `ink-faint` に落ちる（下の `face` の分岐で `suppressed` が上にある）。
+ *    枠はどちらも `border-rule`（`rule` は両方の面の上で 3:1 を満たす。
+ *    理由は `face` 計算のコメントを見よ）
  * 4. **タイトルの左に開閉トグル（シェブロン）がある**（m5）。展開の単位は
  *    課題ノードで、開くと箱が `BOX_WIDTH` → `EXPANDED_BOX_WIDTH` に広がり、
  *    その課題の仮説がまとめてパネルを持つ。**仮説を持たない課題では場所を
@@ -118,22 +122,31 @@ export function IssueBox(props: IssueBoxProps) {
   // （祖先は見ない）ので、自分自身の旗を判定するのに新しい prop は要らない。
   // **`suppressed` を上に置くのが要**——旗が入れ子になったとき（祖先 B が
   // 旗を掲げ、配下 C も自分で旗を掲げている）、C は `suppressed`（祖先由来）が
-  // 立つので faint の側に進む。M25 で面はどちらも `surface-muted` になったが、
-  // ここを逆にすると C だけ文字が濃く戻り、薄い配下の中に濃い C が挟まる退行になる
-  // （`IssueTreeEditor.tsx` の `inheritedSuppressed` のコメントが指す退行と
-  // 同じ形。実際にそのテストが「見送りが入れ子でも、配下は薄いまま」で見ている）。
+  // 立つので faint の側に進む。ここを逆にすると C だけ文字が濃く戻り、薄い配下の
+  // 中に濃い C が挟まる退行になる（`IssueTreeEditor.tsx` の `inheritedSuppressed` の
+  // コメントが指す退行と同じ形。実際にそのテストが「見送りが入れ子でも、配下は
+  // 薄いまま」で見ている）。**m5 で解決の面（`judge-yes-face`）が加わってからは
+  // 賭け金が上がった**——逆にすると、凍結された枝の途中に淡い緑の箱が1つだけ
+  // 灯り、「その1件はまだ考える」と読めてしまう。順番は動かさないこと。
   //
-  // 旗を掲げた箱は一段沈んだ面（`surface-muted`）。**見送りと解決で面を分けない**
-  // ——面が運ぶのは「凍結の範囲」であって旗の種別ではなく、種別はバッジの文言
-  // （`ISSUE_EVENT_LABELS`）が運ぶ（D8 の規律）。`rule` はこの面の上でも
-  // 3:1 を満たす（`palette-requirements.ts` の `BACKGROUNDS` に入っている）。
+  // 旗を掲げた箱は面を持つ。**M25 は「見送りと解決で面を分けない」と決めていたが、
+  // issue-tree m5 の実機確認で覆した**（設計ノート D8）——依頼者の理由は
+  // 「一目で『解決方針が決まった課題』＝これ以上考えなくてよい とわかる」。
+  // 見送りは一段沈んだ面（`surface-muted`）のまま、**解決だけ淡い緑
+  // （`judge-yes-face`）**にする。種別はバッジの文言（`ISSUE_EVENT_LABELS`）も
+  // 運ぶが、面が加わったぶん遠目で分かる。
+  // `rule` はどちらの面の上でも 3:1 を満たす（`surface-muted` は
+  // `palette-requirements.ts` の `BACKGROUNDS`、`judge-yes-face` は
+  // `FACE_REQUIREMENTS` が課している）。
   // 無効は赤い枠＋淡い面（`invalid-face`。rev 9章 規約2）
   const face = props.invalid
     ? 'border-invalid bg-invalid-face text-ink'
     : props.suppressed
       ? 'border-ink-faint bg-surface-muted text-ink-faint'
       : placement.event !== null
-        ? 'border-rule bg-surface-muted text-ink'
+        ? props.eventKind === 'resolved'
+          ? 'border-rule bg-judge-yes-face text-ink'
+          : 'border-rule bg-surface-muted text-ink'
         : 'border-rule bg-surface text-ink'
 
   // 未記入と立っている問いは名前の後半に付ける。**前半（`課題{N}`）は動かさない**

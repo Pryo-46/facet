@@ -940,7 +940,7 @@ export function layoutIssueTree(
     const expandable = rows.length > 0
     // **行の側と同じ判定を通す。** 仮説行は `issueIndexOf`（先勝ち）で持ち主を
     // 引くので、ID が重複しているとき開けるのは**先に現れた方だけ**である。
-    // ここで後ろ側も開けてしまうと、320 前提で測った行を 780 の箱に置くこと
+    // ここで後ろ側も開けてしまうと、`BOX_WIDTH` 前提で測った行を `EXPANDED_BOX_WIDTH` の箱に置くこと
     // （またはその逆）になり、行とパネルが箱からはみ出す
     const open = i === expandedIssueIndex && expandable && issueIndexOf.get(node.id) === i
     const latestFlag = node.events[node.events.length - 1]

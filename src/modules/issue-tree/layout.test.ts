@@ -283,6 +283,31 @@ describe('layoutIssueTree', () => {
     expect(box.title.x + box.title.width).toBeLessThanOrEqual(box.rect.x + box.rect.width)
   })
 
+  /**
+   * **箱の幅は 360**（issue-tree m5 の実機確認。依頼者の指示）。旗のトグルが
+   * 2つになって右上の枠が広がり、タイトルが 200 → 164px に痩せたので、
+   * 箱の側を 320 → 360 に伸ばして 204px に戻した。
+   *
+   * **ここだけは `BOX_WIDTH` を使わずに数字を書く。** 上の「トグル2つぶんの枠」の
+   * テストは `BOX_WIDTH` から期待値を組むので、定数を戻しても緑のまま通る
+   *——**戻したことに気づく番人がどこにも無い**（テスト名の「320のまま」は
+   * m5 で `BOX_WIDTH` 参照へ書き換えた）。伸ばした事実そのものはここが持つ。
+   *
+   * `EXPANDED_BOX_WIDTH`（780）は動かしていない——伸ばしたのは畳んだ箱だけ
+   */
+  it('畳んだ箱の幅は 360 で、タイトルはそのぶん広い 204px を取る', () => {
+    expect(BOX_WIDTH).toBe(360)
+    expect(EXPANDED_BOX_WIDTH).toBe(780)
+    const data = make({ issues: [root, child] })
+    const out = run(data)
+    for (const [i, box] of out.issues.entries()) {
+      expect(box!.rect.width, `課題${i + 1}の箱`).toBe(360)
+      // 320 のままなら 164。**「十分広い」ではなく実寸で見る**——枠の側を
+      // 詰めて誤魔化した実装と、箱を伸ばした実装を区別するため
+      expect(box!.title.width, `課題${i + 1}のタイトル`).toBe(204)
+    }
+  })
+
   it('展開した課題ではぶら下がる仮説がすべてパネルを持ち、箱はその分だけ高くなる', () => {
     const data = make({
       issues: [root],
@@ -568,7 +593,7 @@ describe('layoutIssueTree', () => {
    * 画面は 16px で描く——高さ固定＋`overflow-hidden` の textarea なので、
    * **長いタイトルの最終行が黙って消える**（tsc も lint も反応しない）。
    *
-   * **高さの大小では見ない**——開くと箱が 320 → 780 に広がってタイトルの幅も
+   * **高さの大小では見ない**——開くと箱が `BOX_WIDTH` → `EXPANDED_BOX_WIDTH` に広がってタイトルの幅も
    * 増えるので、字が大きくても行数は減りうる。**行高の倍数であること**で見る
    *（`fonts` の概算器は title 24 / expandedTitle 27 とわざと違えてある）
    */
@@ -722,10 +747,10 @@ describe('layoutIssueTree', () => {
 
   /**
    * **展開の単位は課題ノードである**（m5 Task 2）。開いた課題だけが幅を広げ、
-   * 同じ列の他の箱は 320 のまま——`tree-layout.ts` の `columnXs` が深さごとの
+   * 同じ列の他の箱は `BOX_WIDTH` のまま——`tree-layout.ts` の `columnXs` が深さごとの
    * 最大幅で列の x を決めるので、押し広げは列の側で自動的に効く
    */
-  it('展開した課題ノードだけ幅が広がり、閉じたノードは320のまま', () => {
+  it('展開した課題ノードだけ幅が広がり、閉じたノードは BOX_WIDTH のまま', () => {
     const data = make({ issues: [root, child], hypotheses: [h(1)] })
     const layout = run(data, 0)
     expect(layout.issues[0]!.rect.width).toBe(EXPANDED_BOX_WIDTH)
@@ -821,7 +846,7 @@ describe('layoutIssueTree', () => {
    * 受け入れて赤表示する仕様なので、ここは到達可能な入力である。
    *
    * **行の持ち主と箱の開閉が別々の規則で解決されると幾何が壊れる**
-   *——320 前提で測った行を 780 の箱に置く（またはその逆）ことになる
+   *——`BOX_WIDTH` 前提で測った行を `EXPANDED_BOX_WIDTH` の箱に置く（またはその逆）ことになる
    */
   it('ID が重複した課題では、開けるのは先に現れた方だけ', () => {
     const dup: IssueNode = { id: I(0), parentId: null, text: '同じIDの後ろ側', events: [] }
@@ -860,7 +885,7 @@ describe('layoutIssueTree', () => {
       const panel = p!.expanded!.panel
       expect(panel.x + panel.width).toBeLessThanOrEqual(box.x + box.width - ISSUE_INSET_X)
     }
-    // 広がったぶんだけパネルの中身も広い（320 のまま測っていたら赤くなる）
+    // 広がったぶんだけパネルの中身も広い（`BOX_WIDTH` のまま測っていたら赤くなる）
     const narrow = run(data).hypotheses[0]!
     expect(out.hypotheses[0]!.expanded!.notes.blocks[0].rows[0].text.width).toBeGreaterThan(
       narrow.row!.text.width,
