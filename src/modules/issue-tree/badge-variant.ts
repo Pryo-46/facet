@@ -15,7 +15,7 @@ export function badgeVariantOf(group: BadgeGroup, suppressed: boolean): BadgeVar
 
 /**
  * 帯の集計チップの `OpenKind` → variant 対応（仮説なし・未決＝破線 `open`、
- * 保留＝実線 `hold`、未判断＝着信の青 `pending`）は、**M22 で `derive.ts` の
+ * 保留＝実線 `hold`、FB待ち＝着信の青 `pending`）は、**M22 で `derive.ts` の
  * `toMissingTally` に吸収した**（帯そのものが共通部品 `MissingTally` に
  * 置き換わり、variant は `MissingTallyPart` が運ぶため、ここに個別の
  * `chipVariantOf` を残す理由が無くなった）。対応表そのものは

@@ -12,9 +12,9 @@
 | エラーカタログ | `resolutionLevel === 'undecided'`（未分類）／`occurrence`・`causeForSupport`・`causeForSpec` が空／対応欄（`userAction` 等）が空で、かつ `resolutionLevel` がその主体か `none`（未記入） | `notes` が空、主体でない対応欄が空（「書く必要がないので空」） |
 | シーケンス | 問いが立っているのに `failures` にキーが無い（未回答）／アクターの `name` が空／ステップの `label` が空（未記入） | 問いが立っていないスロット、`notApplicable`（決めた） |
 | ロジックツリー | `text === ''`（未記入） | — |
-| 課題ツリー | 4つの問い（仮説なし・未決・保留・未判断）。`poseQuestions` が導出する | `rationale` が空、見送り配下（抑制） |
+| 課題ツリー | 4つの問い（仮説なし・未決・保留・FB待ち）。`poseQuestions` が導出する | `detail` / `value` / `asks` が空、旗（見送り・解決）配下（抑制） |
 
-備考・別名・`rationale` を欠落にしない判断はこの文書でも変えない（[`docs/glossary/session-notes.md`](glossary/session-notes.md) の「`notes` は検知対象外」、reading-guide.md の「由来の欠落は仕様の穴ではない」）。
+備考・別名・`detail`／`value`／`asks` を欠落にしない判断はこの文書でも変えない（[`docs/glossary/session-notes.md`](glossary/session-notes.md) の「`notes` は検知対象外」、reading-guide.md の「欠落は仕様の穴ではない」）。
 
 ## 規約6条
 
@@ -45,23 +45,24 @@
 
 ### 4. 必ずヘッダで集計する
 
-各モジュールは `MissingTally` 部品で「要対応 N（CircleAlert のアイコン付き）＋内訳チップ（押すと次へ）」を帯に出す（M25 で ⚠ の絵文字はアイコンになった。**端末に出す `tallyLine` は `⚠` のまま**——SVG は端末に出せない）。**判定関数と集計関数は同じ `missing.ts`（課題ツリーは `derive.ts`）にあり**、画面に面が付く箇所と数える箇所が同じ関数から出る。抑制された配下（課題ツリーの見送り）は数えない。着信（未判断）は欠落軸ではないが、同じ帯・同じ部品で数え、行にもバッジを2つ目として出す。
+各モジュールは `MissingTally` 部品で「要対応 N（CircleAlert のアイコン付き）＋内訳チップ（押すと次へ）」を帯に出す（M25 で ⚠ の絵文字はアイコンになった。**端末に出す `tallyLine` は `⚠` のまま**——SVG は端末に出せない）。**判定関数と集計関数は同じ `missing.ts`（課題ツリーは `derive.ts`）にあり**、画面に面が付く箇所と数える箇所が同じ関数から出る。抑制された配下（課題ツリーの見送り・解決）は数えない。着信（FB待ち）は欠落軸ではないが、同じ帯・同じ部品で数え、行にもバッジを2つ目として出す。
 
-**見送りの別枠（M25。UI ノート D17・D18）:**
+**見送り・解決の別枠（M25。UI ノート D17・D18。issue-tree-m4 で旗が2種になった）:**
 
-- **見送り配下の問いは要対応に数えない**（`poseQuestions` が抑制配下では問いを
-  立てない）。ただし**存在は消さない**——見送りを掲げた課題の数を、帯の要対応の隣に
-  グレーの別枠 `見送り N` として出す（`derive.ts` の `deferredIssueCount` /
-  `deferralLine`。0件では出さない。チップの `title` と Skill の報告が同じ注意書き
-  `DEFERRAL_NOTE` を出す）。凍結中の問いの内訳・総数は出さない（件数だけ。人間の裁定）
-- **見送り配下は祖先から導出し、フィールドを持たない**（`suppressedIssueIds`。D18）。
-  子に見送りフラグを複製しない——親の解除で子が取り残される嘘を作らないため
+- **旗（見送り・解決）配下の問いは要対応に数えない**（`poseQuestions` が抑制配下では問いを
+  立てない）。ただし**存在は消さない**——旗を掲げた課題の数を、種別ごとに帯の要対応の隣に
+  グレーの別枠（`見送り N` ／ `解決 N`）として出す（`derive.ts` の `issueEventCount` /
+  `issueEventLine`。0件の種別は出さない。チップの `title` と Skill の報告が同じ注意書き
+  `ISSUE_EVENT_NOTES[kind]` を出す）。凍結中の問いの内訳・総数は出さない（件数だけ。人間の裁定）
+- **旗が立った配下は祖先から導出し、フィールドを持たない**（`suppressedIssueIds`。D18）。
+  子に旗を複製しない——親の解除で子が取り残される嘘を作らないため。**見送りと解決は意味が逆
+  （追わない／答えが出た）だが、どちらも配下抑制の実効は同じで、同時には立たない**
 
 - 集計の型と組み立て文字列（コア）: `src/core/missing-tally.ts`（`MissingTally` / `MissingTallyPart` / `TALLY_TOTAL_LABEL` / `tallyLine`）
 - 表示部品（コア）: `src/components/MissingTally.tsx`
 - 各モジュールの判定・集計: `src/modules/glossary/missing.ts`／`src/modules/error-catalog/missing.ts`／`src/modules/logic-tree/missing.ts`／`src/modules/sequence/missing.ts`
 - 課題ツリーだけ別経路: `src/modules/issue-tree/derive.ts` は `tallyLine` を自前で持つ（同梱 Skill のバイト一致コピー制約で `missing-tally.ts` を値 import できないため）。`toMissingTally(t)` でコアの形へ変換し、アプリの帯はこちらを使う。コアの `tallyLine(toMissingTally(t))` と `derive.ts` の `tallyLine(t)` が逐語一致することは `src/modules/issue-tree/derive.test.ts` が機械検査する
-- 未判断バッジ（行）: `src/modules/issue-tree/HypothesisRow.tsx`（判断バッジの隣に `pending` variant で2つ目を出す）
+- FB待ちバッジ（行）: `src/modules/issue-tree/HypothesisRow.tsx`（判断バッジの隣に `pending` variant で2つ目を出す）
 
 **シーケンスの帯は補足を持つ。** 回答済・考慮不要は欠落ではないが総量の把握に要るので、`MissingTally` の右に `ink-muted` の文字で `回答済 N ／ 考慮不要 N` を添える（チップではない。押せない）。`.claude/skills/sequence-register/scripts/sequence-write.mjs` と `SKILL.md` の報告文もこの形（`⚠ 要対応 N（未回答 x ／ 未記入 y）` と `回答済 N ／ 考慮不要 N`）に揃え、`src/modules/sequence/skill-write.smoke.test.ts` がアプリの `tallyLine` との逐語一致を固定する。
 

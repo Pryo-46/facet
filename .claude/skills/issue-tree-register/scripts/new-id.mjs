@@ -6,8 +6,9 @@
 //   node scripts/new-id.mjs                       → issue_XXXXXXXXXX を1件
 //   node scripts/new-id.mjs 12                    → issue_XXXXXXXXXX を12件
 //   node scripts/new-id.mjs 3 --prefix hypothesis → hypothesis_XXXXXXXXXX を3件
+//   node scripts/new-id.mjs 2 --prefix ask        → ask_XXXXXXXXXX を2件
 //
-// 課題ツリーは prefix が2種類ある（issue / hypothesis）。既定を issue にして
+// 課題ツリーは prefix が3種類ある（issue / hypothesis / ask）。既定を issue にして
 // いるのは課題のほうが件数が多いから。取り違えても issue-tree-write.mjs の
 // pattern 検証（^issue_[A-Za-z0-9]{10}$ 等）が捕まえる。
 //
@@ -36,9 +37,9 @@ for (let i = 0; i < argv.length; i++) {
   }
 }
 
-if (prefix !== "issue" && prefix !== "hypothesis") {
+if (prefix !== "issue" && prefix !== "hypothesis" && prefix !== "ask") {
   console.error(
-    `--prefix は issue か hypothesis のどちらかです: 受け取った値 = ${JSON.stringify(prefix)}`
+    `--prefix は issue / hypothesis / ask のいずれかです: 受け取った値 = ${JSON.stringify(prefix)}`
   );
   process.exit(2);
 }

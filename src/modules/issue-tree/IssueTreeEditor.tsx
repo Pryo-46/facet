@@ -34,67 +34,61 @@ import {
 import { currentPlatform } from '@/core/keyboard/platform'
 import type { EditorProps } from '@/core/registry'
 import { computeRowKeys } from '@/core/row-keys'
-import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
 import { badgeVariantOf } from './badge-variant'
 import {
   cellKey,
   hypothesisCellKey,
   issueCellKey,
-  issueDeferralCellKey,
+  issueEventCellKey,
   type HypothesisCell,
 } from './cell-keys'
 import {
   addChildIssue,
+  addFeedback,
+  addFeedbackAfter,
   addHypothesis,
   addHypothesisAfter,
-  addPendingNote,
-  addPendingNoteAfter,
   addRootIssue,
   addSiblingIssueAfter,
   appendJudgement,
   deleteHypothesis,
   deleteIssueSubtree,
+  moveFeedback,
   moveHypothesis,
   moveIssueSibling,
-  movePendingNote,
-  promoteNote,
-  removePendingNote,
-  setDeferralNote,
+  removeFeedback,
   setEventNote,
-  setHypothesisText,
+  setFeedbackText,
+  setHypothesisTitle,
+  setIssueEventNote,
   setIssueText,
-  setPendingNote,
-  setRationale,
-  toggleDeferral,
+  toggleIssueEvent,
   type EditResult,
   type FocusTarget,
 } from './commands'
 import {
-  DEFERRAL_NOTE,
-  deferralLine,
-  deferredIssueCount,
   EVENT_KIND_LABELS,
-  ISSUE_DEFERRED_LABEL,
+  ISSUE_EVENT_LABELS,
+  ISSUE_EVENT_NOTES,
+  issueEventCount,
+  issueEventLine,
   poseQuestions,
   suppressedIssueIds,
   tallyQuestions,
   toMissingTally,
+  type IssueEventKind,
   type JudgementKind,
 } from './derive'
 import { HypothesisRow } from './HypothesisRow'
 import { IssueBox } from './IssueBox'
 import { IssueTreeEdges } from './IssueTreeEdges'
-import {
-  DEFER_TRIGGER_LABEL,
-  JUDGEMENT_TRIGGER_LABELS,
-  layoutIssueTree,
-  type IssueTreeFonts,
-} from './layout'
+import { JUDGEMENT_TRIGGER_LABELS, layoutIssueTree, type IssueTreeFonts } from './layout'
 import { ACTION_HEIGHT_CLASS, TITLE_FONT_CLASS } from './measure'
 import {
-  listDeferredTargets,
+  listFlaggedTargets,
   listOpenTargets,
-  nextDeferredTarget,
+  nextFlaggedTarget,
   nextOpenTarget,
   type OpenKind,
 } from './open-targets'
@@ -102,7 +96,7 @@ import {
 /** 測定結果のキャッシュ。会議1回分の打鍵で無限に増えないよう頭を押さえる */
 const MEASURE_CACHE_LIMIT = 2000
 
-/** 仮説の文言・由来・根拠・FB に当たるクラスのうち、フォントを決めている部分 */
+/** 仮説の文言・判断の根拠・FB に当たるクラスのうち、フォントを決めている部分 */
 const BODY_FONT_CLASS = 'text-sm leading-normal'
 /** 節の見出し・見送りの理由・バッジに当たるクラス */
 const SMALL_FONT_CLASS = 'text-sm'
@@ -115,6 +109,11 @@ const ISSUE_TREE_HINTS: readonly KeyHint[] = [
   { keys: '←→', label: '親子移動' },
   { keys: '$alt+↑↓', label: '並び替え' },
 ]
+
+/** 別枠のチップ。**見送りと解決を同じ形で並べる**——実効は同じ「配下を止める」で、
+    意味だけが逆（追わない／答えが出た）なので、見た目の系統は分けない。
+    データにも props にも依存しないのでモジュール直下に置く（毎レンダ作り直さない） */
+const FLAG_KINDS: readonly IssueEventKind[] = ['deferred', 'resolved']
 
 /**
  * ドロップダウンに出す種別の並び。**文言は `EVENT_KIND_LABELS` から引く**
@@ -173,10 +172,10 @@ function cachedMeasurer(font: CanvasFont): { measure: MeasureWidth; lineHeight: 
 }
 
 /**
- * ドロップダウンのトリガーと**見送りのトグル**に共通の土台。
+ * ドロップダウンのトリガーと**旗のトグル**（見送り／解決）に共通の土台。
  * **`buttonBase` を敷かないのは角丸のため。**
- * `buttonBase` は `rounded-sm` を持つが、見送り済みの課題ではトグル自身が
- * 見送りバッジ（`rounded-sm`）を兼ねる——**角丸を2つ並べると勝つのは生成 CSS の
+ * `buttonBase` は `rounded-sm` を持つが、旗が立っている課題ではトグル自身が
+ * 旗のバッジ（`rounded-sm`）を兼ねる——**角丸を2つ並べると勝つのは生成 CSS の
  * 順序であってクラス名の順序**であり、`TRIGGER_FACE` を切り出した理由（M8）が
  * 角丸について残ってしまう。**角丸は面が決める**ことにして口を1つにする。
  * 失うのは `justify-center` と `disabled:*` だけで、このトリガーは無効化しない
@@ -186,8 +185,8 @@ const TRIGGER_BASE =
 
 /**
  * 小さなボタンの面。**呼び出し側が必ず渡す**（足すのではなく差し替える）
- *——判断ドロップダウンと「＋ FB」が使う。見送りトグルは `DEFER_TRIGGER_FACE` を使う
- *（見送り済みの課題ではトグル自身が見送りバッジを兼ねるため、幾何をバッジに揃えてある）。
+ *——判断ドロップダウンと「＋ FB」が使う。旗のトグルは `DEFER_TRIGGER_FACE` を使う
+ *（旗が立っている課題ではトグル自身が旗のバッジを兼ねるため、幾何をバッジに揃えてある）。
  * **幅を測っているのは `layout.ts` の `actionWidth`**（`ACTION_INSET_X` は
  * ここの `px-1` ＋ 枠線 1px）なので、余白のクラスは対で直すこと
  */
@@ -195,14 +194,17 @@ const TRIGGER_FACE =
   'rounded-sm border border-rule bg-surface px-1 text-sm text-ink-muted hover:bg-canvas'
 
 /**
- * 見送りトグルの未見送り面。**バッジの箱と同じ幾何**（`src/components/badge-styles.ts`
+ * 旗トグルの未入力面。**バッジの箱と同じ幾何**（`src/components/badge-styles.ts`
  * の base と対——`h-[20px]`・`px-1.5`・枠 1px・`rounded-sm`・`leading-none font-medium`。
  * `BADGE_BOX_HEIGHT` を変えるときは片方だけ変えないこと。DOM テストが対を見る）。
- * このトグルは押すと同じ要素が見送りバッジ（`badgeClass('deferred')`）になるので、
+ * このトグルは押すと同じ要素が旗のバッジ（`badgeClass('deferred')`）になるので、
  * 2つの面で箱の形が揃っていないと押した瞬間に跳ねる。色だけが「押せる面」
  * （surface＋rule＋ink-muted、ホバーで canvas）で、幾何はバッジが決める。
- * 幅も同じ理由で `layout.ts` の `slotW` が `badgeWidth(DEFER_TRIGGER_LABEL, …)`
- * （`actionWidth` ではない）で測っている——片方だけ変えないこと（対で直す）
+ * 幅も同じ理由で `layout.ts` の `slotW` が `badgeWidth(ISSUE_EVENT_LABELS.deferred, …)`
+ * （`actionWidth` ではない）で測っている——片方だけ変えないこと（対で直す）。
+ * **`DEFER_TRIGGER_LABEL` は Task 7 で削除された**——描くのも測るのも
+ * `ISSUE_EVENT_LABELS.deferred` の1つで、幅を測る文字列と描く文字列が
+ * 同じ定数から出ている
  */
 const DEFER_TRIGGER_FACE =
   'h-[20px] rounded-sm border border-rule bg-surface px-1.5 text-sm leading-none font-medium whitespace-nowrap text-ink-muted hover:bg-canvas'
@@ -291,7 +293,7 @@ export function IssueTreeEditor({
   onChange,
   issues,
   modalOpen,
-}: EditorProps<IssueTreeSchemaVersion2>) {
+}: EditorProps<IssueTreeSchemaVersion3>) {
   const containerRef = useRef<HTMLDivElement>(null)
   const titleProbeRef = useRef<HTMLSpanElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
@@ -336,7 +338,7 @@ export function IssueTreeEditor({
    */
   const [lastCell, setLastCell] = useState<LastCell | null>(null)
 
-  // 詳細（由来・根拠・FB・以前の判断）を出している仮説の行鍵。**同時に1本だけ。**
+  // 詳細（判断・以前の判断・FB）を出している仮説の行鍵。**同時に1本だけ。**
   // **これはビュー状態であり、データには書かない**——座標と同じく、
   // 「いまどれを開いていたか」をファイルへ持ち込まない（rev 3章）。
   // 配列位置ではなく鍵で持つのも `lastCell` と同じ理由
@@ -452,9 +454,9 @@ export function IssueTreeEditor({
   const rects = new Map<string, Rect>()
   layout.issues.forEach((placement, index) => {
     if (placement === null) return
-    // 見送りの理由も箱ごと見せる（理由だけ見えても、どの課題の話か分からない）
+    // 旗の理由も箱ごと見せる（理由だけ見えても、どの課題の話か分からない）
     rects.set(issueCellKey(issueKeys[index]), placement.rect)
-    rects.set(issueDeferralCellKey(issueKeys[index]), placement.rect)
+    rects.set(issueEventCellKey(issueKeys[index]), placement.rect)
   })
   layout.hypotheses.forEach((placement, index) => {
     if (placement === null) return
@@ -462,9 +464,8 @@ export function IssueTreeEditor({
     const h = data.hypotheses[index]
     // 行の中の欄はどれも行全体（＝展開パネルを含む矩形）を見せる
     rects.set(hypothesisCellKey(key, { cell: 'hypothesis' }), placement.rect)
-    rects.set(hypothesisCellKey(key, { cell: 'rationale' }), placement.rect)
-    h.pendingNotes.forEach((_n, noteIndex) => {
-      rects.set(hypothesisCellKey(key, { cell: 'note', noteIndex }), placement.rect)
+    h.feedbacks.forEach((_f, feedbackIndex) => {
+      rects.set(hypothesisCellKey(key, { cell: 'feedback', feedbackIndex }), placement.rect)
     })
     h.events.forEach((_e, eventIndex) => {
       rects.set(hypothesisCellKey(key, { cell: 'event', eventIndex }), placement.rect)
@@ -504,15 +505,15 @@ export function IssueTreeEditor({
    * `source` は行き先の添字を読むデータ。**`apply` は差し替えた後のものを渡す**
    *——構造が変わった後の配列で鍵を作らないと、予約が別の行に当たる
    */
-  const goTo = (focus: FocusTarget, source: IssueTreeSchemaVersion2 = data): void => {
+  const goTo = (focus: FocusTarget, source: IssueTreeSchemaVersion3 = data): void => {
     const nextIssueKeys = computeRowKeys(source.issues)
     const nextHypothesisKeys = computeRowKeys(source.hypotheses)
     // **行き先が仮説の欄なら、先にその仮説を展開する。** 畳まれた行に
-    // 由来・根拠・FB の欄は無いので、展開しないまま予約しても当たらない
+    // 判断の根拠・FB の欄は無いので、展開しないまま予約しても当たらない
     //（同じ更新の中でよい——予約を当てる effect は描画後に querySelector する）。
     // 仮説の文言そのものは、畳まれた行の `<button>` と展開後の `<textarea>` が
     // 同じ `data-cell` を名乗るのでどちらでも当たる
-    if (focus.cell !== 'issue' && focus.cell !== 'deferral') {
+    if (focus.cell !== 'issue' && focus.cell !== 'issueEvent') {
       setExpandedKey(nextHypothesisKeys[focus.index] ?? null)
     }
     // 画面の外なら寄せるのは、予約を当てる effect の仕事（`ensureVisible`）
@@ -660,23 +661,19 @@ export function IssueTreeEditor({
           apply(addHypothesisAfter(data, index))
           return true
         }
-        // 由来の Enter は「メモを1件足す」（移動先が無ければ生やす。sequence M2 の前例）。
-        // **末尾に足すのはこちらだけ**——由来は間に差し込む欄ではない
-        if (cell.cell === 'rationale') {
-          apply(addPendingNote(data, index))
-          return true
-        }
-        // メモの Enter は**押した位置の次**（コアのコマンド名どおり insert-item-after）。
+        // FB の Enter は**押した位置の次**（コアのコマンド名どおり insert-item-after）。
         // 末尾に足すと、3件の1件目で押したときに生まれるのは4件目になり、
-        // フォーカスが展開パネルの一番下へ飛ぶ
-        if (cell.cell === 'note') {
-          apply(addPendingNoteAfter(data, index, cell.noteIndex))
+        // フォーカスが展開パネルの一番下へ飛ぶ。末尾に足すのは、展開パネルの
+        // 「＋ FB」ボタン（`HypothesisRow.tsx` の `panel.notes.add`）だけである
+        //（帯にあるのは「課題を追加」「仮説を追加」の2つで、こちらは末尾専用ではない）
+        if (cell.cell === 'feedback') {
+          apply(addFeedbackAfter(data, index, cell.feedbackIndex))
           return true
         }
         // イベントの根拠から次を生やさない（イベントは追記操作でしか増えない）
         return false
       case 'delete-item':
-        // deletableField を立てている欄（仮説の文言・メモ）からしか来ない
+        // deletableField を立てている欄（仮説の文言・FB）からしか来ない
         if (cell.cell === 'hypothesis') {
           // **前の仮説が無いときは持ち主の課題へ返す**——`deleteHypothesis` は
           // 行き先に null を返すので、そのままだとフォーカスが宙に浮き、
@@ -684,8 +681,8 @@ export function IssueTreeEditor({
           apply(deleteHypothesis(data, index), ownerIssueFocus(index))
           return true
         }
-        if (cell.cell === 'note') {
-          apply(removePendingNote(data, index, cell.noteIndex))
+        if (cell.cell === 'feedback') {
+          apply(removeFeedback(data, index, cell.feedbackIndex))
           return true
         }
         return false
@@ -696,11 +693,11 @@ export function IssueTreeEditor({
           apply(moveHypothesis(data, index, delta))
           return true
         }
-        if (cell.cell === 'note') {
-          apply(movePendingNote(data, index, cell.noteIndex, delta))
+        if (cell.cell === 'feedback') {
+          apply(moveFeedback(data, index, cell.feedbackIndex, delta))
           return true
         }
-        // 由来とイベントは1件ずつ／追記専用なので並び替えの意味が無い
+        // イベントは1件ずつ／追記専用なので並び替えの意味が無い
         return false
       }
       case 'focus-prev':
@@ -708,15 +705,11 @@ export function IssueTreeEditor({
       case 'focus-next':
         return cell.cell === 'hypothesis' ? focusHypothesisSibling(index, 1) : false
       case 'toggle-item-state':
-        // 仮説の文言では判断イベントのドロップダウンを開く（追記する種別を選ばせる）
+        // 仮説の文言では判断イベントのドロップダウンを開く（追記する種別を選ばせる）。
+        // FB は判断へ移さない——判断の理由は人が書く。FB セルでは何もしない
+        //（＝キーを消費しない）
         if (cell.cell === 'hypothesis') {
           setOpenCell(judgementMenuKey(hypothesisKeys[index]))
-          return true
-        }
-        // メモは最新イベントの根拠へ移す。**イベント0件なら何も起きない**
-        //（promoteNote が同じデータを返し、apply が落とす）
-        if (cell.cell === 'note') {
-          apply(promoteNote(data, index, cell.noteIndex))
           return true
         }
         return false
@@ -765,9 +758,9 @@ export function IssueTreeEditor({
       editing: true,
       fieldEmpty: state.empty,
       // **「その欄が空になったら要素ごと消してよいか」で決める。**
-      // 由来とイベントの根拠は false——空にしただけで仮説やイベントが消えると、
+      // イベントの根拠は false——空にしただけでイベントが消えると、
       // 書き直すたびに消えることになる
-      deletableField: cell.cell === 'hypothesis' || cell.cell === 'note',
+      deletableField: cell.cell === 'hypothesis' || cell.cell === 'feedback',
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
       arrowsOwnedByField: false,
@@ -820,11 +813,8 @@ export function IssueTreeEditor({
     if (next !== null) goTo(next.focus)
   }
 
-  const deferredCount = deferredIssueCount(data.issues)
-
-  /** 帯のグレーのチップ。押すと次の「見送りを掲げた課題」へ視点が飛ぶ（末尾なら先頭へ） */
-  const goToNextDeferred = (): void => {
-    const next = nextDeferredTarget(listDeferredTargets(data), lastFocus)
+  const goToNextFlagged = (kind: IssueEventKind): void => {
+    const next = nextFlaggedTarget(listFlaggedTargets(data, kind), lastFocus)
     if (next !== null) goTo(next)
   }
 
@@ -903,29 +893,36 @@ export function IssueTreeEditor({
               帯そのものは共通部品 `MissingTally`（M22）——合計・0件チップ非表示・
               `whitespace-nowrap` は部品側が担う。**`as OpenKind` は
               `toMissingTally` の kind が `OpenKind` の4語（'hypothesis' |
-              'result' | 'hold' | 'judgement'）と同じであることに依る** */}
+              'result' | 'hold' | 'feedback'）と同じであることに依る** */}
           <MissingTally
             tally={toMissingTally(tally)}
             onJump={(kind) => goToNextOpen(kind as OpenKind)}
           />
-          {/* 見送りの別枠（UI ノート D17）。**要対応の外**——`MissingTally` の
-              parts は「total の内訳」という契約なので、そこへ混ぜると合計と
-              内訳が合わない帯になる。見送りを**掲げた課題の数**だけを出し
-              （配下の凍結中の問いは数えない。人間の裁定）、0件なら描かない。
-              面は rev 9章の見送りの描き方そのもの（badgeClass('deferred')＝
-              surface-muted の面・rule の枠・ink-muted の文字） */}
-          {deferredCount > 0 && (
-            <button
-              type="button"
-              className={`shrink-0 transition-colors ${badgeClass('deferred')}`}
-              aria-label="次の見送りへ"
-              title={DEFERRAL_NOTE}
-              onClick={goToNextDeferred}
-            >
-              <StickyNoteOff aria-hidden="true" className="mr-1 size-3.5 shrink-0" />
-              {deferralLine(deferredCount)}
-            </button>
-          )}
+          {/* 旗の別枠（UI ノート D17。v3 で見送り／解決の2種になった）。**要対応の外**
+              ——`MissingTally` の parts は「total の内訳」という契約なので、
+              そこへ混ぜると合計と内訳が合わない帯になる。旗を**掲げた課題の数**
+              だけを種別ごとに出し（配下の凍結中の問いは数えない。人間の裁定）、
+              0件なら描かない。面は rev 9章の見送りの描き方そのもの
+              （badgeClass('deferred')＝surface-muted の面・rule の枠・
+              ink-muted の文字）を**解決にも使い回す**——「解決」に別の色や
+              アイコンを当てるのは見え方の設計であり m5 の担当 */}
+          {FLAG_KINDS.map((kind) => {
+            const count = issueEventCount(data.issues, kind)
+            if (count === 0) return null
+            return (
+              <button
+                key={kind}
+                type="button"
+                className={`shrink-0 transition-colors ${badgeClass('deferred')}`}
+                aria-label={`次の${ISSUE_EVENT_LABELS[kind]}へ`}
+                title={ISSUE_EVENT_NOTES[kind]}
+                onClick={() => goToNextFlagged(kind)}
+              >
+                <StickyNoteOff aria-hidden="true" className="mr-1 size-3.5 shrink-0" />
+                {issueEventLine(count, kind)}
+              </button>
+            )
+          })}
           <KeyHints hints={ISSUE_TREE_HINTS} className="ml-auto shrink-0 bg-surface px-2 py-1" />
         </div>
       </div>
@@ -966,8 +963,9 @@ export function IssueTreeEditor({
           // 箱の中の仮説行は `issueSuppressed`（自分の見送りを含む）で薄くする
           // ——「その課題はもう追わない」は配下の仮説にも及ぶ
           const suppressed = inheritedSuppressed[index]
-          // 課題ノードのイベントは見送りだけで、**理由を書けるのは最新1件**
-          const deferral = node.events.length === 0 ? null : node.events[node.events.length - 1]
+          // 課題ノードのイベントは旗（見送り／解決）だけで、**理由を書けるのは最新1件**
+          const latestFlag = node.events[node.events.length - 1]
+          const flagKind = latestFlag === undefined ? null : latestFlag.kind
           return (
             // **フォーカスの捕捉は外から内へ走る。** 仮説の行の中の欄に入ると、
             // まずここが課題を、続いて行の側（下の包み）が仮説を記録する
@@ -984,40 +982,39 @@ export function IssueTreeEditor({
                 invalid={invalidIssues.has(index)}
                 suppressed={suppressed}
                 warn={posed.issueNeedsHypothesis[index]}
-                deferralNote={deferral === null ? null : deferral.note}
-                deferralCellKey={issueDeferralCellKey(key)}
+                eventKind={flagKind}
+                eventNote={latestFlag === undefined ? null : latestFlag.note}
+                eventCellKey={issueEventCellKey(key)}
                 onTextChange={(next) => onChange(setIssueText(data, index, next), `${key}:text`)}
-                onDeferralNoteChange={(next) =>
-                  onChange(setDeferralNote(data, index, next), `${key}:deferral`)
+                onEventNoteChange={(next) =>
+                  onChange(setIssueEventNote(data, index, next), `${key}:event`)
                 }
                 onFieldKeyDown={(e, state) => onIssueKeyDown(e, index, state)}
-                deferralToggle={
+                eventToggle={
                   <button
                     type="button"
-                    // **アクセシブル名は状態で動かさない。** 前半（`課題{N}`）を
-                    // 動かさない約束はそのままに、後半は「何を入り切りするか」
-                    // ——見送り——に固定し、**入っているかどうかは `aria-pressed`
-                    // が運ぶ**。名前の方を「見送る」／「見送りをやめる」と
-                    // 入れ替えると、`aria-pressed` と二重に状態を述べることになり、
-                    // 支援技術では「見送りをやめる、押されている」と読まれて
-                    // どちらが現状か分からなくなる
-                    aria-label={`課題${index + 1}の見送り`}
-                    aria-pressed={deferral !== null}
-                    // 見送り済みなら、**このトグルが見送りバッジを兼ねる**
+                    // **アクセシブル名は「何を入り切りするボタンか」で決める。**
+                    // 押されているかは `aria-pressed` が運ぶ（名前と二重に述べない）。
+                    // 旗が立っていない箱では、押すと付くのは見送りなので「見送り」
+                    aria-label={`課題${index + 1}の${ISSUE_EVENT_LABELS[flagKind ?? 'deferred']}`}
+                    aria-pressed={flagKind !== null}
+                    // 旗が立っていれば、**このトグルが旗のバッジを兼ねる**
                     //（同じ場所に2つ置かない）。まだなら、ホバーと
                     // focus-within のときだけ出す小さなボタンにする。
                     // **どちらの面もレイアウトが枠を空けている**——`layout.ts` の
-                    // `slotW` が、見送り済みならバッジ幅（`ISSUE_DEFERRED_LABEL`）、
-                    // まだならボタン幅（`DEFER_TRIGGER_LABEL`）で測る（幾何がバッジと
+                    // `slotW` が、旗が立っていればバッジ幅、まだならボタン幅
+                    //（`ISSUE_EVENT_LABELS.deferred`）で測る（幾何がバッジと
                     // 同じになったので、いまはどちらの状態も `badgeWidth` の式で測っている）
                     className={`${TRIGGER_BASE} ${
-                      deferral === null
+                      flagKind === null
                         ? `${DEFER_TRIGGER_FACE} invisible group-hover/issue:visible group-focus-within/issue:visible`
                         : badgeClass(badgeVariantOf('deferred', suppressed))
                     }`}
-                    onClick={() => apply(toggleDeferral(data, index))}
+                    // **立っている旗を押すと、その旗が外れる**（差し替えではない）。
+                    // 解決を新規に付ける動線は m4 では足さない（m5 の担当）
+                    onClick={() => apply(toggleIssueEvent(data, index, flagKind ?? 'deferred'))}
                   >
-                    {deferral === null ? DEFER_TRIGGER_LABEL : ISSUE_DEFERRED_LABEL}
+                    {ISSUE_EVENT_LABELS[flagKind ?? 'deferred']}
                   </button>
                 }
               >
@@ -1041,24 +1038,20 @@ export function IssueTreeEditor({
                         label={`仮説${hi + 1}`}
                         placement={row}
                         origin={placement.rect}
-                        text={h.text}
-                        rationale={h.rationale}
-                        notes={h.pendingNotes}
+                        title={h.title}
+                        notes={h.feedbacks.map((f) => f.text)}
                         events={h.events}
                         invalid={invalidHypotheses.has(hi)}
                         suppressed={issueSuppressed[index]}
                         expanded={expandedKey === rowKey}
                         onExpand={() => expandRow(rowKey)}
-                        onTextChange={(next) =>
-                          onChange(setHypothesisText(data, hi, next), `${rowKey}:text`)
+                        onTitleChange={(next) =>
+                          onChange(setHypothesisTitle(data, hi, next), `${rowKey}:title`)
                         }
-                        onRationaleChange={(next) =>
-                          onChange(setRationale(data, hi, next), `${rowKey}:rationale`)
-                        }
-                        onNoteChange={(noteIndex, next) =>
+                        onFeedbackTextChange={(feedbackIndex, next) =>
                           onChange(
-                            setPendingNote(data, hi, noteIndex, next),
-                            `${rowKey}:note:${noteIndex}`,
+                            setFeedbackText(data, hi, feedbackIndex, next),
+                            `${rowKey}:feedback:${feedbackIndex}`,
                           )
                         }
                         onEventNoteChange={(eventIndex, next) =>
@@ -1067,8 +1060,7 @@ export function IssueTreeEditor({
                             `${rowKey}:event:${eventIndex}`,
                           )
                         }
-                        onPromoteNote={(noteIndex) => apply(promoteNote(data, hi, noteIndex))}
-                        onAddNote={() => apply(addPendingNote(data, hi))}
+                        onAddFeedback={() => apply(addFeedback(data, hi))}
                         onFieldKeyDown={(e, state, cell) => onRowKeyDown(e, hi, state, cell)}
                         judgementMenu={
                           <KindMenu
