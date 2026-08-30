@@ -69,7 +69,7 @@ describe('出力プロファイル（規約5）', () => {
 })
 
 describe('お手本ファイル（sample-project）', () => {
-  it('schemaVersion 2 のお手本は editable で開け、保留が1件観測できる', () => {
+  it('schemaVersion 3 のお手本は editable で開け、保留が1件観測できる', () => {
     const raw = readFileSync(
       new URL('../../../sample-project/課題ツリー.json', import.meta.url),
       'utf8',
