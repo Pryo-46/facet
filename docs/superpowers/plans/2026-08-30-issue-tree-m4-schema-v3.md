@@ -2571,6 +2571,31 @@ git commit -m "feat(issue-tree): エディタを v3 へ（FB・旗のトグル�
 
 **ここは「実物が正」の代表箇所である**（Global Constraints「報告の規律」）。`issue-tree-write.mjs` の整合性の文言は `src/modules/issue-tree/consistency.ts` の**手複製**なので、**片方だけ直すとズレる**。Task 6 で `consistency.ts` の `message` を1文字も変えていないなら、**ここも文言は変えなくてよい**——変えるのは `h.text` → `h.title` の参照だけである。
 
+- [ ] **Step 0: Task 4 のレビューが残した2点を、この Task の冒頭で片付ける**
+
+どちらも `derive.ts` とその周辺に残った小さな追随漏れで、**Task 10 に置いてあるのは「直したら `cp` をやり直す必要があり、この Task が Skill の smoke テストを回す唯一の場所だから」**である。
+
+**(a) `src/modules/issue-tree/derive.ts` の JSDoc が、消えた識別子を名指ししている**
+
+`EVENT_KIND_LABELS` の JSDoc の末尾が「（`ISSUE_DEFERRED_LABEL` を別に置いているのと同じ理由）」となっているが、**その識別子はこのファイルからもう消えている**（`ISSUE_EVENT_LABELS` になった）。`ISSUE_EVENT_LABELS` に読み替える。あわせて `toMissingTally` の JSDoc に残っている「未判断は着信の青（`pending`）」を、**「FB待ちは着信の青（`pending`）——欠落ではなく、返事を待っている」**に直す。
+
+**同じファイルの中に「v2 の `ISSUE_DEFERRED_LABEL` と同じ理由」と明示的に過去形で書いてある箇所は触らないこと**——あちらは歴史の説明であって、存在しないものへの参照ではない。
+
+**(b) `src/modules/issue-tree/derive.test.ts` の抑制テストの識別力を戻す**
+
+Task 4 で「祖先が見送りなら配下の問いは立たない」のテストが**ルート抑制版**に置き換わった結果、`expect(posed.issueNeedsHypothesis.every((needs) => !needs)).toBe(true)` が**「抑制が1つでもあれば木全体を止める」という誤実装でも緑になる**形になった（旧版が持っていた「兄弟の枝は影響を受けない」という合成レベルの主張が、どのテストにも無くなっている）。
+
+**2本あるうちの片方（`deferred` 版でよい）を、ルートではなく中間ノードの抑制に変える。** 抑制した枝の配下では問いが立たず、**その兄弟の枝では立ったままである**ことを両方 `expect` する。フィクスチャの木の形を実物で確かめ、抑制する添字と、立ったままであるべき添字を選ぶこと。**`resolved` 版はルート抑制のままでよい**（あちらが見ているのは「種別が違っても同じように抑制される」であって、伝播の形ではない）。
+
+直したら **`cp` をやり直し**、`skill-copy.test.ts` と `derive.test.ts` を回す:
+
+```
+cp src/modules/issue-tree/derive.ts .claude/skills/issue-tree-register/scripts/derive.ts
+npx vitest run src/modules/issue-tree/derive.test.ts src/modules/issue-tree/skill-copy.test.ts
+```
+
+**(b) を直したテストは、番人が番をしていることを実証すること**——`poseQuestions` の抑制を「祖先ではなく木全体」に一時的に壊して FAIL を確認し、戻して PASS を確認する。**両方の出力を報告に貼る。**
+
 - [ ] **Step 1: 失敗するテストを書く（`skill-write.smoke.test.ts`）**
 
 フィクスチャ（`FIXTURE` と3つのインラインのデータ）を v3 の形に直す。あわせて:
@@ -2948,6 +2973,8 @@ git commit -m "chore(issue-tree): 最終レビューの指摘に対応"
 - Create: `docs/history/issue-tree-m4-schema-v3.md`
 - Modify: `docs/open-issues.md`
 - Modify: `docs/overview-rev.md`
+- Modify: `docs/missing-semantics.md`（消えた識別子の名指し）
+- Modify: `docs/facet-UI設計ノート.md`（同上）
 - Modify: `docs/lessons-for-planning.md`（教訓があれば）
 - Modify: `docs/README.md`（履歴表）
 
@@ -2981,7 +3008,20 @@ git commit -m "chore(issue-tree): 最終レビューの指摘に対応"
 - **`detail` / `value` / `asks` の編集コマンドが無い**（`src/modules/issue-tree/commands.ts`）: 同上。**m5 が画面と一緒に決める**
 - **`date` が「いつ言われたか」を保証しない**（`src/core/today.ts` / `commands.ts`）: アプリが入れるのは**追記した日**であり、会議の日が別なら食い違う。Skill 側は会話から日付を取れるが、アプリには手で直す欄が無い（**意図的**——手入力の欄は更新忘れで嘘をつく）。**過去の日付を記録したい要望が出たら、そのとき形を決める**
 
-- [ ] **Step 3: `docs/overview-rev.md` へ反映する**
+- [ ] **Step 3: `docs/overview-rev.md` へ反映する。あわせて、消えた識別子を名指ししている「正」の文書2本を直す**
+
+**Task 4 のレビューが見つけた実在の追随漏れ**（着手前の計画に入っていなかった）:
+
+- `docs/missing-semantics.md`（54行目付近）
+- `docs/facet-UI設計ノート.md`（704行目付近）
+
+どちらも `deferredIssueCount` / `deferralLine` / `DEFERRAL_NOTE` を**規範として名指ししている**が、これらは v3 で `issueEventCount` / `issueEventLine` / `ISSUE_EVENT_NOTES` に置き換わった。**行番号は目安なので、`grep -n "deferredIssueCount\|deferralLine\|DEFERRAL_NOTE\|ISSUE_DEFERRED_LABEL\|未判断" docs/` で実際の箇所を出してから直すこと。**
+
+**「解決」の別枠が増えたことも、その文脈で述べる必要があるかを1回問う**——別枠が1本だという前提で書かれている文があれば直す。
+
+**申し送りの TODO に落とさず、このマイルストーンの完了コミットで直すこと**（rev への反映漏れは M4 の教訓）。
+
+そのうえで `docs/overview-rev.md` を見る。触る可能性がある章:
 
 **反映は完了コミットで済ませ、TODO として申し送りに残さない**（M4 の教訓）。触る可能性がある章:
 
