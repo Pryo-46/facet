@@ -113,6 +113,21 @@ export const ROW_DOT_INSET = 2
 /** バッジの横の余白と枠線は部品（`src/components/badge-styles.ts`）が持つ。文言との空き（gap-2 = 8px）だけここ */
 export { BADGE_BORDER, BADGE_PADDING_X }
 export const BADGE_GAP = 8
+/**
+ * `BADGE_GAP` と対のクラス（gap-2 = 8px）。**`ACTION_HEIGHT_CLASS` /
+ * `MINI_ICON_GAP_CLASS` と同じ「数とクラスを隣に置く」流儀である。**
+ *
+ * 読み手は `IssueBox.tsx` の旗のトグルを包む flex で、**測る側は `layout.ts` の
+ * `flagTriggersW`**（旗の無い箱にトリガーが2つ並ぶので、2つぶんの幅＋この空きを
+ * 枠として予約する）。**旗が2種類（見送り／解決）になって初めて荷重が掛かった**
+ *——1つだった間は間の空きが存在せず、食い違っても何も起きなかった。
+ *
+ * **この対に番人は立たない。** jsdom にレイアウトが無く、`gap-2` を `gap-3` に
+ * しても DOM の検査は全部緑のままである（クラス文字列を引いているテストも無い）。
+ * **定数にした目的は機械に守らせることではなく、片方だけ直したことが目で見える
+ * ようにすることである**——`grep BADGE_GAP` が測る側と描く側の両方を返す。
+ */
+export const BADGE_GAP_CLASS = 'gap-2'
 /** バッジが座る行の高さ。バッジ自身（`BADGE_BOX_HEIGHT`）の上下に 1px ずつ */
 export const BADGE_HEIGHT = BADGE_BOX_HEIGHT + 2
 

@@ -5,6 +5,7 @@ import { badgeVariantOf } from './badge-variant'
 import { ISSUE_EVENT_LABELS, QUESTION_LABELS, type IssueEventKind } from './derive'
 import type { IssuePlacement } from './layout'
 import {
+  BADGE_GAP_CLASS,
   EXPANDED_TITLE_FONT_CLASS,
   ISSUE_BORDER,
   ISSUE_BOX_CLASS,
@@ -39,7 +40,8 @@ export interface IssueBoxProps {
    *
    * **旗が無い箱では要素が2つ来る**（見送り／解決。エディタの `FLAG_KINDS` を
    * 回して作る）。ここは受け取った物を置くだけだが、**間の空きは
-   * この包み（`gap-2`）が持ち、`layout.ts` の `triggersW` と対になっている**
+   * この包み（`BADGE_GAP_CLASS` ＝ `gap-2`）が持ち、`layout.ts` の
+   * `flagTriggersW` と対になっている**
    */
   eventToggle: React.ReactNode
   /**
@@ -280,13 +282,14 @@ export function IssueBox(props: IssueBoxProps) {
           旗が立っていれば測定した矩形へ、まだなら同じ枠（右寄せ）へ置けば、
           ホバー中に出るボタンがタイトルの文字に被らない（layout.ts の解説）。
 
-          **`gap-2` は `BADGE_GAP`（8px）と対。** 旗の無い箱では
+          **空きは `BADGE_GAP_CLASS`（`gap-2` ＝ `BADGE_GAP` 8px と対の定数）。**
+          旗の無い箱では
           `eventToggle` がボタン2つ（見送り／解決）を返し、ここがその間の
-          空きを持つ——`layout.ts` の `triggersW` が同じ 8px を足して枠を
+          空きを持つ——`layout.ts` の `flagTriggersW` が同じ 8px を足して枠を
           予約している。**片方だけ変えると、予約した枠より描画が広くなって
           タイトルにはみ出す**（旗が立っていれば子は1つなので効かない） */}
       <div
-        className="absolute flex items-center justify-end gap-2"
+        className={`absolute flex items-center justify-end ${BADGE_GAP_CLASS}`}
         style={
           placement.event === null
             ? { top: ISSUE_PADDING_Y, right: ISSUE_PADDING_X }
