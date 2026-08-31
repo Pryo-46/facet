@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
+import type { Hypothesis, IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import { checkIssueTreeConsistency } from './consistency'
 
 const I = (n: number): string => `issue_${String(n).padStart(10, 'A')}`
 const H = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
 
-function make(over: Partial<IssueTreeSchemaVersion2>): IssueTreeSchemaVersion2 {
-  return { schemaVersion: 2, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
+function make(over: Partial<IssueTreeSchemaVersion4>): IssueTreeSchemaVersion4 {
+  return { schemaVersion: 4, type: 'issueTree', title: 'T', issues: [], hypotheses: [], ...over }
+}
+
+/** v3 の仮説。全キー常在（date を除き空を許す） */
+function hypothesis(id: string, issueId: string, title: string): Hypothesis {
+  return { id, issueId, title, detail: '', value: '', asks: [], feedbacks: [], events: [] }
 }
 
 describe('checkIssueTreeConsistency', () => {
@@ -16,9 +21,7 @@ describe('checkIssueTreeConsistency', () => {
         { id: I(0), parentId: null, text: '根', events: [] },
         { id: I(1), parentId: I(0), text: '葉', events: [] },
       ],
-      hypotheses: [
-        { id: H(1), issueId: I(1), text: '仮説', rationale: '', events: [], pendingNotes: [] },
-      ],
+      hypotheses: [hypothesis(H(1), I(1), '仮説')],
     })
     expect(checkIssueTreeConsistency(data)).toEqual([])
   })
@@ -29,9 +32,7 @@ describe('checkIssueTreeConsistency', () => {
         { id: I(0), parentId: null, text: '根', events: [] },
         { id: I(1), parentId: I(0), text: '葉', events: [] },
       ],
-      hypotheses: [
-        { id: H(1), issueId: I(0), text: '当たりをつける', rationale: '', events: [], pendingNotes: [] },
-      ],
+      hypotheses: [hypothesis(H(1), I(0), '当たりをつける')],
     })
     expect(checkIssueTreeConsistency(data)).toEqual([])
   })
@@ -52,10 +53,10 @@ describe('checkIssueTreeConsistency', () => {
   })
 
   it('仮説の ID 重複も指摘する（課題とは別のメッセージ）', () => {
-    const h = { issueId: I(0), text: '', rationale: '', events: [], pendingNotes: [] }
+    const h = hypothesis(H(1), I(0), '')
     const data = make({
       issues: [{ id: I(0), parentId: null, text: 'a', events: [] }],
-      hypotheses: [{ id: H(1), ...h }, { id: H(1), ...h }],
+      hypotheses: [{ ...h }, { ...h }],
     })
     const dup = checkIssueTreeConsistency(data).filter((i) => i.rule === 'duplicate-id')
     expect(dup.map((i) => i.message)).toEqual([`仮説の ID が重複しています（2件）: ${H(1)}`])
@@ -81,9 +82,7 @@ describe('checkIssueTreeConsistency', () => {
   it('ぶら下がり先が実在しない仮説を指摘する', () => {
     const data = make({
       issues: [{ id: I(0), parentId: null, text: '根', events: [] }],
-      hypotheses: [
-        { id: H(1), issueId: 'issue_ZZZZZZZZZZ', text: '迷子', rationale: '', events: [], pendingNotes: [] },
-      ],
+      hypotheses: [hypothesis(H(1), 'issue_ZZZZZZZZZZ', '迷子')],
     })
     const found = checkIssueTreeConsistency(data).filter((i) => i.rule === 'missing-issue')
     expect(found).toHaveLength(1)

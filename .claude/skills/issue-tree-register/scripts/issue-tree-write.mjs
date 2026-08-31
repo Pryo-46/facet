@@ -257,7 +257,7 @@ const dangling = hypotheses.map((h, i) => ({ h, i })).filter(({ h }) => !existin
 if (dangling.length > 0) {
   warnings.push(
     `ぶら下がり先の課題が見つからない仮説があります（${dangling.length}件）: ${dangling
-      .map(({ h, i }) => label(h.text, i))
+      .map(({ h, i }) => label(h.title, i))
       .join("、")}`
   );
 }
@@ -277,15 +277,16 @@ if (targetPath) {
 
 const posed = D.poseQuestions(normalized);
 const tally = D.tallyQuestions(posed);
-const deferredCount = D.deferredIssueCount(normalized.issues);
+const deferredCount = D.issueEventCount(normalized.issues, "deferred");
+const resolvedCount = D.issueEventCount(normalized.issues, "resolved");
 const openAt = [];
 posed.issueNeedsHypothesis.forEach((needs, i) => {
   if (needs) openAt.push(`課題${label(issues[i].text, i)}「${D.QUESTION_LABELS.hypothesis}」`);
 });
 posed.hypothesisQuestions.forEach((q, i) => {
-  if (q.result) openAt.push(`仮説${label(hypotheses[i].text, i)}「${D.QUESTION_LABELS.result}」`);
-  if (q.hold) openAt.push(`仮説${label(hypotheses[i].text, i)}「${D.QUESTION_LABELS.hold}」`);
-  if (q.judgement) openAt.push(`仮説${label(hypotheses[i].text, i)}「${D.QUESTION_LABELS.judgement}」`);
+  if (q.result) openAt.push(`仮説${label(hypotheses[i].title, i)}「${D.QUESTION_LABELS.result}」`);
+  if (q.hold) openAt.push(`仮説${label(hypotheses[i].title, i)}「${D.QUESTION_LABELS.hold}」`);
+  if (q.feedback) openAt.push(`仮説${label(hypotheses[i].title, i)}「${D.QUESTION_LABELS.feedback}」`);
 });
 
 // ---------- 書き出し ----------
@@ -302,7 +303,8 @@ if (targetPath) {
 console.log(`  スキーマ: ${schemaPath}`);
 console.log(`  課題: ${issues.length}件 ／ 仮説: ${hypotheses.length}件`);
 console.log(`  ${D.tallyLine(tally)}`);
-if (deferredCount > 0) console.log(`  ${D.deferralLine(deferredCount)}（${D.DEFERRAL_NOTE}）`);
+if (deferredCount > 0) console.log(`  ${D.issueEventLine(deferredCount, "deferred")}（${D.ISSUE_EVENT_NOTES.deferred}）`);
+if (resolvedCount > 0) console.log(`  ${D.issueEventLine(resolvedCount, "resolved")}（${D.ISSUE_EVENT_NOTES.resolved}）`);
 if (openAt.length) console.log(`  ${D.TALLY_TOTAL_LABEL}の内訳: ${openAt.join("、")}`);
 
 if (warnings.length) {

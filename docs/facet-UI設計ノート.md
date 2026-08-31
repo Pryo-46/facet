@@ -701,11 +701,21 @@ facetは「未定義を見えるようにする」ツールであるため、こ
 **M25 での実施:** 集計の前半（要対応から外す）は**実装済みだった**——`poseQuestions`
 （`src/modules/issue-tree/derive.ts`）は抑制配下では問いを立てず、`tallyQuestions` は
 立った問いだけを数える。M25 が足したのは**別枠の側**である。別枠は
-`見送り N`（`deferredIssueCount` / `deferralLine`）——**件数だけで、配下の凍結中の
-問いの内訳・総数は出さない**（人間の裁定。上の確定仕様の `（未決 2件）` の部分は
+`見送り N`（当時の識別子は `deferredIssueCount` / `deferralLine`）——**件数だけで、配下の
+凍結中の問いの内訳・総数は出さない**（人間の裁定。上の確定仕様の `（未決 2件）` の部分は
 実装していない）。チップはグレー（`badgeClass('deferred')`）で押すと見送りを掲げた
-課題を巡回し、`title` に「見送り配下の問いは要対応に数えません」（`DEFERRAL_NOTE`）
-を出す。登録 Skill の報告（`issue-tree-write.mjs --check`）も同じ行を出す。
+課題を巡回し、`title` に「見送り配下の問いは要対応に数えません」（当時の識別子は
+`DEFERRAL_NOTE`）を出す。登録 Skill の報告（`issue-tree-write.mjs --check`）も同じ行を出す。
+
+**issue-tree-m4 での拡張:** 課題の旗が `deferred`（見送り）1種から `deferred` / `resolved`
+（解決）の2種になった（D18 の下、後述）。別枠は種別ごとに独立して立つ（見送りと解決は意味が
+逆だが、どちらも配下抑制の実効は同じで、同時には立たない）。上の識別子は種別を引数に取る形へ
+一般化し、**`deferredIssueCount` / `deferralLine` / `DEFERRAL_NOTE` は
+`issueEventCount(issues, kind)` / `issueEventLine(count, kind)` / `ISSUE_EVENT_NOTES[kind]`
+に置き換わった**（旧識別子はもう存在しない）。チップは `badgeClass('deferred')` を種別に
+よらず使い回して描く（面が運ぶのは凍結の範囲であって旗の種別ではない。「解決」に別の色や
+アイコンを当てるのは見え方の設計であり m5 の担当——`仮説検証モジュール-設計ノート.md` の D12）。
+0件の種別は描かない（`見送り N` と `解決 N` が同時に並ぶこともある）。
 
 ### D18. 見送り配下は祖先から導出する。フィールドを持たない ← rev.3 で新規追加
 

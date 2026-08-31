@@ -5,7 +5,7 @@
  *   open     欠落・まだ見ていない（未定義・未決・仮説なし）  missing の淡い面＋破線
  *   hold     欠落・見たが決められない（保留）                missing の淡い面＋実線
  *   invalid  無効（重複・参照切れ・整合性違反）              invalid の淡い面＋実線
- *   pending  着信（返答していない入力＝未判断）              pending の淡い面＋実線
+ *   pending  着信（返答していない入力＝課題ツリーの「FB待ち」）  pending の淡い面＋実線
  *   yes      支持                                            judge-yes の濃い面
  *   no       棄却                                            judge-no の濃い面
  *   deferred 見送り                                          surface-muted の面・rule の枠

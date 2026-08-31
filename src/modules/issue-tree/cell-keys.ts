@@ -17,8 +17,10 @@ import type { FocusTarget } from './commands'
 /** 仮説の行（展開パネルを含む）の中の欄。`commands.ts` の `FocusTarget` と同じ名前で並べる */
 export type HypothesisCell =
   | { cell: 'hypothesis' }
-  | { cell: 'rationale' }
-  | { cell: 'note'; noteIndex: number }
+  | { cell: 'detail' }
+  | { cell: 'value' }
+  | { cell: 'ask'; askIndex: number }
+  | { cell: 'feedback'; feedbackIndex: number }
   | { cell: 'event'; eventIndex: number }
 
 /** 課題ノードの入力欄 */
@@ -27,11 +29,14 @@ export function issueCellKey(issueKey: string): string {
 }
 
 /**
- * 課題ノードの見送りの理由の欄。**課題の文言とは別の鍵**——同じ箱の中に
- * 2つの入力欄があるので、1つの鍵で引くと予約したのに別の欄が掴まれる
+ * 課題ノードの旗（見送り／解決）の理由の欄。**課題の文言とは別の鍵**——同じ箱の中に
+ * 2つの入力欄があるので、1つの鍵で引くと予約したのに別の欄が掴まれる。
+ *
+ * **鍵に旗の種別を混ぜない。** 種別は同じ1つの欄の中身であって、別の席ではない
+ *——混ぜると、見送りから解決へ差し替えた瞬間に予約した鍵が当たらなくなる
  */
-export function issueDeferralCellKey(issueKey: string): string {
-  return `deferral:${issueKey}`
+export function issueEventCellKey(issueKey: string): string {
+  return `issue-event:${issueKey}`
 }
 
 /**
@@ -44,10 +49,14 @@ export function hypothesisCellKey(hypothesisKey: string, cell: HypothesisCell): 
   switch (cell.cell) {
     case 'hypothesis':
       return `hyp:${hypothesisKey}`
-    case 'rationale':
-      return `rationale:${hypothesisKey}`
-    case 'note':
-      return `note:${hypothesisKey}:${cell.noteIndex}`
+    case 'detail':
+      return `detail:${hypothesisKey}`
+    case 'value':
+      return `value:${hypothesisKey}`
+    case 'ask':
+      return `ask:${hypothesisKey}:${cell.askIndex}`
+    case 'feedback':
+      return `feedback:${hypothesisKey}:${cell.feedbackIndex}`
     case 'event':
       return `event:${hypothesisKey}:${cell.eventIndex}`
   }
@@ -69,16 +78,23 @@ export function cellKey(
   switch (target.cell) {
     case 'issue':
       return issueCellKey(issueKeys[target.index])
-    case 'deferral':
-      return issueDeferralCellKey(issueKeys[target.index])
+    case 'issueEvent':
+      return issueEventCellKey(issueKeys[target.index])
     case 'hypothesis':
       return hypothesisCellKey(hypothesisKeys[target.index], { cell: 'hypothesis' })
-    case 'rationale':
-      return hypothesisCellKey(hypothesisKeys[target.index], { cell: 'rationale' })
-    case 'note':
+    case 'detail':
+      return hypothesisCellKey(hypothesisKeys[target.index], { cell: 'detail' })
+    case 'value':
+      return hypothesisCellKey(hypothesisKeys[target.index], { cell: 'value' })
+    case 'ask':
       return hypothesisCellKey(hypothesisKeys[target.index], {
-        cell: 'note',
-        noteIndex: target.noteIndex,
+        cell: 'ask',
+        askIndex: target.askIndex,
+      })
+    case 'feedback':
+      return hypothesisCellKey(hypothesisKeys[target.index], {
+        cell: 'feedback',
+        feedbackIndex: target.feedbackIndex,
       })
     case 'event':
       return hypothesisCellKey(hypothesisKeys[target.index], {

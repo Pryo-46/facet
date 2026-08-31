@@ -5,7 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { checkIssueTreeConsistency } from './consistency'
-import { deferralLine, deferredIssueCount, ISSUE_DEFERRED_LABEL, poseQuestions, tallyLine, tallyQuestions } from './derive'
+import { ISSUE_EVENT_LABELS, issueEventCount, issueEventLine, poseQuestions, tallyLine, tallyQuestions } from './derive'
 
 /**
  * `issue-tree-write.mjs --check` を実際に spawn し、整合性警告の文言が
@@ -25,10 +25,13 @@ const SCRIPT = path.join(REPO_ROOT, '.claude/skills/issue-tree-register/scripts/
  * consistency.ts が message を出す6ブロック（rule は5種類。duplicate-id は
  * 課題と仮説の2箇所で出る）をすべて一度に炙り出す fixture。
  * スキーマ検証は通る形にしてある（ID は issue_ / hypothesis_ ＋英数字10文字、
- * 課題・仮説とも全キー常在）
+ * 課題・仮説とも全キー常在）。
+ *
+ * hypothesis_AAAAAAAAAA には文言のある問い（asks）を1件、FB無しで持たせてある
+ * ——「要対応の集計行」の it が FB待ちについて何も検証しない事態を避けるため
  */
 const FIXTURE = {
-  schemaVersion: 2,
+  schemaVersion: 4,
   type: 'issueTree',
   title: '検証用',
   issues: [
@@ -43,11 +46,38 @@ const FIXTURE = {
     { id: 'issue_DDDDDDDDDD', parentId: 'issue_CCCCCCCCCC', text: '循環その2', events: [] },
   ],
   hypotheses: [
-    { id: 'hypothesis_AAAAAAAAAA', issueId: 'issue_AAAAAAAAAA', text: '既存SDKで足りる', rationale: '', events: [], pendingNotes: [] },
+    {
+      id: 'hypothesis_AAAAAAAAAA',
+      issueId: 'issue_AAAAAAAAAA',
+      title: '既存SDKで足りる',
+      detail: '',
+      value: '',
+      asks: [{ id: 'ask_AAAAAAAAAA', text: 'レート制限に当たらないか' }],
+      feedbacks: [],
+      events: [],
+    },
     // 同一 ID → duplicate-id（仮説）
-    { id: 'hypothesis_AAAAAAAAAA', issueId: 'issue_AAAAAAAAAA', text: '', rationale: '', events: [], pendingNotes: ['SHから「遅い」と指摘'] },
+    {
+      id: 'hypothesis_AAAAAAAAAA',
+      issueId: 'issue_AAAAAAAAAA',
+      title: '',
+      detail: '',
+      value: '',
+      asks: [],
+      feedbacks: [],
+      events: [],
+    },
     // ぶら下がり先が存在しない → missing-issue
-    { id: 'hypothesis_BBBBBBBBBB', issueId: 'issue_YYYYYYYYYY', text: '宙に浮いた仮説', rationale: '', events: [], pendingNotes: [] },
+    {
+      id: 'hypothesis_BBBBBBBBBB',
+      issueId: 'issue_YYYYYYYYYY',
+      title: '宙に浮いた仮説',
+      detail: '',
+      value: '',
+      asks: [],
+      feedbacks: [],
+      events: [],
+    },
   ],
 }
 
@@ -95,7 +125,7 @@ describe('issue-tree-write.mjs（実行 smoke ＋ 警告文言のアプリ一致
 
   it('欠陥の無いファイルは警告なしの exit 0', () => {
     const { status, stdout } = check({
-      schemaVersion: 2,
+      schemaVersion: 4,
       type: 'issueTree',
       title: '検証用',
       issues: [{ id: 'issue_AAAAAAAAAA', parentId: null, text: '決済PoCで確かめること', events: [] }],
@@ -103,21 +133,23 @@ describe('issue-tree-write.mjs（実行 smoke ＋ 警告文言のアプリ一致
         {
           id: 'hypothesis_AAAAAAAAAA',
           issueId: 'issue_AAAAAAAAAA',
-          text: '既存SDKで足りる',
-          rationale: '前回のPoCで同じ構成を通した',
-          events: [{ kind: 'supported', note: '実測 120ms' }],
-          pendingNotes: [],
+          title: '既存SDKで足りる',
+          detail: '',
+          value: '前回のPoCで同じ構成を通した',
+          asks: [],
+          feedbacks: [],
+          events: [{ kind: 'supported', note: '実測 120ms', date: '2026-08-30' }],
         },
       ],
     })
     expect(status).toBe(0)
     expect(stdout).not.toContain('整合性の警告')
-    expect(stdout).toContain(tallyLine({ hypothesis: 0, result: 0, hold: 0, judgement: 0, total: 0 }))
+    expect(stdout).toContain(tallyLine({ hypothesis: 0, result: 0, hold: 0, feedback: 0, total: 0 }))
   }, 20000)
 
-  it('見送りを掲げた課題があると「見送り N」の行が出て、無ければ出ない', () => {
-    const deferred = {
-      schemaVersion: 2,
+  it('旗を掲げた課題があると「見送り N」「解決 N」の行が出て、無ければ出ない', () => {
+    const flagged = {
+      schemaVersion: 4,
       type: 'issueTree',
       title: '検証用',
       issues: [
@@ -125,21 +157,26 @@ describe('issue-tree-write.mjs（実行 smoke ＋ 警告文言のアプリ一致
           id: 'issue_AAAAAAAAAA',
           parentId: null,
           text: '需要検証',
-          events: [{ kind: 'deferred', note: '今回は追わない' }],
+          events: [{ kind: 'deferred', note: '今回は追わない', date: '2026-08-30' }],
         },
-        { id: 'issue_BBBBBBBBBB', parentId: 'issue_AAAAAAAAAA', text: '認知', events: [] },
+        {
+          id: 'issue_BBBBBBBBBB',
+          parentId: 'issue_AAAAAAAAAA',
+          text: '認知',
+          events: [{ kind: 'resolved', note: '既存の導線で足りる', date: '2026-08-30' }],
+        },
       ],
       hypotheses: [],
     }
-    const withDeferral = check(deferred)
-    expect(withDeferral.status).toBe(0)
-    // アプリの導出と逐語で同じ行（「集計行がアプリと一致する」の見送り版）
-    expect(withDeferral.stdout).toContain(deferralLine(deferredIssueCount(deferred.issues as never)))
+    const out = check(flagged)
+    expect(out.status).toBe(0)
+    // アプリの導出と逐語で同じ行（「集計行がアプリと一致する」の別枠版）
+    expect(out.stdout).toContain(issueEventLine(issueEventCount(flagged.issues as never, 'deferred'), 'deferred'))
+    expect(out.stdout).toContain(issueEventLine(issueEventCount(flagged.issues as never, 'resolved'), 'resolved'))
 
-    const none = {
-      ...deferred,
-      issues: deferred.issues.map((i) => ({ ...i, events: [] })),
-    }
-    expect(check(none).stdout).not.toContain(ISSUE_DEFERRED_LABEL)
+    const none = { ...flagged, issues: flagged.issues.map((i) => ({ ...i, events: [] })) }
+    const noneOut = check(none)
+    expect(noneOut.stdout).not.toContain(ISSUE_EVENT_LABELS.deferred)
+    expect(noneOut.stdout).not.toContain(ISSUE_EVENT_LABELS.resolved)
   }, 20000)
 })

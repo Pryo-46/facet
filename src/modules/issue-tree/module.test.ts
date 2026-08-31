@@ -4,7 +4,7 @@ import { serialize } from '@/core/canonical'
 import { classifyFile } from '@/core/load'
 import { createSchemaValidator } from '@/core/schema-validation'
 import { appRegistry } from '@/modules'
-import type { IssueTreeSchemaVersion2 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import { poseQuestions, tallyQuestions } from './derive'
 import { issueTreeModule } from './module'
 
@@ -14,8 +14,8 @@ describe('issueTreeModule', () => {
   it('規約1・単一性・ID プレフィクスを宣言している', () => {
     expect(issueTreeModule.type).toBe('issueTree')
     expect(issueTreeModule.displayName).toBe('課題ツリー')
-    expect(issueTreeModule.schemaVersion).toBe(2)
-    expect([...issueTreeModule.idPrefixes]).toEqual(['issue', 'hypothesis'])
+    expect(issueTreeModule.schemaVersion).toBe(4)
+    expect([...issueTreeModule.idPrefixes]).toEqual(['issue', 'hypothesis', 'ask'])
     // PoC のテーマごとに1本作るのが普通の使い方。ハブではない
     expect(issueTreeModule.singleton).toBe(false)
   })
@@ -34,20 +34,20 @@ describe('issueTreeModule', () => {
   it('createEmpty は正規形で書ける（キー順はスキーマの properties 記載順）', () => {
     const empty = issueTreeModule.createEmpty('課題ツリー')
     expect(serialize(empty, issueTreeModule.schema)).toBe(
-      `{\n  "schemaVersion": 2,\n  "type": "issueTree",\n  "title": "課題ツリー",\n  "issues": [\n    {\n      "id": "${empty.issues[0].id}",\n      "parentId": null,\n      "text": "",\n      "events": []\n    }\n  ],\n  "hypotheses": []\n}\n`,
+      `{\n  "schemaVersion": 4,\n  "type": "issueTree",\n  "title": "課題ツリー",\n  "issues": [\n    {\n      "id": "${empty.issues[0].id}",\n      "parentId": null,\n      "text": "",\n      "events": []\n    }\n  ],\n  "hypotheses": []\n}\n`,
     )
   })
 
   it('マイグレータが繋がっている（現行版はそのまま・旧版は現行版へ移る）', () => {
-    // 1 → 2 の中身は migrate.test.ts が見る。ここは module の配線だけを固める
+    // 版番号の中身は migrate.test.ts が見る。ここは module の配線だけを固める
     const data = issueTreeModule.createEmpty('T')
-    expect(issueTreeModule.migrate(data, 2)).toBe(data)
-    expect(issueTreeModule.migrate({ ...data, schemaVersion: 1 }, 1).schemaVersion).toBe(2)
+    expect(issueTreeModule.migrate(data, 4)).toBe(data)
+    expect(issueTreeModule.migrate({ ...data, schemaVersion: 1 }, 1).schemaVersion).toBe(4)
   })
 
   it('整合性検証が繋がっている（多重ルートを指摘する）', () => {
     const issues = issueTreeModule.checkConsistency({
-      schemaVersion: 2,
+      schemaVersion: 4,
       type: 'issueTree',
       title: 'T',
       issues: [
@@ -69,7 +69,7 @@ describe('出力プロファイル（規約5）', () => {
 })
 
 describe('お手本ファイル（sample-project）', () => {
-  it('schemaVersion 2 のお手本は editable で開け、保留が1件観測できる', () => {
+  it('schemaVersion 4 のお手本は editable で開け、保留が1件観測できる', () => {
     const raw = readFileSync(
       new URL('../../../sample-project/課題ツリー.json', import.meta.url),
       'utf8',
@@ -77,7 +77,7 @@ describe('お手本ファイル（sample-project）', () => {
     const result = classifyFile(raw, appRegistry)
     expect(result.status).toBe('editable')
     if (result.status === 'editable') {
-      const data = result.data as IssueTreeSchemaVersion2
+      const data = result.data as IssueTreeSchemaVersion4
       expect(tallyQuestions(poseQuestions(data)).hold).toBe(1)
     }
   })

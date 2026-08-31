@@ -169,7 +169,7 @@ describe('役割トークンの使い方（rev 9章 M21）', () => {
     // 使用箇所はその保証の外に出る。半透明の面（M8 の bg-warning/20）が
     // 消えた今、正当な透過は残っていない
     const offenders = offendingLines(
-      /\b(?:[a-z-]+:)?(bg|text|border|ring|outline|stroke|fill|decoration|placeholder|divide)-(canvas|surface|surface-muted|ink|ink-muted|ink-faint|rule|grid|missing|invalid|pending|missing-face|invalid-face|pending-face|judge-yes|judge-yes-fg|judge-no|judge-no-fg)\/\d+/,
+      /\b(?:[a-z-]+:)?(bg|text|border|ring|outline|stroke|fill|decoration|placeholder|divide)-(canvas|surface|surface-muted|ink|ink-muted|ink-faint|rule|grid|missing|invalid|pending|missing-face|invalid-face|pending-face|judge-yes|judge-yes-fg|judge-yes-face|judge-no|judge-no-fg)\/\d+/,
     )
     expect(offenders, `透過は使わない。一段薄くしたければ ink-muted / ink-faint の段を使う:\n${offenders.join('\n')}`).toEqual([])
   })

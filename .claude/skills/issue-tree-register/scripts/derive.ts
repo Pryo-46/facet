@@ -1,9 +1,9 @@
 import type { MissingTally } from '@/core/missing-tally'
 import type {
-  DeferralEvent,
   Hypothesis,
+  IssueEvent,
   IssueNode,
-  IssueTreeSchemaVersion2,
+  IssueTreeSchemaVersion4,
   JudgementEvent,
 } from '@/types/issue-tree'
 
@@ -29,13 +29,14 @@ import type {
  * できなくなるため。ズレを検知するテストは Skill と同時に置く
  */
 
-export type DeferralKind = DeferralEvent['kind']
+/** 課題に立つ旗の種別。**見送りと解決は意味が逆だが、どちらも配下を抑制する** */
+export type IssueEventKind = IssueEvent['kind']
 export type JudgementKind = JudgementEvent['kind']
 
 /** 仮説の現在ステータス。events が空＝未決 */
 export type HypothesisStatus = JudgementKind | 'undecided'
-/** 課題の現在ステータス。events が空＝見送られていない */
-export type IssueStatus = DeferralKind | 'open'
+/** 課題の現在ステータス。events が空＝旗が立っていない */
+export type IssueStatus = IssueEventKind | 'open'
 
 /** 最新イベントの kind。空なら null（＝未決） */
 export function latestKind<K extends string>(events: readonly { kind: K }[]): K | null {
@@ -51,13 +52,15 @@ export function issueStatus(node: Pick<IssueNode, 'events'>): IssueStatus {
 }
 
 /**
- * 見送りが効いている課題の ID 集合（D3）。自分自身の見送りも含む。
+ * 旗が効いている課題の ID 集合（D3）。自分自身の旗も含む。
  *
- * **課題ノードのイベントは見送り（deferred）しか無い**（スキーマ）ので、1件でもあれば
- * 抑制される。見送りを解除して拾い直すときは、**最新の見送りイベントを消す**
- *（`commands.ts` の `toggleDeferral`）——解除を表す種別を追記する機構は持たない。
- * 打ち消しのイベントを足す形にすると、「1件でもあれば抑制」がここで成立しなくなり、
- * 列の中身を数えることになる。
+ * **課題に立つ旗は見送り（deferred）と解決（resolved）の2種だが、この導出は
+ * 種別を見ない**——見ているのは「最新のイベントがあるか」（`latestKind(...) !== null`）
+ * だけなので、どちらの旗でも同じように抑制される。旗を外して拾い直すときは、
+ * **最新のイベントを消す**（`commands.ts` の `toggleIssueEvent`）——解除を表す種別を
+ * 追記する機構は持たない。打ち消しのイベントを足す形にすると、「1件でもあれば
+ * 抑制」がここで成立しなくなり、列の中身を数えることになる。**ここに kind を見る
+ * 分岐を足さないこと**——足すと同じ理由で崩れる。
  *
  * **循環しているファイルでも止まらないこと**が要件。循環・参照切れは整合性検証
  * （レベル2）が受け止める＝ファイルは開ける（rev 5章）ので、ここには壊れた木が
@@ -109,8 +112,18 @@ export interface HypothesisQuestions {
   result: boolean
   /** 「保留」＝最新が onHold（見たが判断できなかった。次のレビューで拾い直す） */
   hold: boolean
-  /** 「未判断」＝ pendingNotes が空でない（レビューの締め忘れ） */
-  judgement: boolean
+  /**
+   * 「FB待ち」＝ **FB が1件も付いていない、文言のある問いの件数**。
+   *
+   * **真偽ではなく件数なのは、要対応の単位が問い（ask）1件だからである。**
+   * ほかの2つが仮説単位の真偽なのに、ここだけ数なのは不揃いに見えるが、
+   * 揃えて真偽にすると「3つ聞きたいことがあって1つしか答えが返っていない」
+   * 仮説が、1つも返っていない仮説と同じ「1」に潰れる。
+   *
+   * **文言が空の問いは数えない**——「＋ 聞きたいこと」を押した瞬間に要対応が
+   * 増えると、書き始める前から急かされることになる（2026-08-30 の決定）
+   */
+  feedback: number
 }
 
 export interface PosedQuestions {
@@ -118,6 +131,25 @@ export interface PosedQuestions {
   issueNeedsHypothesis: boolean[]
   /** hypotheses と同じ添字 */
   hypothesisQuestions: HypothesisQuestions[]
+}
+
+/**
+ * FB を待っている問いの件数。**この関数だけが「FB待ち」の条件を持つ。**
+ *
+ * 数えるのは「文言があり、かつ自分を指す FB が1件も無い問い」である。
+ * **`askId` が `null` の FB は、どの問いの待ちも解かない**——紐づけを強制しない
+ * と決めたことの裏返しで、「何か言われた」ことは「用意した問いに答えが出た」
+ * ことではない。存在しない問いを指す FB も同じ（壊れたファイルでも止まらない）。
+ *
+ * 空文字の判定に `trim` を使わないのは、このスキーマが一貫して
+ * 「空文字＝未記入」で書かれているためである（`text` / `note` / `by` も同じ）
+ */
+export function awaitingAskCount(h: Pick<Hypothesis, 'asks' | 'feedbacks'>): number {
+  const answered = new Set<string>()
+  for (const f of h.feedbacks) if (f.askId !== null) answered.add(f.askId)
+  let count = 0
+  for (const ask of h.asks) if (ask.text !== '' && !answered.has(ask.id)) count += 1
+  return count
 }
 
 /**
@@ -133,7 +165,7 @@ export interface PosedQuestions {
  * `duplicate-id`）がそれを促す
  */
 export function poseQuestions(
-  data: Pick<IssueTreeSchemaVersion2, 'issues' | 'hypotheses'>,
+  data: Pick<IssueTreeSchemaVersion4, 'issues' | 'hypotheses'>,
 ): PosedQuestions {
   const suppressed = suppressedIssueIds(data.issues)
   const leaves = leafIssueIds(data.issues)
@@ -150,7 +182,7 @@ export function poseQuestions(
     return {
       result: !off && h.events.length === 0,
       hold: !off && latestKind(h.events) === 'onHold',
-      judgement: !off && h.pendingNotes.length > 0,
+      feedback: off ? 0 : awaitingAskCount(h),
     }
   })
   return { issueNeedsHypothesis, hypothesisQuestions }
@@ -160,7 +192,7 @@ export interface IssueTreeTally {
   hypothesis: number
   result: number
   hold: number
-  judgement: number
+  feedback: number
   total: number
 }
 
@@ -169,14 +201,15 @@ export function tallyQuestions(posed: PosedQuestions): IssueTreeTally {
   let hypothesis = 0
   let result = 0
   let hold = 0
-  let judgement = 0
+  let feedback = 0
   for (const needs of posed.issueNeedsHypothesis) if (needs) hypothesis += 1
   for (const q of posed.hypothesisQuestions) {
     if (q.result) result += 1
     if (q.hold) hold += 1
-    if (q.judgement) judgement += 1
+    // **足すのは件数である。** ほかの3つと違って真偽ではない（問い1件が要対応1件）
+    feedback += q.feedback
   }
-  return { hypothesis, result, hold, judgement, total: hypothesis + result + hold + judgement }
+  return { hypothesis, result, hold, feedback, total: hypothesis + result + hold + feedback }
 }
 
 /** 問いの文言。**アプリの画面と Skill の報告が同じ言葉を出すため、ここ1箇所に置く** */
@@ -184,17 +217,23 @@ export const QUESTION_LABELS = {
   hypothesis: '仮説なし',
   result: '未決',
   hold: '保留',
-  judgement: '未判断',
+  feedback: 'FB待ち',
 } as const
 
 /**
- * イベント種別の表示ラベル（展開したときの「以前の判断」に出る文言）。
+ * 判断の種別の表示ラベル（展開したパネルのバッジ・その根拠のアクセシブル名・
+ * 判断を選ぶドロップダウンの項目に出る文言）。
+ *
+ * **v4 まではここに「以前の判断」の節も含まれていた**——覆される前の判断を
+ * 読み取り専用で並べる節があり、その行のバッジがこの語を出していた。仮説の
+ * `events` が `maxItems: 1` になって覆りがデータに残らなくなったので、
+ * 節ごと消えた（設計ノート D2 の反転節）。
  *
  * **いまは `BADGE_LABELS` と同じ語しか並んでいない**——判断の種別を5語に畳んだ
- * ため、俯瞰のバッジと展開の行が同じ言葉を出す。それでも `BADGE_LABELS` と
+ * ため、俯瞰のバッジと展開のバッジが同じ言葉を出す。それでも `BADGE_LABELS` と
  * 別に置くのは、鍵が違う（こちらは `JudgementKind`、あちらは `BadgeGroup`）
  * からであり、俯瞰と詳細をまた別の言葉に分けたくなったとき、片方だけ動かせる
- * ようにしておくため（`ISSUE_DEFERRED_LABEL` を別に置いているのと同じ理由）
+ * ようにしておくため（`ISSUE_EVENT_LABELS` を別に置いているのと同じ理由）
  */
 export const EVENT_KIND_LABELS: Record<JudgementKind, string> = {
   supported: '支持',
@@ -212,7 +251,7 @@ export function tallyLine(t: IssueTreeTally): string {
       [QUESTION_LABELS.hypothesis, t.hypothesis],
       [QUESTION_LABELS.result, t.result],
       [QUESTION_LABELS.hold, t.hold],
-      [QUESTION_LABELS.judgement, t.judgement],
+      [QUESTION_LABELS.feedback, t.feedback],
     ] as const
   )
     .filter(([, n]) => n > 0)
@@ -225,8 +264,8 @@ export function tallyLine(t: IssueTreeTally): string {
  * 帯（MissingTally 部品）へ渡す共通形。kind は OpenKind と同じ語で、
  * チップの onJump がそのまま goToNextOpen に渡せる。
  * variant の対応は元々 badge-variant.ts の chipVariantOf が持っていたものと
- * 同じ——未決・仮説なしは破線（open）、保留は実線（hold）、未判断は着信の青
- *（pending）。M22 でここに一本化し、chipVariantOf は削った
+ * 同じ——未決・仮説なしは破線（open）、保留は実線（hold）、FB待ちは着信の青
+ *（pending）——欠落ではなく、返事を待っている。M22 でここに一本化し、chipVariantOf は削った
  */
 export function toMissingTally(t: IssueTreeTally): MissingTally {
   return {
@@ -235,7 +274,7 @@ export function toMissingTally(t: IssueTreeTally): MissingTally {
       { kind: 'hypothesis', label: QUESTION_LABELS.hypothesis, count: t.hypothesis, variant: 'open' as const },
       { kind: 'result', label: QUESTION_LABELS.result, count: t.result, variant: 'open' as const },
       { kind: 'hold', label: QUESTION_LABELS.hold, count: t.hold, variant: 'hold' as const },
-      { kind: 'judgement', label: QUESTION_LABELS.judgement, count: t.judgement, variant: 'pending' as const },
+      { kind: 'feedback', label: QUESTION_LABELS.feedback, count: t.feedback, variant: 'pending' as const },
     ].filter((p) => p.count > 0),
   }
 }
@@ -271,30 +310,46 @@ export const BADGE_LABELS: Record<BadgeGroup, string> = {
   deferred: '見送り',
 }
 
-/** 課題側の見送りバッジ。値は `BADGE_LABELS.deferred` と同じだが、課題と仮説を独立に変えられるよう別名で持つ */
-export const ISSUE_DEFERRED_LABEL = '見送り'
+/**
+ * 課題の旗のラベル。**値は `BADGE_LABELS.deferred` と同じ語を含むが、別に持つ**
+ *——課題と仮説を独立に変えられるようにするため（v2 の `ISSUE_DEFERRED_LABEL` と
+ * 同じ理由）。`Record<IssueEventKind, string>` にしてあるので、旗の種別が増えたら
+ * `tsc` がここで落ちる（手書きの配列にすると黙って古びる）
+ */
+export const ISSUE_EVENT_LABELS: Record<IssueEventKind, string> = {
+  deferred: '見送り',
+  resolved: '解決',
+}
 
 /**
- * 見送りを掲げた課題の数（UI ノート D17 の別枠「見送り N」）。
+ * 旗を掲げた課題の数（UI ノート D17 の別枠）。
  *
- * 数えるのは**自分自身が見送りを掲げている課題**だけ——配下の抑制
- * （`suppressedIssueIds`）は数えない。別枠は「誰が何を落としたか」の台帳
- * なので、入れ子の見送りもそれぞれ1と数える。課題のイベントは見送りしか
- * 無い（スキーマ）ので、判定は「events が空でない」と同値である。
+ * 数えるのは**自分自身がその旗を掲げている課題**だけ——配下の抑制
+ * （`suppressedIssueIds`）は数えない。別枠は「誰が何を落としたか／何を閉じたか」の
+ * 台帳なので、入れ子の旗もそれぞれ1と数える。
+ *
+ * **見送りと解決は別々に数える。** 実効（配下を抑制する）は同じでも意味は逆で、
+ * 「追わないもの」と「答えが出たもの」が1つの数に混ざると台帳として読めない。
  *
  * **配下に眠る凍結中の問いの数は導出しない**——出す画面が無い（人間の裁定。
  * 別枠は件数だけ）。必要が出たら poseQuestions を抑制なしで回す形で足せる
  */
-export function deferredIssueCount(issues: readonly Pick<IssueNode, 'events'>[]): number {
+export function issueEventCount(
+  issues: readonly Pick<IssueNode, 'events'>[],
+  kind: IssueEventKind,
+): number {
   let count = 0
-  for (const node of issues) if (latestKind(node.events) !== null) count += 1
+  for (const node of issues) if (latestKind(node.events) === kind) count += 1
   return count
 }
 
 /** 別枠の1行。アプリのチップと Skill の報告が逐語で同じ文字列を出す。0件のときは呼び出し側が行ごと出さない（チップも描かない） */
-export function deferralLine(count: number): string {
-  return `${ISSUE_DEFERRED_LABEL} ${count}`
+export function issueEventLine(count: number, kind: IssueEventKind): string {
+  return `${ISSUE_EVENT_LABELS[kind]} ${count}`
 }
 
 /** 別枠の注意書き。チップの title と Skill の報告の補足が同じ文を出す */
-export const DEFERRAL_NOTE = `見送り配下の問いは${TALLY_TOTAL_LABEL}に数えません`
+export const ISSUE_EVENT_NOTES: Record<IssueEventKind, string> = {
+  deferred: `見送り配下の問いは${TALLY_TOTAL_LABEL}に数えません`,
+  resolved: `解決配下の問いは${TALLY_TOTAL_LABEL}に数えません`,
+}
