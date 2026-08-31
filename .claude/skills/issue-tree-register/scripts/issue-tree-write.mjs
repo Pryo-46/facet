@@ -21,50 +21,52 @@
 // 並び替わって大きな無意味 diff が出る。SKILL.md は下書きを DFS 行きがけ順で
 // 書くよう勧めている——正規化しないぶん、書く側が揃えておくのが安い
 //
-// **問いの導出は手で複製しない。** ./derive.ts は src/modules/issue-tree/derive.ts の
-// バイト一致コピーで、ズレは src/modules/issue-tree/skill-copy.test.ts が検知する。
+// **問いの導出は手で複製しない。** ./generated/derive.mjs は
+// src/modules/issue-tree/derive.ts から生成される生成物である。
 //
 // 使い方:
 //   node scripts/issue-tree-write.mjs --in draft.json --out <project>/決済PoC.json
 //   node scripts/issue-tree-write.mjs --check <project>/決済PoC.json
-//   （--schema <path> でスキーマを明示指定できる。省略時は自動探索）
 //
 // 終了コード: 0=成功（警告はあり得る） / 1=スキーマ検証失敗 / 2=使い方の誤り
 
 import fs from "node:fs";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const require = createRequire(import.meta.url);
 const SKILL_DIR = path.resolve(fileURLToPath(import.meta.url), "../..");
 
-// ---------- アプリのコピー（手で複製しない） ----------
+// ---------- アプリのロジック（生成物。手で複製しない） ----------
 //
-// derive.ts    = 問いの導出と抑制（src/modules/issue-tree/derive.ts）
-// canonical.ts = 正規形シリアライザ（src/core/canonical.ts）
-// どちらもバイト一致コピーで、ズレは src/modules/issue-tree/skill-copy.test.ts が検知する
+// derive.mjs   = 問いの導出と抑制（src/modules/issue-tree/derive.ts から生成）
+// canonical.mjs = 正規形シリアライザ（src/core/canonical.ts から生成）
+// validate.mjs = スキーマ検証（schemas/issue-tree.schema.json から生成）
+// いずれも npm run gen:skills が作り、アプリが .claude/skills/ へ置き直す
 
-let D, C;
+let D, C, validate;
 try {
-  [D, C] = await Promise.all([import("./derive.ts"), import("./canonical.ts")]);
+  const [d, c, v] = await Promise.all([
+    import("./generated/derive.mjs"),
+    import("./generated/canonical.mjs"),
+    import("./generated/validate.mjs"),
+  ]);
+  [D, C, validate] = [d, c, v.default];
 } catch (e) {
   die(
     2,
-    `同梱の .ts を読み込めません。Node の型ストリップが要ります（22.18+ / 23.6+ / 24+。現在 ${process.version}）\n  ${e.message}`
+    `Skill の生成物が見つかりません。facet でプロジェクトフォルダを開き直してください（アプリが .claude/skills/ を置き直します）\n  ${e.message}`
   );
 }
 
 // ---------- 引数 ----------
 
 const argv = process.argv.slice(2);
-const opt = { in: null, out: null, check: null, schema: null };
+const opt = { in: null, out: null, check: null };
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--in") opt.in = argv[++i];
   else if (a === "--out") opt.out = argv[++i];
   else if (a === "--check") opt.check = argv[++i];
-  else if (a === "--schema") opt.schema = argv[++i];
   else die(2, `不明な引数: ${a}`);
 }
 if (opt.check && (opt.in || opt.out)) die(2, "--check は --in/--out と併用できません。");
@@ -73,28 +75,10 @@ if (!opt.check && (!opt.in || !opt.out)) die(2, "--in <下書き.json> --out <�
 const sourcePath = path.resolve(opt.check ?? opt.in);
 const targetPath = opt.check ? null : path.resolve(opt.out);
 
-// ---------- スキーマの解決（正は一つ。アプリと同じ実体を読む） ----------
-
-function findSchema() {
-  if (opt.schema) return path.resolve(opt.schema);
-  if (process.env.FACET_ISSUE_TREE_SCHEMA) return path.resolve(process.env.FACET_ISSUE_TREE_SCHEMA);
-  const starts = [path.dirname(targetPath ?? sourcePath), process.cwd(), SKILL_DIR];
-  for (const start of starts) {
-    let dir = path.resolve(start);
-    for (;;) {
-      for (const rel of ["issue-tree.schema.json", path.join("schemas", "issue-tree.schema.json")]) {
-        const p = path.join(dir, rel);
-        if (fs.existsSync(p)) return p;
-      }
-      const parent = path.dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
-    }
-  }
-  die(2, "issue-tree.schema.json が見つかりません。--schema <path> で指定してください。");
-}
-
-const schemaPath = findSchema();
+// スキーマは同梱物を読む。**検証は生成物に焼き付いており、ここで読むのは
+// 正規形のキー順を properties の記載順から導出するため**（canonical.mjs）。
+// 差し替えを許すと「検証は同梱・キー順は外部」のちぐはぐが起きるので探索しない
+const schemaPath = path.join(SKILL_DIR, "schemas", "issue-tree.schema.json");
 const schema = readJson(schemaPath, "スキーマ");
 
 // ---------- 入力 ----------
@@ -103,19 +87,8 @@ const data = readJson(sourcePath, "入力ファイル");
 
 // ---------- スキーマ検証（不合格＝レベル1。アプリは開けない） ----------
 
-let AjvCtor;
-try {
-  const m = require("ajv/dist/2020.js");
-  AjvCtor = m.default ?? m;
-} catch {
-  die(2, `ajv が見つかりません。次を実行してください:\n  cd "${SKILL_DIR}" && npm install`);
-}
-const ajv = new AjvCtor({ allErrors: true, strict: false });
-const validate = ajv.compile(schema);
-
 if (!validate(data)) {
   console.error(`✗ スキーマ検証に失敗しました（アプリはこのファイルを開けません）`);
-  console.error(`  スキーマ: ${schemaPath}`);
   for (const e of validate.errors) {
     const at = e.instancePath || "(ルート)";
     const extra = e.params?.allowedValues ? `（許可値: ${e.params.allowedValues.join(", ")}）` : "";
@@ -300,7 +273,6 @@ if (targetPath) {
   console.log(`✓ スキーマ検証OK: ${sourcePath}`);
   console.log(raw === text ? "✓ 正規形と一致しています" : "△ 正規形と差があります（--in/--out で書き直せます）");
 }
-console.log(`  スキーマ: ${schemaPath}`);
 console.log(`  課題: ${issues.length}件 ／ 仮説: ${hypotheses.length}件`);
 console.log(`  ${D.tallyLine(tally)}`);
 if (deferredCount > 0) console.log(`  ${D.issueEventLine(deferredCount, "deferred")}（${D.ISSUE_EVENT_NOTES.deferred}）`);
