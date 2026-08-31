@@ -201,6 +201,10 @@ Node の下限が **18+**（＝Claude Code 自身が動く版）になる根拠�
 - 「マージ後の後片付け」の `git clean -fdx sample-project/` に `-x` を付ける理由を、**「`.claude/skills/` は `npm install` 済みで数百 MB になる」から生成物の話へ**差し替えた（`skills/*/scripts/generated/` は `npm run gen:skills` が作り、原本は `schemas/` と `src/` の側にある）
 - **同じ節の「JSON 4本は追跡対象なので」を「JSON 5本」に直した**（`git ls-files sample-project` は JSON を5本返す。M30 とは無関係の古い数えで、レビューが見つけた）
 
+## [`../lessons-for-planning.md`](../lessons-for-planning.md) への反映事項
+
+- **「申し送りを書いたあとに同じブランチへコミットが積まれたら、凍らせる前に `git log <申し送りのコミット>..HEAD` を読む」を足した。** M30 自身がそれを踏んだ——最終レビューの指摘に応える2コミット（`66f98ab` / `59b2ef2`）が、本書が既に「実装で確定した事項」「実測値」「未検証として残るもの」として書いていた内容を**実際に変えていた**（`ucs2length` の穴が閉じ、「診断ゼロ」が初めて測れた値になり、埋め込みのサイズが +294 B → +430 B へ動いた）。**実装タスクの完了と、レビュー・修正ラウンドの完了は別の時点であり、申し送りが対応すべきは後者である**
+
 ## `src/core/skill-sync.ts` のコメント（式は不変）
 
 Task 5・Task 6 が JSDoc 4箇所を書き換えたが、**現在形で「利用者が `npm install` で作った」と述べる本文コメントが2箇所残っていた**（`syncBundledSkills` の JSDoc と、削除ループの中のコメント）。round 1 で「旧版の SKILL.md が指示した `npm install` の結果。M30 以降は作られないが、旧版を使ったフォルダには残っている」へ改めた。**`isRemovableSkillEntry` の保護そのものは1文字も変えていない**——守る対象が「これから作られるもの」から「もう作られないが残っているもの」に変わっただけで、消さない判断は同じである。
