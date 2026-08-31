@@ -797,7 +797,7 @@ git commit -m "docs(m30): SKILL.md から前準備とスキーマ差し替えの
 **Files:**
 - Modify: `docs/overview-rev.md`（4章に2箇所、5章に1箇所）
 - Modify: `CLAUDE.md`（「マージ後の後片付け」の `clean -fdx` の理由書き）
-- Modify: `docs/open-issues.md`（「次に手を付ける候補」の4・7・9番）
+- Modify: `docs/open-issues.md`（「次に手を付ける候補」の**4番と7番**。計画は当初9番も挙げていたが、9番に該当記述は無い——Task 7 の実装で `grep` により判明）
 - Create: `docs/history/m30-core-skill-no-install.md`
 
 - [ ] **Step 1: rev 4章「アプリのロジックを同梱スクリプトから使う方法」を直す**
