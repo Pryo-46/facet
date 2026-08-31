@@ -148,8 +148,8 @@ export function questionHints(step: StepShape): QuestionLabels {
  * 素直なプロパティアクセスにならない——その差を吸収するのがこの関数の仕事。
  *
  * **読み方の正はここ1箇所。** かつては commands.ts に置き、SequenceEditor.tsx が
- * ローカルに複製していた（M2 の申し送りの既知の負債）。同梱 Skill の
- * sequence-write.mjs がこのファイルをバイト一致コピーして使うため、
+ * ローカルに複製していた（M2 の申し送りの既知の負債）。`npm run gen:skills` が
+ * このファイルを `.mjs` へ変換して sequence-register へ同梱するため、
  * 値 import を持たないこのファイルへ集約した
  */
 export function readSlot(

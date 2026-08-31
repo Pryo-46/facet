@@ -1,7 +1,8 @@
 /**
  * 正規形シリアライザ（全ツール共通・コア）。
- * Skill 側 .claude/skills/glossary-term-register/scripts/glossary-write.mjs と
- * バイト単位で同一の出力を返すこと（canonical.test.ts の回帰テストで担保）。
+ * `npm run gen:skills` が `.mjs` へ変換し、5 Skill すべての
+ * scripts/generated/canonical.mjs として同梱される。生成物がこのファイルと
+ * バイト単位で同一の出力を返すことは scripts/gen-skills.test.mjs が担保する。
  * キー順はスキーマの properties 記載順から実行時に導出する（ハードコード禁止）。
  */
 export type JsonSchema = Record<string, unknown>

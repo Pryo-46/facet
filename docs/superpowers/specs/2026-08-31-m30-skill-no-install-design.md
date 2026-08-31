@@ -61,20 +61,23 @@ standalone の生成は `code: { source: true, esm: true }` を渡した Ajv2020
 
 **`esm: true` を渡しても、CJS の `require` が1件残るスキーマがある。** `minLength` / `maxLength` を持つスキーマで、ajv が長さの数え方（サロゲートペアを1文字と数える）を `require("ajv/dist/runtime/ucs2length").default` として埋め込むためである。**この文字列は ajv 側のソースに定数として書かれている**（`ucs2length.code`）ので、置換対象として安定して狙える。
 
-したがって生成の最後に**埋め込み置換**を通す。実体は `node_modules/ajv/dist/runtime/ucs2length.js` から逐語で写した20行で、置換後に `require(` が1件でも残っていたら**生成を失敗させる**:
+したがって生成の最後に**埋め込み置換**を通す。実体は手写しではなく、`require('ajv/dist/runtime/ucs2length').default` を実行時に読み、`ucs2length.code`（置換対象の文字列そのもの）と `ucs2length.toString()`（実体）から表を組んで取る。置換後に走査で `require(` が1件でも残っていたら**生成を失敗させる**:
 
 ```js
+const ucs2length = require('ajv/dist/runtime/ucs2length').default
+const AJV_RUNTIME_INLINE = { [ucs2length.code]: ucs2length.toString() }
+
 function inlineAjvRuntime(src, name) {
   let out = src
   for (const [needle, impl] of Object.entries(AJV_RUNTIME_INLINE)) out = out.split(needle).join(`(${impl})`)
-  const left = [...out.matchAll(/\brequire\(([^)]*)\)/g)].map((m) => m[1])
+  const left = [...out.matchAll(/require\("ajv\/dist\/runtime\/[^"]*"\)(?:\.default)?/g)].map((m) => m[0])
   // 黙って通すと「実行するまで壊れていると分からない生成物」が出る
-  if (left.length > 0) throw new Error(`${name}: 未知の ajv ランタイムが残った: ${JSON.stringify(left)}`)
+  if (left.length > 0) { console.error(...); process.exit(1) }
   return out
 }
 ```
 
-**未知のランタイムで throw することが肝である。** ajv を上げて別のランタイムを要求するようになったとき、ここで止まらなければ壊れた生成物が黙って配布される。
+**未知のランタイムで止めることが肝である。** ajv を上げて別のランタイムを要求するようになったとき、ここで止まらなければ壊れた生成物が黙って配布される。走査は `ajv/dist/runtime/` を require するパターンだけに絞ってある——素の `\brequire\(([^)]*)\)` だと、standalone 出力が丸ごと抱えるスキーマの日本語 description に "require(" の4文字がたまたま現れただけで、的外れな理由（生成の失敗）で止まってしまうため。
 
 置換後の実測（5本とも）: `require` ゼロ、お手本 JSON を `true`、`schemaVersion` を壊した版を `false`。エラーオブジェクトの形は ajv 本体と同一（`instancePath` / `keyword` / `params` / `message`）。
 
@@ -245,7 +248,7 @@ standalone にすると検証ロジックは生成時に焼き付くので、**�
 - **Node 18 での実走**は上のチェックリストに入れたが、開発機は 22.20 であり、CI も無い。**下限の主張は構文とAPIの調査に基づく見積もりであって、実走の記録ではない**——実機確認で踏むまではそう扱う
 - `transpileModule` はトランスパイルのみで型検査をしない。**型の誤りは `tsc -b` が `src/` 側で捕まえる**という前提に乗っている（同梱物側では見ない）
 - standalone 出力の互換性は ajv の版に依存する。`dependencies` の `ajv` を上げたとき、生成物の形が変わる可能性がある（生成物の実走テストが検知する）
-- **`ucs2length` の埋め込みは ajv のソースから写した実体である。** ajv を上げたとき、*別の*ランタイムを要求するようになれば `inlineAjvRuntime` が throw して止まるが、**同じ名前のまま実装だけが変わった場合は検知できない**——写した20行が古いまま使われ続ける。長さの数え方はコードポイント数という仕様で固定されており変わる見込みは薄いが、**機械では守っていない**
+- `ucs2length` の埋め込みは `require('ajv/dist/runtime/ucs2length').default` を実行時に読んで組むため、手写しの実体が ajv の版とズレる穴は無い。ajv を上げて*別の*ランタイムを要求するようになれば `inlineAjvRuntime` が走査で検知して止まる
 
 ## ドキュメントの更新
 
