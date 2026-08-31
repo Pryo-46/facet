@@ -31,7 +31,7 @@ git checkout -- sample-project/ && git clean -fdx sample-project/
 git status --short          # 空になること
 ```
 
-`-x` を付けるのは、`.gitignore` した自動生成物（`.claude/skills/` は `npm install` 済みで数百 MB になる）も落とすため。**お手本の JSON は追跡対象なので `checkout` が戻す**——`clean` では消えない。
+`-x` を付けるのは、`.gitignore` した自動生成物（アプリが置き直す `.claude/` 一式。**その `skills/*/scripts/generated/` は `npm run gen:skills` が作る生成物で、原本は `schemas/` と `src/` の側にある**——M30 より前はここに `npm install` 済みの `node_modules` が入り数百 MB になっていた）も落とすため。**お手本の JSON は追跡対象なので `checkout` が戻す**——`clean` では消えない。
 
 **2. マージする**（PR 経由でも `git merge` でも）
 
