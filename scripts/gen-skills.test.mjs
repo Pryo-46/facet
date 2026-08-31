@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { SKILL_SOURCES } from './gen-skills.mjs'
 import { BUNDLED_SKILLS } from '../src/core/skill-sync.ts'
+import { extractImportStatements, isValueImportStatement } from '../src/core/import-analysis.ts'
 
 /**
  * 同梱 Skill の生成物（`scripts/generated/`）を検査する。
@@ -90,6 +91,11 @@ describe.each(SHARED_PAIRS)('生成した $base', ({ app, skill, base }) => {
     const src = readFileSync(app, 'utf8')
     expect(src).not.toMatch(/^\s*(export\s+)?(const\s+)?enum\s/m)
     expect(src).not.toMatch(/constructor\s*\([^)]*\b(public|private|protected|readonly)\s/)
+  })
+
+  it('原本が値 import を持たない（変換後に自己完結する条件）', () => {
+    const src = readFileSync(app, 'utf8')
+    expect(extractImportStatements(src).filter(isValueImportStatement)).toEqual([])
   })
 })
 
