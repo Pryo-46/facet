@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "facet",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "identifier": "app.facet.desktop",
   "build": {
     "frontendDist": "../dist",
