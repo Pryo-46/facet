@@ -74,9 +74,10 @@ export function shouldDescendSkillDir(name: string): boolean {
  *   Tauri の書き込み許可スコープ外のファイルを含むこともあって同期が壊れる）
  *
  * **`.gitignore` は同期する（sequence M4 の最終レビューで一度除外し、この
- * タスクで戻した）。** SKILL.md が指示する `npm install` は置いた先に
- * 未追跡の `node_modules` を数千ファイル作るので、`.gitignore`
- * （`node_modules/` を含む）を一緒に置かないと利用者の `git status` が汚れる。
+ * タスクで戻した）。** 旧版の SKILL.md が指示していた `npm install` は
+ * 置いた先に未追跡の `node_modules` を数千ファイル作っており、利用者の
+ * 手元にまだ残っている。`.gitignore`（`node_modules/` を含む）を同期し
+ * 続けなければ、それが `git status` に出続けてしまう。
  * **mac では `allow_skill_dir` が Skill ごとの `.gitignore` を `allow_file`
  * で literal に許可して初めて書ける**（`src-tauri/src/lib.rs`）。実行時
  * scope の照合は `require_literal_leading_dot: true`（unix の既定）で
