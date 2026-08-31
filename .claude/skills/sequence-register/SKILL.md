@@ -9,7 +9,7 @@ description: 仕様整理ツールのシーケンスファイル（type=sequence
 
 **このSkillが紐づく対象: `type: "sequence"` × `schemaVersion 1`。** スキーマが改訂されたらこのSkillも追従させる（アプリとSkillは別々にバージョン管理される成果物であり、この対応が依存関係の記録）。
 
-**問いの導出（`scripts/questions.ts`）はアプリの `src/modules/sequence/questions.ts` のバイト一致コピーである。手で編集しない。** 直すときはアプリ側を直してコピーし直す（ズレはアプリのユニットテストが検知する）。
+**問いの導出（`scripts/generated/questions.mjs`）は生成物である（`npm run gen:skills` が `scripts/generated/` へ作る）。手で編集しない。** 直すときはアプリ側の原本（`src/modules/sequence/questions.ts`）を直す（ズレは `scripts/gen-skills.test.mjs` が検知する）。
 
 **このSkillの材料は既存2本（用語集・エラーカタログ）と違う。** あちらは資料や口頭の1件ずつを構造化するが、こちらは**直前までの会話そのもの**が材料になる。会話には既にAIの発言が混ざっているので、**何が人間の決定で何がAIの推測か**の線引きが最も重要になる。
 

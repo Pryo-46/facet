@@ -82,7 +82,7 @@ function inlineAjvRuntime(src, name) {
 
 `transpileModule` は型注釈を落とすだけで、値 import の解決は行わない。**同梱する `.ts` が値 import を持たないという既存の制約は、そのまま生成の前提条件として残る**（テストで固定する。テスト方針を参照）。
 
-共有4本も実測した。`target: ES2022` / `module: ESNext` で、**4本とも残る import 文ゼロ・診断ゼロ**:
+共有4本も実測した。`target: ES2022` / `module: ESNext` で、**4本とも残る import 文ゼロ・診断ゼロ**（`reportDiagnostics: true` を渡した上での実測。渡さないと `out.diagnostics` は常に `undefined` で、素通りしているだけなのに0件に見える——一度この見落としをやった）:
 
 | ソース | 出力 |
 | --- | --- |

@@ -9,7 +9,7 @@ description: 仕様整理ツールの課題ツリーファイル（type=issueTre
 
 **このSkillが紐づく対象: `type: "issueTree"` × `schemaVersion 4`。** スキーマが改訂されたらこのSkillも追従させる（アプリとSkillは別々にバージョン管理される成果物であり、この対応が依存関係の記録）。旧版のファイルは、版番号だけが上がって開かれる——**互換の変換は用意しない。** v4 の形でなければ移行後の検証で弾かれて開けない（読み替えを足すと、もう無いキーがデータの中に別の顔で生き残るため）。**v3 との違いは `events` の件数だけである**——課題の旗も仮説の判断も **0 件か 1 件**（`maxItems: 1`）になった。判断が2件以上ある v3 のファイルは開けない。Skill は 4 で書く。
 
-**問いと抑制の導出（`scripts/derive.ts`）はアプリの `src/modules/issue-tree/derive.ts` のバイト一致コピーである。手で編集しない。** 直すときはアプリ側を直してコピーし直す（ズレはアプリのユニットテストが検知する）。
+**問いと抑制の導出（`scripts/generated/derive.mjs`）は生成物である（`npm run gen:skills` が `scripts/generated/` へ作る）。手で編集しない。** 直すときはアプリ側の原本（`src/modules/issue-tree/derive.ts`）を直す（ズレは `scripts/gen-skills.test.mjs` が検知する）。
 
 **このSkillの材料はシーケンスと同じく、直前までの会話そのものである。** 会話には既にAIの発言が混ざっているので、**何が人間の決定で何がAIの推測か**の線引きが最も重要になる。課題ツリーではその線が `feedbacks`（記録）と `events`（判断）の境目に現れる（後述）。
 

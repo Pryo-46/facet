@@ -7,7 +7,7 @@
  * 生成物は追跡しない（`.gitignore`）。`src/types/*.ts` と同じ扱いで、
  * `pretest` / `prebuild` / `predev` / `prepare` の4経路で毎回作り直す
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -48,40 +48,37 @@ export const SKILL_SOURCES = {
  * という定数文字列として出力へ埋めるためで、`minLength` / `maxLength` を
  * 持つスキーマ（glossary / error-catalog / sequence）で実際に出る。
  *
- * 実体は `node_modules/ajv/dist/runtime/ucs2length.js` から逐語で写した
+ * needle（`.code`）も実体（`.toString()`）も ajv が実行時に持っているので、
+ * 手で書き写さずそこから取る。ajv を上げて同名のまま実装だけ変わっても、
+ * ここは自動で追従する——手写しだと追従できない
  */
-const AJV_RUNTIME_INLINE = {
-  'require("ajv/dist/runtime/ucs2length").default': `function ucs2length(str) {
-  const len = str.length;
-  let length = 0;
-  let pos = 0;
-  let value;
-  while (pos < len) {
-    length++;
-    value = str.charCodeAt(pos++);
-    if (value >= 0xd800 && value <= 0xdbff && pos < len) {
-      value = str.charCodeAt(pos);
-      if ((value & 0xfc00) === 0xdc00) pos++;
-    }
-  }
-  return length;
-}`,
-}
+const ucs2length = require('ajv/dist/runtime/ucs2length').default
+const AJV_RUNTIME_INLINE = { [ucs2length.code]: ucs2length.toString() }
 
 /**
  * 埋め込み置換。**未知のランタイムが残ったら止める。**
  * 黙って通すと「実行するまで壊れていると分からない生成物」が配布される
+ *
+ * **走査は `ajv/dist/runtime/` を require するパターンだけに絞る。** ajv の
+ * runtime/*.js はどれも自分の `.code` をこの形の文字列で持ち、他の場所で
+ * この文字列が作られることは無い（実測で確認済み）。`\brequire\(([^)]*)\)`
+ * のような素の走査だと、standalone 出力が丸ごと抱えるスキーマの description
+ * （日本語の長文）に "require(" の4文字がたまたま現れただけで、
+ * 的外れな理由（生成の失敗）で止まる
  */
 function inlineAjvRuntime(src, name) {
   let out = src
   for (const [needle, impl] of Object.entries(AJV_RUNTIME_INLINE)) {
     out = out.split(needle).join(`(${impl})`)
   }
-  const left = [...out.matchAll(/\brequire\(([^)]*)\)/g)].map((m) => m[1])
+  const left = [...out.matchAll(/require\("ajv\/dist\/runtime\/[^"]*"\)(?:\.default)?/g)].map(
+    (m) => m[0],
+  )
   if (left.length > 0) {
     console.error(
       `gen:skills  ${name}: 未知の ajv ランタイムが残りました: ${JSON.stringify(left)}\n` +
-        `  AJV_RUNTIME_INLINE に実体を足してください（node_modules/ajv/dist/runtime/ から逐語で写す）`,
+        `  AJV_RUNTIME_INLINE に実体を足してください（require('ajv/dist/runtime/<name>').default の\n` +
+        `  .code / .toString() から取る。node_modules/ajv/dist/runtime/ から手で写さない）`,
     )
     process.exit(1)
   }
@@ -101,6 +98,10 @@ const standaloneCode = require('ajv/dist/standalone').default ?? require('ajv/di
 
 for (const [skill, { schema: schemaName }] of entries) {
   const outDir = path.join(ROOT, '.claude', 'skills', skill, 'scripts', 'generated')
+  // SKILL_SOURCES から共有ソースを外す・改名する・Skill を1本外すと、対応する古い
+  // .mjs は書き直されず残ってしまう。tauri.conf.json は .claude/skills をディレクトリ
+  // ごとバンドルするので、掃除しないと残骸がそのまま配布物に載る。作り直す前に空にする
+  await rm(outDir, { recursive: true, force: true })
   await mkdir(outDir, { recursive: true })
 
   const schema = JSON.parse(
@@ -117,7 +118,19 @@ for (const [skill, { schema: schemaName }] of entries) {
       // ES2022 に落とすと Node 18 で動く。`module: ESNext` は import/export をそのまま残す
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
       fileName: rel,
+      reportDiagnostics: true,
     })
+    // 素の構文エラーに対する安い belt。ただし `enum` などの「消去できない構文」は
+    // ここでは捕まらない（transpileModule は型注釈しか落とさないので構文としては
+    // 成立してしまう）——そちらは gen-skills.test.mjs の正規表現が引き続き番人
+    if (out.diagnostics && out.diagnostics.length > 0) {
+      const messages = out.diagnostics.map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'))
+      console.error(
+        `gen:skills  ${rel}: TypeScript の診断が ${messages.length} 件あります:\n` +
+          messages.map((m) => `  - ${m}`).join('\n'),
+      )
+      process.exit(1)
+    }
     const base = path.basename(rel).replace(/\.ts$/, '.mjs')
     await writeFile(path.join(outDir, base), out.outputText, 'utf8')
     console.log(`gen:skills  ${rel} -> ${skill}/scripts/generated/${base}`)

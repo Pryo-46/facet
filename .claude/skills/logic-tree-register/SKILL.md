@@ -9,7 +9,7 @@ description: 仕様整理ツールのロジックツリーファイル（type=lo
 
 **このSkillが紐づく対象: `type: "logicTree"` × `schemaVersion 1`。** スキーマが改訂されたらこのSkillも追従させる（アプリとSkillは別々にバージョン管理される成果物であり、この対応が依存関係の記録）。
 
-**木の組み立てと DFS 行きがけ順の正規化（`scripts/flat-tree-core.ts`）はアプリの `src/core/canvas/flat-tree-core.ts` のバイト一致コピーである。手で編集しない。** 直すときはアプリ側を直してコピーし直す（ズレは `src/modules/logic-tree/skill-copy.test.ts` が検知する）。
+**木の組み立てと DFS 行きがけ順の正規化（`scripts/generated/flat-tree-core.mjs`）は生成物である（`npm run gen:skills` が `scripts/generated/` へ作る）。手で編集しない。** 直すときはアプリ側の原本（`src/core/canvas/flat-tree-core.ts`）を直す（ズレは `scripts/gen-skills.test.mjs` が検知する）。
 
 **このSkillはフェーズを1つしか持たない。** シーケンス・課題ツリーの「問いを詰めるフェーズB」に当たるものは無い——ロジックツリーのスキーマには問いの仕組みが無く、欠落は「`text` が空」1種類だけだからである。
 
