@@ -25,7 +25,7 @@
 **やらないこと**
 
 - **旧版が作った `node_modules` / `package-lock.json` の掃除**（人間の裁定）。アプリが数百 MB を黙って消すことはしない。`isRemovableSkillEntry` の保護はそのまま残し、旧版を使ったフォルダにはそれらが残り続ける
-- Skill のバンドル（esbuild などで1ファイルに畳む）。いま同梱する7ファイルはすべて値 import を持たず、その制約はテストで固定済みなので、単純トランスパイルで足りる
+- Skill のバンドル（esbuild などで1ファイルに畳む）。いま同梱する8ファイルはすべて値 import を持たず、その制約はテストで固定済みなので、単純トランスパイルで足りる
 - `palette-retheme`（`BUNDLED_SKILLS` に無い。ユーザーのフォルダには置かれない）
 
 ### 到達点
@@ -136,7 +136,7 @@ export const SKILL_SOURCES = {
 
 リポジトリから消えるもの:
 
-- `.claude/skills/*/scripts/*.ts` — 7ファイル（`canonical.ts` ×5、`derive.ts`、`questions.ts`、`flat-tree-core.ts`）
+- `.claude/skills/*/scripts/*.ts` — **8ファイル**（`canonical.ts` ×5、`derive.ts`、`questions.ts`、`flat-tree-core.ts`）
 - `.claude/skills/*/package.json` — 5ファイル
 
 `.claude/skills/*/.gitignore` は**残す**（旧版が作った `node_modules` を利用者の `git status` から隠し続けるため）。
