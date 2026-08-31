@@ -19,6 +19,7 @@ M30 は、同梱 Skill が置かれた先で**利用者に要求していた2つ
 | 4 | `478a3aa` | 残り4本（glossary / error-catalog / sequence / logic-tree）を同じ形へ |
 | 5 | `f01daae` | 旧コピー（`.ts` 8本）・`package.json` 5本・旧テスト4本を削除し、`isValueImportStatement` のケース表を `src/core/import-analysis.test.ts` へ移送（`skill-sync.ts` の JSDoc 3箇所も書き換え。**ロジックは無変更**） |
 | 6 | `3d6829c` | `SKILL.md` 5本から前準備とスキーマ差し替えの記述を削除（＋ `skill-sync.ts` の JSDoc 1箇所） |
+| 最終レビュー | `66f98ab` → `59b2ef2` | ブランチ全体のレビュー2巡ぶんの修正。**利用者の手元へ配られるもの**の直し（README・SKILL.md 3本が消したはずの `npm install` とバイト一致コピーを指示したまま／書き出しスクリプトのヘッダの旧機構の説明／**共有ソースの JSDoc が配布物の `.mjs` へそのまま写ること**）と、生成の穴（**ucs2length の手写しをやめて ajv 実行時から導出**／`generated/` を作り直す前に空にする／残存 `require` の走査の誤検知／`reportDiagnostics: true`）|
 | 7 | 本コミット | rev 8箇所・`CLAUDE.md` 2箇所・[`../open-issues.md`](../open-issues.md)・`skill-sync.ts` のコメント2箇所・本書（レビュー round 1 の修正を含む。**rev の8箇所のうち5箇所と `CLAUDE.md` の1箇所はレビューが見つけたもの**） |
 
 ---
@@ -50,9 +51,13 @@ src/**/<shared>.ts ─────ts.transpileModule(ES2022)──> .claude/skil
 
 `minLength` / `maxLength` を持つスキーマでは、ajv が長さの数え方（サロゲートペアを1文字と数える）を `require("ajv/dist/runtime/ucs2length").default` として埋め込む。**5本のうち3本（`glossary` / `error-catalog` / `sequence`）で実際に残った。**
 
-対処は**埋め込み置換**である。実体は `node_modules/ajv/dist/runtime/ucs2length.js` から逐語で写し、置換後に `require(` が1件でも残っていたら**生成を失敗させる**（`inlineAjvRuntime`）。**未知のランタイムで止めることが肝である**——ajv を上げて別のランタイムを要求するようになったとき、ここで止まらなければ壊れた生成物が黙って配布される。同じことを `scripts/gen-skills.test.mjs` の「CJS の `require` が1件も残らない」でも見ており、**生成時と検査時の二重に張ってある**。
+対処は**埋め込み置換**である（`inlineAjvRuntime`）。置換後に `ajv/dist/runtime/` を指す `require` が1件でも残っていたら**生成を失敗させる**。**未知のランタイムで止めることが肝である**——ajv を上げて別のランタイムを要求するようになったとき、ここで止まらなければ壊れた生成物が黙って配布される。同じことを `scripts/gen-skills.test.mjs` の「CJS の `require` が1件も残らない」でも見ており、**生成時と検査時の二重に張ってある**。
 
-置換の実測コストは3本とも**ちょうど +294 B**（下の表の差分）。
+**埋め込む実体の取り方は、最終レビューの round 2（`66f98ab`）で変わった。** 初版は `node_modules/ajv/dist/runtime/ucs2length.js` から**20行を逐語で写して**いたが、いまは needle も実体も **ajv 自身が実行時に持っているもの**（`require('ajv/dist/runtime/ucs2length').default` の `.code` と `.toString()`）から取る。**手写しだと「同じ名前のまま実装だけが変わった ajv」に追従できない**——その穴を機械的に消した（当時「機械では守っていない」と書いていた項が、そのまま閉じた）。
+
+**残存 `require` の走査も同じ round で絞った**——素の `\brequire\(([^)]*)\)` だと、standalone 出力が丸ごと抱えるスキーマの `description`（日本語の長文）に `require(` の4文字がたまたま現れただけで、的外れな理由で生成が止まる。いまは `require("ajv/dist/runtime/…")` の形だけを見る。
+
+置換の実測コストは3本とも**ちょうど +430 B**（下の表の差分。逐語写しだった初版は +294 B で、`.toString()` が返す実体のほうが長い）。
 
 ### 検証をやめても、スキーマの実体は実行時に要る
 
@@ -100,21 +105,29 @@ ajv の実行時解決に使っていた `createRequire` は5本とも消えた�
 
 `shouldSyncSkillFile` は除外リスト方式なので `scripts/generated/` は**自動的に同期される**（変更なし）。書き込みループもファイルごとに `mkdir(dir)` を呼ぶので `generated/` は作られる（変更なし）。
 
+**ただし「自動的に同期される」の裏返しが、最終レビューの round 2 で1つ見つかった**（`66f98ab` の M-2）——`SKILL_SOURCES` から共有ソースを外す・改名する・Skill を1本外すと、対応する古い `.mjs` は**書き直されないまま `generated/` に残る**。`tauri.conf.json` は `.claude/skills` をディレクトリごとバンドルするので、掃除しなければ残骸がそのまま配布物に載る。いまは**作り直す前に `generated/` を空にする**（`rm -rf` 相当）。
+
+### 配布物に写るのは、コードだけではない
+
+**共有ソースの JSDoc は、生成した `.mjs` の中へそのまま写って利用者のフォルダへ置かれる。** M30 の本体を作り終えた時点では、`canonical.ts` / `derive.ts` / `questions.ts` / `flat-tree-core.ts` の JSDoc が「このファイルは登録 Skill へ**バイト一致でコピーされる**」「Node の**型ストリップ**でそのまま実行される」「ズレは `src/modules/<tool>/skill-copy.test.ts` が検知する」と、**M30 が消したばかりの機構を配布物の中で説明していた**（`flat-tree-core.ts` に至っては、存在しないテストを名指ししていた）。**Task 7 は台帳に記録して残す判断をしたが、最終レビューの round 2（`59b2ef2`）が実物のほうを直した**——**利用者の手元で Claude が読む文章が、消したはずの手複製を説明している**のは記録で済ませてよい種類ではない、という判断である。**原本の JSDoc を「配布物の一部」として扱うこと**——これが M30 で確定した読み方である。
+
 ---
 
 ## 実測値
 
-生成物のサイズ（`node scripts/gen-skills.mjs` 実行後に実測）:
+生成物のサイズ（**最終レビューの round 2 まで済んだ状態**で `node scripts/gen-skills.mjs` を回して実測）:
 
 | Skill | `validate.mjs` | ucs2length の埋め込み前 | 共有の生成物 | 合計 |
 | --- | --- | --- | --- | --- |
-| `logic-tree-register` | 10,927 B | 同左（`require` 0件） | `canonical.mjs` 1,289 ／ `flat-tree-core.mjs` 5,155 | 17,371 B |
-| `glossary-term-register` | 14,319 B | 14,025 B（+294） | `canonical.mjs` 1,289 | 15,608 B |
-| `error-catalog-register` | 19,348 B | 19,054 B（+294） | `canonical.mjs` 1,289 | 20,637 B |
-| `sequence-register` | 40,215 B | 39,921 B（+294） | `canonical.mjs` 1,289 ／ `questions.mjs` 7,139 | 48,643 B |
+| `logic-tree-register` | 10,927 B | 同左（`require` 0件） | `canonical.mjs` 1,289 ／ `flat-tree-core.mjs` 5,345 | 17,561 B |
+| `glossary-term-register` | 14,455 B | 14,025 B（+430） | `canonical.mjs` 1,289 | 15,744 B |
+| `error-catalog-register` | 19,484 B | 19,054 B（+430） | `canonical.mjs` 1,289 | 20,773 B |
+| `sequence-register` | 40,351 B | 39,921 B（+430） | `canonical.mjs` 1,289 ／ `questions.mjs` 7,146 | 48,786 B |
 | `issue-tree-register` | 59,716 B | 同左（`require` 0件） | `canonical.mjs` 1,289 ／ `derive.mjs` 12,536 | 73,541 B |
 
-**置かれるディスクは「数百 MB（`node_modules`）」から「15〜74 KB / Skill」になった。** 共有 `.ts` 4本の変換は `target: ES2022` / `module: ESNext` で**4本とも診断ゼロ・残る import 文ゼロ**（`import type` がすべて落ちるため、出力は自己完結した1ファイルになる）。`validate.mjs` 5本の `require(` も**ゼロ**である。
+（**この表は round 2 の2つの修正を織り込んだ後の数字である**——ucs2length の実体を ajv の `.toString()` から取るようにしたぶん `validate.mjs` の3本が各 +136 B、配布物の JSDoc を書き直したぶん `flat-tree-core.mjs` が +190 B・`questions.mjs` が +7 B。それ以前の実測は `validate.mjs` が 14,319 / 19,348 / 40,215、`flat-tree-core.mjs` が 5,155、`questions.mjs` が 7,139 だった。）
+
+**置かれるディスクは「数百 MB（`node_modules`）」から「15〜74 KB / Skill」になった。** 共有 `.ts` 4本の変換は `target: ES2022` / `module: ESNext` で**4本とも診断ゼロ・残る import 文ゼロ**（`import type` がすべて落ちるため、出力は自己完結した1ファイルになる）。**この「診断ゼロ」は round 2 で初めて本当に測った値である**——それまでは `reportDiagnostics` を渡しておらず、`out.diagnostics` は常に `undefined` だった（`66f98ab` の M-5 / M-6。いまは診断が1件でもあれば生成が止まる）。`validate.mjs` 5本の `require(` も**ゼロ**である。
 
 Node の下限が **18+**（＝Claude Code 自身が動く版）になる根拠は実測ではなく調査である——共有 `.ts` 4本は ES2020 より新しい API を1つも使っておらず、手書きスクリプトで新しいのは `flatMap`（ES2019）1箇所のみ。ES2022 へ変換すれば、残る要求は手書きスクリプトの top-level await（14.8+）と standalone 出力の `at()`（16.6+）だけになる。**この主張は実走の記録ではない**（下の「未検証として残るもの」）。
 
@@ -136,7 +149,7 @@ Node の下限が **18+**（＝Claude Code 自身が動く版）になる根拠�
 - **Node 18 での実走**は下のチェックリストに入れたが、開発機は 22.20 であり CI も無い。**下限の主張は構文と API の調査に基づく見積もりであって、実走の記録ではない。** **2026-08-31 の実機確認（Windows 機・Node 22.20）でも、この項目は踏めていない**——別の Node を用意する必要があり、一巡の対象外だった。**踏むまではそう扱うこと**（mac の項も同じ理由で残っている）
 - `transpileModule` はトランスパイルのみで型検査をしない。**型の誤りは `tsc -b` が `src/` 側で捕まえる**という前提に乗っている（同梱物側では見ない）
 - standalone 出力の互換性は ajv の版に依存する。`dependencies` の `ajv` を上げたとき、生成物の形が変わる可能性がある（生成物の実走テストが検知する）
-- **`ucs2length` の埋め込みは ajv のソースから写した実体である。** ajv を上げたとき、*別の*ランタイムを要求するようになれば `inlineAjvRuntime` が throw して止まるが、**同じ名前のまま実装だけが変わった場合は検知できない**——写した20行が古いまま使われ続ける。長さの数え方はコードポイント数という仕様で固定されており変わる見込みは薄いが、**機械では守っていない**
+- **`ucs2length` の埋め込みは、初版では ajv のソースから写した20行だった**——「同じ名前のまま実装だけが変わった ajv」に追従できない穴があり、当時はここに「**機械では守っていない**」と書いていた。**最終レビューの round 2（`66f98ab`）で ajv 実行時の `.code` / `.toString()` からの導出に置き換え、この穴は閉じた。** 残る形の危うさは、**残存 `require` の走査が `require("ajv/dist/runtime/…")` という字面に絞ってある**ことである——ajv がランタイムの参照の**書き方**そのものを変えたら、走査に引っかからず素通りしうる（生成物の実走テストは通るので、壊れるとしたら別の形になる）
 
 ---
 
@@ -180,7 +193,7 @@ Node の下限が **18+**（＝Claude Code 自身が動く版）になる根拠�
 - 「小さな負債」の**「`palette-fit.mjs` が Node の型ストリップに依存している」**を書き換えた——登録5 Skill にも同じ依存があるという記述と、**いま実在しない4本のテスト**の名指しを落とし、**残るのは `palette-retheme` の1本だけ**（`BUNDLED_SKILLS` に無く、利用者のフォルダには置かれないので M30 の対象外にした）という実態へ
 - 「小さな負債」の「画面の『SHに聞きたいこと』と…」の中の `skill-copy.test.ts` を `src/core/skill-schema-copy.test.ts` へ直した
 - 「小さな負債」の**「`docs/README.md` の履歴表に M12 の行が無い」**を書き換えた——`history/` の全43本と表を突き合わせたところ、**欠けているのは M12・M27・M28・sequence-m5・issue-tree-m5・M30 の6件**だった（この項自体が「落ちても誰も気づかない」と言っているとおりの状態になっていた）。**M30 が作った欠落ではなく、レビューが見つけたものである。** なお **`docs/README.md` そのものには行を足していない**——同じ項が「表への追記は README 側の慣習であって、`CLAUDE.md` が義務化しているのは `history/` の新規作成まで」と明記しており、M30 の行だけを足すと欠落の並びが不揃いになるため（コントローラの裁定）
-- **足したのは1件**——「共有ソース3本の JSDoc が『バイト一致コピー』の時代のまま止まっている」（`[m30]`）。`src/core/canvas/flat-tree-core.ts` / `src/modules/issue-tree/derive.ts` / `src/modules/sequence/questions.ts` が旧方式を説明したままで、`flat-tree-core.ts` は**すでに消えたテストを名指し**している（`questions.ts` だけは冒頭ではなく152行目付近で、型ストリップにも触れていない）。**この JSDoc は生成物の `.mjs` にそのまま写るので、利用者のフォルダに置かれる版にも古い説明が載る**
+- **足した箇条は1件あったが、同じブランチの中で消えた**（差し引き0件）——「共有ソース3本の JSDoc が『バイト一致コピー』の時代のまま止まっている」（`[m30]`）。`src/core/canvas/flat-tree-core.ts` / `src/modules/issue-tree/derive.ts` / `src/modules/sequence/questions.ts` が旧方式を説明したままで、`flat-tree-core.ts` は**すでに消えたテストを名指し**していた。**Task 7 は「文書のタスクなので実物には触らず記録に残す」判断をしたが、最終レビューの round 2（`59b2ef2`）が実物を直したので項ごと消えた**——**この JSDoc は生成物の `.mjs` に写って利用者のフォルダへ置かれる**以上、記録で済ませてよい種類ではなかった。**「配布物に写る文章」は台帳ではなく実物を直す**、というのがここで確定した線引きである
 - **「次に手を付ける候補」へ M30 の実機確認が未実施であることを10件目として足し、実機確認のあとに書き換えた**（番号付きリストなので `^- ` の検算には現れない）——Windows 機での一巡は済んで問題が出なかったこと、**残るのは mac と Node 18 系での実走の2項目だけ**であることへ。**項目そのものは消していない**（2項目が残っているため。**両方とも踏めたら消すこと**）
 
 ## [`../../CLAUDE.md`](../../CLAUDE.md) への反映事項
