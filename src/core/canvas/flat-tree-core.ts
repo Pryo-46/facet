@@ -1,12 +1,13 @@
 /**
  * 平坦配列を木に戻す純粋部分（index ベース。`key` を持たない）。
  *
- * **このファイルは登録 Skill へバイト一致でコピーされる**
- *（`.claude/skills/logic-tree-register/scripts/flat-tree-core.ts`）。
- * だから値 import・相対 import・enum を持たない——コピー先は Node の
- * 型ストリップでそのまま実行される。ズレは
- * `src/modules/logic-tree/skill-copy.test.ts` が検知し、制約違反は
- * `src/core/canvas/flat-tree-core.test.ts` が検知する。
+ * **このファイルは `npm run gen:skills` が `ts.transpileModule` で `.mjs` へ変換し**
+ * `.claude/skills/logic-tree-register/scripts/generated/flat-tree-core.mjs`
+ * として同梱される。だから値 import・相対 import・enum を持たない——
+ * `transpileModule` は import を解決しないので、値 import があると置いた
+ * 先で解決できなくなる。この制約と「消去できない構文（enum・パラメータ
+ * プロパティ）を持たない」ことは `scripts/gen-skills.test.mjs` が強制し、
+ * 生成物とアプリ側の**出力の一致**も同じテストが見る。
  *
  * `key`（行の同一性）を被せるのは `flat-tree.ts` の役目である。Skill 側が
  * 要るのはルート位置・参照切れ・到達不能・DFS 行きがけ順だけで、`key` を

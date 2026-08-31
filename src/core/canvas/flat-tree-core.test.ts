@@ -4,10 +4,10 @@ import { extractImportStatements, isValueImportStatement } from '@/core/import-a
 import { buildFlatTree, orderFlatNodes } from './flat-tree-core'
 
 /**
- * このファイルは登録 Skill（logic-tree-register）へバイト一致でコピーされる。
- * コピー先は Node の型ストリップで実行されるので、値 import も enum も持てない。
- * **制約を破った瞬間にここが赤くなる**——バイト一致そのものの検査は
- * src/modules/logic-tree/skill-copy.test.ts が持つ
+ * このファイルは `npm run gen:skills` が `.mjs` へ変換して登録 Skill
+ * （logic-tree-register）へ同梱するので、値 import も enum も持てない。
+ * **制約を破った瞬間にここが赤くなる**——生成物側の検査（変換が壊れて
+ * いないか・出力がアプリ側と一致するか）は scripts/gen-skills.test.mjs が持つ
  */
 describe('flat-tree-core.ts のコピー制約', () => {
   const src = readFileSync('src/core/canvas/flat-tree-core.ts', 'utf8')

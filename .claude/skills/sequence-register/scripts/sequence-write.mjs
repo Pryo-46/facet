@@ -2,56 +2,60 @@
 // シーケンスファイルの検証＋正規形での書き出し。
 //
 // このスクリプトが担うのは3つ:
-//   1. スキーマ検証（アプリと同一の sequence.schema.json を参照。コピーは持たない）
+//   1. スキーマ検証（ajv の standalone コンパイル済み関数 ./generated/validate.mjs を
+//      使う。生成物であり、schemas/sequence.schema.json（同梱のコピー）から
+//      実行時ではなくビルド時に作られる。同梱するスキーマ本体はキー順の導出に使う）
 //   2. 正規化（キー順をスキーマの properties 記載順から実行時に導出し、LF・2スペース・
 //      非ASCIIそのまま・末尾改行あり・BOMなしで書き出す）
 //   3. 整合性検証（参照切れ / ID重複 / to の過不足 / from==to / 立っていない問いへの答え）と
 //      欠落（未回答・未記入）の集計を報告する。アプリ側のレベル2と同じ性質なので書き込みは止めない。
 //
-// **問いの導出は手で複製しない。** ./questions.ts は src/modules/sequence/questions.ts の
-// バイト一致コピーで、ズレは src/modules/sequence/skill-copy.test.ts が検知する。
+// **問いの導出は手で複製しない。** ./generated/questions.mjs は
+// src/modules/sequence/questions.ts から生成される生成物である。
 //
 // 使い方:
 //   node scripts/sequence-write.mjs --in draft.json --out <project>/注文確定.json
 //   node scripts/sequence-write.mjs --check <project>/注文確定.json
-//   （--schema <path> でスキーマを明示指定できる。省略時は自動探索）
 //
 // 終了コード: 0=成功（警告はあり得る） / 1=スキーマ検証失敗 / 2=使い方の誤り
 
 import fs from "node:fs";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const require = createRequire(import.meta.url);
 const SKILL_DIR = path.resolve(fileURLToPath(import.meta.url), "../..");
 
-// ---------- アプリのコピー（手で複製しない） ----------
+// ---------- アプリのロジック（生成物。手で複製しない） ----------
 //
-// questions.ts = 問いの導出と答えの読み方（src/modules/sequence/questions.ts）
-// canonical.ts = 正規形シリアライザ（src/core/canonical.ts）
-// どちらもバイト一致コピーで、ズレは src/modules/sequence/skill-copy.test.ts が検知する
+// questions.mjs = 問いの導出と答えの読み方（src/modules/sequence/questions.ts から生成）
+// canonical.mjs = 正規形シリアライザ（src/core/canonical.ts から生成）
+// validate.mjs  = スキーマ検証（schemas/sequence.schema.json から生成）
+// いずれも npm run gen:skills が作り、アプリが .claude/skills/ へ置き直す
 
-let Q, C;
+let Q, C, validate;
 try {
-  [Q, C] = await Promise.all([import("./questions.ts"), import("./canonical.ts")]);
+  const [q, c, v] = await Promise.all([
+    import("./generated/questions.mjs"),
+    import("./generated/canonical.mjs"),
+    import("./generated/validate.mjs"),
+  ]);
+  [Q, C, validate] = [q, c, v.default];
 } catch (e) {
   die(
     2,
-    `同梱の .ts を読み込めません。Node の型ストリップが要ります（22.18+ / 23.6+ / 24+。現在 ${process.version}）\n  ${e.message}`
+    `Skill の生成物が見つかりません。facet でプロジェクトフォルダを開き直してください（アプリが .claude/skills/ を置き直します）\n  ${e.message}`
   );
 }
 
 // ---------- 引数 ----------
 
 const argv = process.argv.slice(2);
-const opt = { in: null, out: null, check: null, schema: null };
+const opt = { in: null, out: null, check: null };
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === "--in") opt.in = argv[++i];
   else if (a === "--out") opt.out = argv[++i];
   else if (a === "--check") opt.check = argv[++i];
-  else if (a === "--schema") opt.schema = argv[++i];
   else die(2, `不明な引数: ${a}`);
 }
 if (opt.check && (opt.in || opt.out)) die(2, "--check は --in/--out と併用できません。");
@@ -60,28 +64,10 @@ if (!opt.check && (!opt.in || !opt.out)) die(2, "--in <draft.json> --out <シー
 const sourcePath = path.resolve(opt.check ?? opt.in);
 const targetPath = opt.check ? null : path.resolve(opt.out);
 
-// ---------- スキーマの解決（正は一つ。アプリと同じ実体を読む） ----------
-
-function findSchema() {
-  if (opt.schema) return path.resolve(opt.schema);
-  if (process.env.FACET_SEQUENCE_SCHEMA) return path.resolve(process.env.FACET_SEQUENCE_SCHEMA);
-  const starts = [path.dirname(targetPath ?? sourcePath), process.cwd(), SKILL_DIR];
-  for (const start of starts) {
-    let dir = path.resolve(start);
-    for (;;) {
-      for (const rel of ["sequence.schema.json", path.join("schemas", "sequence.schema.json")]) {
-        const p = path.join(dir, rel);
-        if (fs.existsSync(p)) return p;
-      }
-      const parent = path.dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
-    }
-  }
-  die(2, "sequence.schema.json が見つかりません。--schema <path> で指定してください。");
-}
-
-const schemaPath = findSchema();
+// スキーマは同梱物を読む。**検証は生成物に焼き付いており、ここで読むのは
+// 正規形のキー順を properties の記載順から導出するため**（canonical.mjs）。
+// 差し替えを許すと「検証は同梱・キー順は外部」のちぐはぐが起きるので探索しない
+const schemaPath = path.join(SKILL_DIR, "schemas", "sequence.schema.json");
 const schema = readJson(schemaPath, "スキーマ");
 
 // ---------- 入力 ----------
@@ -90,19 +76,8 @@ const data = readJson(sourcePath, "入力ファイル");
 
 // ---------- スキーマ検証（不合格＝レベル1。アプリは開けない） ----------
 
-let AjvCtor;
-try {
-  const m = require("ajv/dist/2020.js");
-  AjvCtor = m.default ?? m;
-} catch {
-  die(2, `ajv が見つかりません。次を実行してください:\n  cd "${SKILL_DIR}" && npm install`);
-}
-const ajv = new AjvCtor({ allErrors: true, strict: false });
-const validate = ajv.compile(schema);
-
 if (!validate(data)) {
   console.error(`✗ スキーマ検証に失敗しました（アプリはこのファイルを開けません）`);
-  console.error(`  スキーマ: ${schemaPath}`);
   for (const e of validate.errors) {
     const at = e.instancePath || "(ルート)";
     const extra = e.params?.allowedValues ? `（許可値: ${e.params.allowedValues.join(", ")}）` : "";
@@ -240,7 +215,6 @@ if (targetPath) {
   console.log(`✓ スキーマ検証OK: ${sourcePath}`);
   console.log(raw === text ? "✓ 正規形と一致しています" : "△ 正規形と差があります（--in/--out で書き直せます）");
 }
-console.log(`  スキーマ: ${schemaPath}`);
 console.log(`  アクター: ${actors.length}人 ／ ステップ: ${steps.length}件`);
 const parts = [];
 if (tally.unanswered > 0) parts.push(`未回答 ${tally.unanswered}`);

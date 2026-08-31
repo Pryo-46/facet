@@ -1,9 +1,0 @@
-{
-  "name": "issue-tree-register-skill",
-  "private": true,
-  "type": "module",
-  "description": "課題ツリー登録Skillの同梱スクリプト（ID採番・検証・正規形書き出し）",
-  "dependencies": {
-    "ajv": "^8.17.1"
-  }
-}

@@ -15,6 +15,9 @@ src-tauri/gen/
 # スキーマから生成する型（正は schemas/*.schema.json。npm run gen:types で再生成）
 src/types/*.ts
 
+# 同梱 Skill の生成物（正は schemas/*.schema.json と src/ の実体。npm run gen:skills で再生成）
+.claude/skills/*/scripts/generated/
+
 # ログ
 logs
 *.log

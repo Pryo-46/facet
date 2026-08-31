@@ -24,14 +24,14 @@
 
 **1. 実機確認の痕跡を捨てる**（worktree の中で）
 
-`sample-project/` は **README から参照するお手本であり、同時に動作確認の遊び場でもある**。JSON 4本は追跡対象なので、実機確認で編集したら**元に戻す**（お手本の変更は、意図してそう決めたときだけコミットする）。`README-for-AI.md` と `.claude/` はアプリが自動で置き直す配布物、書き出した `.md` は確認の痕跡で、いずれも `sample-project/.gitignore` で追跡外にしてある。
+`sample-project/` は **README から参照するお手本であり、同時に動作確認の遊び場でもある**。JSON 5本は追跡対象なので、実機確認で編集したら**元に戻す**（お手本の変更は、意図してそう決めたときだけコミットする）。`README-for-AI.md` と `.claude/` はアプリが自動で置き直す配布物、書き出した `.md` は確認の痕跡で、いずれも `sample-project/.gitignore` で追跡外にしてある。
 
 ```
 git checkout -- sample-project/ && git clean -fdx sample-project/
 git status --short          # 空になること
 ```
 
-`-x` を付けるのは、`.gitignore` した自動生成物（`.claude/skills/` は `npm install` 済みで数百 MB になる）も落とすため。**お手本の JSON は追跡対象なので `checkout` が戻す**——`clean` では消えない。
+`-x` を付けるのは、`.gitignore` した自動生成物（アプリが置き直す `.claude/` 一式。**その `skills/*/scripts/generated/` は `npm run gen:skills` が作る生成物で、原本は `schemas/` と `src/` の側にある**——M30 より前はここに `npm install` 済みの `node_modules` が入り数百 MB になっていた）も落とすため。**お手本の JSON は追跡対象なので `checkout` が戻す**——`clean` では消えない。
 
 **2. マージする**（PR 経由でも `git merge` でも）
 

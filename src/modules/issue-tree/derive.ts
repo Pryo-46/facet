@@ -23,10 +23,12 @@ import type {
  * 残っているか」をツールが判定できなくなり、未決の可視化が成立しない
  *（シーケンスの questions.ts と同じ位置づけ）。
  *
- * **このファイルは登録 Skill（.claude/skills/issue-tree-register/scripts/derive.ts）
- * へバイト一致でコピーされる（issue-tree-m2 で作る）。** だから値 import・
- * 相対 import・enum を持たない——Node の型ストリップでコピー側が相対解決
- * できなくなるため。ズレを検知するテストは Skill と同時に置く
+ * **このファイルは `npm run gen:skills` が `.mjs` へ変換し、
+ * .claude/skills/issue-tree-register/scripts/generated/derive.mjs として
+ * 登録 Skill へ同梱される。** だから値 import・相対 import・enum を持たない
+ * ——`transpileModule` は import を解決しないので、値 import があると
+ * 置いた先で解決できなくなるため。制約と出力の一致は
+ * scripts/gen-skills.test.mjs が検知する
  */
 
 /** 課題に立つ旗の種別。**見送りと解決は意味が逆だが、どちらも配下を抑制する** */

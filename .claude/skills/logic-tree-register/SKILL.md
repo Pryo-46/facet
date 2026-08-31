@@ -9,11 +9,9 @@ description: 仕様整理ツールのロジックツリーファイル（type=lo
 
 **このSkillが紐づく対象: `type: "logicTree"` × `schemaVersion 1`。** スキーマが改訂されたらこのSkillも追従させる（アプリとSkillは別々にバージョン管理される成果物であり、この対応が依存関係の記録）。
 
-**木の組み立てと DFS 行きがけ順の正規化（`scripts/flat-tree-core.ts`）はアプリの `src/core/canvas/flat-tree-core.ts` のバイト一致コピーである。手で編集しない。** 直すときはアプリ側を直してコピーし直す（ズレは `src/modules/logic-tree/skill-copy.test.ts` が検知する）。
+**木の組み立てと DFS 行きがけ順の正規化（`scripts/generated/flat-tree-core.mjs`）は生成物である（`npm run gen:skills` が `scripts/generated/` へ作る）。手で編集しない。** 直すときはアプリ側の原本（`src/core/canvas/flat-tree-core.ts`）を直す（ズレは `scripts/gen-skills.test.mjs` が検知する）。
 
 **このSkillはフェーズを1つしか持たない。** シーケンス・課題ツリーの「問いを詰めるフェーズB」に当たるものは無い——ロジックツリーのスキーマには問いの仕組みが無く、欠落は「`text` が空」1種類だけだからである。
-
-初回のみ、Skillディレクトリで `npm install`（ajv が必要）。`ajv が見つかりません` と言われたら実行する。あわせて **Node は型ストリップがフラグ無しで動く版が要る**（22.18+ / 23.6+ / 24+）——スクリプトが同梱の `.ts` を直接 import するため。`同梱の .ts を読み込めません` と言われたら Node を上げる。
 
 ## 1. 対象を決める
 
@@ -68,7 +66,7 @@ node scripts/logic-tree-write.mjs --in <下書き.json> --out <プロジェク�
 
 検証だけしたいときは `--check <ファイル>`。終了コードは 0＝成功（警告はあり得る）／1＝スキーマ検証失敗・JSON 破損／2＝使い方の誤り。**0 でも未記入の集計と整合性の警告は出ている**ので、終了コードだけを見ず標準出力を読むこと。
 
-スキーマの解決順は `--schema <path>` → 環境変数 `FACET_LOGIC_TREE_SCHEMA` → 自動探索（同梱の `schemas/logic-tree.schema.json` を含む）である。**この Skill は `schemas/logic-tree.schema.json` に自分のコピーを持つ**ので、facet のチェックアウトが無いマシンでも見つかる（コピーは facet の原本とのバイト一致をアプリのテストが強制している）。
+スキーマ検証は同梱の生成物（`scripts/generated/validate.mjs`）が行う。**スキーマの差し替えはできない**——検証は生成時に焼き付いており、アプリが開けるかどうかの基準は同梱スキーマそのものだからである。`schemas/logic-tree.schema.json` は正規形のキー順を決めるために読まれ、facet の原本とのバイト一致はアプリのテストが強制している。
 
 **書き出すと配列は DFS 行きがけ順に並び替わる。** `--check` も書き込みはしないが、内部では同じ正規化を行ったうえで入力ファイルと比較し、差分の有無を報告する。既存ファイルが既に行きがけ順なら差分は追加分だけだが、乱れた順のファイルを渡すと配列全体が動く。その場合は報告で伝える。
 

@@ -27,26 +27,27 @@ export const BUNDLED_SKILLS: readonly string[] = [
 ]
 
 /**
- * Skill が `npm install` で作る依存の置き場（Skill 直下の1件）。
+ * `npm install` を要求していた旧版が作った依存の置き場（Skill 直下の1件）。
  *
  * **同期の除外と削除の保護で、同じ1つの名前を見る。** 二重の意味を持つ:
  * - 同梱物としては**置かない**（`shouldSyncSkillFile`）
  * - プロジェクト側にあるものは**消さない**（`isRemovableSkillEntry`）
  *
- * 両方が揃って初めて「ユーザーの `npm install` が残る」になる。片方だけだと
- * `SKILL.md` が指示する「初回のみ `npm install`」が同期のたびに巻き戻り、
- * スクリプトが `ajv が見つかりません` で落ちる状態へ戻る
+ * m30 で書き出しスクリプトが生成物を使うようになり、Skill はもう
+ * `npm install` を指示しない。それでも消さないのは人間の裁定——旧版で
+ * 作られた `node_modules` が利用者の手元に残っていても、アプリが黙って
+ * 数百 MB を消してよい理由にはならない、という判断による保護である
  */
 const SKILL_DEPS_DIR = 'node_modules'
 
 /**
- * `npm install` がロックする依存の版（Skill 直下の1件）。
+ * `npm install` を要求していた旧版が作ったロックファイル（Skill 直下の1件）。
  *
- * **同期では置き直さないのに削除だけされると、ロック無しで再解決される。**
- * `SKILL_DEPS_DIR` と同様、同期の除外・削除の保護の両方でこの1つの名前を見る
- * 必要があるが、`package-lock.json` 自体は `shouldSyncSkillFile` の対象では
- * ない（除外リストに乗らない＝同梱物にあれば同期される）。ここで保護するのは
- * 「利用者の手元で `npm install` した結果」で、facet が同梱する版ではない
+ * `SKILL_DEPS_DIR` と同じ理由の保護——同期では置き直さないものを削除だけ
+ * すると、旧版で作られた `node_modules` がロックを失ったまま残る。
+ * `package-lock.json` 自体は `shouldSyncSkillFile` の対象ではない
+ *（除外リストに乗らない＝同梱物にあれば同期される）。ここで保護するのは
+ * 「利用者の手元に残った旧版の残骸」で、facet が同梱する版ではない
  */
 const SKILL_LOCK_FILE = 'package-lock.json'
 
@@ -73,9 +74,10 @@ export function shouldDescendSkillDir(name: string): boolean {
  *   Tauri の書き込み許可スコープ外のファイルを含むこともあって同期が壊れる）
  *
  * **`.gitignore` は同期する（sequence M4 の最終レビューで一度除外し、この
- * タスクで戻した）。** SKILL.md が指示する `npm install` は置いた先に
- * 未追跡の `node_modules` を数千ファイル作るので、`.gitignore`
- * （`node_modules/` を含む）を一緒に置かないと利用者の `git status` が汚れる。
+ * タスクで戻した）。** 旧版の SKILL.md が指示していた `npm install` は
+ * 置いた先に未追跡の `node_modules` を数千ファイル作っており、利用者の
+ * 手元にまだ残っている。`.gitignore`（`node_modules/` を含む）を同期し
+ * 続けなければ、それが `git status` に出続けてしまう。
  * **mac では `allow_skill_dir` が Skill ごとの `.gitignore` を `allow_file`
  * で literal に許可して初めて書ける**（`src-tauri/src/lib.rs`）。実行時
  * scope の照合は `require_literal_leading_dot: true`（unix の既定）で
@@ -85,14 +87,6 @@ export function shouldDescendSkillDir(name: string): boolean {
  * で落ちる（sequence M4 の実測）。この許可が外れると、下の書き込みループに
  * try/catch が無いぶん「消したあとに書けない」＝Skill が半分しか置かれない
  * 状態に戻り、毎回フォルダを開くたびに失敗トーストが出る
- *
- * **`package.json` は除外しない（レビュー指摘。以前は除外していた）。**
- * これは evals の足場ではなく**実行時のマニフェスト**である——`ajv` は
- * 書き出しスクリプト（`*-write.mjs` が `require("ajv/dist/2020.js")`）の
- * 依存で、3本とも `dependencies` に宣言している。各 SKILL.md は利用者に
- * 「Skill ディレクトリで `npm install`」と指示するのに、置いた先に
- * マニフェストが無ければ `npm install` は**何もインストールしない**。
- * 除外したままだと、その指示に従っても `ajv が見つかりません` から抜けられない
  */
 export function shouldSyncSkillFile(path: string): boolean {
   if (path === 'evals' || path.startsWith('evals/')) return false
@@ -105,10 +99,9 @@ export function shouldSyncSkillFile(path: string): boolean {
  *
  * **消す目的は「Skill の更新でファイルが減ったときに古いファイルを取り残さない」
  * こと**であって、ディレクトリを空にすることではない。facet が書いたものは
- * 消してよいが、ユーザーが `npm install` で作ったものは facet の持ち物ではない
- * ——`node_modules` そのものだけでなく、その解決結果である `package-lock.json`
- * も同じ理由で消さない。消すと同期では置き直されないままロックだけ失われ、
- * 次の `npm install` がロックを見ずに解決し直す
+ * 消してよいが、`node_modules` と `package-lock.json` は消さない
+ * ——`npm install` の指示はもう無いが、旧版が利用者の手元に作った残骸を
+ * アプリが黙って数百 MB 消してよい理由にはならない、という人間の裁定である
  */
 export function isRemovableSkillEntry(name: string): boolean {
   return name !== SKILL_DEPS_DIR && name !== SKILL_LOCK_FILE
@@ -130,8 +123,9 @@ export interface SkillSyncIo {
 /**
  * 同梱 Skill を置き直す。**消すのは同梱名のディレクトリの中身だけ**——
  * `.claude/skills/` を丸ごと消すとユーザーが自分で置いた Skill も消えるし、
- * 同梱名のディレクトリを丸ごと消すとその中の `node_modules`（利用者が
- * `npm install` で作ったもの）まで消える。facet が壊してよいのは
+ * 同梱名のディレクトリを丸ごと消すとその中の `node_modules`（旧版の
+ * SKILL.md が指示した `npm install` の結果。M30 以降は作られないが、
+ * 旧版を使ったフォルダには残っている）まで消える。facet が壊してよいのは
  * facet が書いたものに限る（`isRemovableSkillEntry`）
  *
  * **Skill ごとに独立して処理する**（1本の読み出しが失敗しても他の Skill は
@@ -157,7 +151,7 @@ export async function syncBundledSkills(
       const files = (await io.readBundled(skill)).filter((file) => shouldSyncSkillFile(file.path))
       if (await io.exists(root)) {
         // **丸ごと消さない。** 直下を列挙して facet の持ち物だけを消す
-        //（`node_modules` を巻き込むと利用者の `npm install` が毎回消える）
+        //（`node_modules` を巻き込むと、旧版が作った利用者の残骸が毎回消える）
         for (const name of await io.listEntries(root)) {
           if (!isRemovableSkillEntry(name)) continue
           try {
