@@ -518,11 +518,13 @@ Expected: `diff` が無出力（お手本は既に正規形なので、書き直
 - [ ] **Step 9: スキーマ違反が弾かれることを確かめる**
 
 ```bash
-node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('sample-project/課題ツリー.json','utf8'));d.schemaVersion='x';fs.writeFileSync('/tmp/m30-broken.json',JSON.stringify(d))"
+node -e "const fs=require('fs');const d=JSON.parse(fs.readFileSync('sample-project/課題ツリー.json','utf8'));d.schemaVersion='x';fs.writeFileSync(process.argv[1],JSON.stringify(d))" /tmp/m30-broken.json
 node .claude/skills/issue-tree-register/scripts/issue-tree-write.mjs --check /tmp/m30-broken.json
 ```
 
 Expected: 終了コード 1。`✗ スキーマ検証に失敗しました` と、`/schemaVersion` を指すエラー行が出る。
+
+> **パスを `-e` の中に埋めないこと（Task 3 の実装で判明）。** Windows の Git Bash では MSYS のパス変換が**引数の `/tmp/...` は書き換えるのに、`-e` に渡した JS 文字列の中の `/tmp/...` は書き換えない。** 両方に書くと別々のファイルを指し、「壊した版を作ったのに元のファイルを検証している」状態になる。上のように `process.argv[1]` で受け渡すこと。
 
 - [ ] **Step 10: 全件検証してコミット**
 
