@@ -123,8 +123,9 @@ export interface SkillSyncIo {
 /**
  * 同梱 Skill を置き直す。**消すのは同梱名のディレクトリの中身だけ**——
  * `.claude/skills/` を丸ごと消すとユーザーが自分で置いた Skill も消えるし、
- * 同梱名のディレクトリを丸ごと消すとその中の `node_modules`（利用者が
- * `npm install` で作ったもの）まで消える。facet が壊してよいのは
+ * 同梱名のディレクトリを丸ごと消すとその中の `node_modules`（旧版の
+ * SKILL.md が指示した `npm install` の結果。M30 以降は作られないが、
+ * 旧版を使ったフォルダには残っている）まで消える。facet が壊してよいのは
  * facet が書いたものに限る（`isRemovableSkillEntry`）
  *
  * **Skill ごとに独立して処理する**（1本の読み出しが失敗しても他の Skill は
@@ -150,7 +151,7 @@ export async function syncBundledSkills(
       const files = (await io.readBundled(skill)).filter((file) => shouldSyncSkillFile(file.path))
       if (await io.exists(root)) {
         // **丸ごと消さない。** 直下を列挙して facet の持ち物だけを消す
-        //（`node_modules` を巻き込むと利用者の `npm install` が毎回消える）
+        //（`node_modules` を巻き込むと、旧版が作った利用者の残骸が毎回消える）
         for (const name of await io.listEntries(root)) {
           if (!isRemovableSkillEntry(name)) continue
           try {

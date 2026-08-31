@@ -24,7 +24,7 @@
 
 **1. 実機確認の痕跡を捨てる**（worktree の中で）
 
-`sample-project/` は **README から参照するお手本であり、同時に動作確認の遊び場でもある**。JSON 4本は追跡対象なので、実機確認で編集したら**元に戻す**（お手本の変更は、意図してそう決めたときだけコミットする）。`README-for-AI.md` と `.claude/` はアプリが自動で置き直す配布物、書き出した `.md` は確認の痕跡で、いずれも `sample-project/.gitignore` で追跡外にしてある。
+`sample-project/` は **README から参照するお手本であり、同時に動作確認の遊び場でもある**。JSON 5本は追跡対象なので、実機確認で編集したら**元に戻す**（お手本の変更は、意図してそう決めたときだけコミットする）。`README-for-AI.md` と `.claude/` はアプリが自動で置き直す配布物、書き出した `.md` は確認の痕跡で、いずれも `sample-project/.gitignore` で追跡外にしてある。
 
 ```
 git checkout -- sample-project/ && git clean -fdx sample-project/
