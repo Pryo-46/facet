@@ -346,8 +346,9 @@ describe('生成した derive.mjs', () => {
     )
     const app = await import('../src/modules/issue-tree/derive.ts')
     const data = JSON.parse(readFileSync(path.join('sample-project', '課題ツリー.json'), 'utf8'))
-    expect(gen.tallyLine(gen.tallyQuestions(gen.poseQuestions(data.issues)))).toBe(
-      app.tallyLine(app.tallyQuestions(app.poseQuestions(data.issues))),
+    // poseQuestions は Pick<..., 'issues' | 'hypotheses'> を取る。data をそのまま渡す
+    expect(gen.tallyLine(gen.tallyQuestions(gen.poseQuestions(data)))).toBe(
+      app.tallyLine(app.tallyQuestions(app.poseQuestions(data))),
     )
   })
 })
@@ -417,7 +418,7 @@ const ts = require('typescript')
 - [ ] **Step 4: 生成してテストを通す**
 
 Run: `node scripts/gen-skills.mjs && npx vitest run scripts/gen-skills.test.mjs`
-Expected: 生成が5 Skill ぶん（validator 5本＋共有 9本）出て、このファイルの `it` がすべて緑。
+Expected: 生成が5 Skill ぶん（validator 5本＋共有 8本＝ 1+1+2+2+2）出て、このファイルの `it` がすべて緑。
 
 - [ ] **Step 5: 全件検証**
 
