@@ -31,7 +31,7 @@ const SCRIPT = path.join(REPO_ROOT, '.claude/skills/issue-tree-register/scripts/
  * ——「要対応の集計行」の it が FB待ちについて何も検証しない事態を避けるため
  */
 const FIXTURE = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   type: 'issueTree',
   title: '検証用',
   issues: [
@@ -125,7 +125,7 @@ describe('issue-tree-write.mjs（実行 smoke ＋ 警告文言のアプリ一致
 
   it('欠陥の無いファイルは警告なしの exit 0', () => {
     const { status, stdout } = check({
-      schemaVersion: 3,
+      schemaVersion: 4,
       type: 'issueTree',
       title: '検証用',
       issues: [{ id: 'issue_AAAAAAAAAA', parentId: null, text: '決済PoCで確かめること', events: [] }],
@@ -149,7 +149,7 @@ describe('issue-tree-write.mjs（実行 smoke ＋ 警告文言のアプリ一致
 
   it('旗を掲げた課題があると「見送り N」「解決 N」の行が出て、無ければ出ない', () => {
     const flagged = {
-      schemaVersion: 3,
+      schemaVersion: 4,
       type: 'issueTree',
       title: '検証用',
       issues: [

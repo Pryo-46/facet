@@ -11,7 +11,7 @@ const HYP_A = 'hypothesis_Kd4hR6yU1c'
 const ASK_A = 'ask_Zx8vN2bM6q'
 
 const base = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   type: 'issueTree',
   title: '適性検査サービス連携PoC',
   issues: [
@@ -120,25 +120,72 @@ describe('issueTree のスキーマ検証（レベル1）', () => {
   })
 
   /**
-   * `deferred` と `resolved` の排他は**スキーマでは機械強制していない**
-   *（`maxItems: 1` を入れると、手書きの2件以上のファイルが開けなくなり、
-   * `commands.test.ts` が守っている「戻すと最新の1件だけが消える」の前提が
-   * 崩れる——意図した判断）。担保は `toggleIssueEvent`（`commands.ts`）と
-   * そのテストが持つ。だからこの `it` は「スキーマは通す」側だけを記録する
+   * **v4 で反転した。以前どう決めていたかを残す**——理由ごと消すと、次の人が
+   * 同じ議論を最初からやり直す。
+   *
+   * **v3 まではここに逆向きの `it` があった**（「課題ノードに見送り・解決の
+   * 両方を並べたものもスキーマは受け入れる（排他はスキーマの担当ではない）」）。
+   * その註が挙げていた理由は2つ:「`maxItems: 1` を入れると**手書きの2件以上の
+   * ファイルが開けなくなる**」「`commands.test.ts` が守っていた**『戻すと最新の
+   * 1件だけが消える』の前提が崩れる**」。排他の担保は `toggleIssueEvent` と
+   * そのテストが持つ、という分担だった。
+   *
+   * **反転した理由。** アプリは最新1件しか見せず最新1件しか書き換えないので、
+   * 2件目以降は「ファイルにあるのに画面に出ないデータ」になる——設計ノート D2 は
+   * 当初からこの列を「0 件か 1 件」と定めており、**主張していたことをスキーマが
+   * 許していない状態**だった。仮説の `events` を v4 で絞った以上、課題側だけ
+   * 緩いままなのは非対称としても残る。古い理由の1つ目（手書きの2件以上が
+   * 開けなくなる）は**そのとおり起きる**が、依頼者が「考慮不要。最初から
+   * なかったことにしていい」と明言した（2026-08-31）。2つ目は、型が
+   * タプル（`[] | [IssueEvent]`）になって**その入力自体が作れなくなった**ので
+   * 消滅した（`commands.test.ts` の該当 `it` にも同じ記録がある）。
+   *
+   * **旗の種別ごとに1件ずつなら通る、ではない**——`maxItems` は列全体に効くので、
+   * 同じ種別が2件でも落ちる。両方を見ることで、「`deferred` と `resolved` の
+   * 同居だけを禁じる」ような別の実装（`oneOf` 等）と区別できる
    */
-  it('課題ノードに見送り・解決の両方を並べたものもスキーマは受け入れる（排他はスキーマの担当ではない）', () => {
-    const issues = [
+  it('課題ノードのイベントが2件以上あるファイルを拒否する（列は 0 件か 1 件）', () => {
+    const twoEvents = (kinds: [string, string]) => [
       {
         id: ISSUE_A,
         parentId: null,
         text: 'x',
         events: [
-          { kind: 'deferred', note: '一度は見送った', date: '2026-08-20' },
-          { kind: 'resolved', note: '解決に差し替えたつもりだが消し忘れた', date: '2026-08-30' },
+          { kind: kinds[0], note: '一度目', date: '2026-08-20' },
+          { kind: kinds[1], note: '二度目', date: '2026-08-30' },
         ],
       },
     ]
-    expect(validate({ ...base, issues, hypotheses: [] }).ok).toBe(true)
+    expect(validate({ ...base, issues: twoEvents(['deferred', 'resolved']), hypotheses: [] }).ok).toBe(false)
+    expect(validate({ ...base, issues: twoEvents(['deferred', 'deferred']), hypotheses: [] }).ok).toBe(false)
+    // 1件なら通る（＝落ちた理由が件数であることの裏取り）
+    const one = [{ id: ISSUE_A, parentId: null, text: 'x', events: [{ kind: 'deferred', note: '一度目', date: '2026-08-20' }] }]
+    expect(validate({ ...base, issues: one, hypotheses: [] }).ok).toBe(true)
+  })
+
+  /**
+   * **v4 の芯。** 仮説の `events` は追記専用をやめ、`maxItems: 1` を課した
+   *（間違えて付けた判断を消せないことのほうが高くつく＝ 2026-08-31 の
+   * ユーザー判断）。**判断が2件並ぶ v3 のファイルは、この一行で開けなくなる。**
+   *
+   * 課題側と同じく、**同じ種別が2件でも落ちる**ことまで見る——「支持と棄却の
+   * 同居だけを禁じる」実装と区別するため
+   */
+  it('仮説の判断が2件以上あるファイルを拒否する（列は 0 件か 1 件）', () => {
+    const twoJudgements = (kinds: [string, string]) => [
+      {
+        ...base.hypotheses[0],
+        events: [
+          { kind: kinds[0], note: '一度目', date: '2026-08-01' },
+          { kind: kinds[1], note: '二度目', date: '2026-08-30' },
+        ],
+      },
+    ]
+    expect(validate({ ...base, hypotheses: twoJudgements(['rejected', 'supported']) }).ok).toBe(false)
+    expect(validate({ ...base, hypotheses: twoJudgements(['supported', 'supported']) }).ok).toBe(false)
+    // 1件なら通る（＝落ちた理由が件数であることの裏取り）
+    const one = [{ ...base.hypotheses[0], events: [{ kind: 'supported', note: '一度目', date: '2026-08-01' }] }]
+    expect(validate({ ...base, hypotheses: one }).ok).toBe(true)
   })
 
   it('課題ノードに支持・棄却・保留のイベントを付けたものを拒否する', () => {
@@ -161,7 +208,7 @@ describe('issueTree のスキーマ検証（レベル1）', () => {
 
   /**
    * v2 のファイルは移行しないと決めた（2026-08-30 のユーザー判断）。migrate は
-   * schemaVersion を 3 に書き換えるだけなので、v2 の形はここで落ちる＝開けない。
+   * schemaVersion を 4 に書き換えるだけなので、v2 の形はここで落ちる＝開けない。
    * **これがその決定を固定する契約である。** 読み替えを足すと「もう無いキー」が
    * データの中に別の顔で生き残る
    */
@@ -179,8 +226,10 @@ describe('issueTree のスキーマ検証（レベル1）', () => {
     expect(validate({ ...base, issues: [v2Issue], hypotheses: [] }).ok).toBe(false)
   })
 
-  it('schemaVersion 2 はレベル1で弾く（移行は load.ts の仕事。スキーマは現行版しか受けない）', () => {
+  it('旧版の schemaVersion はレベル1で弾く（移行は load.ts の仕事。スキーマは現行版しか受けない）', () => {
     expect(validate({ ...base, schemaVersion: 2 }).ok).toBe(false)
+    // **3 も足す**——v4 を切ったので、直前の版がここを素通りしないことを見る
+    expect(validate({ ...base, schemaVersion: 3 }).ok).toBe(false)
   })
 
   it('未知のイベント種別を拒否する（enum の拡張は schemaVersion の改訂）', () => {

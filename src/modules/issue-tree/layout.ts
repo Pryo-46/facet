@@ -2,11 +2,11 @@ import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { layoutTree, type Size } from '@/core/canvas/tree-layout'
 import type { Rect } from '@/core/canvas/viewport'
 import { wrapWithin, type MeasureWidth } from '@/core/canvas/wrap'
-import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { Feedback, Hypothesis, IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import {
+  awaitingAskCount,
   badgeGroupOf,
   BADGE_LABELS,
-  EVENT_KIND_LABELS,
   hypothesisStatus,
   ISSUE_EVENT_LABELS,
   QUESTION_LABELS,
@@ -14,16 +14,30 @@ import {
 } from './derive'
 import {
   ACTION_HEIGHT,
-  ACTION_INSET_X,
+  ASK_BLOCK_GAP,
+  ASK_GAP,
+  ASK_PADDING_X,
+  ASK_PADDING_Y,
   BADGE_BORDER,
   BADGE_GAP,
   BADGE_HEIGHT,
   BADGE_PADDING_X,
   BOX_CONTENT_WIDTH,
   BOX_WIDTH,
+  EXPANDED_BOX_WIDTH,
+  FB_COL_GAP,
+  FB_DELETE_WIDTH,
+  FB_ICON_SIZE,
+  FB_INDENT,
+  FIELD_INDENT,
   ISSUE_INSET_X,
   ISSUE_INSET_Y,
-  PANEL_CONTENT_WIDTH,
+  MIN_FIELD_WIDTH,
+  MINI_ACTION_BORDER,
+  MINI_ACTION_HEIGHT,
+  MINI_ACTION_PADDING_X,
+  MINI_ICON_GAP,
+  MINI_ICON_SIZE,
   PANEL_GAP,
   PANEL_INDENT,
   PANEL_INSET_X,
@@ -32,6 +46,7 @@ import {
   ROW_INDENT,
   SECTION_GAP,
   TITLE_GAP,
+  TRASH_ICON_SIZE,
 } from './measure'
 
 /** 1つのフォント階級の測定器。エディタが DOM の見本から作る */
@@ -41,9 +56,26 @@ export interface IssueTreeFont {
 }
 
 export interface IssueTreeFonts {
-  /** 課題のタイトル（text-sm leading-normal font-semibold）。太字は幅が変わるので独立に測る */
+  /**
+   * 課題のタイトル（`TITLE_FONT_CLASS` = text-sm leading-normal font-semibold）。
+   * 太字は幅が変わるので独立に測る。
+   *
+   * **展開パネルの中のソリューション仮説のタイトルもこれで測る。**
+   * 描くのは `HYPO_TITLE_FONT_CLASS`（同じ 14px・同じ行間 1.5 で、太さだけ
+   * 500）なので、**測る側の方が太い＝広い**——測定は実際より早く折り返す側に
+   * 倒れ、描画が測定からはみ出すことはない（`badgeWidth` が枠線ぶんを常に
+   * 足しているのと同じ「広い方で空けておく」判断）。太さごとに見本を増やすより、
+   * 安全側の再利用を選んでいる
+   */
   title: IssueTreeFont
-  /** 仮説の文言・根拠・FB（text-sm leading-normal） */
+  /**
+   * 展開中の課題のタイトル（`EXPANDED_TITLE_FONT_CLASS` = text-base leading-normal
+   * font-semibold）。**畳んだ箱の 14px とはサイズが違うので独立に測る**
+   *——1本で兼ねると、開いた瞬間にタイトルが測定より広く描かれて末尾の行が
+   * 高さ固定の textarea から切れる（measure.ts の解説）
+   */
+  expandedTitle: IssueTreeFont
+  /** 仮説の詳細・価値仮説・根拠・FB（text-sm leading-normal） */
   body: IssueTreeFont
   /** 節の見出し・見送りの理由・バッジ（text-sm） */
   small: IssueTreeFont
@@ -52,6 +84,35 @@ export interface IssueTreeFonts {
 export interface IssuePlacement {
   /** 箱の外枠（世界座標）。エッジはここから引く */
   rect: Rect
+  /**
+   * この課題が**選択されているか**（m5 実機確認後）。選択は箱をクリックして
+   * 入り、もう一度クリックすると外れる。**同時に1件だけ。**
+   *
+   * 運ぶのは2つ:
+   *
+   * - 枠の色（`IssueBox` が `border-ink` に切り替える。`FileList` の選択と同じ語彙）
+   * - **末尾の「＋ 仮説を追加」を出すこと**（`addHypothesis` が非 null になる）
+   *
+   * **`expanded` とは別である**——仮説を1本も持たない課題は、選択されても
+   * 開かない（箱は `BOX_WIDTH` のまま）。ボタンだけが出る。中身がボタン1つ
+   * しかない 780 幅の箱を作らないための分けであって、情報源が分かれた
+   * わけではない（どちらも下の `selectedIssueIndex` から出る）
+   */
+  selected: boolean
+  /**
+   * この課題が開いているか＝**選択されていて、かつ仮説を1本以上持つか**。
+   * **「開いているか」の唯一の出所はここである**——描く側（`IssueBox` の
+   * タイトルの書体・箱の幅）とパネルの有無（`HypothesisPlacement.expanded`）が
+   * 別々の情報源を見ると、片方だけが「開いている」と言う状態が作れてしまう。
+   * **エディタの `selectedIssueKey` を直接見ないこと。**
+   *
+   * **仮説を1本も持たない課題は、鍵が自分を指していても開かない。**
+   * m4 まで展開の鍵は仮説を指していたので、仮説が消えれば鍵が宙に浮いて
+   * 自動的に畳まれた。鍵が課題を指す m5 では消えても鍵が残るため、**行が
+   * 1本も無い 780 幅の箱**が残る。ビュー状態の側で消しに行くのではなく、
+   * **レイアウトが「開かない」と決める**ことで塞いでいる
+   */
+  expanded: boolean
   /** タイトルの入力欄（箱の中。バッジがあればその幅だけ右が空く） */
   title: Rect
   /**
@@ -60,46 +121,169 @@ export interface IssuePlacement {
    * `node.events` の最新から引く（データを2箇所に写さない）
    */
   event: { badge: Rect; reason: Rect } | null
+  /**
+   * 選択された課題ノードの**末尾**に置く「＋ 仮説を追加」の帯（m5 Task 7）。
+   * 選択されていなければ null。
+   *
+   * **`expanded` ではなく `selected` で出る**（m5 実機確認後）——仮説を
+   * 1本も持たない課題は開かない（箱は `BOX_WIDTH` のまま）が、**足す道が
+   * どこにも無くなってはいけない**。畳んだ幅のままボタンだけを出す。
+   * 帯の「仮説を追加」は「最後に触った課題」に足す別経路なので、
+   * これが無いと「この課題に足す」動線が箱から消える
+   *
+   * **高さ（`ACTION_HEIGHT`）は箱の高さに入っている。** 入れ忘れるとボタンが
+   * 箱の下端からはみ出すが、絶対配置なので画面は黙ってはみ出したまま描く
+   *（`layout.test.ts` の「末尾の『仮説を追加』の高さを勘定に入れる」が番人）。
+   *
+   * **幅は帯の全幅で、ボタンの幅は測らない**——`notes.adds`（節末の2つの
+   * ボタン）と同じ組み方で、描く側が帯の中に左寄せで並べる。左端は
+   * パネルと揃う（`PANEL_INDENT`。キャンバスの `.addhypo { margin-left: 12px }`）
+   */
+  addHypothesis: Rect | null
 }
 
-/** 展開パネルの中身。畳まれている行は持たない */
+/**
+ * 展開パネルの中身。畳まれている行は持たない。
+ *
+ * **節の見出しは「1行の帯」1つで表す**（`label`）。見出しの右にはバッジ・
+ * 日付・トリガー・ゴミ箱が並ぶが、**それぞれの矩形を測らない**——帯の中で
+ * flex に並べる（デザインキャンバスの `.label { display:flex; gap:8px }` そのもの）。
+ * 見出しの文字幅を測って隣を置く形にすると、節見出しの書体（`text-sm
+ * font-semibold`）専用の測定器がもう1本要る一方で、得られるのは
+ * 「絶対配置で置ける」だけである
+ */
 export interface HypothesisPanel {
   panel: Rect
   /**
-   * 「判断」節。最新イベントのバッジ＋根拠（編集可）＋種別を選ぶトリガー。
+   * 「ソリューション仮説」節。見出しの帯／仮説の文言（複数行）。
+   *
+   * **`detail` はここから出た**（m5 の追加作業）——「どう作るか」は独立した節に
+   * 昇格し、価値仮説の次に座る（下の `detail`）。**ゴミ箱（仮説の削除）は
+   * この節の帯に残る**——仮説そのものを消すボタンなので、節が分かれても
+   * 仮説の先頭の節に付く
+   */
+  solution: { label: Rect; title: Rect }
+  /** 「価値仮説」節。見出しの帯／価値仮説（複数行） */
+  value: { label: Rect; field: Rect }
+  /**
+   * 「どう作るか」節（`detail`）。見出しの帯／本文（複数行）。
+   *
+   * **m5 の追加作業で独立した節になった。** それまではソリューション仮説の節の
+   * 中に、タイトルの下の本文として描かれていた——スキーマが `detail` を
+   * 「ソリューション仮説の**詳細**（どう作るか）」と説明している通りの入れ子だが、
+   * 実機で読むと**タイトルと詳細のどちらが仮説の本体か**が見分けられなかった。
+   * 節に上げて見出しを与え、**価値仮説（なぜ効くか）の次**——「何を・なぜ・
+   * どう」の順——に置いた（依頼者の指示）
+   */
+  detail: { label: Rect; field: Rect }
+  /**
+   * 「検証結果」節。`label` の帯に最新イベントのバッジ・日付・種別を選ぶ
+   * トリガーが並び、その下が根拠（編集可）。
    * **イベント0件でもトリガーのために節は出る**——出さないと、マウスで
    * 判断を付ける動線が展開した仮説から消える
    */
-  judgement: { label: Rect; badge: Rect; note: Rect; trigger: Rect }
+  judgement: { label: Rect; note: Rect }
   /**
-   * 「以前の判断」の見出し。1件も無ければ null（節ごと出ない）。
-   *
-   * **`previous` の配列とは別に持つ。** 見出しの場所を部品が
-   * 「先頭行の上」から逆算すると、節の組み方（`SECTION_GAP`）が
-   * レイアウトと部品の2箇所に散る
+   * FB の節。**中身は問いブロックの入れ子**（デザインキャンバスの `.ask`）で、
+   * `blocks` は `asks` の順に並び、最後に「どの問いにも紐づかないFB」の
+   * ブロックが**その中身が1件以上あるときだけ**付く。`adds` は
+   * 「聞きたいことを追加」「FBを追加」が横に並ぶ1行
    */
-  previousLabel: Rect | null
-  /** 「以前の判断」。`events[0 .. length-2]` の順。読み取り専用 */
-  previous: { badge: Rect; note: Rect }[]
-  /** FB（`feedbacks`）。`cells` は同じ添字。`add` は「＋ FB」のボタン行 */
-  notes: { label: Rect; cells: Rect[]; add: Rect }
+  notes: { label: Rect; blocks: AskBlockRects[]; adds: Rect }
 }
 
-export interface HypothesisPlacement {
-  /** 行（畳まれていれば1行。展開していれば文言＋パネルの全体） */
+/**
+ * FB 1行の置き場所。**`feedbackIndex` はデータ（`hypothesis.feedbacks`）の
+ * 添字であって、ブロックの中の順番ではない**——入れ子に並べ替えて描いても、
+ * 書き換え・削除・`data-cell` は元の席を指す必要がある
+ */
+export interface FeedbackRowRects {
+  feedbackIndex: number
+  /** 行の全体（アイコンから削除ボタンまで） */
   rect: Rect
-  /** 文言。畳まれていれば `body.lineHeight` ちょうどの1行（CSS で省略）。展開していれば折り返した高さ */
+  /** 調子（`sentiment`）のアイコン */
+  icon: Rect
+  /** 本文の欄（複数行。ここだけが伸びる） */
   text: Rect
-  /** 状態のバッジ（行末。高さ `BADGE_HEIGHT`） */
-  badge: Rect
-  /**
-   * 「FB待ち」が立っていれば、そのバッジ。立っていなければ null。
-   * 状態のバッジの左に `BADGE_GAP` 空けて並ぶ
-   */
-  feedbackBadge: Rect | null
-  /** 展開パネル。畳まれていれば null */
-  expanded: HypothesisPanel | null
+  /** `{by} · {date}`。**幅は実測**（右端の削除ボタンから左へ置く） */
+  meta: Rect
+  /** 削除の `X` */
+  remove: Rect
 }
+
+/**
+ * 問いブロック1つ。**問いに答えとしての FB がぶら下がる**入れ子の単位。
+ *
+ * **`askIndex` が `null` のブロックは「どの問いにも紐づかないFB」の受け皿**で、
+ * `askId` が `null` の FB だけでなく、**実在しない `askId` を持つ FB もここに入る**
+ *（スキーマは「存在しない ask を指していてもファイルは開ける」と明記している）。
+ * 問いごとに `askId` で素朴に絞ると、そういう FB がどのブロックにも入らず
+ * **画面から黙って消える**——「ファイルにあるものが黙って減るのが一番たちが悪い」
+ * は `commands.ts` の `normalizeOrder` の註が述べている、このコードベースの価値である。
+ * 割り振りは常に**全 FB のちょうど1つのブロックへの分割**になっている
+ */
+export interface AskBlockRects {
+  /** `asks` の添字。null＝末尾の「どの問いにも紐づかないFB」ブロック */
+  askIndex: number | null
+  /** ブロックの面（キャンバスの `.ask`。中身はこの矩形の中に収まる） */
+  block: Rect
+  /**
+   * 問いの見出し行。`icon` は問いの印（`askIndex` が null のときは描かない
+   * ——**場所は空けたまま**にして、文言の左端をブロックどうしで揃える）、
+   * `badge` は「FB待ち」（立っていなければ null。`HypothesisRowRects.feedbackBadge`
+   * と同じ形）、`add` はこの問いに FB を足すミニボタン、`remove` は問いの削除。
+   *
+   * **`remove` は問いのあるブロックだけ**（`askIndex` が `null` なら null）
+   *——「どの問いにも紐づかないFB」の受け皿には消す対象の問いが無い。
+   * 列は左から [アイコン][文言][FB待ち][＋FB][削除] で、**削除は FB 行と同じ
+   * 右端の列**（`FB_DELETE_WIDTH`）に座る
+   */
+  head: { icon: Rect; text: Rect; badge: Rect | null; add: Rect; remove: Rect | null }
+  /** このブロックに属する FB。**データの配列順のまま** */
+  rows: FeedbackRowRects[]
+}
+
+/**
+ * 畳まれた1行の中身。
+ *
+ * - `text`: 文言（`body.lineHeight` ちょうどの1行。溢れは CSS で省略）
+ * - `badge`: 状態のバッジ（行末。高さ `BADGE_HEIGHT`）
+ * - `feedbackBadge`: 「FB待ち」が立っていれば、状態のバッジの左に
+ *   `BADGE_GAP` 空けて並ぶ。立っていなければ null
+ */
+export interface HypothesisRowRects {
+  text: Rect
+  badge: Rect
+  feedbackBadge: Rect | null
+}
+
+/**
+ * 仮説1本の置き場所。**畳まれた行（`row`）と展開パネル（`expanded`）は
+ * 判別子つきの合併で排他にしてある**——`row` を持つ枝の `expanded` は
+ * `null` 型そのものなので、**両方を埋めた値は型が通らない。**
+ *
+ * 独立した2つの `| null` にしていると、将来レイアウトが両方を埋めたときに
+ * 描く側の `if` の順で**行が勝ってパネルが静かに消える**（型は通ったまま）。
+ * `row !== null` / `expanded !== null` のどちらで絞っても、もう片方が
+ * 確定するのはこの形のおかげである。
+ *
+ * **開いた仮説に「点・文言・バッジ」の頭部は無い**——パネルが全部を負う
+ *（計画「閉じた行と展開パネルは責務が違い、同時に描かれることがない」）。
+ * 頭部を残すと、パネルの「ソリューション仮説」節と**同じ文言が2箇所に出る**
+ */
+export type HypothesisPlacement =
+  | {
+      /** 行の全体（畳まれた1行） */
+      rect: Rect
+      row: HypothesisRowRects
+      expanded: null
+    }
+  | {
+      /** 行の全体（展開していればパネルそのもの） */
+      rect: Rect
+      row: null
+      expanded: HypothesisPanel
+    }
 
 export interface IssueTreeLayout {
   /** issues と同じ添字。循環して根から到達できないものは null */
@@ -111,28 +295,179 @@ export interface IssueTreeLayout {
 }
 
 /**
- * 「判断」節のトリガーの文言。**幅を測るのはレイアウトなので、文言もここに置く**
- *——エディタが別の文字列を渡すと、空けた幅と描く幅がずれて根拠に被る
+ * **`JUDGEMENT_TRIGGER_LABELS`（「判断を追加」「判断を変える」）は m5 Task 6 で
+ * 消した。** トリガーは状態のバッジ自身になったので、**トリガーに固有の文言は
+ * もう存在しない**——描くのは `EVENT_KIND_LABELS` ／ `BADGE_LABELS` の語であり、
+ * 何をするボタンかはアクセシブル名（`仮説{N}に判断を追加`）が運ぶ。
+ * 帯の高さを決める `judgeLabelH` も**バッジの高さで測り直してある**
+ *（下の「検証結果の節」を見ること）
  */
-export const JUDGEMENT_TRIGGER_LABELS = {
-  /** イベント0件（まだ何も判断していない） */
-  empty: '判断を追加',
-  /** 1件以上（最新を上書きせず、次のイベントを追記する） */
-  latest: '判断を変える',
-} as const
 
-/** 「判断」節でイベントが1件も無いときに根拠の場所へ出す文言 */
-export const NO_JUDGEMENT_TEXT = '判断はまだ無い'
+/**
+ * 「検証結果」節でイベントが1件も無いときに根拠の場所へ出す文言
+ *（デザインキャンバスの `.field.ph`）。**空欄を警告にしない**——判断を
+ * 選ぶまで根拠は書けない、という手順の案内であって欠落の印ではない
+ */
+export const NO_JUDGEMENT_TEXT = '理由（判断を選ぶと書ける）'
 
-/** 節の見出し。**`derive.ts` には置かない**——Skill の報告には出ない画面だけの言葉 */
+/**
+ * 節の見出し。**`derive.ts` には置かない**——Skill の報告には出ない画面だけの言葉。
+ * **鍵の並びが描く順**: ソリューション仮説 → 価値仮説 → どう作るか →
+ * 検証結果 → FB の**5つ**。`layout.test.ts` が鍵の並びを、
+ * `HypothesisPanel.dom.test.tsx` が DOM の並びを、対で固定している。
+ *
+ * **「どう作るか」（`detail`）は m5 の追加作業でソリューション仮説の節の中から
+ * 昇格した**（`HypothesisPanel.detail` の解説）。
+ *
+ * **「以前の判断」の節は v4 で消えた**——仮説の `events` が `maxItems: 1` に
+ * なり、覆される前の判断そのものがデータに残らなくなったので、読み手ごと消した
+ *（矩形・見出し・部品の描画を残すと、**永久に空の節**が測定だけを食う）
+ */
 export const SECTION_LABELS = {
-  judgement: '判断',
-  previous: '以前の判断',
+  solution: 'ソリューション仮説',
+  value: '価値仮説',
+  detail: 'どう作るか',
+  judgement: '検証結果',
   notes: 'FB',
 } as const
 
-/** 「＋ FB」のボタンの文言 */
-export const ADD_NOTE_LABEL = '＋ FB'
+/** FB の調子（`sentiment`）。**スキーマの enum そのもの** */
+export type Sentiment = Feedback['sentiment']
+
+/**
+ * 調子ごとの日本語。**語はスキーマの説明から取った**——
+ * `src/types/issue-tree.ts` の `Feedback.sentiment` が
+ * 「like＝賛成／concern＝懸念／question＝質問／note＝ただのメモ（分類しない）」と
+ * 書いている、その語をそのまま使う。**画面のために語を発明しない**
+ *（発明すると、アプリの画面と Skill が人へ返す報告で同じ値が別の名前で出る）。
+ *
+ * **`derive.ts` には置けない**——あちらは同梱 Skill にバイト一致のコピーがあり、
+ * 画面だけの言葉を足すとコピーの側が意味の無い差分を持つ。`SECTION_LABELS` と
+ * 同じ事情で、ここが画面だけの言葉の置き場である。
+ *
+ * **`Record<Sentiment, string>` にしてあるのは、スキーマが調子を増やしたときに
+ * `tsc` をここで落とすためである**（`SENTIMENT_ICONS` ／ `EVENT_KIND_LABELS` と
+ * 同じ手）。手書きの配列にすると、増えた語が**選べないまま静かに残る**
+ */
+export const SENTIMENT_LABELS: Record<Sentiment, string> = {
+  like: '賛成',
+  concern: '懸念',
+  question: '質問',
+  note: 'ただのメモ',
+}
+
+/**
+ * ドロップダウンに出す調子の並び。**`SENTIMENT_LABELS` の鍵の順**
+ *（スキーマの enum の順でもある）——`JUDGEMENT_MENU_ORDER` が
+ * `Record<JudgementKind, number>` で並びを持っているのと同じ理由で、
+ * **手書きの配列を置かない**：ここは鍵から導くので、語が増えれば
+ * 自動でメニューにも出る（`SENTIMENT_LABELS` 側で `tsc` が落ちて気づく）
+ */
+export const SENTIMENT_ORDER: readonly Sentiment[] = Object.keys(SENTIMENT_LABELS) as Sentiment[]
+
+/**
+ * 画面での問いの呼び名。**プレースホルダ・節末のボタンの文言・そのボタンの
+ * アクセシブル名が、この1つから出る**——打ち直すと3つが静かにずれる
+ *（`feedbackMetaText` が「測る側と描く側が同じ文字列を読む」と言っているのと
+ * 同じ約束の、言葉の側）。
+ *
+ * **画面だけ「SHに」を前に付ける**（m5 の追加作業。依頼者の指示）。
+ * **データと Skill の語彙は `asks` ＝「聞きたいこと」のまま**——スキーマ v3 は
+ * 凍結範囲で、説明を変えると同梱 Skill のバイト一致コピーとも食い違う。
+ * **これは意図した使い分けである**（画面は「誰に聞くか」まで言い、データの
+ * 語彙は中立のまま）——`docs/open-issues.md` に記録してある
+ */
+export const ASK_LABEL = 'SHに聞きたいこと'
+
+/**
+ * 空の欄に出す案内。**プレースホルダは高さに効かない**（測るのは値の側）ので
+ * レイアウトは使わないが、**節見出しと同じ「画面だけの言葉」なので隣に置く**
+ *——部品ごとに打ち直すと、同じ欄の呼び名が節見出しとずれる。
+ *
+ * **節見出しとプレースホルダは同じ語にしない**——見出しが項目名を言い、
+ * プレースホルダが**それとは別の半分**を言う、という関係で組んである:
+ *
+ * | 節見出し | プレースホルダ | スキーマの説明 |
+ * | --- | --- | --- |
+ * | ソリューション仮説 | `仮説` | ソリューション仮説のタイトル（何を作るか） |
+ * | 価値仮説 | `なぜ効くか` | 価値仮説（なぜ効くと考えるか） |
+ * | どう作るか | `詳細` | ソリューション仮説の**詳細**（どう作るか） |
+ *
+ * **「どう作るか」の節だけ、見出しと促しが入れ替わっている**——m5 の追加作業で
+ * `detail` を節に上げたとき、見出しに採ったのが説明の括弧の中（＝促しの側）
+ * だったためで、**残る半分の「詳細」がプレースホルダに来る**。ここを
+ * 「どう作るか」のままにすると**同じ語が見出しの真下に2つ並ぶ**（節に上げた
+ * ときに一度そうなっていた）。`詳細` は欄の呼び名としても既に使われている
+ *（アクセシブル名 `仮説{N} の詳細`）ので、`仮説` / `課題` / `理由` という
+ * 他の欄の短い呼び名の流儀にもそのまま乗る
+ */
+export const FIELD_PLACEHOLDERS = {
+  detail: '詳細',
+  value: 'なぜ効くか',
+  ask: ASK_LABEL,
+} as const
+
+/**
+ * 検証結果の見出しに出す日付（キャンバスの `.date` ＝「2/13 更新」）。
+ * **`YYYY-MM-DD` をそのまま出さない**——見出しの帯は1行で、年は判断の
+ * 読み比べに要らない。
+ *
+ * **形の違う日付は考えない。** スキーマが `date` のすべてに
+ * `^\d{4}-\d{2}-\d{2}$` を課しており（`schemas/issue-tree.schema.json`）、
+ * 違う形のファイルはレベル1検証で弾かれて**そもそも開けない**。
+ * 到達しない分岐を書くと、テストの当たらないコードが1本増えるだけである
+ */
+export function judgementDateText(date: string): string {
+  return `${shortDate(date)} 更新`
+}
+
+/**
+ * 画面に出す月日（`2/13`）。**`YYYY-MM-DD` をそのまま出さない**——年は
+ * 判断の読み比べにも FB の並びにも要らない。形の違う日付を考えないのは
+ * `judgementDateText` と同じ理由（レベル1検証が弾く＝そもそも開けない）
+ */
+function shortDate(date: string): string {
+  return `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`
+}
+
+/**
+ * FB 行の右に出す「誰が・いつ」（キャンバスの `.meta` ＝「田中さん · 2/12」）。
+ *
+ * **測る側と描く側が同じ文字列を読む**——幅を実測して右端から置くので、
+ * 打ち直すと測定と描画がずれる。`by` は空文字を許す（会話に出ていなければ
+ * 推測して埋めない、というスキーマの規律）ので、**空なら日付だけ**にする
+ *——「 · 2/12」と中黒だけが浮くのは、誰が言ったか分からないことの表示として
+ * 読めない
+ */
+export function feedbackMetaText(f: Pick<Feedback, 'by' | 'date'>): string {
+  return f.by === '' ? shortDate(f.date) : `${f.by} · ${shortDate(f.date)}`
+}
+
+/**
+ * 「＋ FBを追加」のボタンの文言（節の末尾。**どの問いにも紐づかない FB を作る**）。
+ * 値はデザインキャンバスの `.adds` から逐語
+ */
+export const ADD_NOTE_LABEL = 'FBを追加'
+/**
+ * 「＋ SHに聞きたいことを追加」のボタンの文言。
+ *
+ * **キャンバスの逐語は「聞きたいことを追加」だった**が、m5 の追加作業で
+ * 依頼者の指示により「SHに」を前に付けた（`ASK_LABEL` の解説）。
+ *
+ * **語は `ASK_LABEL` から組む**——このボタンは**見える文字と
+ * アクセシブル名（`仮説{N} にSHに聞きたいことを足す`）の両方**で同じ語を
+ * 名乗る必要があり（見えている言葉で呼べること。WCAG 2.5.3 の趣旨）、
+ * 3箇所に打ち直すと片方だけが古くなる
+ */
+export const ADD_ASK_LABEL = `${ASK_LABEL}を追加`
+/** 問いブロックの中の小さな「＋FB」の文言（キャンバスの `.miniadd`） */
+export const MINI_ADD_NOTE_LABEL = 'FB'
+/**
+ * `askIndex` が `null` のブロックの見出し（キャンバスの逐語）。
+ * **編集できない固定文**——これは問いではなく「問いが無い」ことの名前なので、
+ * 打ち替えられると `askId === null` の意味と食い違う
+ */
+export const NO_ASK_TEXT = 'どの問いにも紐づかないFB'
 
 /**
  * 折り返した文章の高さ（余白は箱が1度だけ持つので、ここでは 0）。
@@ -155,9 +490,53 @@ function badgeWidth(label: string, font: IssueTreeFont): number {
   return Math.ceil(font.measure(label)) + BADGE_PADDING_X * 2 + BADGE_BORDER * 2
 }
 
-/** 小さなボタン（`buttonBase` ＋ `px-1` ＋ 枠線）の幅 */
-function actionWidth(label: string, font: IssueTreeFont): number {
-  return Math.ceil(font.measure(label)) + ACTION_INSET_X * 2
+/**
+ * ミニボタン（問いブロックの「＋FB」）の幅。アイコン・空き・左右の余白・枠線を
+ * 文言の実測に足す（`badgeWidth` と同じ組み立て）
+ */
+function miniActionWidth(label: string, font: IssueTreeFont): number {
+  return (
+    Math.ceil(font.measure(label)) +
+    MINI_ICON_SIZE +
+    MINI_ICON_GAP +
+    MINI_ACTION_PADDING_X * 2 +
+    MINI_ACTION_BORDER * 2
+  )
+}
+
+/**
+ * FB を問いブロックへ振り分ける。**返すのは `feedbacks` の添字の配列で、
+ * すべての FB がちょうど1つのブロックに入る**（分割であって絞り込みではない）。
+ *
+ * - `attached[i]` … `asks[i]` を指す FB
+ * - `loose` … `askId` が `null` の FB **と、実在しない `askId` を持つ FB**
+ *
+ * **宙に浮いた `askId` を捨てないこと。** スキーマは「存在しない ask を指していても
+ * ファイルは開ける（整合性検証も今は見ない）」と明記しており、手書き・AI が書いた
+ * ファイルにはそういう FB がありうる。問いごとに `askId` で絞って残りを
+ * 「`askId === null`」だけで集めると、それらはどのブロックにも入らず画面から
+ * 黙って消える（`AskBlockRects` の解説）。
+ *
+ * **同じ id の問いが2つあるファイルでは、先に現れた方だけが答えを受け取る**
+ *（`core/canvas/flat-tree.ts` の「同じ id は先に現れた方を採る」と同じ規則）
+ *——両方に入れると、1件の FB が画面に2回出る（減るのと同じくらい嘘である）
+ */
+function groupFeedbacks(h: Pick<Hypothesis, 'asks' | 'feedbacks'>): {
+  attached: number[][]
+  loose: number[]
+} {
+  const askAt = new Map<string, number>()
+  h.asks.forEach((a, i) => {
+    if (!askAt.has(a.id)) askAt.set(a.id, i)
+  })
+  const attached: number[][] = h.asks.map(() => [])
+  const loose: number[] = []
+  h.feedbacks.forEach((f, i) => {
+    const at = f.askId === null ? undefined : askAt.get(f.askId)
+    if (at === undefined) loose.push(i)
+    else attached[at].push(i)
+  })
+  return { attached, loose }
 }
 
 /** 仮説行1本の計画。高さを先に確定させ、置く場所が決まってから矩形を組む */
@@ -175,81 +554,133 @@ interface RowPlan {
  * `layoutTree` へはその寸法だけを渡す。木の畳み方（親を最初の子と最後の子の
  * 中心に置く／兄弟の衝突を全深さで見る）はロジックツリーと同じ関数がやる。
  *
- * 詳細（根拠・FB・以前の判断）は**展開している1本の仮説にだけ**出る。
- * `expandedIndex` は**ビュー状態であり `data` には無い**——座標と同じく、
- * 「いまどれを開いているか」をファイルに書かない（rev 3章）。
+ * **展開の単位は課題ノードである**（m5。M3〜m4 は仮説1本だった）。開いた課題は
+ * 幅が `EXPANDED_BOX_WIDTH` に広がり、**その課題にぶら下がる仮説がすべて**
+ * パネル（判断・FB）を開く。1本だけ開く形をやめたのは、仮説どうしを
+ * 見比べる場面——どれを先に検証するか、どれが同じ問いに答えているか——で、
+ * 開くたびに隣が畳まれると比較そのものができないため。
+ *
+ * 押し広げは**列の側が引き受ける**——`tree-layout.ts` の `columnXs` は深さごとの
+ * 最大幅で列の x を決めるので、`Size.width` に 780 を渡せば右の列がそのぶん
+ * 送られる。**`tree-layout.ts` は触らない。**
+ *
+ * **開く鍵は「選択中の課題」である**（m5 の実機確認後）。箱をクリックすると
+ * その課題が選択され、選択されていて仮説を1本以上持つ課題が開く。
+ * **選択されていても仮説が0本なら開かない**——箱は `BOX_WIDTH` のままで、
+ * 末尾の「＋ 仮説を追加」だけが出る（`IssuePlacement.selected` の解説）。
+ *
+ * `selectedIssueIndex` は**ビュー状態であり `data` には無い**——座標と同じく、
+ * 「いまどれを選んでいるか」をファイルに書かない（rev 3章）。
  *
  * **ここに「前回どこにあったか」の状態を混ぜないこと**——同じデータと同じ
- * 展開状態から違う図が出るようになった時点で「図は導出」が崩れる
+ * 選択状態から違う図が出るようになった時点で「図は導出」が崩れる
  */
 export function layoutIssueTree(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   posed: PosedQuestions,
   fonts: IssueTreeFonts,
-  /** 展開している仮説の添字。無ければ -1 */
-  expandedIndex: number,
+  /** 選択している**課題**の添字。無ければ -1 */
+  selectedIssueIndex: number,
 ): IssueTreeLayout {
+  /**
+   * 課題 ID → 添字。仮説の行が「持ち主の課題が開いているか」を引くのに要る
+   *（開閉が仮説ごとではなく課題ごとになったため）
+   */
+  const issueIndexOf = new Map<string, number>()
+  data.issues.forEach((node, i) => {
+    // **ID 重複は先に現れた方を採る**（`commands.ts` の規約、実体は
+    // `core/canvas/flat-tree-core.ts` の `firstIndexById`）。ID 重複のファイルは
+    // 受け入れて赤表示する仕様（`consistency.ts` の `duplicate-id`）なので、
+    // ここは到達可能な入力である。**後勝ちにすると木の側（先勝ち）とずれ**、
+    // 先頭側の箱を選んでも行が開かず箱だけが 780 に広がる
+    if (!issueIndexOf.has(node.id)) issueIndexOf.set(node.id, i)
+  })
+  /** 展開している課題の中身が使える幅（箱が広がったぶんだけ広い） */
+  const EXPANDED_CONTENT_WIDTH = EXPANDED_BOX_WIDTH - ISSUE_INSET_X * 2
   // --- 1. 仮説行の計画（高さと組み立て） ---
   // **`null` を混ぜない。** 「図に出ない仮説」は `hypotheses[hi]` が `null` の
   // ままであることで表される——`walkPlace` は根から到達できる課題しか歩かない
   // ので、到達しない課題にぶら下がる行は組み立て自体が呼ばれない
   const plans: RowPlan[] = data.hypotheses.map((h, hi) => {
-    const open = hi === expandedIndex
-    const group = badgeGroupOf(hypothesisStatus(h))
-    const badgeW = badgeWidth(BADGE_LABELS[group], fonts.small)
+    // **開いているかは持ち主の課題で決まる。** ぶら下がり先が図に無い仮説
+    //（参照切れ）はどの課題の子にもならないので、開くこともない
+    const owner = issueIndexOf.get(h.issueId)
+    const open = owner !== undefined && owner === selectedIssueIndex
     /**
-     * 「FB待ち」の行バッジ（M22。M4 で `pendingNotes` から `asks`/`feedbacks` へ
-     * 移った）。帯の集計（`tallyQuestions`）と行の表示を一対一にする——数だけが
-     * 増えて、どの行かが図から読めないのを防ぐ。
-     *
-     * **ここで `suppressed` を見る必要は無い**——抑制された仮説には
-     * `poseQuestions` が `feedback` を立てない（`derive.ts`）
+     * この行が使える幅。**開いた課題の中では箱が広がっているので、行も
+     * パネルも広い方の幅で測る**——`BOX_CONTENT_WIDTH` のまま測ると、
+     * ブラウザに与えられる幅より狭い前提で折り返しを数えることになり、
+     * パネルの下に隙間が空く（measure.ts の「定数と Tailwind クラスは対」と
+     * 同じ約束の、幅の側）
      */
-    const q = posed.hypothesisQuestions[hi]
-    const feedbackW =
-      q !== undefined && q.feedback > 0 ? badgeWidth(QUESTION_LABELS.feedback, fonts.small) : 0
-    /** 行末に並ぶバッジ全体の幅（2つ並ぶときは間の `BADGE_GAP` も含む） */
-    const badgesW = feedbackW === 0 ? badgeW : badgeW + BADGE_GAP + feedbackW
-    const textW = BOX_CONTENT_WIDTH - ROW_INDENT - BADGE_GAP - badgesW
+    const contentWidth = open ? EXPANDED_CONTENT_WIDTH : BOX_CONTENT_WIDTH
+    const panelContentWidth = contentWidth - PANEL_INDENT - PANEL_INSET_X * 2
     /**
-     * FB待ちバッジは**状態のバッジから逆算する**（閉じた行と展開頭部で
-     * バッジの `y` の作り方が違うので、同じ位置に置くには受け取るしかない）
+     * **節見出しの下の「値の欄」が使える幅**（`measure.ts` の `FIELD_INDENT`）。
+     * 値の欄は見出しの帯より全角1文字ぶん右から始まるので、**そのぶん狭い。**
+     * **測る側（この値で `textHeight` を呼ぶ）と描く側（`fieldRow` が x を足す）は
+     * 対である**——片方だけ直すと、折り返しの測定が実際より広い幅で行われ、
+     * 高さ固定の `textarea` で末尾の行が黙って切れる（このマイルストーンで
+     * この型の欠陥が繰り返し出ている）。**見出しの帯は `panelContentWidth` のまま**
      */
-    const feedbackBadgeLeftOf = (badge: Rect): Rect | null =>
-      feedbackW === 0
-        ? null
-        : {
-            x: badge.x - BADGE_GAP - feedbackW,
-            y: badge.y,
-            width: feedbackW,
-            height: BADGE_HEIGHT,
-          }
-    // 畳まれた行は**必ず1行**（溢れは CSS の truncate が省略記号にする）。
-    // 展開している行だけが折り返して縦に伸びる
-    const textH = open ? textHeight(h.title, fonts.body, textW) : fonts.body.lineHeight
-    // バッジは行の中で縦中央に座るので、文言より高ければ行がその高さになる
-    const headH = Math.max(textH, BADGE_HEIGHT)
+    const fieldContentWidth = panelContentWidth - FIELD_INDENT
 
+    // --- 畳まれた1行 ---
+    // **バッジと文言の幅の式はこの枝にしか無い。** 開いた仮説に頭部は無く
+    //（`HypothesisPlacement` の解説）、パネルの中身は下でパネルの幅から組む
     if (!open) {
+      const group = badgeGroupOf(hypothesisStatus(h))
+      const badgeW = badgeWidth(BADGE_LABELS[group], fonts.small)
+      /**
+       * 「FB待ち」の行バッジ（M22。M4 で `pendingNotes` から `asks`/`feedbacks` へ
+       * 移った）。帯の集計（`tallyQuestions`）と行の表示を一対一にする——数だけが
+       * 増えて、どの行かが図から読めないのを防ぐ。
+       *
+       * **ここで `suppressed` を見る必要は無い**——抑制された仮説には
+       * `poseQuestions` が `feedback` を立てない（`derive.ts`）。
+       * **展開中は出ない**——問いブロックの側に出す（m5 Task 5）
+       */
+      const q = posed.hypothesisQuestions[hi]
+      const feedbackW =
+        q !== undefined && q.feedback > 0 ? badgeWidth(QUESTION_LABELS.feedback, fonts.small) : 0
+      /** 行末に並ぶバッジ全体の幅（2つ並ぶときは間の `BADGE_GAP` も含む） */
+      const badgesW = feedbackW === 0 ? badgeW : badgeW + BADGE_GAP + feedbackW
+      const textW = contentWidth - ROW_INDENT - BADGE_GAP - badgesW
+      // 畳まれた行は**必ず1行**（溢れは CSS の truncate が省略記号にする）
+      const textH = fonts.body.lineHeight
+      // バッジは行の中で縦中央に座るので、文言より高ければ行がその高さになる
+      const rowH = Math.max(textH, BADGE_HEIGHT)
+
       return {
-        height: headH,
+        height: rowH,
         build: (x, y) => {
           const badge: Rect = {
-            x: x + BOX_CONTENT_WIDTH - badgeW,
-            y: y + Math.floor((headH - BADGE_HEIGHT) / 2),
+            x: x + contentWidth - badgeW,
+            y: y + Math.floor((rowH - BADGE_HEIGHT) / 2),
             width: badgeW,
             height: BADGE_HEIGHT,
           }
           return {
-            rect: { x, y, width: BOX_CONTENT_WIDTH, height: headH },
-            text: {
-              x: x + ROW_INDENT,
-              y: y + Math.floor((headH - textH) / 2),
-              width: textW,
-              height: textH,
+            rect: { x, y, width: contentWidth, height: rowH },
+            row: {
+              text: {
+                x: x + ROW_INDENT,
+                y: y + Math.floor((rowH - textH) / 2),
+                width: textW,
+                height: textH,
+              },
+              badge,
+              // FB待ちバッジは**状態のバッジから逆算する**（右端から左へ並ぶ）
+              feedbackBadge:
+                feedbackW === 0
+                  ? null
+                  : {
+                      x: badge.x - BADGE_GAP - feedbackW,
+                      y: badge.y,
+                      width: feedbackW,
+                      height: BADGE_HEIGHT,
+                    },
             },
-            badge,
-            feedbackBadge: feedbackBadgeLeftOf(badge),
             expanded: null,
           }
         },
@@ -259,131 +690,316 @@ export function layoutIssueTree(
     // --- 展開パネルの中身を測る ---
     const labelH = fonts.small.lineHeight
     const latest = h.events.length === 0 ? null : h.events[h.events.length - 1]
-    // 最新の判断は保存された種別の文言（`EVENT_KIND_LABELS`）で出す。判断を5語に
-    // 畳んだいまは俯瞰のバッジと同じ語になるが、引く先は分けたまま（derive.ts の註）。
-    // イベントが無いときだけ、導出の「未決」を出す
-    const latestLabel = latest === null ? BADGE_LABELS.open : EVENT_KIND_LABELS[latest.kind]
-    const latestBadgeW = badgeWidth(latestLabel, fonts.small)
-    const triggerW = actionWidth(
-      JUDGEMENT_TRIGGER_LABELS[latest === null ? 'empty' : 'latest'],
-      fonts.small,
+
+    /**
+     * ソリューション仮説の節。**タイトルは `fonts.title` で測る**（描くのは
+     * `HYPO_TITLE_FONT_CLASS`。`IssueTreeFonts.title` の解説＝安全側の再利用）。
+     * **`detail` はもうこの節に無い**——独立した「どう作るか」の節へ昇格した
+     *（`HypothesisPanel.detail` の解説）
+     */
+    const hypoTitleH = textHeight(h.title, fonts.title, fieldContentWidth)
+    /**
+     * 見出しの帯にはゴミ箱（仮説の削除。m5 Task 7）が右端に並ぶので、
+     * **帯の高さは高い方に合わせる**——`judgeLabelH` がバッジで測っているのと
+     * 同じ組み方で、書体が小さい環境でアイコンが帯からはみ出さない
+     */
+    const solutionLabelH = Math.max(labelH, TRASH_ICON_SIZE)
+    const solutionH = solutionLabelH + SECTION_GAP + hypoTitleH
+
+    /** 価値仮説の節（見出し＋1つの欄） */
+    const valueH = textHeight(h.value, fonts.body, fieldContentWidth)
+    const valueSectionH = labelH + SECTION_GAP + valueH
+
+    /**
+     * 「どう作るか」の節（`detail`）。本文と同じ書体で、**空でも1行ぶんの
+     * 高さを取る**——空欄にはプレースホルダが出るので、潰すと押せる場所が消える
+     */
+    const detailH = textHeight(h.detail, fonts.body, fieldContentWidth)
+    const detailSectionH = labelH + SECTION_GAP + detailH
+
+    /**
+     * 検証結果の節。**見出しの帯にバッジと日付が同居する**ので、帯の高さは
+     * 高い方に合わせる（幅は測らない。`HypothesisPanel` の解説）。根拠は
+     * その下に**パネルの全幅**で座る。
+     *
+     * **`ACTION_HEIGHT`（24px）は入れない。** m5 Task 6 で「判断を追加」という
+     * 文言のボタンが消え、判断のトリガーは**バッジ自身**（`BADGE_HEIGHT`）に
+     * なった。帯にボタンぶんの 24px を空け続けると、**誰も使わない 2px が
+     * 根拠の欄を押し下げたまま残る**（消した文言のぶんを測り直し忘れる、の形）
+     */
+    const judgeLabelH = Math.max(labelH, BADGE_HEIGHT)
+    const judgeNoteH = textHeight(
+      latest === null ? NO_JUDGEMENT_TEXT : latest.note,
+      fonts.body,
+      fieldContentWidth,
     )
-    const judgeNoteW = PANEL_CONTENT_WIDTH - latestBadgeW - BADGE_GAP - triggerW - BADGE_GAP
-    const judgeNoteH = textHeight(latest === null ? NO_JUDGEMENT_TEXT : latest.note, fonts.body, judgeNoteW)
-    const judgeRowH = Math.max(BADGE_HEIGHT, ACTION_HEIGHT, judgeNoteH)
-    const judgementH = labelH + SECTION_GAP + judgeRowH
+    const judgementH = judgeLabelH + SECTION_GAP + judgeNoteH
 
-    // 以前の判断は追記専用の記録。**最新1件を除いた全部**を古い順に出す
-    const previous = h.events.slice(0, -1).map((e) => {
-      const w = badgeWidth(EVENT_KIND_LABELS[e.kind], fonts.small)
-      const noteW = PANEL_CONTENT_WIDTH - w - BADGE_GAP
-      return { badgeW: w, noteW, height: Math.max(BADGE_HEIGHT, textHeight(e.note, fonts.body, noteW)) }
-    })
-    const previousH =
-      previous.length === 0
-        ? 0
-        : labelH +
-          SECTION_GAP +
-          previous.reduce((sum, p) => sum + p.height, 0) +
-          ROW_GAP * (previous.length - 1)
+    /**
+     * FB の節。**問いブロックの入れ子**（キャンバスの `.ask`）で、`asks` の順に
+     * 並べ、最後に「どの問いにも紐づかないFB」のブロックを**中身があるときだけ**置く
+     */
+    const { attached, loose } = groupFeedbacks(h)
+    // **ブロックそのものが字下げの対象**（`FIELD_INDENT`）。中身（`ASK_PADDING_X`・
+    // `FB_INDENT`）はブロックからの相対なので、**ここで足せば二重にならない**
+    const blockContentWidth = fieldContentWidth - ASK_PADDING_X * 2
+    const rowContentWidth = blockContentWidth - FB_INDENT
+    const miniAddW = miniActionWidth(MINI_ADD_NOTE_LABEL, fonts.small)
+    /**
+     * 「FB待ち」が立つ問いか。**ここで数え直さない**——条件を持っているのは
+     * `derive.ts` の `awaitingAskCount` だけであり（「この関数だけが『FB待ち』の
+     * 条件を持つ」）、問い1件だけの配列を渡して同じ関数に判定させる。
+     * 抑制（祖先の見送り・解決）は `posed` の側が既に落としているので、
+     * **仮説の件数が 0 なら1件も立たない**——抑制の規則をここへ写さないための門である
+     */
+    const awaitingCount = posed.hypothesisQuestions[hi]?.feedback ?? 0
+    const awaits = (askIndex: number): boolean => {
+      const ask = h.asks[askIndex]
+      if (ask === undefined || awaitingCount === 0) return false
+      return awaitingAskCount({ asks: [ask], feedbacks: h.feedbacks }) === 1
+    }
 
-    const noteHs = h.feedbacks.map((f) => textHeight(f.text, fonts.body, PANEL_CONTENT_WIDTH))
+    /** FB 1行の計画。列は [アイコン][本文][{by} · {date}][削除] */
+    const planFeedbackRow = (feedbackIndex: number) => {
+      const f = h.feedbacks[feedbackIndex]
+      const meta = feedbackMetaText(f)
+      /** アイコン・3つの空き・削除ボタンを引いた、本文と `meta` が分け合う幅 */
+      const room = rowContentWidth - FB_ICON_SIZE - FB_COL_GAP * 3 - FB_DELETE_WIDTH
+      const metaW = Math.min(
+        Math.ceil(fonts.small.measure(meta)),
+        Math.max(0, room - MIN_FIELD_WIDTH),
+      )
+      const textW = room - metaW
+      return {
+        feedbackIndex,
+        metaW,
+        textW,
+        // 本文が1行でもアイコンより低くならないようにする
+        height: Math.max(textHeight(f.text, fonts.body, textW), FB_ICON_SIZE),
+      }
+    }
+
+    /** 問いブロック1つの計画。`askIndex` が null なら「紐づかないFB」の受け皿 */
+    const planAskBlock = (askIndex: number | null, indices: readonly number[]) => {
+      const badgeW =
+        askIndex !== null && awaits(askIndex)
+          ? badgeWidth(QUESTION_LABELS.feedback, fonts.small)
+          : 0
+      /**
+       * 見出しの列は [アイコン][文言][FB待ち][＋FB][削除]。文言以外は幅が
+       * 決まっている。**削除は問いのあるブロックだけ**（`askIndex` が `null` の
+       * 受け皿には消す対象の問いが無い）——**その席を測り忘れると、文言が
+       * ボタンの下へ潜る**（`FB_DELETE_WIDTH` を引いているのがその席）
+       */
+      const removable = askIndex !== null
+      const headTextW = Math.max(
+        blockContentWidth -
+          FB_ICON_SIZE -
+          FB_COL_GAP * 2 -
+          miniAddW -
+          (badgeW === 0 ? 0 : badgeW + FB_COL_GAP) -
+          (removable ? FB_DELETE_WIDTH + FB_COL_GAP : 0),
+        MIN_FIELD_WIDTH,
+      )
+      const headTextH = textHeight(
+        askIndex === null ? NO_ASK_TEXT : (h.asks[askIndex]?.text ?? ''),
+        fonts.body,
+        headTextW,
+      )
+      // 見出しの帯は「文言・バッジ・ミニボタン」の一番高いものに合わせる
+      //（検証結果の見出しが `judgeLabelH` を組んでいるのと同じ）
+      const headH = Math.max(headTextH, MINI_ACTION_HEIGHT, badgeW === 0 ? 0 : BADGE_HEIGHT)
+      const rows = indices.map(planFeedbackRow)
+      const height =
+        ASK_PADDING_Y * 2 +
+        headH +
+        (rows.length === 0
+          ? 0
+          : ASK_GAP + rows.reduce((sum, r) => sum + r.height, 0) + ROW_GAP * (rows.length - 1))
+      // `removable` は下の `build` も読む（削除の矩形を出すかどうか）ので計画に載せる
+      return { askIndex, badgeW, headTextW, headTextH, headH, rows, removable, height }
+    }
+
+    const askBlocks = [
+      ...h.asks.map((_, i) => planAskBlock(i, attached[i] ?? [])),
+      // **1件も無ければブロックごと出さない**——空の受け皿は「紐づけ忘れがある」
+      // という誤った印になる。足す動線は節の末尾の「＋ FBを追加」が持つ
+      ...(loose.length === 0 ? [] : [planAskBlock(null, loose)]),
+    ]
     const notesSectionH =
       labelH +
       SECTION_GAP +
-      noteHs.reduce((sum, nh) => sum + nh + ROW_GAP, 0) +
+      askBlocks.reduce((sum, b) => sum + b.height + ASK_BLOCK_GAP, 0) +
       ACTION_HEIGHT
 
-    const sectionHs = [judgementH, previousH, notesSectionH].filter((s) => s > 0)
+    const sectionHs = [
+      solutionH,
+      valueSectionH,
+      detailSectionH,
+      judgementH,
+      notesSectionH,
+    ].filter((s) => s > 0)
     const panelH =
       PANEL_INSET_Y * 2 +
       sectionHs.reduce((sum, s) => sum + s, 0) +
       PANEL_GAP * (sectionHs.length - 1)
-    const height = headH + ROW_GAP + panelH
+    // **開いた仮説に頭部は無い**（`HypothesisPlacement.row` の解説）。行の高さは
+    // パネルそのもの
+    const height = panelH
 
     return {
       height,
       build: (x, y) => {
-        // **パネルの左端は行の文言の左端と揃う**（`PANEL_INDENT` と
+        // **パネルの左端は畳まれた行の文言の左端と揃う**（`PANEL_INDENT` と
         // `ROW_INDENT` は同じ原点から測った同じ値。measure.ts の解説）
         const panel: Rect = {
           x: x + PANEL_INDENT,
-          y: y + headH + ROW_GAP,
-          width: BOX_CONTENT_WIDTH - PANEL_INDENT,
+          y,
+          width: contentWidth - PANEL_INDENT,
           height: panelH,
         }
         const cx = panel.x + PANEL_INSET_X
         let cursor = panel.y + PANEL_INSET_Y
-        /** 節の見出しを置いて本文の上端まで進める */
-        const sectionLabel = (): Rect => {
-          const r: Rect = { x: cx, y: cursor, width: PANEL_CONTENT_WIDTH, height: labelH }
-          cursor += labelH + SECTION_GAP
+        /** パネルの全幅を使う1行を置いて、次の行の上端まで進める */
+        const fullRow = (rowHeight: number, gap: number): Rect => {
+          const r: Rect = { x: cx, y: cursor, width: panelContentWidth, height: rowHeight }
+          cursor += rowHeight + gap
+          return r
+        }
+        /** 節の見出しの帯を置いて本文の上端まで進める。**帯は字下げしない** */
+        const sectionLabel = (bandHeight = labelH): Rect => fullRow(bandHeight, SECTION_GAP)
+        /**
+         * 節見出しの下の「値の欄」を置く。**`x` に `FIELD_INDENT` を足し、幅から
+         * 同じだけ引く**——右端は見出しの帯と揃ったまま、左端だけが全角1文字ぶん
+         * 内側に入る。**測る側（`fieldContentWidth`）と対**である
+         */
+        const fieldRow = (rowHeight: number, gap: number): Rect => {
+          const r: Rect = {
+            x: cx + FIELD_INDENT,
+            y: cursor,
+            width: fieldContentWidth,
+            height: rowHeight,
+          }
+          cursor += rowHeight + gap
           return r
         }
 
-        const judgeLabel = sectionLabel()
-        const judgeBadge: Rect = { x: cx, y: cursor, width: latestBadgeW, height: BADGE_HEIGHT }
-        const judgeNote: Rect = {
-          x: cx + latestBadgeW + BADGE_GAP,
-          y: cursor,
-          width: judgeNoteW,
-          height: judgeNoteH,
-        }
-        const judgeTrigger: Rect = {
-          x: cx + PANEL_CONTENT_WIDTH - triggerW,
-          y: cursor,
-          width: triggerW,
-          height: ACTION_HEIGHT,
-        }
-        cursor += judgeRowH
+        const solutionLabel = sectionLabel(solutionLabelH)
+        const hypoTitle = fieldRow(hypoTitleH, PANEL_GAP)
 
-        const previousRects: { badge: Rect; note: Rect }[] = []
-        let previousLabel: Rect | null = null
-        if (previous.length > 0) {
-          cursor += PANEL_GAP
-          previousLabel = sectionLabel()
-          previous.forEach((p, j) => {
-            if (j > 0) cursor += ROW_GAP
-            previousRects.push({
-              badge: { x: cx, y: cursor, width: p.badgeW, height: BADGE_HEIGHT },
-              note: { x: cx + p.badgeW + BADGE_GAP, y: cursor, width: p.noteW, height: p.height },
-            })
-            cursor += p.height
-          })
-        }
+        const valueLabel = sectionLabel()
+        const valueField = fieldRow(valueH, PANEL_GAP)
 
+        const detailLabel = sectionLabel()
+        const detailField = fieldRow(detailH, PANEL_GAP)
+
+        const judgeLabel = sectionLabel(judgeLabelH)
+        const judgeNote = fieldRow(judgeNoteH, 0)
+
+        // **`judgeNote` は `gap` に 0 を渡している**ので、ここで節どうしの空きを足す
+        //（「以前の判断」の節が間にあった名残ではなく、根拠の欄が節の最後の行だから）
         cursor += PANEL_GAP
         const notesLabel = sectionLabel()
-        const noteCells = noteHs.map((nh) => {
-          const r: Rect = { x: cx, y: cursor, width: PANEL_CONTENT_WIDTH, height: nh }
-          cursor += nh + ROW_GAP
-          return r
+        const blocks: AskBlockRects[] = askBlocks.map((bp) => {
+          // **ブロックの面ごと字下げする**（値の欄と同じ `FIELD_INDENT`）。
+          // 中の `ASK_PADDING_X` / `FB_INDENT` はこの矩形からの相対なので、
+          // ここで足しても入れ子の字下げと二重にはならない
+          const block: Rect = {
+            x: cx + FIELD_INDENT,
+            y: cursor,
+            width: fieldContentWidth,
+            height: bp.height,
+          }
+          const bx = block.x + ASK_PADDING_X
+          /** ブロックの中身の右端（＋FB とバッジはここから左へ並ぶ） */
+          const right = bx + blockContentWidth
+          let by = block.y + ASK_PADDING_Y
+          // 問いの削除は**右端の列**（FB 行の削除と同じ幅・同じ高さ）。
+          // 「＋FB」はその左へ寄る——右端から左へ並べるのは、この見出し行と
+          // FB の行で唯一の並べ方である（`head.badge` も `add` から逆算する）
+          const remove: Rect | null = bp.removable
+            ? {
+                x: right - FB_DELETE_WIDTH,
+                y: by,
+                width: FB_DELETE_WIDTH,
+                height: fonts.body.lineHeight,
+              }
+            : null
+          const add: Rect = {
+            x: (remove === null ? right : remove.x - FB_COL_GAP) - miniAddW,
+            y: by,
+            width: miniAddW,
+            height: MINI_ACTION_HEIGHT,
+          }
+          const head = {
+            icon: { x: bx, y: by, width: FB_ICON_SIZE, height: fonts.body.lineHeight },
+            text: {
+              x: bx + FB_ICON_SIZE + FB_COL_GAP,
+              y: by,
+              width: bp.headTextW,
+              height: bp.headTextH,
+            },
+            // FB待ちのバッジは**＋FB から逆算する**（右端から左へ並ぶ。
+            // 畳まれた行が状態のバッジから逆算しているのと同じ）
+            badge:
+              bp.badgeW === 0
+                ? null
+                : {
+                    x: add.x - FB_COL_GAP - bp.badgeW,
+                    y: by,
+                    width: bp.badgeW,
+                    height: BADGE_HEIGHT,
+                  },
+            add,
+            remove,
+          }
+          by += bp.headH
+          const rows: FeedbackRowRects[] = bp.rows.map((rp, j) => {
+            by += j === 0 ? ASK_GAP : ROW_GAP
+            const rx = bx + FB_INDENT
+            const rect: Rect = { x: rx, y: by, width: rowContentWidth, height: rp.height }
+            const remove: Rect = {
+              x: rx + rowContentWidth - FB_DELETE_WIDTH,
+              y: by,
+              width: FB_DELETE_WIDTH,
+              height: fonts.body.lineHeight,
+            }
+            const out: FeedbackRowRects = {
+              feedbackIndex: rp.feedbackIndex,
+              rect,
+              icon: { x: rx, y: by, width: FB_ICON_SIZE, height: fonts.body.lineHeight },
+              text: {
+                x: rx + FB_ICON_SIZE + FB_COL_GAP,
+                y: by,
+                width: rp.textW,
+                height: rp.height,
+              },
+              meta: {
+                x: remove.x - FB_COL_GAP - rp.metaW,
+                y: by,
+                width: rp.metaW,
+                height: fonts.body.lineHeight,
+              },
+              remove,
+            }
+            by += rp.height
+            return out
+          })
+          cursor += bp.height + ASK_BLOCK_GAP
+          return { askIndex: bp.askIndex, block, head, rows }
         })
-        const addRect: Rect = { x: cx, y: cursor, width: PANEL_CONTENT_WIDTH, height: ACTION_HEIGHT }
-
-        const badge: Rect = {
-          x: x + BOX_CONTENT_WIDTH - badgeW,
-          y: y + Math.floor((fonts.body.lineHeight - BADGE_HEIGHT) / 2),
-          width: badgeW,
-          height: BADGE_HEIGHT,
-        }
+        const addsRect: Rect = { x: cx, y: cursor, width: panelContentWidth, height: ACTION_HEIGHT }
 
         return {
-          rect: { x, y, width: BOX_CONTENT_WIDTH, height },
-          text: { x: x + ROW_INDENT, y, width: textW, height: textH },
-          badge,
-          feedbackBadge: feedbackBadgeLeftOf(badge),
+          rect: { x, y, width: contentWidth, height },
+          row: null,
           expanded: {
             panel,
-            judgement: {
-              label: judgeLabel,
-              badge: judgeBadge,
-              note: judgeNote,
-              trigger: judgeTrigger,
-            },
-            previousLabel,
-            previous: previousRects,
-            notes: { label: notesLabel, cells: noteCells, add: addRect },
+            solution: { label: solutionLabel, title: hypoTitle },
+            value: { label: valueLabel, field: valueField },
+            detail: { label: detailLabel, field: detailField },
+            judgement: { label: judgeLabel, note: judgeNote },
+            notes: { label: notesLabel, blocks, adds: addsRect },
           },
         }
       },
@@ -398,7 +1014,13 @@ export function layoutIssueTree(
   // --- 2. 課題の箱を測る ---
   const built = buildTree(data.issues)
   interface BoxPlan {
+    /** 開いているか（＝選ばれていて、かつ仮説を1本以上持つ） */
+    open: boolean
+    /** 選ばれているか。枠の色と、末尾の「＋ 仮説を追加」の有無をこれが決める */
+    selected: boolean
     width: number
+    /** 箱の中の文章が使える幅（`width - ISSUE_INSET_X * 2`）。展開すると広がる */
+    contentWidth: number
     titleWidth: number
     titleHeight: number
     /** 見送りバッジ（無ければ 0）。タイトルの右に空ける幅は `BADGE_GAP + これ` */
@@ -407,8 +1029,33 @@ export function layoutIssueTree(
     height: number
     rows: number[]
   }
+  /**
+   * **旗の無い箱の右上に並ぶトリガー2つ**（見送り／解決。`IssueTreeEditor` の
+   * `FLAG_KINDS`）の合計幅＋間の `BADGE_GAP`。描く側の `IssueBox` が同じ枠を
+   * `gap-2`（＝`BADGE_GAP` の 8px）の flex で並べている。
+   *
+   * **箱ごとに変わらない**（`fonts` はループの外）ので、`boxes` の外で1回だけ
+   * 畳む。**語ごとに測って畳む**——`ISSUE_EVENT_LABELS` に種別が増えれば
+   * 測る側は自動で追随し、足りない方（＝はみ出す方）へは倒れない
+   *（`FLAG_KINDS` は `IssueEventKind[]` なので、ここが型として上界になる）
+   */
+  const flagTriggersW = Object.values(ISSUE_EVENT_LABELS).reduce(
+    (sum, label, idx) => sum + (idx === 0 ? 0 : BADGE_GAP) + badgeWidth(label, fonts.small),
+    0,
+  )
   const boxes: BoxPlan[] = data.issues.map((node, i) => {
     const rows = rowsOf.get(node.id) ?? []
+    const selected = i === selectedIssueIndex
+    // **開くものが無ければ開かない。** 選ばれていても仮説が0本なら畳んだまま
+    // ——展開中の課題から最後の仮説を消したときに、行の無い 780 幅の箱が
+    // 残らないようにする（`IssuePlacement.expanded` の解説）。**選択そのものは
+    // 残る**ので、末尾の「＋ 仮説を追加」は畳んだ幅のまま出る。
+    //
+    // **行の側と同じ判定を通す。** 仮説行は `issueIndexOf`（先勝ち）で持ち主を
+    // 引くので、ID が重複しているとき開けるのは**先に現れた方だけ**である。
+    // ここで後ろ側も開けてしまうと、`BOX_WIDTH` 前提で測った行を `EXPANDED_BOX_WIDTH` の箱に置くこと
+    // （またはその逆）になり、行とパネルが箱からはみ出す
+    const open = selected && rows.length > 0 && issueIndexOf.get(node.id) === i
     const latestFlag = node.events[node.events.length - 1]
     const flagged = latestFlag !== undefined
     // 「仮説なし」と旗は**排他**（旗を掲げた課題は抑制されるので問いが立たない）。
@@ -423,9 +1070,9 @@ export function layoutIssueTree(
      * タイトル行の右上は**常に1枠空ける**。ここに出るのは3つで、
      * いずれも同じ場所に右寄せで置かれる:
      *
-     * - 見送りバッジ（見送り済み。これ自身が見送りのトグルを兼ねる）
+     * - 旗のバッジ（旗が立っている。これ自身が旗のトグルを兼ねる）
      * - 「仮説なし」バッジ（問いが立っている）
-     * - 見送りのトグル（まだ見送っていない。ホバー・フォーカス中だけ出る小さなボタン）
+     * - 旗のトグル（まだ旗が無い。ホバー・フォーカス中だけ出る小さなボタンが**2つ**）
      *
      * **バッジがあるときだけ空ける形にしない。** そうすると普通の箱では
      * ホバー中に不透明なボタンがタイトルの1行目の末尾に被り、読めなくなる
@@ -433,15 +1080,18 @@ export function layoutIssueTree(
      * 箱の外へ出す道は採らない——列の間隔に置くと隣の枝と重なる。
      * 「仮説なし」の箱ではバッジとトリガーが同じ枠を奪い合うので、
      * **ホバー中はバッジを隠してトグルと入れ替える**（IssueBox）。
-     * 見送り済みの箱では2つが同じ要素なので、広い方＝バッジの幅でよい
+     * 旗が立っている箱では2つが同じ要素なので、広い方＝バッジの幅でよい
      */
-    // まだ見送っていない箱のトリガーは `IssueTreeEditor` の `DEFER_TRIGGER_FACE`
+    // まだ旗の無い箱のトリガーは `IssueTreeEditor` の `FLAG_TRIGGER_FACE`
     // ＝バッジと同じ幾何（`px-1.5` ＋ 枠 1px）を描くので、幅も `actionWidth`
     // （`px-1` 前提）ではなく `badgeWidth` で測る。**描く面が変わったら測る式も
-    // 対で直すこと**——片方だけ変えると、予約した枠より描画が広くなってはみ出す
-    const slotW = flagged
-      ? badgeW
-      : Math.max(badgeW, badgeWidth(ISSUE_EVENT_LABELS.deferred, fonts.small))
+    // 対で直すこと**——片方だけ変えると、予約した枠より描画が広くなってはみ出す。
+    //
+    // **旗の無い箱にはトリガーが2つ並ぶ**ので、その合計幅（`flagTriggersW`。
+    // 組み立ては宣言のところ）で測る。片方ぶんで測っていた版に戻すと、ホバー中に
+    // 見送りのボタンがタイトルへはみ出す（`layout.test.ts` の
+    // 「旗の無い箱は、旗のトグル2つぶん（＋間の空き）の枠をタイトルの右に空ける」）
+    const slotW = flagged ? badgeW : Math.max(badgeW, flagTriggersW)
     const reserve = BADGE_GAP + slotW
 
     // **箱の幅は導出しない**（`measure.ts` の `BOX_WIDTH` の解説）。
@@ -453,12 +1103,29 @@ export function layoutIssueTree(
     // 残っている不変条件は「一番広い枠を引いてもタイトルが痩せすぎない」だけで、
     // これは `layout.test.ts` が測定器から導いた下限で見ている。**`BOX_WIDTH` を
     // 縮めるか、バッジの語を伸ばすと、そのテストが赤くなる**
-    const width = BOX_WIDTH
-    const titleWidth = BOX_CONTENT_WIDTH - reserve
+    //
+    // **展開している課題だけが `EXPANDED_BOX_WIDTH`**（m5）。これも固定値であって
+    // 内容から導出しない——導出にすると、開いた瞬間に幅が文言の長さで変わる
+    const width = open ? EXPANDED_BOX_WIDTH : BOX_WIDTH
+    const contentWidth = width - ISSUE_INSET_X * 2
+    /**
+     * **タイトルは内容の左端から始まる。** m5 はここに開閉トグル（シェブロン）の
+     * ぶん（`CHEVRON_SIZE + CHEVRON_GAP` ＝ 20px）を空けていたが、**実機確認後に
+     * トグルごと撤去した**（開閉は箱のクリックによる選択に変わった）ので、
+     * その空きも消えている。タイトルはそのぶん広い
+     */
+    const titleWidth = contentWidth - reserve
 
-    const titleHeight = textHeight(node.text, fonts.title, titleWidth)
+    /**
+     * **展開中の課題タイトルは一段大きい**（`EXPANDED_TITLE_FONT_CLASS` ＝
+     * text-base 16px）。**測る側と描く側（`IssueBox`）が同じ条件で切り替わること。**
+     * 片方だけだと、測定より広く描いて折り返しが1行増え、高さ固定＋
+     * `overflow-hidden` の textarea で末尾の行が黙って見えなくなる
+     */
+    const titleFont = open ? fonts.expandedTitle : fonts.title
+    const titleHeight = textHeight(node.text, titleFont, titleWidth)
     const reasonHeight = flagged
-      ? textHeight(latestFlag.note, fonts.small, BOX_CONTENT_WIDTH - ROW_INDENT)
+      ? textHeight(latestFlag.note, fonts.small, contentWidth - ROW_INDENT)
       : null
 
     let height = ISSUE_INSET_Y * 2 + titleHeight
@@ -467,7 +1134,31 @@ export function layoutIssueTree(
       height += TITLE_GAP + ROW_GAP * (rows.length - 1)
       for (const hi of rows) height += plans[hi].height
     }
-    return { width, titleWidth, titleHeight, badgeWidth: badgeW, reasonHeight, height, rows }
+    /**
+     * **選ばれた課題ノードの末尾には「＋ 仮説を追加」が座る**（m5 Task 7。仮説を
+     * 足す動線はキーから消えたのでマウスにしかない）。**その高さを箱に足すこと**
+     *——足し忘れるとボタンが箱の下端からはみ出すが、絶対配置なので画面は
+     * 黙ってはみ出したまま描く。
+     *
+     * **空きは、行があれば行どうしと同じ `ROW_GAP`（ボタンは最後の行に続く）、
+     * 行が無ければ `TITLE_GAP`**（タイトル——または旗の理由——の直後に続く。
+     * 行が始まるときに空ける空きと同じ）。仮説0本の課題は開かないが、
+     * ボタンだけは出る（`IssuePlacement.addHypothesis` の解説）ので、
+     * **ここは `open` ではなく `selected` で足す**
+     */
+    if (selected) height += (rows.length > 0 ? ROW_GAP : TITLE_GAP) + ACTION_HEIGHT
+    return {
+      open,
+      selected,
+      width,
+      contentWidth,
+      titleWidth,
+      titleHeight,
+      badgeWidth: badgeW,
+      reasonHeight,
+      height,
+      rows,
+    }
   })
 
   // --- 3. コアの木レイアウトへ渡す（ブロック＝箱。仮説は箱の中なので別途足さない） ---
@@ -490,7 +1181,13 @@ export function layoutIssueTree(
       const box = boxes[i]
       const left = point.x + ISSUE_INSET_X
       let cursor = point.y + ISSUE_INSET_Y
-      const title: Rect = { x: left, y: cursor, width: box.titleWidth, height: box.titleHeight }
+      // タイトルは内容の左端から始まる（m5 実機確認後にシェブロンを撤去した）
+      const title: Rect = {
+        x: left,
+        y: cursor,
+        width: box.titleWidth,
+        height: box.titleHeight,
+      }
       cursor += box.titleHeight
       let event: { badge: Rect; reason: Rect } | null = null
       if (box.reasonHeight !== null) {
@@ -505,16 +1202,11 @@ export function layoutIssueTree(
           reason: {
             x: left + ROW_INDENT,
             y: cursor,
-            width: BOX_CONTENT_WIDTH - ROW_INDENT,
+            width: box.contentWidth - ROW_INDENT,
             height: box.reasonHeight,
           },
         }
         cursor += box.reasonHeight
-      }
-      issues[i] = {
-        rect: { x: point.x, y: point.y, width: box.width, height: box.height },
-        title,
-        event,
       }
       if (box.rows.length > 0) cursor += TITLE_GAP
       box.rows.forEach((hi, j) => {
@@ -522,6 +1214,26 @@ export function layoutIssueTree(
         hypotheses[hi] = plans[hi].build(left, cursor)
         cursor += plans[hi].height
       })
+      // 末尾の「＋ 仮説を追加」。**左端はパネルと揃える**（`PANEL_INDENT`）。
+      // 帯は残りの幅いっぱいで、ボタン自身の幅は測らない（描く側が左寄せで置く）。
+      // **空きは高さを積んだときと同じ式**（行があれば `ROW_GAP`、無ければ
+      // `TITLE_GAP`）——片方だけ直すとボタンが箱からはみ出す
+      const addHypothesis: Rect | null = box.selected
+        ? {
+            x: left + PANEL_INDENT,
+            y: cursor + (box.rows.length > 0 ? ROW_GAP : TITLE_GAP),
+            width: box.contentWidth - PANEL_INDENT,
+            height: ACTION_HEIGHT,
+          }
+        : null
+      issues[i] = {
+        rect: { x: point.x, y: point.y, width: box.width, height: box.height },
+        selected: box.selected,
+        expanded: box.open,
+        title,
+        event,
+        addHypothesis,
+      }
     }
     for (const child of node.children) walkPlace(child)
   }

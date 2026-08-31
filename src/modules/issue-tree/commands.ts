@@ -3,11 +3,11 @@ import { insertAt, moveItem, removeAt } from '@/core/list-ops'
 import { newId } from '@/core/new-id'
 import { todayString } from '@/core/today'
 import type {
+  Ask,
   Feedback,
   Hypothesis,
-  IssueEvent,
   IssueNode,
-  IssueTreeSchemaVersion3,
+  IssueTreeSchemaVersion4,
   JudgementEvent,
 } from '@/types/issue-tree'
 import type { IssueEventKind } from './derive'
@@ -24,14 +24,28 @@ export type FocusTarget =
   | { cell: 'issue'; index: number }
   | { cell: 'issueEvent'; index: number }
   | { cell: 'hypothesis'; index: number }
+  | { cell: 'detail'; index: number }
+  | { cell: 'value'; index: number }
+  | { cell: 'ask'; index: number; askIndex: number }
   | { cell: 'feedback'; index: number; feedbackIndex: number }
   | { cell: 'event'; index: number; eventIndex: number }
 
 export interface EditResult {
-  data: IssueTreeSchemaVersion3
+  data: IssueTreeSchemaVersion4
   /** 行き先が無いときは null */
   focus: FocusTarget | null
 }
+
+/**
+ * イベント列の型。**v4 のスキーマが `maxItems: 1` を課したので、生成される型は
+ * 配列ではなくタプルの union（`[] | [E]`）である**——「0 件か 1 件」が `tsc` の
+ * 検査対象になった。追記する実装（`[...events, e]`）はここで型が落ちるので、
+ * 「差し替えは前の1件を消してから足す」という規律がコメントではなく型で守られる。
+ * **`derive.ts` はこの型を読む側なので1文字も変わらない**（見るのは
+ * `events.length === 0` と最後の要素だけ）
+ */
+type JudgementEvents = Hypothesis['events']
+type IssueEvents = IssueNode['events']
 
 /**
  * 課題を DFS 行きがけ順に、仮説を「ぶら下がり先の課題の順」に整える
@@ -44,7 +58,7 @@ export interface EditResult {
  *——ファイルにあるものが黙って減るのが一番たちが悪い（参照切れは
  * 整合性検証が赤くする）
  */
-export function normalizeOrder(data: IssueTreeSchemaVersion3): IssueTreeSchemaVersion3 {
+export function normalizeOrder(data: IssueTreeSchemaVersion4): IssueTreeSchemaVersion4 {
   const issues = orderFlatNodes(data.issues)
   const rank = new Map<string, number>()
   // ID 重複は先に現れた方を採る（core/canvas/flat-tree.ts と同じ規則）
@@ -68,7 +82,7 @@ function newIssue(parentId: string | null): IssueNode {
  * 課題の並びを動かさない。**通すのは仮説のため**——課題を動かすと
  * 「ぶら下がり先の課題の順」が崩れるので、ここで一緒に引き直す
  */
-function withIssues(data: IssueTreeSchemaVersion3, issues: IssueNode[]): IssueTreeSchemaVersion3 {
+function withIssues(data: IssueTreeSchemaVersion4, issues: IssueNode[]): IssueTreeSchemaVersion4 {
   return normalizeOrder({ ...data, issues })
 }
 
@@ -78,7 +92,7 @@ function withIssues(data: IssueTreeSchemaVersion3, issues: IssueNode[]): IssueTr
  * 呼び出し元が渡した index をそのまま使うと別の課題を操作する
  */
 function prepare(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
 ): { issues: IssueNode[]; built: BuiltTree; i: number } | null {
   const ref = data.issues[index]
@@ -94,14 +108,14 @@ function prepare(
  * 到達不能ノードを末尾へ寄せるため、末尾に足した新ルートは `withIssues` の
  * 正規化で前へ戻る。足した位置をそのまま使うと別の実在ノードを指す
  */
-export function addRootIssue(data: IssueTreeSchemaVersion3): EditResult {
+export function addRootIssue(data: IssueTreeSchemaVersion4): EditResult {
   const created = newIssue(null)
   const next = withIssues(data, [...orderFlatNodes(data.issues), created])
   return { data: next, focus: { cell: 'issue', index: next.issues.indexOf(created) } }
 }
 
 /** 末尾の子を足す（Tab／ノードの「+」ハンドルが呼ぶのはこの関数） */
-export function addChildIssue(data: IssueTreeSchemaVersion3, parentIndex: number): EditResult {
+export function addChildIssue(data: IssueTreeSchemaVersion4, parentIndex: number): EditResult {
   const p = prepare(data, parentIndex)
   if (p === null) return { data, focus: null }
   // 行きがけ順では「部分木の直後」がそのまま「末尾の子の位置」になる
@@ -115,7 +129,7 @@ export function addChildIssue(data: IssueTreeSchemaVersion3, parentIndex: number
  * **ルートの上では子を足す**——ルートに兄弟を作ると多重ルートになり、
  * 単一ルートの木という制約と両立しない
  */
-export function addSiblingIssueAfter(data: IssueTreeSchemaVersion3, index: number): EditResult {
+export function addSiblingIssueAfter(data: IssueTreeSchemaVersion4, index: number): EditResult {
   const p = prepare(data, index)
   if (p === null) return { data, focus: null }
   if (p.built.parents[p.i] === null) return addChildIssue(withIssues(data, p.issues), p.i)
@@ -132,7 +146,7 @@ export function addSiblingIssueAfter(data: IssueTreeSchemaVersion3, index: numbe
  * 確認ダイアログは挟まない（rev 5章。会議中の入力速度を削ぐため）。
  * 1操作1コミットの Undo で戻せる
  */
-export function deleteIssueSubtree(data: IssueTreeSchemaVersion3, index: number): EditResult {
+export function deleteIssueSubtree(data: IssueTreeSchemaVersion4, index: number): EditResult {
   const p = prepare(data, index)
   if (p === null) return { data, focus: null }
   const end = subtreeEnd(p.built, p.i)
@@ -164,7 +178,7 @@ export function deleteIssueSubtree(data: IssueTreeSchemaVersion3, index: number)
  *——先に削除すると後続が前へずれ、下方向への移動が1つ手前に着地する
  */
 export function moveIssueSibling(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   delta: -1 | 1,
 ): EditResult {
@@ -195,10 +209,10 @@ export function moveIssueSibling(
  * 入力中のノードの配列位置がずれてフォーカスを見失う
  */
 export function setIssueText(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   text: string,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   return { ...data, issues: data.issues.map((n, i) => (i === index ? { ...n, text } : n)) }
 }
 
@@ -216,10 +230,10 @@ function newHypothesis(issueId: string): Hypothesis {
 }
 
 function replaceHypothesis(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   next: Hypothesis,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   return { ...data, hypotheses: data.hypotheses.map((h, i) => (i === index ? next : h)) }
 }
 
@@ -230,7 +244,7 @@ function replaceHypothesis(
  * 制約違反にすると、形式的な子ノードを作る迂回入力を強いることになる。
  * 「仮説は？」の問いが葉にしか立たないのは別の話で、そちらは derive.ts の担当
  */
-export function addHypothesis(data: IssueTreeSchemaVersion3, issueIndex: number): EditResult {
+export function addHypothesis(data: IssueTreeSchemaVersion4, issueIndex: number): EditResult {
   const issue = data.issues[issueIndex]
   if (issue === undefined) return { data, focus: null }
   const created = newHypothesis(issue.id)
@@ -241,7 +255,7 @@ export function addHypothesis(data: IssueTreeSchemaVersion3, issueIndex: number)
 }
 
 /** 直後に仮説を足す（仮説セルでの Enter）。**同じ課題にぶら下げる** */
-export function addHypothesisAfter(data: IssueTreeSchemaVersion3, index: number): EditResult {
+export function addHypothesisAfter(data: IssueTreeSchemaVersion4, index: number): EditResult {
   const ref = data.hypotheses[index]
   if (ref === undefined) return { data, focus: null }
   const created = newHypothesis(ref.issueId)
@@ -250,7 +264,7 @@ export function addHypothesisAfter(data: IssueTreeSchemaVersion3, index: number)
 }
 
 /** 仮説を消す（空欄 Backspace）。イベントも FB も一緒に消える */
-export function deleteHypothesis(data: IssueTreeSchemaVersion3, index: number): EditResult {
+export function deleteHypothesis(data: IssueTreeSchemaVersion4, index: number): EditResult {
   if (data.hypotheses[index] === undefined) return { data, focus: null }
   const kept = removeAt(data.hypotheses, index)
   const at = index > 0 && kept[index - 1]?.issueId === data.hypotheses[index].issueId ? index - 1 : null
@@ -263,7 +277,7 @@ export function deleteHypothesis(data: IssueTreeSchemaVersion3, index: number): 
  * 「並び替え」が「付け替え」に化ける
  */
 export function moveHypothesis(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   delta: -1 | 1,
 ): EditResult {
@@ -281,32 +295,118 @@ export function moveHypothesis(
 /**
  * ソリューション仮説のタイトルを置き換える。**並べ替えない**——打鍵のたびに
  * 配列が動くと、入力中の仮説の配列位置がずれてフォーカスを見失う。
- *
- * **`detail` / `value` の setter はここに無い**（m4 は出す画面を持たない。m5 が足す）
  */
 export function setHypothesisTitle(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   title: string,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   const h = data.hypotheses[index]
   return h === undefined ? data : replaceHypothesis(data, index, { ...h, title })
 }
 
-/** アプリが作る FB。**調子は `note`（ただのメモ）が既定**——m4 は選ばせる画面を持たず、嘘の分類を残さないため */
-function newFeedback(today: string): Feedback {
-  return { askId: null, text: '', by: '', sentiment: 'note', date: today }
+/** 仮説の詳細（どう作るか）を置き換える。**並べ替えない**（`setHypothesisTitle` と同じ理由） */
+export function setHypothesisDetail(
+  data: IssueTreeSchemaVersion4,
+  index: number,
+  detail: string,
+): IssueTreeSchemaVersion4 {
+  const h = data.hypotheses[index]
+  return h === undefined ? data : replaceHypothesis(data, index, { ...h, detail })
 }
 
-/** FB を1件足す（「＋ FB」ボタン） */
-export function addFeedback(
-  data: IssueTreeSchemaVersion3,
+/** 価値仮説（なぜ効くか）を置き換える。**並べ替えない**（`setHypothesisTitle` と同じ理由） */
+export function setHypothesisValue(
+  data: IssueTreeSchemaVersion4,
   index: number,
+  value: string,
+): IssueTreeSchemaVersion4 {
+  const h = data.hypotheses[index]
+  return h === undefined ? data : replaceHypothesis(data, index, { ...h, value })
+}
+
+function newAsk(): Ask {
+  return { id: newId('ask'), text: '' }
+}
+
+/** 問いを1件足す（「＋ 聞きたいことを追加」ボタン） */
+export function addAsk(data: IssueTreeSchemaVersion4, index: number): EditResult {
+  const h = data.hypotheses[index]
+  if (h === undefined) return { data, focus: null }
+  const asks = [...h.asks, newAsk()]
+  return {
+    data: replaceHypothesis(data, index, { ...h, asks }),
+    focus: { cell: 'ask', index, askIndex: asks.length - 1 },
+  }
+}
+
+/** 問いの文言を書き換える。**並べ替えない**（`setHypothesisTitle` と同じ理由） */
+export function setAskText(
+  data: IssueTreeSchemaVersion4,
+  index: number,
+  askIndex: number,
+  text: string,
+): IssueTreeSchemaVersion4 {
+  const h = data.hypotheses[index]
+  if (h === undefined || h.asks[askIndex] === undefined) return data
+  return replaceHypothesis(data, index, {
+    ...h,
+    asks: h.asks.map((a, i) => (i === askIndex ? { ...a, text } : a)),
+  })
+}
+
+/**
+ * 問いを1件消す。**行き先は `removeFeedback` と同じ規律**——前の問いがあれば
+ * それ、無ければ展開パネルの中で必ず存在する仮説の文言へ返す。
+ *
+ * **消した問いを指していた FB の `askId` を `null` に付け替える。** 放置すると、
+ * その FB は「どの問いのブロックにも属さず、`askId === null` のブロックにも
+ * 属さない」状態になり、画面から黙って消える（Task 5 の入れ子の描き方の帰結）。
+ * 「ファイルにあるものが黙って減るのが一番たちが悪い」は `normalizeOrder` の註が
+ * 既に述べている、このコードベースの価値である。付け替えれば「どの問いにも
+ * 紐づかない FB」のブロックに現れて残る。
+ *
+ * スキーマは「存在しない ask を指していてもファイルは開ける」と言っているので、
+ * 手書き／AI が書いたファイルには依然として宙に浮いた `askId` がありうる——
+ * その扱いは画面側（Task 5）の仕事で、ここでは何もしない
+ */
+export function removeAsk(
+  data: IssueTreeSchemaVersion4,
+  index: number,
+  askIndex: number,
+): EditResult {
+  const h = data.hypotheses[index]
+  const removed = h?.asks[askIndex]
+  if (h === undefined || removed === undefined) return { data, focus: null }
+  const asks = removeAt(h.asks, askIndex)
+  const feedbacks = h.feedbacks.map((f) => (f.askId === removed.id ? { ...f, askId: null } : f))
+  const at = askIndex > 0 ? askIndex - 1 : null
+  return {
+    data: replaceHypothesis(data, index, { ...h, asks, feedbacks }),
+    focus: at === null ? { cell: 'hypothesis', index } : { cell: 'ask', index, askIndex: at },
+  }
+}
+
+/** アプリが作る FB。**調子は `note`（ただのメモ）が既定**——m4 は選ばせる画面を持たず、嘘の分類を残さないため */
+function newFeedback(askId: string | null, today: string): Feedback {
+  return { askId, text: '', by: '', sentiment: 'note', date: today }
+}
+
+/**
+ * FB を1件足す（「＋ FB」ボタン）。**`askId` は既定値を与えず必須**——「＋FB」
+ * ボタンは必ずどこかのブロック（どの問いにも紐づかない／特定の問い）の中にあり、
+ * 呼ぶ側は自分がどの問いの下にいるかを知っている。既定 `null` にすると、
+ * 配線を忘れた「＋FB」が黙ってどの問いにも紐づかない FB を作る
+ */
+export function addFeedback(
+  data: IssueTreeSchemaVersion4,
+  index: number,
+  askId: string | null,
   today: string = todayString(),
 ): EditResult {
   const h = data.hypotheses[index]
   if (h === undefined) return { data, focus: null }
-  const feedbacks = [...h.feedbacks, newFeedback(today)]
+  const feedbacks = [...h.feedbacks, newFeedback(askId, today)]
   return {
     data: replaceHypothesis(data, index, { ...h, feedbacks }),
     focus: { cell: 'feedback', index, feedbackIndex: feedbacks.length - 1 },
@@ -319,7 +419,7 @@ export function addFeedback(
  * フォーカスが展開パネルの一番下へ飛ぶ（`addHypothesisAfter` と同じ規律）
  */
 export function addFeedbackAfter(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   feedbackIndex: number,
   today: string = todayString(),
@@ -330,7 +430,7 @@ export function addFeedbackAfter(
   return {
     data: replaceHypothesis(data, index, {
       ...h,
-      feedbacks: insertAt(h.feedbacks, at, newFeedback(today)),
+      feedbacks: insertAt(h.feedbacks, at, newFeedback(null, today)),
     }),
     focus: { cell: 'feedback', index, feedbackIndex: at },
   }
@@ -342,11 +442,11 @@ export function addFeedbackAfter(
  * 発言日が今日になる）
  */
 export function setFeedbackText(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   feedbackIndex: number,
   text: string,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   const h = data.hypotheses[index]
   if (h === undefined || h.feedbacks[feedbackIndex] === undefined) return data
   return replaceHypothesis(data, index, {
@@ -356,16 +456,46 @@ export function setFeedbackText(
 }
 
 /**
- * FB を1件消す（空欄 Backspace／削除）。**`events` と違って消せるのはここだけ**
- *——打ち間違いが残るのは実務的でない一方、判断の履歴は「そのとき何を根拠に
- * 決めたか」の記録なので追記専用を守る。
+ * FB の調子（`sentiment`）を差し替える（アイコンのドロップダウン。m5 の追加作業）。
+ *
+ * **`setFeedbackText` と同じ規律**——並べ替えない、**日付も文言も書き換えない**
+ *（`date` は「いつ言われたか」であって「いつ分類し直したか」ではない）。
+ *
+ * **これが無いあいだ、`sentiment` はアプリから一度も変えられなかった**
+ *——`newFeedback` が `note` 固定で作り、画面はアイコンで**表示するだけ**
+ * だったので、`like` / `concern` / `question` は Skill か手書きでしか入らなかった。
+ * 「スキーマが受け入れる値を、アプリからは選べない」は
+ * `JUDGEMENT_MENU_ORDER` の註が名指ししている失敗と同じ形である
+ */
+export function setFeedbackSentiment(
+  data: IssueTreeSchemaVersion4,
+  index: number,
+  feedbackIndex: number,
+  sentiment: Feedback['sentiment'],
+): IssueTreeSchemaVersion4 {
+  const h = data.hypotheses[index]
+  const current = h?.feedbacks[feedbackIndex]
+  // **同じ調子を選び直したら「動かなかった編集」**（`moveFeedback` と同じ約束で
+  // 同じ参照を返す）——ドロップダウンはいまの値も選べるので、素通しにすると
+  // 中身の同じコミットが積まれて Undo が空振りする
+  if (h === undefined || current === undefined || current.sentiment === sentiment) return data
+  return replaceHypothesis(data, index, {
+    ...h,
+    feedbacks: h.feedbacks.map((f, i) => (i === feedbackIndex ? { ...f, sentiment } : f)),
+  })
+}
+
+/**
+ * FB を1件消す（空欄 Backspace／削除）。**`events` と違って何件でも並ぶ列である**
+ *——こちらは「何を言われたか」の記録なので順番も件数も意味を持つ。判断の側は
+ * 高々1件で「いま何が決まっているか」だけを表し、消すのは `clearJudgement`。
  *
  * **先頭を消したときの行き先は仮説の文言。** v2 は由来の欄へ返していたが、
  * その欄は廃止された（`rationale`）。展開パネルの中で必ず存在する欄は
  * 仮説の文言だけなので、そこへ返す
  */
 export function removeFeedback(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   feedbackIndex: number,
 ): EditResult {
@@ -388,7 +518,7 @@ export function removeFeedback(
  *（`moveHypothesis` と同じ約束。呼び出し側はこれで履歴の空振りを落とす）
  */
 export function moveFeedback(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   feedbackIndex: number,
   delta: -1 | 1,
@@ -408,23 +538,41 @@ export function moveFeedback(
 }
 
 /**
- * 判断イベントを追記する（D2）。**追記専用**——過去の要素は書き換えない。
- * **仮説側は例外を持たない**（例外は課題の旗だけ。`toggleIssueEvent`）。
+ * 判断を**差し替える**（D2。v4 で追記から反転した）。
  *
- * `note` は空で作り、直後に最新イベントの note セルへフォーカスを移す。
+ * **`appendJudgement` から改名した。** v3 まではここが追記専用で、覆った判断の
+ * 履歴が残ることが利点だったが、実機で一巡して**間違えて付けた判断を消せない**
+ * ことのほうが高くつくと分かった（2026-08-31 のユーザー判断）。いまは
+ * **課題の旗（`toggleIssueEvent`）と同じ規律**である——差し替えは前の1件を
+ * 消してから足す。列に2件並べると「いまどちらが有効か」が列の中身に依存し始め、
+ * 「最新1件で決まる」という導出の芯が崩れる（スキーマの `maxItems: 1` が
+ * 同じことをファイルの側で言っている）。
+ *
+ * **同じ種別を選び直したら「動かなかった編集」**（`setFeedbackSentiment` と同じ
+ * 約束で同じ参照を返す）——ドロップダウンはいまの種別も選べるので、素通しにすると
+ * **書いてある理由が空に戻り、日付だけが今日へ動く**。「今回も同じ判断・理由も
+ * 同じ」なら何も触らないのが D2 の当初からの規律でもある。
+ *
+ * 種別が変わったときは `note` を空で作り直し、直後にその note セルへフォーカスを
+ * 移す——**残すと、前の判断のために書いた理由が新しい判断の理由の顔をする**
+ *（`toggleIssueEvent` が旗の差し替えで同じことをしている）。
  * **FB は1件も動かない**（v3 で「根拠へ移す」を廃止した。判断の理由は
  * 複数の FB を踏まえて人が自分の言葉で書くものであり、FB の文言をそのまま
  * 移す操作は分かりづらいわりに何も要約していない）
  */
-export function appendJudgement(
-  data: IssueTreeSchemaVersion3,
+export function setJudgement(
+  data: IssueTreeSchemaVersion4,
   index: number,
   kind: JudgementEvent['kind'],
   today: string = todayString(),
 ): EditResult {
   const h = data.hypotheses[index]
   if (h === undefined) return { data, focus: null }
-  const events = [...h.events, { kind, note: '', date: today }]
+  const latest = h.events[h.events.length - 1]
+  if (latest !== undefined && latest.kind === kind) return { data, focus: null }
+  // **前の1件を消してから足す**（列に2件並べない）。`JudgementEvents` は
+  // タプルなので、うっかり `[...h.events, e]` と書くと `tsc` が落とす
+  const events: JudgementEvents = [{ kind, note: '', date: today }]
   return {
     data: replaceHypothesis(data, index, { ...h, events }),
     focus: { cell: 'event', index, eventIndex: events.length - 1 },
@@ -432,17 +580,53 @@ export function appendJudgement(
 }
 
 /**
+ * 判断を**取り消して未決へ戻す**（v4。ドロップダウンの「取り消す」）。
+ *
+ * **`toggleIssueEvent` の「切る」側と同じ操作である**——打ち消しを表す種別を
+ * 追記するのではなく、**立っている1件を消す**。追記で表すと、現在ステータスが
+ * 「最新の kind」ではなく「列を畳んだ結果」になり、俯瞰のバッジと問いの導出
+ *（`derive.ts` の `hypothesisStatus` ／ `poseQuestions`）が列の中身に依存し始める。
+ *
+ * **判断が無ければ「動かなかった編集」**（同じ参照を返す）——`apply` がそれを見て
+ * 履歴を積まない。画面の側も未決のときは「取り消す」を出さないが、**出す・出さないの
+ * 判断が画面にしか無い状態にしない**（動線が増えたときに空のコミットが積まれる）。
+ *
+ * **行き先は仮説の文言**（`{ cell: 'hypothesis' }`）。理由の欄は判断があるときしか
+ * 存在せず（未決のパネルはそこに読み取り専用の案内文を出す）、取り消した直後には
+ * **戻る先の欄そのものが消えている**。`null`（＝どこへも移さない）にすると
+ * フォーカスはドロップダウンのトリガーに残り、そこでは木の操作言語
+ *（Enter／Tab／←→）が1つも効かない——`toggleIssueEvent` が旗を外したときに
+ * 課題の文言へ返すのと同じ理由で、**展開パネルの中で必ず存在する欄**へ返す
+ *（`removeFeedback` が先頭を消したときに仮説の文言を選ぶのと同じ席）。
+ *
+ * **空にする＝「立っている1件を消す」である**（`toggleIssueEvent` の「切る」側と
+ * 同じ）。v3 まではここで `slice(0, -1)` と書いて「最新の1件だけ」を消す必要が
+ * あった——手書きの2件以上のファイルが開けたからである。v4 の `maxItems: 1` で
+ * その形は開かなくなり、**生成される型がタプル（`[] | [JudgementEvent]`）に
+ * なったので、2つの書き方の区別そのものが型から消えた**
+ */
+export function clearJudgement(data: IssueTreeSchemaVersion4, index: number): EditResult {
+  const h = data.hypotheses[index]
+  if (h === undefined || h.events.length === 0) return { data, focus: null }
+  const events: JudgementEvents = []
+  return {
+    data: replaceHypothesis(data, index, { ...h, events }),
+    focus: { cell: 'hypothesis', index },
+  }
+}
+
+/**
  * 課題ノードの旗を**入り切りする**（D3）。**配下へ値をコピーしない**
  *——抑制は derive.ts が祖先を遡って導出する。
  *
- * **ここだけが D2 の追記専用の例外である。** 旗は「選ぶ」操作ではなく
- * 「入っているか／入っていないか」の操作なので、「切る」の意味を決める必要が
- * あり、**最新の旗を消す**を採った。追記による取り消しイベントは作らない：
- * `events` が「旗が1件」ではなく「掲げて戻した履歴」になった瞬間、抑制の導出
- * （最新があるか）と俯瞰のバッジが列の中身に依存し始める。**代償は、一度掲げて
- * 戻した事実とそのとき書いた理由が消えることである**——受け入れた上での選択で、
- * 取り消しは Undo（1操作1コミット）が戻す。**仮説側（`appendJudgement`）は
- * 追記専用のまま。**
+ * **ここが D2 の追記専用をやめた最初の場所だった**（issue-tree-m3）。旗は「選ぶ」
+ * 操作ではなく「入っているか／入っていないか」の操作なので、「切る」の意味を
+ * 決める必要があり、**最新の旗を消す**を採った。追記による取り消しイベントは
+ * 作らない：`events` が「旗が1件」ではなく「掲げて戻した履歴」になった瞬間、
+ * 抑制の導出（最新があるか）と俯瞰のバッジが列の中身に依存し始める。**代償は、
+ * 一度掲げて戻した事実とそのとき書いた理由が消えることである**——受け入れた上での
+ * 選択で、取り消しは Undo（1操作1コミット）が戻す。**v4 で仮説側も同じ規律に
+ * 揃った**（`setJudgement` ／ `clearJudgement`）——追記専用の列はもう無い。
  *
  * **v3 で旗が2種になった（見送り／解決）。規則は3つ:**
  *
@@ -456,12 +640,17 @@ export function appendJudgement(
  * 「別の旗が立っていたらどうするか」を自分で決めることになり、規則2が
  * 呼び出し箇所の数だけ生える。
  *
- * **消すのは最新の1件だけ。** アプリが作る `events` は高々1件だが、手書きの
- * ファイルは2件以上を持ちうる——そこで全部消すと、書いた人が見ていない過去の
- * 理由まで1押しで飛ぶ
+ * **v3 まではここが `node.events.slice(0, -1)` に足す形だった。** スキーマが
+ * この列に `maxItems: 1` を課していなかったので**手書きの2件以上のファイルが
+ * 開け**、「全部消すと、書いた人が見ていない過去の理由まで1押しで飛ぶ」を
+ * 避ける必要があった（`schema.test.ts` にも「排他はスキーマの担当ではない」と
+ * いう逆向きの `it` が置かれていた。反転の経緯はそちらの註にある）。
+ * **v4 で `maxItems: 1` を課したのでその入力は開かなくなり、型もタプル
+ * （`[] | [IssueEvent]`）になって「残す前半」が表現できなくなった**
+ *（`clearJudgement` も同じ形にしてある）
  */
 export function toggleIssueEvent(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   kind: IssueEventKind,
   today: string = todayString(),
@@ -470,67 +659,62 @@ export function toggleIssueEvent(
   if (node === undefined) return { data, focus: null }
   const latest = node.events[node.events.length - 1]
   const off = latest !== undefined && latest.kind === kind
-  const kept = latest === undefined ? node.events : node.events.slice(0, -1)
-  const events: IssueEvent[] = off ? kept : [...kept, { kind, note: '', date: today }]
+  // **立っていれば消し、立っていなければ（別の旗ごと）差し替える。** v3 まではここが
+  // `node.events.slice(0, -1)` に足す形だった——手書きの2件以上が開けたので
+  // 「最新の1件だけ」を消す必要があった。v4 の `maxItems: 1` でその形は開かなくなり、
+  // 型もタプルになったので、残す前半そのものが存在しない
+  const events: IssueEvents = off ? [] : [{ kind, note: '', date: today }]
   return {
     data: { ...data, issues: data.issues.map((n, i) => (i === index ? { ...n, events } : n)) },
-    // **付けたら理由を打たせる**（`appendJudgement` が根拠へ飛ばすのと同じ形）。
+    // **付けたら理由を打たせる**（`setJudgement` が根拠へ飛ばすのと同じ形）。
     // 課題の文言へ戻さないのは、旗は理由が本体で、バッジだけ残ると
     // 「なぜ落としたか／なぜ閉じたか」が図から消えるため。
     //
-    // **外したときは、残った理由の欄の有無によらず課題の文言へ返す。**
-    // 手書きの2件以上では剥がしても理由の欄は残るが、そちらへ返さない——
-    // **残っている理由はいま剥がしたものではなく1つ前のもの**であり、
-    // カーソルを置けば書き換えを誘う（`setIssueEventNote` は最新を書き換えるので
-    // 実際に書き換わり、過去の理由が消える）。
-    //
-    // null（＝どこへも移さない）にするとフォーカスはトグルのボタンに残るが、
-    // ボタンの上では木の操作言語（Enter／Tab／←→）が1つも効かない
+    // **外したときは課題の文言へ返す。** 理由の欄は旗があるときしか存在しないので、
+    // 剥がした先に戻る欄は無い（`clearJudgement` が仮説の文言へ返すのと同じ席の
+    // 選び方である）。null（＝どこへも移さない）にするとフォーカスはトグルの
+    // ボタンに残るが、ボタンの上では木の操作言語（Enter／Tab／←→）が1つも効かない
     focus: off ? { cell: 'issue', index } : { cell: 'issueEvent', index },
   }
 }
 
 /**
- * 旗の理由を書く。**書けるのは最新の旗だけ**（`setEventNote` と同じ規則）。
- *
- * 課題の `events` は `toggleIssueEvent` が最新1件を消せる列になったが、
- * **書き換えの側は最新に限ったままである**——過去の旗の理由が後から
- * 書き換わると「そのとき何を根拠に落としたか／閉じたか」が消える。旗が1件も無い
- * 課題では**同じ参照を返す**——`apply` がそれを見て何もしない契約
+ * 旗の理由を書く。**書けるのは立っている旗だけ**（`setEventNote` と同じ規則）。
+ * 旗が1件も無い課題では**同じ参照を返す**——`apply` がそれを見て何もしない契約
  */
 export function setIssueEventNote(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   note: string,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   const node = data.issues[index]
-  if (node === undefined || node.events.length === 0) return data
-  const last = node.events.length - 1
+  const current = node?.events[0]
+  if (node === undefined || current === undefined) return data
+  const events: IssueEvents = [{ ...current, note }]
   return {
     ...data,
-    issues: data.issues.map((n, i) =>
-      i === index ? { ...n, events: n.events.map((e, j) => (j === last ? { ...e, note } : e)) } : n,
-    ),
+    issues: data.issues.map((n, i) => (i === index ? { ...n, events } : n)),
   }
 }
 
 /**
- * イベントの根拠を書く。**編集できるのは最新イベントだけ。**
+ * イベントの根拠を書く。**編集できるのは最新イベントだけ**（`setIssueEventNote` と
+ * 同じ規則）。
  *
- * 追記した直後に根拠を打つ経路は要るが、過去のイベントに後から根拠を足せると
- * 「そのとき何を根拠に決めたか」が書き換わる——追記専用の列である意味が消える。
- * 誤った追記の取り消しは Undo（1操作1コミット）に委ねる
+ * 判断を付けた直後に根拠を打つ経路は要るが、**添字を無条件に信じると、画面が
+ * 出していない席への書き込みを受け付ける**——v4 のスキーマは列を高々1件に
+ * したので通常そんな席は無いが、この門があるかぎり「いま画面に出ている1件」
+ * 以外は書き換わらない。誤って付けた判断は `clearJudgement` が取り消す
  */
 export function setEventNote(
-  data: IssueTreeSchemaVersion3,
+  data: IssueTreeSchemaVersion4,
   index: number,
   eventIndex: number,
   note: string,
-): IssueTreeSchemaVersion3 {
+): IssueTreeSchemaVersion4 {
   const h = data.hypotheses[index]
-  if (h === undefined || eventIndex !== h.events.length - 1) return data
-  return replaceHypothesis(data, index, {
-    ...h,
-    events: h.events.map((e, i) => (i === eventIndex ? { ...e, note } : e)),
-  })
+  const current = h?.events[0]
+  if (h === undefined || current === undefined || eventIndex !== h.events.length - 1) return data
+  const events: JudgementEvents = [{ ...current, note }]
+  return replaceHypothesis(data, index, { ...h, events })
 }

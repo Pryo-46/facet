@@ -26,6 +26,15 @@ const hid = (n: number): string => `hypothesis_${String(n).padStart(10, 'A')}`
 const ASK_1 = 'ask_AAAAAAAAAA'
 const ASK_2 = 'ask_BBBBBBBBBB'
 
+/**
+ * 課題に旗を1件立てる。**戻り値をタプルで書く**——v4 のスキーマが
+ * `maxItems: 1` を課したので `IssueNode['events']` は `[] | [IssueEvent]` であり、
+ * 配列リテラルのままだと代入できない
+ */
+const flag = (kind: 'deferred' | 'resolved', note = ''): IssueNode['events'] => [
+  { kind, note, date: '2026-08-30' },
+]
+
 /** 根(0) — 子(1) — 孫(2) ／ 根 — 子(3) ／ 子(1) — 孫(4)。兄弟3つ・深さ2を含む */
 function issues(): IssueNode[] {
   return [
@@ -57,14 +66,25 @@ describe('latestKind / ステータスの導出（D2）', () => {
     expect(hypothesisStatus(hypothesis(1, id(2)))).toBe('undecided')
   })
 
-  it('**最後の**要素の kind を返す（判断の覆りが履歴を消さずに表現できる）', () => {
-    // 先頭を返す実装と取り違えられないよう、3件で最初・中間・最後をすべて別の値にする
+  /**
+   * **`latestKind` に直接渡す。** v4 のスキーマは仮説の `events` を高々1件に
+   * したので、`Hypothesis` を組む形では「先頭を返す実装」と「最後を返す実装」を
+   * 区別できる入力が作れない（1件では両者が一致する＝退化ケース）。
+   * `latestKind` 自身は要素数を制約しない汎用の関数なので、ここへ3件を渡して
+   * 最初・中間・最後をすべて別の値にすれば、取り違えが赤で出る。
+   *
+   * `hypothesisStatus` の側は「その1件が答えになる」ことだけを見る
+   */
+  it('**最後の**要素の kind を返す（列が伸びる呼び出し元があっても最新が決める）', () => {
+    expect(
+      latestKind([
+        { kind: 'rejected' as const },
+        { kind: 'deferred' as const },
+        { kind: 'supported' as const },
+      ]),
+    ).toBe('supported')
     const h = hypothesis(1, id(2), {
-      events: [
-        { kind: 'rejected', note: '一度は棄却', date: '2026-08-30' },
-        { kind: 'deferred', note: '見送り', date: '2026-08-30' },
-        { kind: 'supported', note: '半年後に復活して支持', date: '2026-08-30' },
-      ],
+      events: [{ kind: 'supported', note: '実測で支持', date: '2026-08-30' }],
     })
     expect(hypothesisStatus(h)).toBe('supported')
   })
@@ -198,7 +218,7 @@ describe('poseQuestions（問いの立ち方）', () => {
     // だと id(3)（別の枝の葉）まで false になってしまうので、それと見分けが付く
     const h = hypothesis(1, id(2), { asks: [{ id: ASK_1, text: '効くか' }], feedbacks: [] })
     const deferredIssues = issues().map((n, i) =>
-      i === 1 ? { ...n, events: [{ kind: 'deferred' as const, note: '', date: '2026-08-30' }] } : n,
+      i === 1 ? { ...n, events: flag('deferred') } : n,
     )
     const posed = poseQuestions({ issues: deferredIssues, hypotheses: [h] })
     expect(posed.hypothesisQuestions[0]).toEqual({ result: false, hold: false, feedback: 0 })
@@ -212,7 +232,7 @@ describe('poseQuestions（問いの立ち方）', () => {
   it('祖先が解決でも同じように抑制される（意味は逆だが、実効は同じ「配下を止める」）', () => {
     const h = hypothesis(1, id(2), { asks: [{ id: ASK_1, text: '効くか' }], feedbacks: [] })
     const resolvedIssues = issues().map((n, i) =>
-      i === 0 ? { ...n, events: [{ kind: 'resolved' as const, note: '', date: '2026-08-30' }] } : n,
+      i === 0 ? { ...n, events: flag('resolved') } : n,
     )
     const posed = poseQuestions({ issues: resolvedIssues, hypotheses: [h] })
     expect(posed.hypothesisQuestions[0]).toEqual({ result: false, hold: false, feedback: 0 })
@@ -265,13 +285,9 @@ describe('保留（onHold）の問い', () => {
     const hs = [
       hypothesis(1, id(2), { events: [{ kind: 'onHold', note: '判断材料が足りない', date: '2026-08-30' }] }),
       hypothesis(2, id(3)), // 未決
-      // 保留 → 支持 に覆った仮説。最新が決める
-      hypothesis(3, id(4), {
-        events: [
-          { kind: 'onHold', note: '', date: '2026-08-30' },
-          { kind: 'supported', note: '', date: '2026-08-30' },
-        ],
-      }),
+      // **保留から支持へ差し替えた後の仮説**（v4 は前の1件を消してから足すので、
+      // 残るのは支持の1件だけ）。保留も未決も立たないことを、この席が見る
+      hypothesis(3, id(4), { events: [{ kind: 'supported', note: '', date: '2026-08-30' }] }),
     ]
     const posed = poseQuestions({ issues: issues(), hypotheses: hs })
     expect(posed.hypothesisQuestions.map((q) => q.hold)).toEqual([true, false, false])
@@ -281,7 +297,7 @@ describe('保留（onHold）の問い', () => {
 
   it('祖先の見送りで抑制された配下では保留も立たない', () => {
     const deferred = issues().map((n) =>
-      n.id === id(1) ? { ...n, events: [{ kind: 'deferred' as const, note: '', date: '2026-08-30' }] } : n,
+      n.id === id(1) ? { ...n, events: flag('deferred') } : n,
     )
     const hs = [hypothesis(1, id(2), { events: [{ kind: 'onHold', note: '', date: '2026-08-30' }] })]
     expect(poseQuestions({ issues: deferred, hypotheses: hs }).hypothesisQuestions[0].hold).toBe(false)
@@ -368,7 +384,7 @@ describe('issueEventCount / issueEventLine（D17 の別枠。見送りと解決�
   const issue = (
     id: string,
     parentId: string | null,
-    events: { kind: 'deferred' | 'resolved'; note: string; date: string }[] = [],
+    events: IssueNode['events'] = [],
   ) => ({ id, parentId, text: '課題', events })
 
   it('自分自身が旗を掲げている課題だけを数える（配下の抑制は数えない）', () => {
@@ -392,8 +408,8 @@ describe('issueEventCount / issueEventLine（D17 の別枠。見送りと解決�
   it('別枠は見送りと解決を別々に数える（配下の抑制は数えない）', () => {
     const flagged = [
       { ...issues()[0] },
-      { ...issues()[1], events: [{ kind: 'deferred' as const, note: '', date: '2026-08-30' }] },
-      { ...issues()[2], events: [{ kind: 'resolved' as const, note: '', date: '2026-08-30' }] },
+      { ...issues()[1], events: flag('deferred') },
+      { ...issues()[2], events: flag('resolved') },
     ]
     expect(issueEventCount(flagged, 'deferred')).toBe(1)
     expect(issueEventCount(flagged, 'resolved')).toBe(1)

@@ -1,6 +1,6 @@
-import type { IssueTreeSchemaVersion3 } from '@/types/issue-tree'
+import type { IssueTreeSchemaVersion4 } from '@/types/issue-tree'
 import type { FocusTarget } from './commands'
-import { latestKind, type IssueEventKind, type PosedQuestions } from './derive'
+import { awaitingAskCount, latestKind, type IssueEventKind, type PosedQuestions } from './derive'
 
 /**
  * 「次の要対応へ」の巡回列（帯のチップが押されたときの行き先）。
@@ -21,7 +21,14 @@ export type OpenKind = 'hypothesis' | 'result' | 'hold' | 'feedback'
 
 export interface OpenTarget {
   kind: OpenKind
-  /** 行き先のセル。**課題の欄か仮説の文言の欄しか出さない**（詳細は展開してから見る） */
+  /**
+   * 行き先のセル。**課題の欄・仮説の文言の欄・問いの文言の欄の3種**
+   *（それ以外の詳細は展開してから見る）。
+   *
+   * 問いの欄が入っているのは、**FB待ちの要対応の単位が問い1件だから**である
+   *（m5 Task 8）。行き先が展開パネルの中にしか無いセルでも構わない
+   *——`IssueTreeEditor` の `goTo` が先に持ち主の課題を開いてから予約する
+   */
   focus: FocusTarget
 }
 
@@ -41,10 +48,11 @@ export interface OpenTarget {
  * 描かれておらず（参照切れは整合性検証が赤くする）、行き先にしても視点は動かない
  * ——動かないと次に押しても同じものが返り、巡回がそこで止まる。
  * 集計（`tallyQuestions`）はそれらも数えるので、**壊れたファイルでは
- * チップの数より列が短くなることがある**
+ * チップの数より列が短くなることがある**（**それ以外では両者は一致する**——
+ * 「未決 2」なら2回で一巡する、が4種すべてで成り立つ。m5 Task 8）
  */
 export function listOpenTargets(
-  data: Pick<IssueTreeSchemaVersion3, 'issues' | 'hypotheses'>,
+  data: Pick<IssueTreeSchemaVersion4, 'issues' | 'hypotheses'>,
   posed: PosedQuestions,
 ): OpenTarget[] {
   /** 課題 ID → ぶら下がる仮説の添字（配列順） */
@@ -69,24 +77,42 @@ export function listOpenTargets(
       const focus: FocusTarget = { cell: 'hypothesis', index: hi }
       if (q.result) out.push({ kind: 'result', focus })
       if (q.hold) out.push({ kind: 'hold', focus })
-      // **FB待ちは問い（ask）1件ずつが要対応だが、行き先は仮説につき1つしか出さない。**
-      // m4 には問いを1件ずつ指せる DOM のセルが無いので、問いごとに行き先を作ると
-      // 同じ場所へ何度も飛ぶ列になり、押しても視点が動かず巡回がそこで止まる
-      //（「ぶら下がり先が図に無い仮説を列に入れない」のと同じ理由）。
+      // **FB待ちは問い（ask）1件ずつが要対応なので、行き先も問いごとに出す**
+      //（m5 Task 8）。m4 は問いを1件ずつ指せる DOM のセルが無かったため仮説に
+      // つき1つしか出せず、**「FB待ち 2」と言いながら2回で一巡しない**破れを
+      // 受け入れていた。m5 が `ask` のセル（`cell-keys.ts`）を与えたので戻す。
       //
-      // **結果として、チップの数（問いの数）が列の長さ（仮説の数）を上回りうる。**
-      // 集計と列が同じ根（`posed`）から出ているという性質は保たれているが、
-      // 「未決 2」なら2回で一巡する、が FB待ちについては成り立たない。
-      // **m5 が問いに固有のセルを与えたときに、ここを問いごとの行き先に戻す**
-      if (q.feedback > 0) out.push({ kind: 'feedback', focus })
+      // **どの問いが待っているかをここで判定し直さない。** 条件を持っているのは
+      // `derive.ts` の `awaitingAskCount` だけで、**問い1件だけの配列を渡して
+      // 同じ関数に判定させる**（`layout.ts` の `awaits` と同じ手）。
+      // 抑制（祖先の見送り・解決）は `posed` の側が既に落としているので、
+      // **`q.feedback` が 0 なら1件も出さない**——抑制の規則をここへ写さないための門
+      if (q.feedback > 0) {
+        const h = data.hypotheses[hi]
+        h.asks.forEach((ask, askIndex) => {
+          if (awaitingAskCount({ asks: [ask], feedbacks: h.feedbacks }) === 1) {
+            out.push({ kind: 'feedback', focus: { cell: 'ask', index: hi, askIndex } })
+          }
+        })
+      }
     }
   })
   return out
 }
 
-/** 行き先の同一性。**`cell` と `index` だけ**（この列に出るのは課題と仮説の2種） */
+/**
+ * 行き先の同一性。**`cell` と `index` に加えて、`ask` は仮説の中の席
+ *（`askIndex`）まで見る。**
+ *
+ * `cell` と `index` だけで足りていたのは、列に出るのが課題と仮説の2種だけだった
+ * ころの話である。問いの行き先（m5 Task 8）を同じ物差しで測ると、**同じ仮説の
+ * 2件目以降の問いが1件目と同一視され、押しても1件目へ返り続けて巡回が止まる**
+ *——「押し続ければ一巡する＝見落としが無い」が成り立たなくなる
+ */
 function sameFocus(a: FocusTarget, b: FocusTarget): boolean {
-  return a.cell === b.cell && a.index === b.index
+  if (a.cell !== b.cell || a.index !== b.index) return false
+  if (a.cell === 'ask' && b.cell === 'ask') return a.askIndex === b.askIndex
+  return true
 }
 
 /**
@@ -119,7 +145,7 @@ export function nextOpenTarget(
  * 種別を引数に取っているのと形が食い違い、片方だけ直される余地が生まれる
  */
 export function listFlaggedTargets(
-  data: Pick<IssueTreeSchemaVersion3, 'issues'>,
+  data: Pick<IssueTreeSchemaVersion4, 'issues'>,
   kind: IssueEventKind,
 ): FocusTarget[] {
   const out: FocusTarget[] = []
