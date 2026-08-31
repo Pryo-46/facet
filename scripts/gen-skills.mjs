@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const require = createRequire(import.meta.url)
+const ts = require('typescript')
 
 /**
  * 同梱 Skill ごとの、スキーマ名と共有ソース。
@@ -109,4 +110,16 @@ for (const [skill, { schema: schemaName }] of entries) {
   const code = inlineAjvRuntime(standaloneCode(ajv, ajv.compile(schema)), skill)
   await writeFile(path.join(outDir, 'validate.mjs'), code, 'utf8')
   console.log(`gen:skills  ${schemaName}.schema.json -> ${skill}/scripts/generated/validate.mjs`)
+
+  for (const rel of SKILL_SOURCES[skill].shared) {
+    const src = await readFile(path.join(ROOT, rel), 'utf8')
+    const out = ts.transpileModule(src, {
+      // ES2022 に落とすと Node 18 で動く。`module: ESNext` は import/export をそのまま残す
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+      fileName: rel,
+    })
+    const base = path.basename(rel).replace(/\.ts$/, '.mjs')
+    await writeFile(path.join(outDir, base), out.outputText, 'utf8')
+    console.log(`gen:skills  ${rel} -> ${skill}/scripts/generated/${base}`)
+  }
 }
