@@ -6,13 +6,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "predev": "npm run gen:types",
+    "predev": "npm run gen:types && npm run gen:skills",
     "build": "tsc -b && vite build",
-    "prebuild": "npm run gen:types",
+    "prebuild": "npm run gen:types && npm run gen:skills",
     "test": "vitest run",
-    "pretest": "npm run gen:types",
+    "pretest": "npm run gen:types && npm run gen:skills",
     "gen:types": "node scripts/gen-types.mjs",
-    "prepare": "npm run gen:types",
+    "gen:skills": "node scripts/gen-skills.mjs",
+    "prepare": "npm run gen:types && npm run gen:skills",
     "tauri": "tauri",
     "lint": "oxlint",
     "preview": "vite preview"
