@@ -247,8 +247,8 @@ export function createAppController(
     setSelected(null)
     host.setDocument(null)
     // 「このファイルが書けていない」というバナーは、そのファイルを離れたら消す
-    // （クリア条件の由来は docs/history/m2-core-validation-layer.md の
-    //  「saveError のクリア条件」。過去に取りこぼした障害の手がかりなので消さない）
+    // （バナーはファイルに紐づく。別のファイルに移った後も残ると、どのファイルの
+    //  障害か分からなくなる。過去に取りこぼした障害の手がかりなので消さない）
     host.setBanner('save', null)
     return true
   }

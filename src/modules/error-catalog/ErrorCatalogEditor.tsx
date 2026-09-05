@@ -472,7 +472,7 @@ export function ErrorCatalogEditor({
               return (
                 <tr key={rowKey} className="border-b border-rule-muted align-middle">
                   {/* No は編集対象ではない。データ配列の位置なので絞り込んでも動かない。
-                      右揃え（UI ノート D9）。'no' は ErrorField ではないが cellFace の
+                      右揃え（rev 9章 D9）。'no' は ErrorField ではないが cellFace の
                       field は string なので通る。hasError(marks, index, 'no') は常に
                       false で、rowAnchor だけが効く */}
                   <td

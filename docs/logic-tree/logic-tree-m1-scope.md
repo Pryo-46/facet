@@ -23,7 +23,7 @@ facet の第一関門は「会議のスピードに入力が追いつくか」�
 - `logicTree` の JSON Schema（スキーマが正、TypeScript 型は自動生成）
   - ID規約: `node_` プレフィクス ＋ 英数字62文字アルファベット・10文字 nanoid（rev 5章）
   - ノードのフィールド: `id` / `text` / `children`（当初の想定）
-    - **（logic-tree M1 の実装で確定）**: `children` の入れ子はやめ、**平坦な `nodes` 配列 ＋ 親を指す `parentId`** にした（`schemas/logic-tree.schema.json`）。理由は3つ——(1) 兄弟順の正本を配列順に一本化できる（rev 5章）、(2) コアの行操作（`src/core/list-ops.ts`）がフラットな配列を前提にしており、そのまま使える、(3) **入れ子では循環・多重ルート・親の参照切れが構造上書けず、壊れたファイルがレベル1拒否に倒れる**（rev 5章「拒否は解釈不能な場合に限る」に反する）。代償の「JSON を上から読んでも木の形が分からない」は、編集のたび配列を DFS 行きがけ順へ正規化することで埋めた。詳細は [`../history/logic-tree-m1-keyboard-editor.md`](../history/logic-tree-m1-keyboard-editor.md)
+    - `children` の入れ子はやめ、**平坦な `nodes` 配列 ＋ 親を指す `parentId`** にした（`schemas/logic-tree.schema.json`）。理由は3つ——(1) 兄弟順の正本を配列順に一本化できる（rev 5章）、(2) コアの行操作（`src/core/list-ops.ts`）がフラットな配列を前提にしており、そのまま使える、(3) **入れ子では循環・多重ルート・親の参照切れが構造上書けず、壊れたファイルがレベル1拒否に倒れる**（rev 5章「拒否は解釈不能な場合に限る」に反する）。代償の「JSON を上から読んでも木の形が分からない」は、編集のたび配列を DFS 行きがけ順へ正規化することで埋めた。
   - 単一ルートの木（親を持たないノードは存在しない）
   - `schemaVersion` は `const: 1`
 - エンベロープ（`type` / `schemaVersion` / `title` ほか、既存モジュールと同形式）

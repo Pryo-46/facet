@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 /**
- * 同梱フォントの生成 CSS（M26。UI ノート D6〜D8・§7 U1）の検査。
+ * 同梱フォントの生成 CSS（M26。rev 9章 D6〜D8・§7 U1）の検査。
  *
  * fontsource の static 版 CSS は woff2 と woff を両方参照するので素の
  * import はできない（woff まで dist に入る）。woff2 だけ参照する CSS を

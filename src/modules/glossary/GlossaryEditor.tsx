@@ -243,7 +243,7 @@ export function GlossaryEditor({
   const marks = buildErrorMarks(issues)
 
   /** セルの輪郭のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ。
-      行全体の指摘は No セルの輪郭で示す（M22。UI ノート D5）。No は GlossaryField
+      行全体の指摘は No セルの輪郭で示す（M22。rev 9章 D5）。No は GlossaryField
       ではないので、ここでは rowAnchor は常に false——No セル自身は tbody の中で
       cellFace を直接呼んで別に組み立てる */
   const cellClass = (index: number, field: GlossaryField, warn = false): string =>

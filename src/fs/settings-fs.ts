@@ -21,7 +21,7 @@ async function settingsFilePath(): Promise<string> {
  * そのまま返すと `allowProjectDir("")` → Rust 側 `scope.allow_directory(Path::new(""), true)`
  * に届き、tauri-2.11.5 の scope 実装は空パスに `MAIN_SEPARATOR + "**"` を
  * 足すため、unix では `/**`——fs の実行時 scope をファイルシステム全体へ
- * 広げてしまう。詳細は `docs/history/m18-restore-last-folder.md` 追記分
+ * 広げてしまう。
  */
 export async function readLastProjectDir(): Promise<string | null> {
   try {

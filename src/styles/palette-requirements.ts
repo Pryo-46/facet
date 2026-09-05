@@ -211,7 +211,7 @@ export const FACE_REQUIREMENTS = [
 
 /**
  * 面どうしの明度差。支持と棄却は正反対の結論なので、白黒印刷でも
- * 判別できる 3:1 を課す（UI ノート D15「支持を明るく、棄却を暗く」）
+ * 判別できる 3:1 を課す（rev 9章 D15「支持を明るく、棄却を暗く」）
  */
 export const FACE_PAIRS = [{ a: 'judge-yes', b: 'judge-no', min: 3.0 }] as const
 

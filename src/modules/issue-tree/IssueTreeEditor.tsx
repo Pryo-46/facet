@@ -954,7 +954,7 @@ export function IssueTreeEditor({
             tally={toMissingTally(tally)}
             onJump={(kind) => goToNextOpen(kind as OpenKind)}
           />
-          {/* 旗の別枠（UI ノート D17。v3 で見送り／解決の2種になった）。**要対応の外**
+          {/* 旗の別枠（rev 9章 D17。v3 で見送り／解決の2種になった）。**要対応の外**
               ——`MissingTally` の parts は「total の内訳」という契約なので、
               そこへ混ぜると合計と内訳が合わない帯になる。旗を**掲げた課題の数**
               だけを種別ごとに出し（配下の凍結中の問いは数えない。人間の裁定）、

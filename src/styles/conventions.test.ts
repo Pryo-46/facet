@@ -192,7 +192,7 @@ describe('役割トークンの使い方（rev 9章 M21）', () => {
         }
       }
     }
-    expect(out, `facet は塗りボタンを置かない（UI ノート D19）。variant="outline" か "ghost" を書く:\n${out.join('\n')}`).toEqual([])
+    expect(out, `facet は塗りボタンを置かない（rev 9章 D19）。variant="outline" か "ghost" を書く:\n${out.join('\n')}`).toEqual([])
   })
 })
 
