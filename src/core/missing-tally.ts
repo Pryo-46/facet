@@ -1,5 +1,5 @@
 /**
- * 欠落（未決）の集計の共通形（M22。docs/missing-semantics.md）。
+ * 欠落（未決）の集計の共通形（docs/missing-semantics.md）。
  *
  * 判定と集計は各モジュールの missing.ts（課題ツリーは derive.ts）が持ち、
  * 戻り値だけをこの形に揃える。表示は components/MissingTally.tsx。

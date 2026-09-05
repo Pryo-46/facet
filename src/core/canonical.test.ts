@@ -9,8 +9,7 @@ const schema = JSON.parse(
 /**
  * **この fixture は動作確認の遊び場ではない。** 最重要の回帰テスト
  *（Skill が書いたファイルのバイト一致）がこの中身に依存しているので、
- * 内容を差し替えたり消したりしないこと（M5 の実機確認で sample-project/ を
- * 触って2回テストを落とした）。実機確認にはリポジトリ外の空フォルダを使う
+ * 内容を差し替えたり消したりしないこと。実機確認にはリポジトリ外の空フォルダを使う
  */
 const sampleRaw = readFileSync(
   new URL('./__fixtures__/glossary.canonical.json', import.meta.url),

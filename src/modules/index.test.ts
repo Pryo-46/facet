@@ -11,7 +11,7 @@ describe('モジュール登録', () => {
     }
   })
 
-  it('クリップボード交換を宣言するのはロジックツリーだけ（M2）', () => {
+  it('クリップボード交換を宣言するのはロジックツリーだけ', () => {
     const declared = appRegistry
       .list()
       .filter((m) => (m.clipboardExchanges?.length ?? 0) > 0)

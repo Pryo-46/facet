@@ -18,7 +18,7 @@ export interface TableCopyPrefsStore {
 }
 
 /**
- * 表形式コピーの設定を **アプリを閉じるまで** 保持する外部ストア（M29）。
+ * 表形式コピーの設定を **アプリを閉じるまで** 保持する外部ストア。
  *
  * 列幅ストア（`createColumnWidthStore`）と同じ作り・同じ理由。**永続化はしない**
  * ——`settings.json` に足すには `saveLastProjectDir` のファイル丸ごと上書きを

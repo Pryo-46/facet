@@ -1,9 +1,9 @@
 /**
  * 色の計算。**主な用途は色の検証（テスト）だが、実行時にも1箇所から呼ぶ**
  * ——端末（xterm）は `oklch()` を解釈しないので、役割トークンを sRGB の
- * 16進へ変換する必要がある（M17。`src/core/terminal/theme.ts`）。
+ * 16進へ変換する必要がある（`src/core/terminal/theme.ts`）。
  *
- * 依存を足さない方針（M7 設計スペック 決定4）のため、oklch → 線形 sRGB →
+ * 依存を足さない方針のため、oklch → 線形 sRGB →
  * 相対輝度の変換を自前で持つ。変換式は CSS Color 4 の定義そのまま。
  *
  * **このファイルは `.claude/skills/palette-retheme/scripts/palette-fit.mjs` から
@@ -294,7 +294,7 @@ export function decodeSrgb(v: number): number {
 }
 
 /**
- * 半透明の前景を背景に重ねた「見える色」を返す（M8 決定11）。
+ * 半透明の前景を背景に重ねた「見える色」を返す。
  *
  * **合成はガンマ補正済み sRGB の上で行う。** ブラウザが画面へ塗るときの
  * 空間がそこだからで、線形空間で混ぜると実際より明るい色が出る。

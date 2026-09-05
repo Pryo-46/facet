@@ -12,8 +12,8 @@ const SRC_DIR = fileURLToPath(new URL('../', import.meta.url))
 const EXCLUDED = [
   // shadcn の生成物。改造は自由（rev 7章のソースコピー方式）だが、
   // 段・行間の規約は自作コードの側に課す——生成物の字面まで検査に合わせて
-  // 書き換え続ける保守を負わないため（M23。button.tsx の text-base / h-9 は
-  // 決定5 による意図した改造）
+  // 書き換え続ける保守を負わないため（button.tsx の text-base / h-9 は
+  // 意図した改造）
   'components/ui/',
 ]
 
@@ -105,13 +105,13 @@ describe('色値の直書き禁止（rev 9章）', () => {
   })
 })
 
-describe('フォントサイズの段階（M7 決定6 → M23 決定1 で3サイズ4段に再定義）', () => {
+describe('フォントサイズの段階（3サイズ4段）', () => {
   it('text-sm / text-base / text-xl 以外を使っていない', () => {
     // 「許可外」を直接探す。text-ink のような色のユーティリティと区別する
     // 必要があるので、許可リストとの照合ではなく許可外の段と任意値を弾く。
     //
-    // **xs は D11 の 14px 下限で廃止、lg は実使用 0 件のまま閉鎖、2xl は
-    // アプリ名を text-xl（22px 再定義）へ統合して閉鎖した（M23）。**
+    // **xs は D11 の 14px 下限を割るので使わず、lg は実使用が無く、2xl は
+    // アプリ名を text-xl（22px）へ統合したため使わない。**
     // 2px 差の段（22 と 24）を体系に残さないため、xl と 2xl は同時に開けない。
     //
     // 任意値側は末尾に \b を付けない——`]` の直後は語構成文字ではないため
@@ -124,7 +124,7 @@ describe('フォントサイズの段階（M7 決定6 → M23 決定1 で3サイ
   })
 })
 
-describe('行間の明示（M23 決定2）', () => {
+describe('行間の明示', () => {
   it('leading-* は leading-none（バッジと課題ツリーの節見出し）と leading-normal（複数行の欄）だけ', () => {
     // 行間の既定は @theme が持つ（sm 1.3 / base 1.25）。明示してよいのは
     // 「読ませる欄」の leading-normal（1.5）と、バッジ・課題ツリーの節見出しの leading-none だけ。
@@ -150,7 +150,7 @@ describe('役割トークンの使い方（rev 9章）', () => {
   it('欠落・無効・着信の面は淡い面（bg-*-face）だけ。線色そのものを面にしない', () => {
     // **`(?!-face)` を落とさないこと。** `\b` は `g` と `-` の間で成立するので、
     // 付けないと正当な `bg-missing-face` まで違反として拾う（検査3の
-    // `(?!-fg)` と同じ穴）。M21 の実機確認で淡い面を足したときに開けた口で、
+    // `(?!-fg)` と同じ穴）。淡い面を足したときに開けた口で、
     // 濃い面（`bg-missing` 等）は依然として禁止のまま
     const offenders = offendingLines(/\b(?:[a-z-]+:)?bg-(missing|invalid|pending)\b(?!-face)/)
     expect(
@@ -166,8 +166,7 @@ describe('役割トークンの使い方（rev 9章）', () => {
 
   it('役割トークンに透過を掛けていない', () => {
     // トークンのコントラストは palette.test.ts が値で保証する。透過を掛けた
-    // 使用箇所はその保証の外に出る。半透明の面（M8 の bg-warning/20）が
-    // 消えた今、正当な透過は残っていない
+    // 使用箇所はその保証の外に出る。正当な透過は残っていない
     const offenders = offendingLines(
       /\b(?:[a-z-]+:)?(bg|text|border|ring|outline|stroke|fill|decoration|placeholder|divide)-(canvas|surface|surface-muted|ink|ink-muted|ink-faint|rule|grid|missing|invalid|pending|missing-face|invalid-face|pending-face|judge-yes|judge-yes-fg|judge-yes-face|judge-no|judge-no-fg)\/\d+/,
     )
@@ -196,7 +195,7 @@ describe('役割トークンの使い方（rev 9章）', () => {
   })
 })
 
-describe('角丸の段（M25 決定5）', () => {
+describe('角丸の段', () => {
   // 部品・セル・チップ＝rounded-sm（6px）／浮遊面（メニュー・ダイアログ）＝
   // rounded-md（8px）／意図した円＝rounded-full。裸の `rounded`（radius 倍率制の
   // 外にある固定 4px）・任意値・他の段は弾く。**sm と md の使い分けの当否は
@@ -207,7 +206,7 @@ describe('角丸の段（M25 決定5）', () => {
   it('rounded 系は rounded-sm / rounded-md / rounded-full（と方向付きの -sm/-md）だけ', () => {
     const offenders: string[] = []
     // **ui/ を除外しない。** EXCLUDED の理由（段・行間の規約は自作コードに課す）は
-    // タイポグラフィの話で、角丸は M25 で ui/ を意図して改造した（M23 が button.tsx の
+    // タイポグラフィの話で、角丸は ui/ を意図して改造した（button.tsx の
     // text-base / h-9 を改造したのと同じ扱い）。shadcn を将来更新したときに
     // rounded-lg が黙って戻るのを、この検査が捕まえる
     for (const file of sourceFiles([])) {

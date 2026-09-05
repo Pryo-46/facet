@@ -1,11 +1,9 @@
 /**
- * Mermaid のラベルに共通するエスケープ（全ツール共通・コア。sequence-m3 で
- * open-issues に記録し、logic-tree の出力を作る logic-tree-m3 で引き上げた）。
+ * Mermaid のラベルに共通するエスケープ（全ツール共通・コア）。
  *
- * **置き場は当初モジュール内（`sequence/mermaid.ts`）だった。** design-notes 論点11 の
- * 「先に出力を実装した側が正規化関数を1本立て、後発がそれに乗る」という決着どおり、
- * sequence が1本目としてモジュール内に持ち、logic-tree が2本目としてここへ乗った。
- * `markdown-table.ts` が用語集→コアと辿った道と同じ
+ * **置き場はここ1つに保つ。** design-notes 論点11 の「先に出力を実装した側が
+ * 正規化関数を1本立て、後発がそれに乗る」という原則どおり、sequence と
+ * logic-tree の両方がこれを使う。`markdown-table.ts` が用語集→コアと辿った道と同じ
  */
 
 /**

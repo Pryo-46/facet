@@ -39,15 +39,13 @@ describe('wrapWithin', () => {
   })
 })
 
-// 移設元: src/modules/logic-tree/measure.ts の wrapText テストのうち、
-// 上の sequence 由来のテストにない観点を補う。**当時の** NODE_MAX_WIDTH（320）／
-// NODE_INSET_X（11）／NODE_MIN_WIDTH（96）／NODE_INSET_Y（7）の値をそのまま
-// リテラルに写している。
+// src/modules/logic-tree/measure.ts の wrapText テストのうち、上の sequence
+// 由来のテストにない観点を補う。NODE_MAX_WIDTH（320）／NODE_INSET_X（11）／
+// NODE_MIN_WIDTH（96）／NODE_INSET_Y（7）相当の値をそのままリテラルに写している。
 //
-// **M24 で logic-tree 側は固定幅になった**（NODE_MAX_WIDTH は NODE_WIDTH へ
-// 改名、NODE_MIN_WIDTH は削除）。この群が見ているのは `minWidth < maxWidth`
-// ——**シーケンスがまだ使っている一般契約**——なので、ここは移設当時の値の
-// まま残してある。固定幅（minWidth === maxWidth）の契約は下の別の群が見る
+// この群が見ているのは `minWidth < maxWidth`——**シーケンスが使っている一般
+// 契約**——なので、この値のまま残してある。固定幅（minWidth === maxWidth）の
+// 契約は下の別の群が見る
 describe('wrapWithin（logic-tree 由来の観点）', () => {
   const measure = createEstimateMeasurer(10)
   const LH = 20

@@ -3,7 +3,7 @@
  *
  * スロットが1つだと、生産者が増えた時点で要求が無言で落ちる——削除確認を
  * 出したまま OS の × を押すと「破棄して閉じる」の要求に上書きされる、など。
- * M5 で外部変更の二択が3人目の生産者になるのでキューにした（M4 の申し送り）
+ * 外部変更の二択も3人目の生産者になりうるので、キューにした
  */
 import type { TableOptionId, TableOptions } from './table-export'
 
@@ -27,7 +27,7 @@ export type ModalRequest =
       onPrimary: () => void | Promise<void>
       onSecondary: () => void | Promise<void>
       /**
-       * **任意。** 渡すとキャンセルのボタンが出る（logic-tree M3）。
+       * **任意。** 渡すとキャンセルのボタンが出る。
        * `onCancel` は持たせない——キャンセルは「キューから外す」以上のことをせず、
        * それは額縁の `shiftModal` が既にやっている
        */
@@ -35,7 +35,7 @@ export type ModalRequest =
     }
   | {
       /**
-       * 表形式コピーの設定ダイアログ（M29）。**`confirm` / `choice` と違い、
+       * 表形式コピーの設定ダイアログ。**`confirm` / `choice` と違い、
        * 本文に入力要素を持つ。** 額縁の `modalOpen`（キューの長さ）が自動的に
        * true になるので、操作言語もこれで止まる
        */

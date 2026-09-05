@@ -73,8 +73,7 @@ export function shouldDescendSkillDir(name: string): boolean {
  * - `node_modules/` 配下（`npm install` で足された依存。数が多く、
  *   Tauri の書き込み許可スコープ外のファイルを含むこともあって同期が壊れる）
  *
- * **`.gitignore` は同期する（sequence M4 の最終レビューで一度除外し、この
- * タスクで戻した）。** 旧版の SKILL.md が指示していた `npm install` は
+ * **`.gitignore` は同期する。** 旧版の SKILL.md が指示していた `npm install` は
  * 置いた先に未追跡の `node_modules` を数千ファイル作っており、利用者の
  * 手元にまだ残っている。`.gitignore`（`node_modules/` を含む）を同期し
  * 続けなければ、それが `git status` に出続けてしまう。
@@ -84,7 +83,7 @@ export function shouldDescendSkillDir(name: string): boolean {
  * `<dir>/.claude/**` のような `**` パターンはドット始まりの要素に一致しない
  * ——`.DS_Store` が消せないのと同じ1つの機構——ので、`allow_file` を
  * 個別に呼ばなければ `<root>/.gitignore` への書き込みは `forbidden path`
- * で落ちる（sequence M4 の実測）。この許可が外れると、下の書き込みループに
+ * で落ちる。この許可が外れると、下の書き込みループに
  * try/catch が無いぶん「消したあとに書けない」＝Skill が半分しか置かれない
  * 状態に戻り、毎回フォルダを開くたびに失敗トーストが出る
  */
@@ -124,7 +123,7 @@ export interface SkillSyncIo {
  * 同梱 Skill を置き直す。**消すのは同梱名のディレクトリの中身だけ**——
  * `.claude/skills/` を丸ごと消すとユーザーが自分で置いた Skill も消えるし、
  * 同梱名のディレクトリを丸ごと消すとその中の `node_modules`（旧版の
- * SKILL.md が指示した `npm install` の結果。M30 以降は作られないが、
+ * SKILL.md が指示した `npm install` の結果。いまは作られないが、
  * 旧版を使ったフォルダには残っている）まで消える。facet が壊してよいのは
  * facet が書いたものに限る（`isRemovableSkillEntry`）
  *
@@ -132,8 +131,7 @@ export interface SkillSyncIo {
  * 置く）。逐次 for ループで await すると1本目の失敗でループ全体が止まり、
  * 後続の Skill が一切置かれなくなるため、Promise.allSettled で独立させている
  *
- * **読んでから消す**（M11 から繰り越していた「読む前に消す」欠陥。sequence-m4 で解消）。
- * 先に消してから `readBundled` が
+ * **読んでから消す。** 先に消してから `readBundled` が
  * 失敗すると、プロジェクト側の Skill が消えたまま復旧しない。同梱物を
  * すべてメモリに読み終えてから消しに行けば、「読めなかったから消さない」が
  * 成り立つ——消したあとに残る失敗要因は書き込みそのものだけになる
@@ -157,7 +155,7 @@ export async function syncBundledSkills(
           try {
             await io.removeEntry(await io.join(root, name))
           } catch (err: unknown) {
-            // **握りつぶすが、黙らない（レビュー指摘）。** これは「恒久的な
+            // **握りつぶすが、黙らない。** これは「恒久的な
             // 破損」を「古いファイルが1つ残る」へ落とす取引なので、起きた
             // ことは追えるようにしておく。トーストには上げない——mac の
             // `.DS_Store` は消せなくて当たり前で、利用者に見せる異常ではない
@@ -166,7 +164,7 @@ export async function syncBundledSkills(
                 err instanceof Error ? err.message : String(err)
               }`,
             )
-            // **1件消せなくても置き直しは続ける（レビュー指摘）。** 削除は
+            // **1件消せなくても置き直しは続ける。** 削除は
             // 掃除であって目的ではない。ここで投げると「消えかけたまま
             // 書き戻されない」——「読む前に消す」と同じ形の恒久的な破損が、
             // 一段あとに移っただけになる。

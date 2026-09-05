@@ -18,7 +18,7 @@ export interface TerminalSession {
   /** exited / failed のときタブの中に出す文言。それ以外は null */
   readonly message: string | null
   /**
-   * 起動直後に1回だけ差し込む文字列。無ければ null（M28）。
+   * 起動直後に1回だけ差し込む文字列。無ければ null。
    *
    * **`insertion` の仕組み（`TerminalTab` の props）には乗せない。** あちらは
    * 「動いているタブへ差し込む」もので、ここは **PTY がまだ無い**段階の話
@@ -100,7 +100,7 @@ export function markFailed(state: TerminalState, id: number, message: string): T
 }
 
 /**
- * そのタブが起動中・実行中か（タブを閉じる確認の要否。M11 実機確認）。
+ * そのタブが起動中・実行中か（タブを閉じる確認の要否）。
  * `hasRunning` はセッション全体を見るので、1本のタブの状態を見る用途には
  * 合わない——別に切り出す
  */

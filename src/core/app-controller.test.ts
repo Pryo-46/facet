@@ -95,9 +95,9 @@ function createSaverFactory(log: string[]) {
   const factory = (spec: SaverSpec): AutoSaver => {
     log.push('createSaver')
     // 実物（src/core/autosave.ts）の hasUnsaved() は `latest !== lastSaved` で、
-    // write が成功すると lastSaved が latest に追いつき false へ戻る。この偽物は
-    // 「あるファイルへの1回目の update() で unsaved が true になったきり戻らない」
-    // という欠陥を持っていた（Task 6 の申し送りで判明）。lastSaved を持たせ、
+    // write が成功すると lastSaved が latest に追いつき false へ戻る。lastSaved を
+    // 持たせずに作ると、この偽物は「あるファイルへの1回目の update() で unsaved が
+    // true になったきり戻らない」ままになる。lastSaved を持たせ、
     // spec.write が成功するたびに追随させることで実物の意味論に合わせる——
     // 呼び出し側（テスト）が `spec.write(...)` を直接呼んで「自動保存が書いた」を
     // 再現する経路（自己書き込み除外のテスト）と、コントローラが saver.update() を
@@ -209,7 +209,7 @@ function createHarness(
     setProjectDir: () => {},
     setSelectedPath: (path) => { selectedPath = path; log.push(`setSelectedPath:${path ?? 'null'}`) },
     setDocument: (data) => { document = data; log.push('setDocument') },
-    // 履歴を保ったまま積む（logic-tree M3）。この偽物は past/future を模していないので
+    // 履歴を保ったまま積む。この偽物は past/future を模していないので
     // 「document が更新される」ところだけ setDocument と同じに見えるが、
     // ログの種別（'recordEdit' vs 'setDocument'）でどちらの経路を通ったかは区別できる
     recordEdit: (data) => { document = data; log.push('recordEdit') },
@@ -218,7 +218,7 @@ function createHarness(
     dismissToast: (key) => { log.push(`dismissToast:${key}`) },
     // 本物の host（App.tsx）は pushModal を経由し、同じ key の要求を積み上げず
     // 置き換える。この偽物が単純な append のままだと、guardIssues の
-    // 「key で置き換える」契約（sequence M3）を確かめるテストが、実装の正しさとは
+    // 「key で置き換える」契約を確かめるテストが、実装の正しさとは
     // 無関係に「積み上がる」で落ちてしまう
     showModal: (request) => { modals = pushModal(modals, request); log.push('showModal') },
     dropModal: (key) => { modals = modals.filter((m) => m.key !== key); log.push(`dropModal:${key}`) },
@@ -362,7 +362,7 @@ describe('openFolder', () => {
 })
 
 describe('selectFile', () => {
-  it('走査時のキャッシュではなくディスクから読み直す（M1 で確定した原則）', async () => {
+  it('走査時のキャッシュではなくディスクから読み直す', async () => {
     const h = createHarness({ [p('a.json')]: note('A') })
     await h.controller.openFolder(DIR)
     // 走査後に外部が書き換えた内容を、選択時に拾えること
@@ -613,7 +613,7 @@ describe('externalChange（外部変更の検知）', () => {
     expect(h.document()).toMatchObject({ body: '外部が書いた' })
     // setDocument＝履歴の作り直し。取り込みごとに必ず1回通ること
     expect(h.log.filter((l) => l === 'setDocument').length).toBeGreaterThan(0)
-    // recordEdit（logic-tree M3）は履歴を保つ口なので、履歴を破棄すべきこの経路には
+    // recordEdit は履歴を保つ口なので、履歴を破棄すべきこの経路には
     // 混ざらない——setDocument と recordEdit を混同すると Ctrl+Z がディスクの内容を
     // 無言で巻き戻す事故になる（AppHost の JSDoc）
     expect(h.log).not.toContain('recordEdit')
@@ -701,7 +701,7 @@ describe('externalChange（外部変更の検知）', () => {
   })
 
   it('「自分の編集で上書き」は、外部変更で壊れた表示（rejected）を editable へ戻す', async () => {
-    // 前マイルストーンのレビューで見つかった行き止まり：ディスクは自分の内容に
+    // 行き止まり：ディスクは自分の内容に
     // 直っているのに「このファイルは開けません」の表示が残り、しかも台帳が一致する
     // ので再走査でも直らない。overwriteWithMine の repaired 再分類がこれを塞ぐ
     const h = await opened()
@@ -941,7 +941,7 @@ describe('ensureFileOfType', () => {
   it('走査後に外部が書いたファイルを再走査で拾い、2つ目を作らない', async () => {
     const h = createHarness()
     await h.controller.openFolder(DIR)
-    // 空フォルダを開いた後に Skill が用語集を書いた状況（M4 の申し送りのデータ喪失経路）
+    // 空フォルダを開いた後に Skill が用語集を書いた状況
     h.disk.files.set(p('外部が書いた.json'), note('外部'))
     await h.controller.ensureFileOfType(h.registry.get('note')!)
     expect(h.disk.files.size).toBe(1)
@@ -998,7 +998,7 @@ describe('exportMarkdown: 保存ダイアログを開いている間の変化', 
   it('その間に選択が変わったら書き出さない', async () => {
     const { askSavePath, release } = pendingSavePath()
     // note モジュールは singleton なので、この描写のとおり2つ開くと単一性違反が
-    // 出力ガード（sequence M3）を引いてしまう。ここでの主題は選択変更のレースで
+    // 出力ガードを引いてしまう。ここでの主題は選択変更のレースで
     // あって単一性ではないので、singleton を切って無関係な確認を避ける
     const h = createHarness(
       { [p('a.json')]: note('A'), [p('b.json')]: note('B') },
@@ -1298,7 +1298,7 @@ describe('interleaving（走査・選択の直列化ガード）', () => {
   })
 })
 
-// ---- クリップボード交換（logic-tree M3） ----
+// ---- クリップボード交換 ----
 
 /**
  * テスト用の ClipboardExchange。判断は固定の振る舞いで代用する
@@ -1320,7 +1320,7 @@ function fakeExchange(): ClipboardExchange<unknown> {
   }
 }
 
-describe('クリップボード交換（logic-tree M3）', () => {
+describe('クリップボード交換', () => {
   async function openNote(h: Harness): Promise<void> {
     await h.controller.openFolder(DIR)
     await h.controller.selectFile(p('a.json'))
@@ -1446,7 +1446,7 @@ describe('クリップボード交換（logic-tree M3）', () => {
   })
 })
 
-// ---- 表形式コピー（M29） ----
+// ---- 表形式コピー ----
 
 interface TableCall {
   options: TableOptions
@@ -1490,7 +1490,7 @@ async function pressCopy(
   await request.onCopy(variantId, options)
 }
 
-describe('copyTable（M29）', () => {
+describe('copyTable', () => {
   it('tableExport を持つファイルで設定ダイアログを出す', async () => {
     const h = createHarness({ [p('a.json')]: note('A') }, {}, tableModuleOver([]))
     await h.controller.openFolder(DIR)
@@ -1606,7 +1606,7 @@ describe('copyTable（M29）', () => {
   })
 })
 
-describe('絞り込みの反映（M29）', () => {
+describe('絞り込みの反映', () => {
   /** `toMarkdown` の引数を覗くためのモジュール差し替え */
   function markdownSpy(toMarkdown: (d: unknown, visible?: VisibleRows) => string) {
     return { outputs: [{ id: 'default', label: 'Markdown', fileSuffix: '', toMarkdown }] }

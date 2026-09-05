@@ -38,8 +38,8 @@
  * compositionend →キーを離す——では窓に入る打鍵がそもそも来ない。
  * 2つの条件が互いの穴を塞いでいる:
  *
- * - 窓だけだと、Chromium で確定直後（100ms 以内）の2打目の Enter を握り潰す
- * - keyup だけだと、候補をマウスで選んで確定した（キーを離す機会が無い）あとの
+ * - 窓だけだと、Chromium が確定した直後（100ms 以内）の2打目の Enter を握り潰す
+ * - keyup だけだと、候補をマウスで選び確定した（キーを離す機会が無い）あとの
  *   最初の Enter を握り潰す
  */
 export const COMPOSITION_TAIL_MS = 100
@@ -78,7 +78,7 @@ export function isCompositionTail(
   // **絶対値で見る。** WKWebView の実測では、compositionend の「後」に届いた
   // 確定の keydown の timeStamp が **20ms 古かった**——WebKit は keydown に
   // ネイティブイベント本来の時刻を、compositionend にはディスパッチ時刻を刻む。
-  // 当初 `elapsed >= 0` を条件にしていたためにこの尾を取り逃がしていた。
-  // **「後に届いたのだから時刻も後」と決めつけないこと**（この欠陥の実物）
+  // `elapsed >= 0` を条件にするとこの尾を取り逃がす。
+  // **「後に届いたのだから時刻も後」と決めつけないこと**
   return Math.abs(keyTimeStamp - compositionEndedAt) <= COMPOSITION_TAIL_MS
 }

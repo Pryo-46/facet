@@ -357,7 +357,7 @@ describe('toKeyEventLike', () => {
   })
 })
 
-// ---- sequence M1 で足した分: horizontal / toggle-item-state / ←→ の arrowsOwnedByField ----
+// ---- horizontal / toggle-item-state / ←→ の arrowsOwnedByField ----
 
 describe('horizontal（横リスト＝アクターヘッダ）', () => {
   it('Alt+← は move-item-up（前へ）、Alt+→ は move-item-down（次へ）', () => {

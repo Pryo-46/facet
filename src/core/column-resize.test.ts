@@ -48,10 +48,10 @@ describe('resizeColumns', () => {
     expect(widths).toEqual([100, 100, 100])
   })
 
-  it('狭めてから広げても、元の意図（widths）を渡し直せば元の幅に戻る（M11 レビュー指摘1）', () => {
+  it('狭めてから広げても、元の意図（widths）を渡し直せば元の幅に戻る', () => {
     // App.tsx のペイン幅追従の値そのもの（PANE_MIN_WIDTH=320, EDITOR_MIN_WIDTH=480）。
     // クランプ後の戻り値を意図として書き戻すと、意図そのものが 320 に潰れて
-    // 二度と戻らなくなる（レビューで見つかったバグ）。**呼び出し側が意図
+    // 二度と戻らなくなる。**呼び出し側が意図
     // （intent）を変えず、都度この関数に通すだけなら、ウィンドウを広げた
     // ときに自然に戻る**——それを固定する
     const intent = [420]
@@ -164,7 +164,7 @@ function renderHandle(store: ColumnWidthStore, referenceWidths?: readonly number
   return handle
 }
 
-describe('useColumnResize の referenceWidths（M11 レビュー: ドラッグ／キーボードの基準）', () => {
+describe('useColumnResize の referenceWidths（ドラッグ／キーボードの基準）', () => {
   afterEach(cleanup)
 
   it('省略時は従来どおり store（意図）を基準に動く（表を持つツールの挙動が変わらないことの固定）', () => {
@@ -180,7 +180,7 @@ describe('useColumnResize の referenceWidths（M11 レビュー: ドラッグ�
   it('referenceWidths を渡すと、store の値とは無関係にそこからの差分で動く（ドラッグ）', () => {
     const store = createColumnWidthStore([100, 100, 100])
     // store（意図）は 100 のままだが、画面には既に 300 まで広がった状態で
-    // 出ている、という M11 のペイン（意図と表示の乖離）を模す
+    // 出ている、というペイン（意図と表示の乖離）を模す
     const handle = renderHandle(store, [300, 100, 100])
     fireEvent.pointerDown(handle, { clientX: 500, pointerId: 1 })
     fireEvent.pointerMove(handle, { clientX: 550, pointerId: 1 })

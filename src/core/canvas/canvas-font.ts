@@ -10,7 +10,7 @@ export interface CanvasFont {
 /**
  * 測れない環境（jsdom はレイアウトを持たない）用の既定値（16px・行間 1.5）。
  *
- * **実画面のキャンバスの折り返しテキスト（入力値）は M26 で 14px へ下がったが、
+ * **実画面のキャンバスの折り返しテキスト（入力値）は 14px だが、
  * この既定は 16px のまま据え置く。** jsdom での導出値の安定のためで、動かすと
  * 既存テストが固定している高さ・行数がまとめてずれる。実ブラウザでは
  * `readCanvasFont` が見本要素から実効値（14px・行間 1.5）を読むので、
@@ -25,8 +25,7 @@ export const FALLBACK_CANVAS_FONT: CanvasFont = {
 /**
  * 問いラベル列（text-sm）用の既定値。**FALLBACK_CANVAS_FONT を使い回さないこと**
  * ——text-sm は行間 1.3 で、複数行の欄（leading-normal = 1.5）とは行間が違う
- * （src/index.css の --text-sm--line-height）。M26 で入力値が 14px へ下がって
- * サイズは並んだが、行間の差は残っている。
+ * （src/index.css の --text-sm--line-height）。サイズが同じ 14px でも行間の差は残る。
  * 揃えてしまうと、ラベル用の測定器が本文相当の高さを返し続け、
  * jsdom のテストでは両者の違いを検出できなくなる
  */
@@ -49,9 +48,8 @@ export function sameFont(a: CanvasFont, b: CanvasFont): boolean {
  *
  * **`el === null` のとき（および fontSize が読めないとき）返るのは常に
  * `FALLBACK_CANVAS_FONT`（16px）である。小さい方の見本要素（text-sm）に
- * 対して呼んでも `FALLBACK_SMALL_FONT` にはならない。** これは logic-tree
- * M1 以来の既存の挙動で、据え置いている——変えると sequence の行高が静かに
- * ずれる
+ * 対して呼んでも `FALLBACK_SMALL_FONT` にはならない。** これは既存の挙動で、
+ * 据え置いている——変えると sequence の行高が静かにずれる
  */
 export function readCanvasFont(el: HTMLElement | null): CanvasFont {
   if (el === null || typeof getComputedStyle !== 'function') return FALLBACK_CANVAS_FONT

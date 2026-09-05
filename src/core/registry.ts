@@ -20,7 +20,7 @@ export interface EditorProps<TData> {
    */
   modalOpen: boolean
   /**
-   * 絞り込みの状態を額縁へ知らせる（M29）。**絞り込みが無い状態では `ids` に
+   * 絞り込みの状態を額縁へ知らせる。**絞り込みが無い状態では `ids` に
    * null を渡す**（額縁は全件として扱う）。`total` はファイル内の全行数で、
    * トーストの「42 件中 3 件」に使う。
    *
@@ -57,7 +57,7 @@ export interface OutputProfile<TData> {
    * `.md` 書き出しの両方に使うので、**副作用を持たない純関数**であること
    *（ファイルにもクリップボードにも触らない）。
    *
-   * `visible` は画面に出ている行の ID 集合（M29）。**任意引数なので、
+   * `visible` は画面に出ている行の ID 集合。**任意引数なので、
    * 絞り込みを持たないツールの出力関数は1文字も変えなくてよい**——
    * 受け取らなければ無視される。**額縁が先にデータを間引く形にはしない**
    *（No が振り直されて画面と食い違う。`VisibleRows` の JSDoc を参照）
@@ -70,13 +70,13 @@ export interface OutputProfile<TData> {
    * 何が起きるかはツールごとに違う（用語集の ID 重複と、シーケンスの参照切れでは
    * 出力に起きることが別）ので、額縁が文面を持てない。**任意スロットであり、
    * 持たないツールは汎用文だけになる**——モジュール規約の点数は増えない
-   *（M9 が規約5 を複数プロファイルへ拡張したのと同じ層の拡張）
+   *（規約5 を複数プロファイルへ拡張したのと同じ層の拡張）
    */
   describeIssueEffect?: (issues: readonly ConsistencyIssue[]) => string
 }
 
 /**
- * 規約7（任意）: 外部ツールとのクリップボード交換（logic-tree M3）。
+ * 規約7（任意）: 外部ツールとのクリップボード交換。
  *
  * **規約5（`OutputProfile`）に乗せない理由**: あちらは「Markdown を返す純関数」と
  * `.md` 書き出しを前提にしている。Miro 交換は出力が HTML とプレーンテキストの2つで、
@@ -109,9 +109,8 @@ export interface ClipboardExchange<TData> {
 }
 
 /**
- * ツールモジュール規約（rev 6章）。M6 の出力ロジック追加で6点セットが埋まった。
+ * ツールモジュール規約（rev 6章）。
  * `createEmpty` は6点セットには無い7つ目のスロット（額縁の新規作成が使う雛形）。
- * M9 で規約5を複数プロファイル（`outputs`）へ拡張した。
  */
 export interface ToolModule<TData = unknown> {
   /** 規約1: type 識別子 */
@@ -147,7 +146,7 @@ export interface ToolModule<TData = unknown> {
    */
   clipboardExchanges?: readonly ClipboardExchange<TData>[]
   /**
-   * 規約8（任意）: 表形式コピー（M29）。**持たないツールは書かない。**
+   * 規約8（任意）: 表形式コピー。**持たないツールは書かない。**
    * 額縁はこの有無だけを見てボタンの活性を決める（ツールを名指ししない）
    */
   tableExport?: TableExport<TData>
