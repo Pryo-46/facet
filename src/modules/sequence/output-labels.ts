@@ -10,7 +10,7 @@
 /** 問いは立っているが答えていない／文言が空。既存2ツールの出力と同じ語 */
 export const UNDEFINED_VALUE = '（未定義）'
 
-/** notApplicable（人が「考えなくてよい」と決めた）。画面の GutterSlot も同じ語を出す（M22。─ の記号は初見に意図が伝わらないためやめた） */
+/** notApplicable（人が「考えなくてよい」と決めた）。画面の GutterSlot も同じ語を出す（─ という記号では初見に意図が伝わらないため語にしてある） */
 export const NOT_APPLICABLE_LABEL = '考慮不要'
 
 /**

@@ -40,7 +40,7 @@ describe('ActorRefCell: 表示', () => {
     expect(setup({ value: undefined, invalid: true }).cell.textContent).toBe('（未解決）')
   })
 
-  it('名前が空のアクターを指しているときは本文を空にし、欠落の面（破線＋淡い面）で示す（（未定義）と書かない。M22 決定1）', () => {
+  it('名前が空のアクターを指しているときは本文を空にし、欠落の面（破線＋淡い面）で示す。（未定義）とは書かない（決定1）', () => {
     const { cell } = setup({
       value: 'actor_Aaaaaaaaa9',
       actors: [{ id: 'actor_Aaaaaaaaa9', name: '' }],
@@ -62,7 +62,7 @@ describe('ActorRefCell: 表示', () => {
   })
 })
 
-describe('ActorRefCell: キーボード（M2 までと同じ）', () => {
+describe('ActorRefCell: キーボード', () => {
   it('↑↓ で actors 配列順に即時切替する（3人の真ん中から両方向）', () => {
     const { onSelect, cell } = setup()
     fireEvent.keyDown(cell, { key: 'ArrowDown' })

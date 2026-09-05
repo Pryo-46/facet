@@ -197,7 +197,7 @@ describe('ErrorCatalogEditor: ヘッダーの罫線', () => {
   it('列の境界の縦罫はヘッダーだけ一段濃い（薄い罫は沈んだ面の上で消える）', () => {
     renderEditor(twoErrors)
     const ths = screen.getAllByRole('columnheader')
-    // 先頭列（No）には引かない（M8 決定2）
+    // 先頭列（No）には引かない
     expect(ths[0]?.className).not.toMatch(/border-l/)
     for (const th of ths.slice(1)) {
       expect(th.className).toMatch(/(^|\s)border-l-rule(\s|$)/)
@@ -348,7 +348,7 @@ describe('ErrorCatalogEditor: モーダル表示中', () => {
   })
 })
 
-describe('ErrorCatalogEditor: 表示中の行の報告（M29）', () => {
+describe('ErrorCatalogEditor: 表示中の行の報告', () => {
   // twoErrors には resolutionLevel が support の行が無いため、この観点専用に
   // 用意する（既存フィクスチャは他のテストの件数の前提になっているので変えない）
   const data = catalog([

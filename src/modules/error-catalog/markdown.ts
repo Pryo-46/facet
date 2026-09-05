@@ -7,7 +7,7 @@ import { FIELD_LABELS, type ErrorField } from './fields'
 import { resolutionLabel } from './resolution-labels'
 
 /**
- * エラーカタログの Markdown 出力（モジュール規約5。M10 決定15）。
+ * エラーカタログの Markdown 出力（モジュール規約5。決定15）。
  * 用語集の出力仕様（rev 8章）をそのままなぞる。
  *
  * - **h1 は使わない**（NotePM のページタイトルと階層が衝突する）。
@@ -47,7 +47,7 @@ export function errorCatalogToMarkdown(
   // 値ではなく配列位置を持つ——No がデータ配列の位置だから
   const groups = new Map<string, number[]>(LEVEL_ORDER.map((level) => [level, []]))
   data.errors.forEach((entry, index) => {
-    // **絞り込みはここで効かせる**（M29）。**配列位置（index）は元のまま持つ**
+    // **絞り込みはここで効かせる。配列位置（index）は元のまま持つ**
     // ——No を振り直すと画面の No と食い違い、口頭で指す目印として使えなくなる
     if (visible != null && !visible.has(entry.id)) return
     const group = groups.get(entry.resolutionLevel)

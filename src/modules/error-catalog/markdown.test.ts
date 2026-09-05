@@ -180,7 +180,7 @@ describe('空欄とエスケープ', () => {
   })
 })
 
-describe('errorCatalogToMarkdown: 絞り込み（M29）', () => {
+describe('errorCatalogToMarkdown: 絞り込み', () => {
   const data = {
     schemaVersion: 1 as const,
     type: 'errorCatalog' as const,

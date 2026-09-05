@@ -3,7 +3,7 @@ import type { ErrorEntry } from '@/types/error-catalog'
 import type { ProseField } from './fields'
 
 /**
- * 検索・解決レベルフィルタ（M10 決定16）。
+ * 検索・解決レベルフィルタ（決定16）。
  * 照合は重複判定と同じ `normalizeForMatch` を使う——同じアプリの中で
  * 「同じ語とみなす規則」を2つ持たない。
  *

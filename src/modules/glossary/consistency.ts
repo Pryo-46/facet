@@ -12,7 +12,7 @@ import type { GlossarySchemaVersion1 } from '@/types/glossary'
  * locations は配列位置（entityIndex）で行を指す。ID 重複ファイルを
  * 「受け入れて赤表示」する以上、entityId だけでは行を一意に特定できない。
  *
- * **グループ化は core/duplicate.ts に一元化してある**（M9）。正規化を掛けるか
+ * **グループ化は core/duplicate.ts に一元化してある。**正規化を掛けるか
  * どうかはルールごとに違うので、keyOf に載せて呼び分ける
  */
 export function checkGlossaryConsistency(data: GlossarySchemaVersion1): ConsistencyIssue[] {

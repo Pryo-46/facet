@@ -33,7 +33,7 @@ function dupLocations(items: readonly { id: string }[], field: string): Map<stri
 /**
  * 整合性検証（レベル2＝受け入れて赤表示。design-notes 論点10）。
  * エラー文言は「どの属性のせいか」まで言う——「ID が重複しています」だけでは
- * 直し方が読めない、という logic-tree M1 の教訓（ID 重複と木の形の項）の適用。
+ * 直し方が読めない、という logic-tree の教訓（ID 重複と木の形の項）の適用。
  *
  * location の entityId はプレフィクス（actor_ / step_）でどの配列の話かを
  * 見分ける——ConsistencyLocation は配列を1つしか想定していないため、

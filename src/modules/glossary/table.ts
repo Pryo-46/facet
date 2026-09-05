@@ -10,7 +10,7 @@ import { FIELD_LABELS, FIELD_ORDER } from './fields'
 import { kindLabel } from './kind-labels'
 
 /**
- * 用語集の表（モジュール規約8。M29）。
+ * 用語集の表（モジュール規約8）。
  *
  * **列は画面のエディタの並びそのまま**（`FIELD_ORDER`）。Markdown 出力が種別を
  * `###` のグループ見出しへ逃がして列から落としているのとは違う——表に見出しは

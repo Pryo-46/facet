@@ -23,9 +23,8 @@ export interface StepShapeCellProps {
  * kind × awaitsReply の1セル。データは2フィールドだが、画面は
  * 「呼出／呼出（応答なし）／応答／内部処理」の4値1セル。
  *
- * **マウスはメニュー、キーボードは ↑↓ の巡回**（sequence M3）。M2 で入れた
- * クリック巡回は、クリックが「開く」になるので消えた——4値に対して最大3クリックが
- * 1クリックになる上位互換である。
+ * **マウスはメニュー、キーボードは ↑↓ の巡回。** クリックはメニューを開く
+ * 動線に使う——4値に対して最大3クリックが1クリックになる上位互換である。
  *
  * ネイティブの `select` にしないのは、ブラウザ既定のドロップダウンが
  * キャンバスの transform を無視して出るため。Radix は portal ＋ anchor の
@@ -61,7 +60,7 @@ export function StepShapeCell(props: StepShapeCellProps) {
           }
           // Enter / Space も Radix はメニューを開くキーとして取る。**トリガーは
           // ポインタでだけ開く**——Enter はステップ追加（操作言語）であり、
-          // 開かれるとキーボードの動線が M2 までと変わってしまう
+          // 開かれるとキーボードの動線（↑↓ の巡回）が崩れる
           if (e.key === 'Enter' || e.key === ' ') e.preventDefault()
           props.onFieldKeyDown?.(e)
         }}

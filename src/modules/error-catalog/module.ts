@@ -25,7 +25,7 @@ const outputs: readonly OutputProfile<ErrorCatalogSchemaVersion1>[] = PROFILES.m
 }))
 
 /**
- * 規約8: 表形式コピー（M29）。**`outputs` と同じく `PROFILES` から導出する**——
+ * 規約8: 表形式コピー。**`outputs` と同じく `PROFILES` から導出する**——
  * 列セットの定義が増えると、片方だけ直したときに黙ってずれる。
  *
  * **末尾の cast は安全である。** `TableExport.variants` は非空タプル型だが、

@@ -15,11 +15,10 @@ export const sequenceModule: ToolModule<SequenceSchemaVersion1> = {
   icon: ArrowLeftRight,
   schemaVersion: 1,
   schema: sequenceSchema as JsonSchema,
-  // zone は M4 で足す
   idPrefixes: ['actor', 'step'],
   Editor: SequenceEditor,
   checkConsistency: checkSequenceConsistency,
-  // 規約5: 図（Mermaid）と失敗考慮の表を1本の Markdown にまとめる（sequence M3）。
+  // 規約5: 図（Mermaid）と失敗考慮の表を1本の Markdown にまとめる。
   // fileSuffix は ''（プロファイル1本なので用語集と同形。書き出し名は
   // <ファイル名>.md になる）
   outputs: [

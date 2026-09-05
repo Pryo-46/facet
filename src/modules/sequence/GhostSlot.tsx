@@ -3,7 +3,7 @@ export interface GhostSlotProps {
   question: string
   /** 問いの具体例。ラベルの `title` に出す（GutterSlot と同じ扱い） */
   hint: string
-  /** 答えの表示テキスト。notApplicable で text 無しは '考慮不要' を渡す（M22） */
+  /** 答えの表示テキスト。notApplicable で text 無しは '考慮不要' を渡す */
   text: string
   'aria-label': string
   x: number
