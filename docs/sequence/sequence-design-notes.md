@@ -1,6 +1,6 @@
 # シーケンスエディタ：設計セッションノート
 
-作成日: 2026-08-11 ／ 前提: overview-rev4.md（2章 ツール一覧、10章 キャンバス化の決定と実装構成）、[`../logic-tree/logic-tree-canvas-tech-notes.md`](../logic-tree/logic-tree-canvas-tech-notes.md)（キャンバス技術方針）、[`../history/logic-tree-m1-keyboard-editor.md`](../history/logic-tree-m1-keyboard-editor.md)
+作成日: 2026-08-11 ／ 前提: overview-rev4.md（2章 ツール一覧、10章 キャンバス化の決定と実装構成）、[`../logic-tree/logic-tree-canvas-tech-notes.md`](../logic-tree/logic-tree-canvas-tech-notes.md)（キャンバス技術方針）
 状態: **設計の確定。M1 スコープは [`sequence-m1-scope.md`](sequence-m1-scope.md) へ**
 
 rev 2章の一行「シーケンスエディタ — 時系列＋責任境界（失敗ゾーン）」を実装可能な設計に降ろしたセッションの記録。旧プロトタイプ（失敗ゾーンをステップ範囲の帯として描くモック）を出発点に、**「異常系を描く」から「異常系を問う」への転換**を行った。
@@ -202,7 +202,7 @@ rev 10章「全キャンバス系ツール共通」の構成に乗る。キャ�
 - **Alt+↑↓** ＝ ステップの並び替え（配列＝時系列の正本を直接編集）
 - **空欄で Backspace** ＝ ステップ削除。Esc・Ctrl+Z 系はグローバル層のまま（額縁が握る）
 - **from/to の入力**（**sequence M3 で反転**。旧: 頭文字のインクリメンタル一致＋`↑↓` で候補切替のコンボ的セルで、未登録の名前を打って確定するとその場で `actors` に追加していた）: **選択専用のドロップダウン**（マウス）＋ **`↑↓` で `actors` 配列順の即時切替**（キーボード）。**インライン作成は廃止した**。アクターを作る経路は「ヘッダの `Enter`」と「ツールバーの『アクターを追加』ボタン」の2本に一本化した
-  - **反転した理由**: 実使用の観察で、補完（インクリメンタル一致）の出番が少なく、その場でアクターを作る必要も無かった。M1 の実機確認チェックリスト自体が「『決』＋Enter でアクター『決』ができる挙動」を危険として見に行っており（[`../history/sequence-m1-keyboard-editor.md`](../history/sequence-m1-keyboard-editor.md)）、この整合を取った形になる。詳細は [`../history/sequence-m3-mouse-and-output.md`](../history/sequence-m3-mouse-and-output.md)「M1 の確定事項2件を反転した」
+  - **反転した理由**: 実使用の観察で、補完（インクリメンタル一致）の出番が少なく、その場でアクターを作る必要も無かった。
 - **アクターの操作**: ヘッダも `CellInput` で改名可。並び替えは **Alt+←→**（横並びのリストなので、ファミリー標準 Alt+↑↓ の方向を回転しただけ。新キーの発明ではなく拡張規則の範囲）
 - **答えスロットの3状態**（未定義／handled／notApplicable）は**キーボードだけで行き来できること**を要件とする。具体のキー割当は実装時に調整（デファクトが無い領域なので、設計段階で発明を確定させない）
 - 新ステップへの自動追従パン、ズーム・パンは d3-zoom でキーボード経路なし——logic-tree M1 の判断を踏襲
@@ -227,7 +227,7 @@ rev 10章「全キャンバス系ツール共通」の構成に乗る。キャ�
 
 M1 は `outputs: []` で開始（rev 6章の「0本以上」規約。額縁が無改修で受けることは logic-tree M1 で実証済み）。着手条件だった rev 11章「会議で使うと確定してから」を満たし、**sequence M3 で以下を実装した**（`src/modules/sequence/markdown.ts` / `mermaid.ts` / `output-labels.ts`）:
 
-1. **Markdown 表**（NotePM）: No／from→to／ラベル／失敗確定／結果不明／実行済みなら、の列構成。**ガターがそのまま表になる**。未定義は `（未定義）`、notApplicable は `─ 考慮不要` 相当の表記（既存ツールの規約に合わせる）。図と表は1プロファイルにまとめ、h2 見出し→Mermaid ブロック→表の順で並べる（プロファイルを図・表で分けなかった経緯は [`../history/sequence-m3-mouse-and-output.md`](../history/sequence-m3-mouse-and-output.md)）
+1. **Markdown 表**（NotePM）: No／from→to／ラベル／失敗確定／結果不明／実行済みなら、の列構成。**ガターがそのまま表になる**。未定義は `（未定義）`、notApplicable は `─ 考慮不要` 相当の表記（既存ツールの規約に合わせる）。図と表は1プロファイルにまとめ、h2 見出し→Mermaid ブロック→表の順で並べる
 2. **Mermaid `sequenceDiagram`**: 正常系のみ。矢印種別は `kind` × `awaitsReply` から導出（`->>`／`-)`／`-->>`）
 3. 明示改行の `<br>` 変換と Mermaid ラベル正規化関数は logic-tree M3 と共通の論点。**先に出力を実装した側が正規化関数を1本立て、後発がそれに乗る**——シーケンスが1本目になったため `escapeMermaidLabel` は当初モジュール内に置いていたが、**logic-tree M3 で `core/mermaid.ts` へ引き上げ、両モジュールがそこから import する形になった**（open-issues の宿題は解消済み）。ロジックツリーの `flowchart` ラベルは改行を許さない1行制約を持つため、`logic-tree/markdown.ts` は先に改行を空白へ畳んでから共通版へ渡す2段構えにしている
 4. **参照切れ（from/to が引けない）は `（未解決）`**。ボタン化したセルと同じ語を出力にも使い、貼った先の読み手が「何が欠けているか」を読み取れるようにした（M3 で from/to をドロップダウン化した帰結。論点9 参照）
@@ -237,9 +237,9 @@ M1 は `outputs: []` で開始（rev 6章の「0本以上」規約。額縁が�
 | 段階 | 内容 | 位置づけ |
 | --- | --- | --- |
 | **sequence M1** | ステップ入力＋個別の問い（キーボードのみ） | 済。[`sequence-m1-scope.md`](sequence-m1-scope.md) が正 |
-| **sequence M2** | 使い勝手改善9点（初期フォーカス・0件 Tab・グレースロット・行ブラケット等） | 済（2026-08-11）。**当初この段に予定していたゾーンより先に、M1 の会議使用のフィードバックを入れた。** 経緯は [`../history/sequence-m2-usability.md`](../history/sequence-m2-usability.md) |
-| **sequence M3** | マウス操作（actor・kind のドロップダウン化。論点9）／出力（Markdown・Mermaid。論点11） | 済（2026-08-12）。経緯は [`../history/sequence-m3-mouse-and-output.md`](../history/sequence-m3-mouse-and-output.md) |
-| **sequence M4** | シーケンス登録 Skill（会話→ JSON。`questions.ts` / `canonical.ts` のバイト一致コピーを同梱） | 済（2026-08-14）。経緯は [`../history/sequence-m4-register-skill.md`](../history/sequence-m4-register-skill.md) |
+| **sequence M2** | 使い勝手改善9点（初期フォーカス・0件 Tab・グレースロット・行ブラケット等） | 済（2026-08-11）。**当初この段に予定していたゾーンより先に、M1 の会議使用のフィードバックを入れた。** |
+| **sequence M3** | マウス操作（actor・kind のドロップダウン化。論点9）／出力（Markdown・Mermaid。論点11） | 済（2026-08-12） |
+| **sequence M4** | シーケンス登録 Skill（会話→ JSON。`questions.ts` / `canonical.ts` のバイト一致コピーを同梱） | 済（2026-08-14） |
 | M5+ | ゾーン（`zone_`、範囲束ね、背景帯）／`Tab` の2ゾーン化（骨格→答え）／`errorRefs`／`replyTo` | 優先順は実使用が決める。ゾーンは「同じ答えを何度も書いた」実感を得てから（open-issues に条件付きで記録済み） |
 
 - **M1 と M2 の間に実際の会議を1回挟む**（logic-tree と同じ手順）

@@ -324,7 +324,7 @@ export const ISSUE_EVENT_LABELS: Record<IssueEventKind, string> = {
 }
 
 /**
- * 旗を掲げた課題の数（UI ノート D17 の別枠）。
+ * 旗を掲げた課題の数（rev 9章 D17 の別枠）。
  *
  * 数えるのは**自分自身がその旗を掲げている課題**だけ——配下の抑制
  * （`suppressedIssueIds`）は数えない。別枠は「誰が何を落としたか／何を閉じたか」の

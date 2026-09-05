@@ -234,7 +234,6 @@ npm run tauri build
 
 - [`docs/overview-rev.md`](docs/overview-rev.md) — 全体方針の「正」。なぜこの設計なのかはここに集約してある
 - [`docs/open-issues.md`](docs/open-issues.md) — いま何が開いているか
-- [`docs/history/`](docs/history/) — マイルストーンごとの申し送り（追記専用）
 - [`CLAUDE.md`](CLAUDE.md) — 作業のしかた（worktree の使い方、マイルストーン完了時に触る場所）
 
 ---

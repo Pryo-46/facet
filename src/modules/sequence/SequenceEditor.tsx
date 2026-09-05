@@ -256,9 +256,8 @@ export function SequenceEditor({
   )
   // from/to/種別のセルのドロップダウンは同時に1つだけ開く。**開いている
   // セルの鍵（data-cell の値）を1つだけ持つ**ことで構造的に複数オープンを
-  // 禁止する（2026-08-12 実機確認で見つかった欠陥の修正。経緯は
-  // docs/history/sequence-m3-mouse-and-output.md の「Task 11b」）。あるセルを
-  // 開くと他のセルの `open` が自動的に false になり、Radix が閉じる。
+  // 禁止する。あるセルを開くと他のセルの `open` が自動的に false になり、
+  // Radix が閉じる。
   // （非表示のセルの `open` は常に false なので DropdownMenuContent が
   // マウントされず、そのセルから onOpenChange(false) が飛んでくることは
   // 無い——false は常に「いま開いている当のセルが閉じた」ことを意味する）
@@ -532,7 +531,7 @@ export function SequenceEditor({
           ? location.field
           : 'row'
       // self は to セルを描画しないので、to への指摘は行全体（'row'）に回す（ブレスト決定7）。
-      // 出し先は #N セル（上の rail number。UI ノート D5）
+      // 出し先は #N セル（上の rail number。rev 9章 D5）
       const field =
         rawField === 'to' && data.steps[location.entityIndex]?.kind === 'self' ? 'row' : rawField
       const fields = invalidStepFields.get(location.entityIndex) ?? new Set<string>()
@@ -973,7 +972,7 @@ export function SequenceEditor({
               {/* レールの通し番号。aria-hidden にするのは、各セルの aria-label が
                   すでに「ステップN の…」と名乗っており、二重に読ませないため。
                   **行全体の指摘（id 重複・self の to など欄を特定できない指摘）は
-                  ここに出す**——行を帯で染めると問題箇所が特定できない（UI ノート D5） */}
+                  ここに出す**——行を帯で染めると問題箇所が特定できない（rev 9章 D5） */}
               <div
                 aria-hidden="true"
                 className={`absolute select-none rounded-sm text-center text-sm ${

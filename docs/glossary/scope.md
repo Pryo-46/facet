@@ -12,7 +12,7 @@
 - `schemas/glossary.schema.json` — 用語集スキーマ（正）。**コピーを作らないこと**（Skill 側もこの実体を読む）
 - Skill 一式（`SKILL.md` / `glossary-write.mjs` / `new-id.mjs`）— 既に動作するAI側の実装。**アプリはこれと正規形が完全一致していなければならない**
 
-各マイルストーンの申し送り（実装で確定した事項・見つかった欠陥）は [`../history/`](../history/) にある。**次の計画を書く前に、直近1〜2本と [`../open-issues.md`](../open-issues.md) を読むこと。**
+**次の計画を書く前に [`../open-issues.md`](../open-issues.md) を読むこと。**
 
 ---
 
@@ -119,7 +119,7 @@ Skill 側の `glossary-write.mjs` と**完全一致**させること。1文字�
 - **フォントは明示的なスタックを書く。** 現在の `--font-sans` は shadcn プリセットが入れた Geist で、**日本語グリフを持たない**（英数字だけ Geist、日本語は OS 既定にフォールバックする混在状態）。フォールバック任せにすると Windows は Yu Gothic UI、macOS は Hiragino Sans となり、**表形式の列幅と行の詰まり方がプラットフォームで変わる**。`system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Yu Gothic UI', 'Noto Sans JP', sans-serif` のように書けば、フォールバックはグリフ単位に効くので英数字は各OSのUIフォント、日本語は各OSの標準日本語フォントに振り分かる
 - **日本語 Web フォントは同梱しない。** Noto Sans JP は丸ごとで数MB、サブセット化すると「どの字を含めるか」の管理が発生する。ユーザーが入力する用語にどの漢字が来るか事前に分からないため、サブセットは破綻する。完全な同一描画は諦め、各OSでネイティブに見えることを取る
 
-> **訂正（M26）: 上の2項は反転した。** M26 で **IBM Plex Sans / Sans JP / Mono の3書体を同梱**し、`--font-sans` は `'IBM Plex Sans Variable', 'IBM Plex Sans JP', 'Yu Gothic UI', 'Hiragino Sans', sans-serif` になった（Geist は外した。U1 の決着＝案A。正は rev 9章と UI ノート D6〜D8）。**「フォールバックはグリフ単位に効く」という書き方の作法は残っている**——フォールバック列は同梱が届かなかったときの保険としてそのまま残してある。**当時の論拠のうち「字数サブセットは破綻する」は生きている**——M26 も**字数サブセットはしていない**。同梱したのは**全字収録のまま unicode-range で 123 に分割**した woff2 で、「どの字を含めるか」の管理は発生せず、使われないスライスはそもそも取得されない。反転したのは「数MB を配布物に載せるか」という**サイズの判断の側**である（実測 4.41MB。インストーラは 3.67MB → 8.19MB）。
+> 現在は **IBM Plex Sans / Sans JP / Mono の3書体を同梱**し、`--font-sans` は `'IBM Plex Sans Variable', 'IBM Plex Sans JP', 'Yu Gothic UI', 'Hiragino Sans', sans-serif` である。
 
 M7 は M1〜M3 と並行してよいが、色値の確定はドッグフーディング後（rev 9章）。
 

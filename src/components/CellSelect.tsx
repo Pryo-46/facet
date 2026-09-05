@@ -25,7 +25,7 @@ export interface CellSelectProps {
 }
 
 /**
- * テーブルセルの選択肢（ネイティブ `<select>` の置換。M25 決定4・UI ノート §1.1）。
+ * テーブルセルの選択肢（ネイティブ `<select>` の置換。M25 決定4・rev 9章）。
  *
  * ネイティブをやめたのは**開いたときのリストが OS 描画で styled にできない**ため
  * （閉じた見た目は appearance-none で既にカスタムだった）。開閉は `KindMenu`

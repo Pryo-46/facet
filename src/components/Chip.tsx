@@ -3,7 +3,7 @@ import { buttonBase } from './button-styles'
 
 /**
  * 選択トグル（フィルタのチップ）。**選択は黒塗りではなく、一段沈んだ面と
- * 濃い枠で示す**（rev 9章 M21「押すものと状態を同じ見た目にしない」）。
+ * 濃い枠で示す**（rev 9章）。
  * 用語集の種別フィルタ・エラーカタログの表示プロファイルと解決レベルが使う
  */
 export function Chip(props: { selected: boolean; onClick: () => void; children: ReactNode }) {

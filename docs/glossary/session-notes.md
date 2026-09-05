@@ -1,7 +1,7 @@
 # 用語集エディタ詰めセッション 成果物ドキュメント（作業中）
 
 作成日: 2026-07-22 ／ 前提: overview-rev.md ／ 元: handoff-04-glossary-session.md
-状態: **完了（2026-07-23）。全8論点確定。成果物: 本ドキュメント／glossary.schema.json／archive/handoff-term-skill-session.md**
+状態: **完了（2026-07-23）。全8論点確定。成果物: 本ドキュメント／glossary.schema.json**
 
 ---
 

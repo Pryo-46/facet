@@ -85,8 +85,7 @@ updater が参照する `latest.json` が古い版のまま（または存在し
 `latest.json` が無いと、そこから 404 が返るようになる。**Tauri の updater が
 「更新なし」と解釈するのは HTTP 204 だけで、404 はエラーである**——利用者が更新を
 確認するたびに `更新を確認できませんでした: Could not fetch a valid release JSON
-from the remote` が出る状態になる（M19 の実機確認で実際に踏んだ。
-`docs/history/m19-core-auto-update.md`）。
+from the remote` が出る状態になる。
 
 `gh release create` が通ったら、**その場でエンドポイントを叩いて 200 を確かめること**:
 
@@ -101,7 +100,7 @@ mac の dmg は mac 実機で別に作り、同じリリースへ足す。
 **mac のビルドでは updater 成果物を切ってビルドすること。** `createUpdaterArtifacts`
 は `src-tauri/tauri.conf.json` の bundle 全体に効くフラグなので、素の
 `npm run tauri build` は mac のビルド機にも minisign の秘密鍵（`TAURI_SIGNING_PRIVATE_KEY`）
-を要求してしまう——これは「秘密鍵を2台に置かない」という M19 の判断（`docs/history/m19-core-auto-update.md`）を崩す。
+を要求してしまう——これは「秘密鍵を2台に置かない」という判断を崩す。
 以下の上書きで、秘密鍵を Windows の1台だけに留められる。
 
 ```

@@ -5,7 +5,7 @@ export { createEstimateMeasurer } from '@/core/canvas/wrap'
 export type WrappedText = WrappedBlock
 
 /**
- * ノード矩形の幅。**固定。導出しない**（UI ノート D3。M24）。
+ * ノード矩形の幅。**固定。導出しない**（rev 9章 D3。M24）。
  *
  * 内容から導出していたころは長文ノードだけ幅が3倍になり、木の骨格が
  * 読めなかった。課題ツリーの箱（`src/modules/issue-tree/measure.ts` の
