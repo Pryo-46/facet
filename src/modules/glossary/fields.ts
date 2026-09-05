@@ -18,7 +18,7 @@ export const FIELD_LABELS: Record<GlossaryField, string> = {
 }
 
 /**
- * Tab / Shift+Tab の移動先。実装は `@/core/list-editor/field-step`（M9 で引き上げ）。
+ * Tab / Shift+Tab の移動先。実装は `@/core/list-editor/field-step` にある。
  * ここは用語集の列順を束ねるだけ——呼び出し側が毎回 FIELD_ORDER を渡さずに済む
  */
 export function stepField(field: GlossaryField, direction: 1 | -1): FieldStep<GlossaryField> {

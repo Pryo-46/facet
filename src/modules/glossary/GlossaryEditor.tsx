@@ -36,8 +36,8 @@ import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } f
 // 種別の選択肢はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂時に静かにずれる）
 const KIND_OPTIONS = glossarySchema.$defs.term.properties.kind.enum
 
-// フォーカスは面の塗り替えではなくリングで示す（M8 修正3）。テーブルの面が
-// bg-surface になった今、focus:bg-surface はコントラスト比 1.00:1 で見えない。
+// フォーカスは面の塗り替えではなくリングで示す。テーブルの面は
+// bg-surface なので、focus:bg-surface はコントラスト比 1.00:1 で見えない。
 // エラー・未定義セルは輪郭（CELL_FACE_CLASS）で警告を示しているので、
 // フォーカスで背景を塗り替えても輪郭は消えない——リングは輪郭とは別の見た目
 // なので、どちらも潰さずに重ねられる。色は役割トークンの --ring から取る
@@ -46,7 +46,7 @@ const cellInput =
   'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
 
 /**
- * 列の境界の縦罫。先頭列（No）には引かない（M8 決定2）。
+ * 列の境界の縦罫。先頭列（No）には引かない。
  *
  * **色は辺指定（border-l-*）で書く。** 無方向の `border-rule-muted` は
  * border-color を4辺へ流すので、ヘッダーの `border-b` と同じ th に載ると
@@ -108,7 +108,7 @@ export function GlossaryEditor({
   })
   const { rowKeys } = rows
 
-  // 幅を測る対象はテーブルを包む div（M8 決定9）
+  // 幅を測る対象はテーブルを包む div（決定9）
   const tableRef = useRef<HTMLDivElement>(null)
   const { widths, getHandleProps } = useColumnResize({
     store: glossaryColumnWidths,
@@ -129,7 +129,7 @@ export function GlossaryEditor({
   const derivedView = isDerivedView(filter)
   const reorderEnabled = !derivedView
 
-  // 画面に出ている行を額縁へ知らせる（M29）。実装は共通フックが持つ
+  // 画面に出ている行を額縁へ知らせる。実装は共通フックが持つ
   useVisibleIdsReport(
     derivedView ? visible.map((i) => data.terms[i].id) : null,
     data.terms.length,
@@ -147,7 +147,7 @@ export function GlossaryEditor({
   const jumpAt = useRef<Record<string, number>>({})
 
   /**
-   * 欠落セルへのジャンプ（M22）。**集計は全行、ジャンプは表示中**——
+   * 欠落セルへのジャンプ。**集計は全行、ジャンプは表示中**——
    * 絞り込み中は集計と巡回先がずれうる（テーブル側はフォーカス位置追跡を
    * 持たないので、課題ツリーの nextOpenTarget とは違い巡回 ref で数える。
    * 物足りなければ open-issues 行き）
@@ -239,11 +239,11 @@ export function GlossaryEditor({
   // locations を「配列位置 → 赤表示するフィールド集合」に引き直す。判定
   // ロジック（優先順位・行アンカー）とあわせて cell-face.ts の純関数へ
   // 切り出してある。DOM テストは role・アクセシブル名で引きクラス名を見ないため、
-  // この振る舞いを固定する場所が別に要る（M8 でつぶした残件2の裏付け）
+  // この振る舞いを固定する場所が別に要る
   const marks = buildErrorMarks(issues)
 
   /** セルの輪郭のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ。
-      行全体の指摘は No セルの輪郭で示す（M22。rev 9章 D5）。No は GlossaryField
+      行全体の指摘は No セルの輪郭で示す（rev 9章 D5）。No は GlossaryField
       ではないので、ここでは rowAnchor は常に false——No セル自身は tbody の中で
       cellFace を直接呼んで別に組み立てる */
   const cellClass = (index: number, field: GlossaryField, warn = false): string =>
@@ -292,8 +292,8 @@ export function GlossaryEditor({
       {/* 指摘の一覧は額縁が出す（rev 6章）。ここで `issues` を使うのは
           セル・行の赤表示だけ（下の cellClass / marks） */}
       {/* テーブルは surface の面に載せ、外枠だけ rule で締める。内側の罫は
-          grid（装飾）に落とす——M7 が rule と grid を2トークンに分けた理由が
-          そのまま効く階層である（M8 決定2）。
+          grid（装飾）に落とす——rule と grid を2トークンに分けた理由が
+          そのまま効く階層である（決定2）。
           **角丸のための overflow-hidden はあえて置かない。** 別名セル
           （AliasCell）のパネルはこの div を包含ブロックとする absolute 配置で、
           パネルの高さ（別名の行＋操作ヒントで60px強）は行の高さ（約31px）を
@@ -333,7 +333,7 @@ export function GlossaryEditor({
                         固定幅の列があればそこにハンドルを出す。掴めるのは
                         右隣（別名）の幅なので反転して渡す（見た目どおり、
                         右へ引くと定義が広がる＝別名が狭まる）。掴み代が見えるように
-                        列の境界へ grid の縦罫を引いてある（M8 決定2） */}
+                        列の境界へ grid の縦罫を引いてある（決定2） */}
                     {col.field === 'no' ? null : w !== null ? (
                       <span
                         {...getHandleProps(w)}
@@ -419,7 +419,7 @@ export function GlossaryEditor({
                     />
                     {/* appearance-none で消えた矢印を描き直す。**背景画像の
                         data URI は使わない**——色値を書くことになり
-                        conventions.test.ts が弾く（M8 決定14） */}
+                        conventions.test.ts が弾く（決定14） */}
                     <svg
                       aria-hidden="true"
                       viewBox="0 0 12 12"

@@ -99,7 +99,7 @@ export function resolveCommand(e: KeyEventLike, ctx: KeyContext): Command | null
     case 'Tab':
       if (e.altKey) return null
       // 階層構造では Tab は子追加（rev 10章 階層・リスト系の標準）。
-      // Shift+Tab に「親にする」を割り当てるのは M1 の範囲外——意味を
+      // Shift+Tab に「親にする」は割り当てない——意味を
       // 与えないことで、キャンバスから Tab 順で抜ける経路として残る
       if (ctx.hierarchical) return e.shiftKey ? null : 'insert-child'
       return e.shiftKey ? 'focus-prev-field' : 'focus-next-field'

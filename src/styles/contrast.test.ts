@@ -16,7 +16,7 @@ import {
   toHex,
 } from './contrast'
 
-// 設計スペックの確定値から。Task 2 の palette.css と同じ値を使う
+// 設計スペックの確定値から。palette.css と同じ値を使う
 const CANVAS = { L: 0.921, C: 0.012, H: 96.4 }
 const INK = { L: 0.205, C: 0, H: 89.9 }
 const WARNING = { L: 0.518, C: 0.132, H: 34.6 }
@@ -34,7 +34,7 @@ describe('parseOklch', () => {
   it('アルファ付きは null を返す', () => {
     // palette.css は「不透明な色だけ」を持つ規約（設計スペック 決定3）。
     // 半透明が紛れ込んだらコントラスト計算が意味を失うので、
-    // 黙って読み飛ばさず Task 2 のテストで落とせるようにする
+    // 黙って読み飛ばさずテストで落とせるようにする
     expect(parseOklch('oklch(0.518 0.132 34.6 / .13)')).toBeNull()
   })
 
@@ -78,7 +78,7 @@ describe('parseAnyCssColor', () => {
   it('hsl() が既知の対応に一致する', () => {
     // hsl(210 50% 40%) = #336699。**3チャンネルとも 8bit の整数
     // （51 / 102 / 153）にちょうど乗る値を選んである**——127.5 のような
-    // 丸めの境界に期待値を置かない（M8 の教訓）
+    // 丸めの境界に期待値を置かない
     expect(toHex(parseAnyCssColor('hsl(210 50% 40%)')!.rgb)).toBe('#336699')
   })
 

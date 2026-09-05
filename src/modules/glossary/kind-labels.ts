@@ -11,7 +11,7 @@ export const KIND_LABELS: Record<string, string> = {
   screen: '画面',
   data: 'データ',
   other: 'その他',
-  // M6 の Markdown 出力の見出し「### 未分類」と表記を揃える
+  // Markdown 出力の見出し「### 未分類」と表記を揃える
   undecided: '未分類',
 }
 

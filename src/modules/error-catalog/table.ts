@@ -11,7 +11,7 @@ import type { ErrorProfile } from './profiles'
 import { resolutionLabel } from './resolution-labels'
 
 /**
- * エラーカタログの表（モジュール規約8。M29）。
+ * エラーカタログの表（モジュール規約8）。
  *
  * **`markdownFields()` を使わない。** あれは `resolutionLevel` を列から落とす関数で、
  * 落とす理由は「グルーピング軸が h3 見出しになるから」（`profiles.ts` の JSDoc）。

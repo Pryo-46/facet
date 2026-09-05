@@ -6,14 +6,13 @@
  * 仕様では、変換を確定した Enter の keydown は `isComposing === true` で来る。
  * ところが **WebKit は composition 系のイベントを keydown より先に投げる**ため、
  * 確定した瞬間には既に変換が終わったことになっており、その Enter は
- * `isComposing === false` で届く（WebKit bug 165004。2016年の報告から
- * 2026年に main で直るまで開いていた）。
+ * `isComposing === false` で届く（WebKit bug 165004）。
  *
  * これは macOS の WKWebView と Linux の WebKitGTK ——つまり Windows 以外の
  * facet 全部——に効く。Windows（WebView2＝Chromium）だけが仕様どおりなので、
  * **Windows で開発している限り決して踏まない**種類の欠陥である。
  *
- * ## 実測（2026-08-15。実物の CellInput / WKWebView）
+ * ## 実測（実物の CellInput / WKWebView）
  *
  *   50 compositionend                         Δ 409.0
  *   51 keydown  Enter  keyCode=229  isComposing=false  Δ -12.0  ← 確定。行追加に化けていた
@@ -38,8 +37,8 @@
  * compositionend →キーを離す——では窓に入る打鍵がそもそも来ない。
  * 2つの条件が互いの穴を塞いでいる:
  *
- * - 窓だけだと、Chromium で確定直後（100ms 以内）の2打目の Enter を握り潰す
- * - keyup だけだと、候補をマウスで選んで確定した（キーを離す機会が無い）あとの
+ * - 窓だけだと、Chromium が確定した直後（100ms 以内）の2打目の Enter を握り潰す
+ * - keyup だけだと、候補をマウスで選び確定した（キーを離す機会が無い）あとの
  *   最初の Enter を握り潰す
  */
 export const COMPOSITION_TAIL_MS = 100
@@ -47,7 +46,7 @@ export const COMPOSITION_TAIL_MS = 100
 /**
  * 「IME がこの打鍵を処理中」を表す予約値。実在のキーには割り当てられない。
  *
- * WKWebView の実測（2026-08-15）で、**変換を確定した Enter は
+ * WKWebView の実測で、**変換を確定した Enter は
  * `isComposing: false` で来るのに `keyCode` は 229 だった**:
  *
  *   compositionend
@@ -78,7 +77,7 @@ export function isCompositionTail(
   // **絶対値で見る。** WKWebView の実測では、compositionend の「後」に届いた
   // 確定の keydown の timeStamp が **20ms 古かった**——WebKit は keydown に
   // ネイティブイベント本来の時刻を、compositionend にはディスパッチ時刻を刻む。
-  // 当初 `elapsed >= 0` を条件にしていたためにこの尾を取り逃がしていた。
-  // **「後に届いたのだから時刻も後」と決めつけないこと**（この欠陥の実物）
+  // `elapsed >= 0` を条件にするとこの尾を取り逃がす。
+  // **「後に届いたのだから時刻も後」と決めつけないこと**
   return Math.abs(keyTimeStamp - compositionEndedAt) <= COMPOSITION_TAIL_MS
 }

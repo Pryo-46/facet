@@ -19,11 +19,11 @@ export const glossaryModule: ToolModule<GlossarySchemaVersion1> = {
   Editor: GlossaryEditor,
   checkConsistency: checkGlossaryConsistency,
   // 規約5: NotePM 向け Markdown（session-notes 論点7）。Mermaid は無い。
-  // 用語集は1プロファイル。fileSuffix が '' なので書き出し名は M6 から不変
+  // 用語集は1プロファイル。fileSuffix が '' なので書き出し名は固定される
   outputs: [
     { id: 'default', label: 'Markdown', fileSuffix: '', toMarkdown: glossaryToMarkdown },
   ],
-  // 規約8: 表形式コピー（M29）。**読み手は1本**なのでダイアログに選択を出さない。
+  // 規約8: 表形式コピー。**読み手は1本**なのでダイアログに選択を出さない。
   // 階層が無いので numberStyle も、親が無いので repeatParent も宣言しない
   tableExport: {
     options: ['numbering', 'showUndefined'],
@@ -33,6 +33,6 @@ export const glossaryModule: ToolModule<GlossarySchemaVersion1> = {
   singleton: true,
   migrate: migrateGlossary,
   // 用語集0個は正常な状態（新規プロジェクト）。空の terms で作り、
-  // 用語は M3 の行追加または将来のインライン登録で増える（rev 5章）
+  // 用語は行追加または将来のインライン登録で増える（rev 5章）
   createEmpty: (title) => ({ schemaVersion: 1, type: 'glossary', title, terms: [] }),
 }

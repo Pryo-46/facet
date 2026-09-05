@@ -42,9 +42,9 @@ export const FLAG_BADGE_GROUPS: Record<IssueEventKind, BadgeGroup> = {
 
 /**
  * 帯の集計チップの `OpenKind` → variant 対応（仮説なし・未決＝破線 `open`、
- * 保留＝実線 `hold`、FB待ち＝着信の青 `pending`）は、**M22 で `derive.ts` の
- * `toMissingTally` に吸収した**（帯そのものが共通部品 `MissingTally` に
- * 置き換わり、variant は `MissingTallyPart` が運ぶため、ここに個別の
- * `chipVariantOf` を残す理由が無くなった）。対応表そのものは
+ * 保留＝実線 `hold`、FB待ち＝着信の青 `pending`）は `derive.ts` の
+ * `toMissingTally` にある（帯そのものは共通部品 `MissingTally` で、
+ * variant は `MissingTallyPart` が運ぶので、ここに個別の
+ * `chipVariantOf` を置く理由は無い）。対応表そのものは
  * `toMissingTally` の実装とテスト（`derive.test.ts`）を見ること
  */

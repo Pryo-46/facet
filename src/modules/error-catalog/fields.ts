@@ -1,7 +1,7 @@
 import type { ErrorEntry } from '@/types/error-catalog'
 
 /**
- * エラーカタログエディタのフィールド宣言（M10 決定8）。
+ * エラーカタログエディタのフィールド宣言（決定8）。
  * ID は列に出さない（機械用の参照キーであり、人間が常時見る情報ではない）。
  *
  * **並びはスキーマの properties 記載順と一致させること**（fields.test.ts が検査する）。

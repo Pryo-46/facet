@@ -2,11 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { isValueImportStatement } from './import-analysis'
 
 /**
- * **`src/modules/sequence/skill-copy.test.ts` から移した。**
- * あちらは同梱コピーのバイト一致を見るテストで、m30 でコピー自体が
- * 生成物になったため役目を終えた。**混在ケースの回帰はここで見つかった
- * ものなので、ケースは1つも減らさずに持ってきている**——判定関数と
- * 同居させることで、次に触る人が実装の隣でケースを読める
+ * **判定関数と同居させる。** 次に触る人が実装の隣でケースを読めるように、
+ * `type` 修飾と値 specifier が混在する import 文の回帰ケースも含めて、
+ * ケースは1つも減らさず集めてある
  */
 describe('isValueImportStatement', () => {
   const cases: [name: string, statement: string, expected: boolean][] = [

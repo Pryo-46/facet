@@ -104,7 +104,7 @@ const AUTOSAVE_DELAY_MS = 500
 
 /**
  * 端末ペインの既定幅。**永続化しない**——「アプリを閉じるまで」が
- * モジュールの生存期間とちょうど一致する（M8 決定7 と同じ扱い）
+ * モジュールの生存期間とちょうど一致する
  */
 const paneWidthStore = createColumnWidthStore([420])
 
@@ -129,7 +129,7 @@ const appIo: AppIo = {
   trash: moveFileToTrash,
   join: joinPath,
   copyText: copyToClipboard,
-  // Miro 等とのクリップボード交換（logic-tree M3）。コントローラが押下時に使う
+  // Miro 等とのクリップボード交換。コントローラが押下時に使う
   copyHtml: copyHtmlToClipboard,
   readClipboardHtml,
   askSavePath: askSaveMarkdownPath,
@@ -145,34 +145,29 @@ const appIo: AppIo = {
 /**
  * 走っている最中の Skill 同期（フォルダごとに1本）。
  *
- * **同じフォルダの同期を並走させない（レビュー指摘）。置き直しは冪等ではない:**
+ * **同じフォルダの同期を並走させない。置き直しは冪等ではない:**
  * - 削除は tauri-plugin-fs が先に `symlink_metadata` を見るため、相手が先に
  *   消したパスでは「メタデータが取れない」で失敗する
  * - 片方の削除ループが相手の書き込みより後ろへずれ込むと、**置いたばかりの
  *   `scripts/` を消してしまう**（そちらの書き込みが ENOENT で落ちる）
  *
- * 出る症状は「Skill をプロジェクトへ配置できませんでした」——このタスクで
- * 直した2つの実バグと同じ文言なので、次の実機確認を誤診させる。
+ * 出る症状は「Skill をプロジェクトへ配置できませんでした」——複数の実バグが
+ * 同じ文言で出るので、次の実機確認を誤診させる。
  *
- * **並走が起きる経路（レビューの前提は測って訂正した）。** レビューは
- * 「StrictMode が effect を2回起こすので `tauri dev` では常に2本走る」と
- * 述べていたが、**今のコードでは起きない**——StrictMode が二重に起こすのは
- * マウント時の effect だけで、マウント時点の `projectDir` は `null` なので
- * この effect は即 return する。同期が始まるのはフォルダを開いた**更新**時で、
+ * **並走が起きる経路。** StrictMode が二重に起こすのはマウント時の effect
+ * だけで、マウント時点の `projectDir` は `null` なのでこの effect は即
+ * return する。同期が始まるのはフォルダを開いた**更新**時で、
  * 更新の effect は二重に起こらない（`src/App.dom.test.tsx` を StrictMode で
  * 包んで実測: `interceptClose` は2回呼ばれるのに、同期は1回だけだった）。
  *
  * それでも並走はしうる: 同期が終わる前に**別のフォルダへ切り替えて戻る**と、
  * 前の同期が走ったまま同じフォルダの同期がもう1本始まる。
  *
- * **M18 で「起動時に前回のフォルダを復元する」を実装したが、この段落の予測
- * （マウント時に `projectDir` が入るので StrictMode の二重起動も本当に
- * 効くようになる）は外れた。** 復元は別の `useEffect` の中で非同期に
- * `projectDir` をセットするため、マウント直後（この Skill 同期 effect が
- * 走る時点）ではまだ `projectDir` は `null` のまま——StrictMode の二重
- * マウントも、Skill 同期に関しては依然として発火しない（重複排除が
- * ガードしているのは相変わらず A→B→A のケースだけ）。**先に塞いでおいて
- * 正解だった**
+ * **起動時に前回のフォルダを復元する機能があるが、その復元は別の
+ * `useEffect` の中で非同期に `projectDir` をセットするため**、マウント直後
+ *（この Skill 同期 effect が走る時点）ではまだ `projectDir` は `null` の
+ * まま——StrictMode の二重マウントも、Skill 同期に関しては依然として
+ * 発火しない（重複排除がガードしているのは相変わらず A→B→A のケースだけ）
  */
 const skillSyncInFlight = new Map<string, Promise<void>>()
 
@@ -223,8 +218,8 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [paneOpen, setPaneOpen] = useState(false)
   const [terminals, setTerminals] = useState<TerminalState>(emptyTerminalState)
-  // タブを閉じる確認ダイアログの `onConfirm` は承認まで遅延実行される
-  // （レビュー指摘2）。`historyRef` / `modalOpenRef` と同じ「最新値の
+  // タブを閉じる確認ダイアログの `onConfirm` は承認まで遅延実行される。
+  // `historyRef` / `modalOpenRef` と同じ「最新値の
   // 読み取り口」——確認待ちの間にタブが自然終了（`onExited`）していても、
   // 承認された時点の最新の台帳から `ptyId` を引き直せるようにする
   const terminalsRef = useRef(terminals)
@@ -237,18 +232,17 @@ function App() {
   // window リスナーはマウント時に1回しか張らないので、最新値は ref から読む
   //（**state 直読みに「簡潔化」しないこと**。常に初期値になる）
   const terminalPaneRef = useRef<HTMLElement | null>(null)
-  /** エクスプローラからファイルを持ってこられている最中か（M28。設計 §6.3） */
+  /** エクスプローラからファイルを持ってこられている最中か（設計 §6.3） */
   const [dropActive, setDropActive] = useState(false)
 
   /**
-   * `splitRef`（サイドバーを含まない、エディタ＋ペインの区間）の実測幅
-   *（実機確認の指摘A。M11 Task 11）。**ここには意図の幅を書き込まない。**
+   * `splitRef`（サイドバーを含まない、エディタ＋ペインの区間）の実測幅。
+   * **ここには意図の幅を書き込まない。**
    *
-   * レビュー指摘1: 最初の実装は `ResizeObserver` のコールバックで
-   * `paneWidthStore.set(resizeColumns(...))` を直接呼び、クランプ後の
-   * 値をそのまま意図として永続化していた。その結果、ウィンドウを一度でも
-   * 狭めると store の値が 320px に潰れ、ウィンドウを元の大きさへ戻しても
-   * 320px のまま二度と戻らなかった（`resizeColumns` は「今の意図」からの
+   * `ResizeObserver` のコールバックで `paneWidthStore.set(resizeColumns(...))`
+   * を直接呼び、クランプ後の値をそのまま意図として永続化すると、ウィンドウを
+   * 一度でも狭めたときに store の値が 320px に潰れ、ウィンドウを元の大きさへ
+   * 戻しても 320px のまま戻らない（`resizeColumns` は「今の意図」からの
    * 差分でしか計算しないため、潰れた値からは復元できない）。
    *
    * **直し方**: 「意図」（store）と「今画面に出す幅」（意図 ＋ 実測幅を
@@ -297,13 +291,13 @@ function App() {
    * 属するものであって端末セッションに属するものではない。同期は
    * `projectDir` の effect（下の「同梱 Skill の配置」）がフォルダ1つにつき
    * 1回だけ走らせる。ここに置くと「＋ タブを追加」を押した回数だけ
-   * 「消して置き直す」が起きる（sequence M4 の実機確認）
+   * 「消して置き直す」が起きる
    */
   const openTerminal = (initialText?: string) =>
     setTerminals((prev) => openSession(prev, initialText ?? selectedReference()))
 
   /**
-   * 差し込み指示（M28）。**1つだけ持つ**——宛先の振り分けは `TerminalPane`、
+   * 差し込み指示。**1つだけ持つ**——宛先の振り分けは `TerminalPane`、
    * 同じ指示を二度実行しない保証は `seq` の単調増加（`TerminalTab` が消化条件に使う）
    */
   const [insertion, setInsertion] = useState<{
@@ -314,7 +308,7 @@ function App() {
   const insertionSeq = useRef(0)
 
   /**
-   * ファイルを Claude Code へ渡す（M28。一覧の `@` ボタンとエクスプローラからの
+   * ファイルを Claude Code へ渡す（一覧の `@` ボタンとエクスプローラからの
    * ドロップが共有する）。**押した人がやりたいのは「渡すこと」**なので、ペインが
    * 閉じていても・タブが1本も無くても、開いて起動するところまで面倒を見る
    */
@@ -348,7 +342,7 @@ function App() {
     // **`terminals` を直読みしない。** 確認ダイアログの `onConfirm` から
     // 遅延して呼ばれるので、閉じるボタンを押した瞬間のクロージャではなく
     // `terminalsRef.current` で承認された時点の最新の台帳を読む
-    //（レビュー指摘2。historyRef と同じ理由）
+    //（historyRef と同じ理由）
     const target = terminalsRef.current.sessions.find((s) => s.id === id)
     if (target !== undefined && target.ptyId !== null) void tauriPtyIo.kill(target.ptyId)
     setTerminals((prev) => closeSession(prev, id))
@@ -356,8 +350,7 @@ function App() {
 
   /**
    * タブを閉じる。**実行中（starting/running）のタブは確認を経由する。**
-   * 計画の決定12（確認なしで即座に殺す）を、実機で使った人間が「確認は出して
-   * ほしい」と覆した（Task 11）。exited/failed は殺す PTY が無いので確認なしで
+   * exited/failed は殺す PTY が無いので確認なしで
    * 閉じてよい。`key` を切ることで、同じタブへの × 連打が要求を積み上げず
    * 1件に置き換わる（switch-folder / close と同じ作法）
    */
@@ -392,7 +385,7 @@ function App() {
   // メモリ内。それ以前への復帰は Git の担当。rev 5章）
   const [history, setHistory] = useState<HistoryState<unknown> | null>(null)
   // コントローラが「いま編集中の内容」を読むための口。**最新値の読み取り口**であって
-  // スナップショットではない（過去の値を凍結する用途に使わないこと。M5 の誤り2）
+  // スナップショットではない（過去の値を凍結する用途に使わないこと）
   const historyRef = useRef<HistoryState<unknown> | null>(null)
   historyRef.current = history
   const [banners, setBanners] = useState<Record<BannerKind, string | null>>({
@@ -426,7 +419,7 @@ function App() {
     setToasts((prev) => dismissToast(prev, id))
   }, [])
 
-  // ── 自動アップデート（M19。Windows のみ。判定は描画時の currentPlatform） ──
+  // ── 自動アップデート（Windows のみ。判定は描画時の currentPlatform） ──
   const [updateState, setUpdateState] = useState<UpdateState>(initialUpdateState)
   /**
    * 見つかった更新の実体。**state に入れないこと**——`install` という関数を
@@ -443,7 +436,7 @@ function App() {
   const updateBusyRef = useRef(false)
   /**
    * 直前に押したトーストの文字列。**組み立てた文字列が前回と同じなら
-   * `showToast` を呼ばない**（レビュー指摘B）——`showToast` は呼ぶたびに
+   * `showToast` を呼ばない**——`showToast` は呼ぶたびに
    * 新しい id を採番し、`ToastStack` はその `id` を key にしている
    * （`src/components/Toast.tsx`）。同じ内容のトーストでも id が変われば
    * React は unmount → remount する。`ToastRow` は `role="status"` の
@@ -456,7 +449,7 @@ function App() {
   /**
    * 更新を確認する。**起動時は静かに諦める**——ネットワークが無い環境で
    * 起動するたびにエラーが出るのは雑音でしかない。見せるのは利用者が
-   * 自分でボタンを押したときだけ（M19 の設計）
+   * 自分でボタンを押したときだけ
    */
   const runUpdateCheck = useCallback(
     async (manual: boolean) => {
@@ -602,7 +595,7 @@ function App() {
       setSelectedPath,
       // **これが Undo 履歴の破棄そのもの**（外部変更の取り込み時。rev 3章）
       setDocument: (data) => setHistory(data === null ? null : createHistory(data)),
-      // 履歴を保ったまま積む（クリップボード取り込みの上書き・logic-tree M3）。
+      // 履歴を保ったまま積む（クリップボード取り込みの上書き）。
       // エディタの onChange と同じ形——mergeKey に null を渡すのは「独立した履歴」の意味
       recordEdit: (data) =>
         setHistory((h) => (h === null ? h : record(h, data, null, Date.now()))),
@@ -619,7 +612,7 @@ function App() {
   const controller = controllerRef.current
 
   /**
-   * エディタからの「画面に出ている行」の報告をコントローラへ渡す（M29）。
+   * エディタからの「画面に出ている行」の報告をコントローラへ渡す。
    * **`useCallback` で参照を固定すること**——エディタ側は依存配列に入れており、
    * 毎レンダー新しい関数を渡すと報告の `useEffect` が毎レンダー走る
    */
@@ -634,7 +627,7 @@ function App() {
     const next = !dark
     setDark(next)
     // アプリ本体の面・文字を切り替える。**端末（TerminalTab）は追従しない**
-    // ——M28 の人間の判断で常にダーク固定にしたため（端末は facet の面
+    // ——常にダーク固定にしている（端末は facet の面
     // ではなく「端末の面」）
     document.documentElement.classList.toggle('dark', next)
   }
@@ -702,7 +695,7 @@ function App() {
   const hasAttemptedRestoreRef = useRef(false)
 
   /**
-   * 起動時に前回開いていたフォルダを自動で復元する（設計 M18）。ダイアログを
+   * 起動時に前回開いていたフォルダを自動で復元する。ダイアログを
    * 経由しないため、`fileExists` の前に `allowProjectDir` で fs の実行時 scope
    * を明示的に取り直す必要がある（`allow_project_dir` 参照。ダイアログ由来の
    * scope はセッション限りで次回起動には引き継がれない）。
@@ -760,9 +753,9 @@ function App() {
    * 最中に解決した spawn が一瞬 `running` になる窓がある**（溜まった打鍵を
    * 既に死んだ PTY へ流しうる）。無害である——`closeAll` が同じバッチで
    * 着地し、遅れて届く `onFailed` は `patch` が「その id はもう無い」で
-   * 同じ state を返す（`src/core/terminal/sessions.ts`）。M17 で待ち行列
-   *（`pendingRef`）とアンマウント時 kill の両方がこの窓へ流れ込むように
-   * なったので、順序を入れ替えるときはここを読むこと
+   * 同じ state を返す（`src/core/terminal/sessions.ts`）。待ち行列
+   *（`pendingRef`）とアンマウント時 kill の両方がこの窓へ流れ込むので、
+   * 順序を入れ替えるときはここを読むこと
    */
   const switchFolder = async (dir: string) => {
     const opened = await openProject(dir)
@@ -819,13 +812,13 @@ function App() {
   // コントローラ側でも同じ条件を確認しているが、UI はそれを押せる／押せないの形で見せる
   const canExport = selectedModule !== undefined && editingData !== null
 
-  // 外部ツールとのクリップボード交換（規約7・logic-tree M3）。**額縁はツールを
+  // 外部ツールとのクリップボード交換（規約7）。**額縁はツールを
   // 名指ししない**——活性の判断はすべて選択中モジュールが宣言しているかどうかで決める
   const exchange = selectedModule?.clipboardExchanges?.[0]
   const [clipboardHasImport, setClipboardHasImport] = useState(false)
 
   /**
-   * ウィンドウがアクティブになったらクリップボードを1回だけ見る（logic-tree M3）。
+   * ウィンドウがアクティブになったらクリップボードを1回だけ見る。
    *
    * **ポーリングはしない。** Miro のデータが載る瞬間は「Miro でコピーして facet に
    * 戻ってくる瞬間」なので、フォーカスを得たときに読めば足りる。常時ポーリングは
@@ -860,14 +853,14 @@ function App() {
   }, [exchange])
 
   /**
-   * 表形式でコピー・Miro 交換2本の「押せない理由」（M29 フォローアップ）。
-   * 人間が実機を触って「どのボタンが今のツールで使えるのか、なぜ押せないのかが
-   * 分からない」と指摘したことに端を発する。**ファイル未選択を先に見る**——
+   * 表形式でコピー・Miro 交換2本の「押せない理由」。
+   * 「どのボタンが今のツールで使えるのか、なぜ押せないのか」を画面で答える。
+   * **ファイル未選択を先に見る**——
    * それが利用者にとって次に取れる、動ける一手だから（`UNSUPPORTED_REASON` を
    * 先に見せても何もできない）。**活性の判断にモジュールの `type` を使わない**のは
    * 元の規約のままで、ここでも `tableExport` / `exchange` の宣言の有無だけで決める。
    * 文言はツールを名指ししない（「Miro」だけは、クリップボードの形式の名前として
-   * 元々の規約が名指しを許している）。
+   * 名指しを許している）。
    *
    * **`ExportMenu`（Markdown をコピー／書き出す）の理由はここには無い。**
    * `outputs` が空＝Markdown 出力を持たない、の判定は `outputs` を実際に持つ
@@ -928,7 +921,7 @@ function App() {
   }, [])
 
   /**
-   * エクスプローラからのドロップ（M28）。
+   * エクスプローラからのドロップ。
    *
    * **HTML5 の D&D は使わない。** Tauri の `dragDropEnabled` は既定で `true` で、
    * その状態では Windows の HTML5 D&D が効かない（両立しない）。facet は HTML5
@@ -999,7 +992,7 @@ function App() {
    * 同梱 Skill の配置（設計 決定10）。**フォルダ1つにつき1回**——Skill は
    * プロジェクトに属するもので、端末セッションの数とは関係が無い。
    * `projectDir` をキーにした effect にすることで、`openFolder` /
-   * `switchFolder`、そして起動時の自動復元（M18）まで、**フォルダが変わる
+   * `switchFolder`、そして起動時の自動復元まで、**フォルダが変わる
    * すべての経路が自動的に1本にまとまる**（経路を足すたびに同期の呼び出しを
    * 書き足して回る必要が無い）。
    *
@@ -1056,7 +1049,7 @@ function App() {
     // 一方、Rust 側の watcher は生き残って死んだコールバックへイベントを送り続ける
     //（[TAURI] Couldn't find callback id ...）。本番のアプリはリロードしないが、
     // 検証中は「監視しているつもりで監視していない」状態になり、症状がバグと
-    // 区別できなくなる（M5 の実機確認で踏んだ）
+    // 区別できなくなる
     const onBeforeUnload = () => stop()
     window.addEventListener('beforeunload', onBeforeUnload)
     void watchFolder(projectDir, () => coalescer.notify())
@@ -1097,7 +1090,7 @@ function App() {
             合わせると、開いているときの方がずれる） */}
         {/* 版番号は見出しの**外**に置く（h1 の中に入れると、見出しの
             accessible name が「facet v1.0.1」になる——文書の見出しは
-            あくまで `facet`）。`w-64` を包む div へ移したので、
+            あくまで `facet`）。`w-64` を包む div に入っているので、
             サイドメニューと幅を揃える意味は変わらない */}
         <div className="-ml-6 flex w-64 shrink-0 items-baseline gap-2 pl-6">
           <h1 className="text-xl font-medium text-ink">facet</h1>
@@ -1135,15 +1128,14 @@ function App() {
             onCopy={(profile) => void controller.copyMarkdown(profile)}
             onExport={(profile) => void controller.exportMarkdown(profile)}
           />
-          {/* 表形式でコピー（規約8・M29）。**常に出す**——ExportMenu・Miro と
+          {/* 表形式でコピー（規約8）。**常に出す**——ExportMenu・Miro と
               同じ原則で、押せる／押せないだけを切り替える。活性の判断に
               モジュールの type を使わない（`tableExport` の有無だけで決める）。
-              押せない理由は `tableCopyUnusable`（ToolbarButton の title で読める。
-              M29 フォローアップ） */}
+              押せない理由は `tableCopyUnusable`（ToolbarButton の title で読める） */}
           <ToolbarButton unusable={tableCopyUnusable} onClick={() => controller.copyTable()}>
             表形式でコピー
           </ToolbarButton>
-          {/* Miro 交換（規約7・logic-tree M3）。**常に出す**——ExportMenu と同じ
+          {/* Miro 交換（規約7）。**常に出す**——ExportMenu と同じ
               原則で、押せる／押せないだけを切り替え、ボタン自体は消えたり
               出たりしない。文言に「Miro」と書いてよいが、活性の判断には
               モジュールの type を使わない（`exchange` の有無だけで決める） */}
@@ -1161,9 +1153,7 @@ function App() {
           </ToolbarButton>
         </div>
         {/* **右端の3つを絶対に押し出さないこと。** 余白を食って右端へ寄せるのは
-            `ml-auto` の仕事で、`shrink-0` がそれ以上の圧縮を止める。
-            以前あった `min-w-0 flex-1` の空き div は同じ効果の二重掛けだった
-            （伸縮を引き受けていたパスはファイル一覧の直上へ移してある） */}
+            `ml-auto` の仕事で、`shrink-0` がそれ以上の圧縮を止める。 */}
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <button
             type="button"
@@ -1191,7 +1181,7 @@ function App() {
           >
             <SquareTerminal aria-hidden className="size-4" />
           </button>
-          {/* 自動アップデート（M19）。**mac では出さない**——latest.json に
+          {/* 自動アップデート。**mac では出さない**——latest.json に
               darwin-* を載せないので、押せば必ず「最新版です」と言う
               嘘をつくボタンになる。**`currentPlatform()` は描画のたびに呼ぶ**
               （モジュールスコープの定数にすると、テストが UA を差し替えても
@@ -1302,8 +1292,7 @@ function App() {
                 キャンバス系では絶対配置の帯に載せることになり図を覆う。ここに
                 出して縦フレックスの兄弟にすると、指摘が増えたぶんだけ下の
                 領域が縮む＝図や表が押し下げられて重ならない。
-                **編集できないファイルでも同じ部品で出す**——以前は
-                `status !== 'editable'` のときだけ別の `<ul>` を出していた */}
+                **編集できないファイルでも同じ部品で出す** */}
             {selected !== null && (
               // key でファイルを跨いだ「展開したまま」を持ち越さない
               <IssueBanner key={selected.path} issues={selected.issues} className="shrink-0" />
@@ -1367,7 +1356,7 @@ function App() {
               containerRef={splitRef}
               store={paneWidthStore}
               // ドラッグ／キーボードの基準を「いま画面に出している幅」にする
-              // （レビュー指摘。store の意図を直接基準にすると、狭めた状態で
+              //（store の意図を直接基準にすると、狭めた状態で
               // ハンドルに触れたときにデッドゾーンが生まれ、クランプ後の値を
               // そのまま意図として書き戻してしまう）
               referenceWidth={displayPaneWidth}
@@ -1413,7 +1402,7 @@ function App() {
         description={head?.kind === 'confirm' ? head.description : ''}
         confirmLabel={head?.kind === 'confirm' ? head.confirmLabel : ''}
         onConfirm={() => {
-          // 表示中の要求を先に片付けてから起動する（M4 で確定した形）
+          // 表示中の要求を先に片付けてから起動する
           const request = head
           setModals((prev) => shiftModal(prev))
           if (request?.kind === 'confirm') void request.onConfirm()
@@ -1439,7 +1428,7 @@ function App() {
         cancelLabel={head?.kind === 'choice' ? head.cancelLabel : undefined}
         // **`cancelLabel` を持つ要求のときだけ渡す。** 常に渡すと、外部変更の
         // 二択（`cancelLabel` を持たない）でも Esc が効くようになり、「決めるまで
-        // 閉じない」という M5 の決着が壊れる（logic-tree M3 の取り込みの二択だけが
+        // 閉じない」という決着が壊れる（取り込みの二択だけが
         // `cancelLabel` を持つ）
         onCancel={
           head?.kind === 'choice' && head.cancelLabel !== undefined

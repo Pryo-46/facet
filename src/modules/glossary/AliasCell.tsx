@@ -207,7 +207,7 @@ export function AliasCell(props: AliasCellProps) {
         data-cell={cellId}
         aria-label={label}
         // 閉じた別名セルは表本体の bg-surface に乗るので、cellInput と同じ理由で
-        // focus:bg-surface ではなくリングを使う（M8 修正3）
+        // focus:bg-surface ではなくリングを使う
         className="flex w-full flex-wrap gap-1 rounded-sm px-2 py-1 text-left outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
         onFocus={() => {
           if (suppressOpen.current) {
@@ -221,8 +221,8 @@ export function AliasCell(props: AliasCellProps) {
       >
         {aliases.map((alias, i) => (
           // チップの面は bg-surface だと表の面と同色で消える（テーブルの面が
-          // surface になった M8 決定2 が原因）。bg-canvas ではなく border に
-          // したのは、bg-canvas はサイドバーの選択行（M8 決定17）で
+          // surface になった決定2が原因）。bg-canvas ではなく border に
+          // したのは、bg-canvas はサイドバーの選択行（決定17）で
           // 「地の色でへこんで見える＝選択中」の意味に既に使っており、
           // チップは選択状態ではなく単なる項目の区切りなので意味を借用しない
           <span key={`${alias}-${i}`} className="rounded-sm border border-rule-muted px-1 text-ink">

@@ -1,5 +1,5 @@
 /**
- * fontsource の CSS から woff2 参照だけを残した src/styles/fonts.css を生成する（M26）。
+ * fontsource の CSS から woff2 参照だけを残した src/styles/fonts.css を生成する。
  *
  * static 版（Sans JP / Mono）の CSS は woff2 と woff を両参照しており、
  * 素の import では woff（不要な旧形式。JP だけで数MB）まで dist に入る。

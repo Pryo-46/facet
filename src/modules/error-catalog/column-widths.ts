@@ -3,7 +3,7 @@ import { PROFILE_COLUMNS } from './columns'
 import type { ProfileId } from './profiles'
 
 /**
- * エラーテーブルの列幅（M10 決定16）。
+ * エラーテーブルの列幅（決定16）。
  *
  * **プロファイルごとに1本持つ。** 列数が変わるので1本では持てない——
  * 幅配列は固定幅の列を並び順で持つだけなので、列が増減すると同じ添字が

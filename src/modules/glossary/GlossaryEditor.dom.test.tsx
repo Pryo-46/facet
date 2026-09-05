@@ -178,7 +178,7 @@ describe('GlossaryEditor: 行の操作言語', () => {
     expect(screen.getAllByLabelText(/^名称（/)).toHaveLength(3)
   })
 
-  it('定義セルの Shift+Enter は既定動作に委ねる（セル内改行。M8 決定6）', () => {
+  it('定義セルの Shift+Enter は既定動作に委ねる（セル内改行。決定6）', () => {
     renderEditor(twoTerms)
     const cell = screen.getByLabelText('定義（1行目）')
     // 止めない＝ブラウザが改行を入れる。行は増えない
@@ -352,7 +352,7 @@ describe('GlossaryEditor: 外部変更の取り込みとの継ぎ目', () => {
 
     fireEvent.click(screen.getByText('外部変更を取り込む'))
     // ここが古いまま残ると、次の打鍵で取り込んだ内容が消える
-    //（参照比較の事故と同じ壊れ方。M3 の申し送り）
+    //（参照比較の事故と同じ壊れ方）
     expect((screen.getByLabelText('別名1') as HTMLInputElement).value).toBe('注文')
   })
 
@@ -485,7 +485,7 @@ describe('GlossaryEditor: ヘッダーの罫線', () => {
   it('列の境界の縦罫はヘッダーだけ一段濃い（薄い罫は沈んだ面の上で消える）', () => {
     renderEditor(twoTerms)
     const ths = screen.getAllByRole('columnheader')
-    // 先頭列（No）には引かない（M8 決定2）
+    // 先頭列（No）には引かない
     expect(ths[0]?.className).not.toMatch(/border-l/)
     for (const th of ths.slice(1)) {
       expect(th.className).toMatch(/(^|\s)border-l-rule(\s|$)/)
@@ -554,7 +554,7 @@ describe('GlossaryEditor: 列幅', () => {
   })
 })
 
-describe('GlossaryEditor: 表示中の行の報告（M29）', () => {
+describe('GlossaryEditor: 表示中の行の報告', () => {
   // twoTerms には「与信」で1件だけ当たる語が無いため、この観点専用に用意する
   // （既存フィクスチャは他のテストの件数の前提になっているので変えない）
   const data = glossary([

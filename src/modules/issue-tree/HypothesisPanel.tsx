@@ -92,7 +92,7 @@ export interface HypothesisPanelProps {
   onAddFeedback: (askId: string | null) => void
   onRemoveFeedback: (feedbackIndex: number) => void
   /**
-   * この仮説を消す（「ソリューション仮説」の見出しの右端のゴミ箱。m5 Task 7）。
+   * この仮説を消す（「ソリューション仮説」の見出しの右端のゴミ箱）。
    * **必須にしてある**（`judgementMenu` と同じ理由）——キーから仮説の削除が
    * 消えたので、この動線が抜けると**どこからも消せない仮説**になる。
    *
@@ -102,7 +102,7 @@ export interface HypothesisPanelProps {
   onDelete: () => void
   /**
    * 判断イベントのドロップダウン。エディタが `menuPropsFor` で組んで渡す。
-   * **トリガーは状態のバッジそのもの**（Task 6）なので、これは「操作」だけでなく
+   * **トリガーは状態のバッジそのもの**なので、これは「操作」だけでなく
    * 「いまの状態」も運ぶ——パネルが同じ語をもう1つ描かないこと。
    * **必須にしてある**（`IssueBox` の `eventToggle` と同じ）——判断を付ける
    * 動線がマウスから消えていても型は通る、という穴を塞ぐ
@@ -119,11 +119,11 @@ export interface HypothesisPanelProps {
  */
 const sectionBandClass = 'absolute flex items-center gap-2 overflow-hidden select-none'
 
-// 仮説の欄は操作言語を通らない（キーは課題だけが取る。m5 の決定）。
+// 仮説の欄は操作言語を通らない（キーは課題だけが取る）。
 // ただし**ソリューション仮説のタイトルだけ** Enter を消費する——同じ文言は
 // 畳まれた行でも1行として測られており、改行を許すと開いているときだけ
 // 読める文が生まれる。rev 10章「ツール側で e.key を見ない」の明示的な例外で、
-// コマンドへの写像は行わない（m5 Task 3 で行から移ってきた）
+// コマンドへの写像は行わない
 const swallowEnter = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>): void => {
   if (e.key === 'Enter' && !e.nativeEvent.isComposing) e.preventDefault()
 }
@@ -134,17 +134,15 @@ const swallowEnter = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElem
  * 節は上から **ソリューション仮説 → 価値仮説 → どう作るか → 検証結果 → FB**
  * の5つ（`SECTION_LABELS` の鍵の並びが正）。
  *
- * **「以前の判断」の節は v4 で消えた。** 仮説の `events` が `maxItems: 1` に
- * なり、覆される前の判断はデータに残らなくなった——読み手（見出し・バッジ・
+ * **「以前の判断」の節は無い。** 仮説の `events` が `maxItems: 1` なので、
+ * 覆される前の判断はデータに残らない——読み手（見出し・バッジ・
  * 読み取り専用の根拠）を残すと、**永久に空の節**が測定だけを食う。
  *
  * **パネルの面は判断で変えない**（全部 `bg-canvas`）。キャンバスは支持・棄却で
- * 面を塗り分けているが、採らなかった。**当時は `judge-yes-face` が facet の
- * 役割トークンに無いことも理由の1つだったが、issue-tree-m5 で「解決した課題の
- * 箱」のために新設されたので、いまは存在する。それでもこの判断は変えていない**
+ * 面を塗り分けているが、採らない
  *——`surface-muted` は「見送りの箱」の面なので、棄却に敷くと**抑制（祖先が
- * 見送った枝）と見分けが付かなくなる**からで、**生きているのはこちらの理由**である。
- * **トークンが増えたことを根拠に塗り分けを入れないこと。** 棄却は畳まれた行の
+ * 見送った枝）と見分けが付かなくなる**から。
+ * **役割トークンが揃っていることを根拠に塗り分けを入れないこと。** 棄却は畳まれた行の
  * 文言を一段落とすことで表す（`HypothesisRow`）。
  *
  * **開いた仮説に「点・文言・バッジ」の頭部は無い**（`HypothesisPlacement.row`
@@ -195,7 +193,7 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
      * 箱を基準にしたまま。中身が全て絶対配置なので高さも 0 で、`IssueBox` の
      * 行の包み（`IssueTreeEditor`）と同じ形である。
      *
-     * **`data-panel` は「ここは課題を選ぶ場所ではない」の印**（m5 実機確認後）。
+     * **`data-panel` は「ここは課題を選ぶ場所ではない」の印**。
      * `IssueBox` の `onBoxClick` がこの印を見て**素通し**にする——箱の地の
      * クリックは選択を入り切りするので、印が無いと**開いたパネルの余白を
      * 押した拍子に課題ごと畳まれる**（780px の箱ではパネルの地が広い）。
@@ -270,8 +268,7 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
       </div>
 
       {/* --- どう作るか（`detail`）---
-          **m5 の追加作業で節に昇格した。** それまではソリューション仮説の節の中、
-          タイトルの下の本文だった（`HypothesisPanel.detail` の解説）。
+          独立した節である（`HypothesisPanel.detail` の解説）。
           **アクセシブル名は `仮説{N} の詳細` のまま**——前半だけでなく、
           この名前でフォーカスの行き先を引いているテストが複数ある。
           見出しが変わっても `data-cell`（`detail:`）は同じ席を指す */}
@@ -296,7 +293,7 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
       {/* --- 検証結果 --- */}
       <div className={sectionBandClass} style={inBox(panel.judgement.label)}>
         <span className={sectionLabelClass}>{SECTION_LABELS.judgement}</span>
-        {/* **状態のバッジはドロップダウンのトリガーそのもの**（Task 6）。
+        {/* **状態のバッジはドロップダウンのトリガーそのもの。**
             パネルはここへ置くだけで、語も面もエディタが組む
             ——見る場所と変える場所が1つなので、**パネルが自分でもう1つ
             バッジを描いてはならない**（同じ語が帯に2つ出る） */}

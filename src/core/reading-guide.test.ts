@@ -43,7 +43,7 @@ describe('syncReadingGuide', () => {
 
 describe('READING_GUIDE_TEXT', () => {
   it('先頭に自動管理の注意書きがある（スペック設計2）', () => {
-    // ガイド全文はテストで固定しない（本文は Task 4 の実験で剪定される）。
+    // ガイド全文はテストで固定しない（本文は実機での試行で剪定され続ける）。
     // 固定するのは「上書きされる」という契約の告知だけ
     expect(READING_GUIDE_TEXT.slice(0, 500)).toContain('facet が自動で管理する')
   })

@@ -117,7 +117,7 @@ describe('意味色の識別（標準・P型・D型）', () => {
  * ブラウザ（と `oklchToLinear`）が sRGB へクランプする。クランプされても
  * コントラストや ΔE の検査は通ってしまうため、**「C 0.12 の黄土」と
  * 書いたまま実際は 0.102 の色が出ている**状態を誰も見つけられない。
- * M21 のライトの `missing` が実際にそうなっていた（最終ブランチレビューで発覚）。
+ * ライトの `missing` が実際にそうなっていた。
  *
  * 往復（oklch → 線形 sRGB → oklch）で C が戻れば色域の中にある。
  * L も動くが、動く量は C の食い違いに従属するので C だけを見る。
@@ -178,14 +178,14 @@ describe('index.css', () => {
     expect(indexCss).not.toMatch(/^\s*\.dark\s*\{/m)
   })
 
-  it('方眼紙のユーティリティが grid トークンから色を取る（M8 決定15）', () => {
+  it('方眼紙のユーティリティが grid トークンから色を取る', () => {
     expect(indexCss).toMatch(/@utility\s+bg-grid-paper/)
     // 色は必ず役割トークン経由。直書きは同じ describe の別の it が弾く。
     //
-    // **検査は @utility ブロックの中に絞る。** 以前は
-    // `bg-grid-paper[\s\S]*var(--grid)` で「bg-grid-paper の後、ファイル末尾
-    // までのどこかに var(--grid) がある」ことしか見ておらず、@utility が
-    // index.css の最後にあるから緑になっていただけだった。後ろに
+    // **検査は @utility ブロックの中に絞る。**
+    // `bg-grid-paper[\s\S]*var(--grid)` のような「bg-grid-paper の後、ファイル末尾
+    // までのどこかに var(--grid) がある」型の正規表現にすると、@utility が
+    // index.css の最後にあるだけで緑になり、後ろに
     // var(--grid) を使う定義を1つ足した瞬間に空洞化する——「症状を
     // 取り違えたテストは、無いテストより危険」（lessons-for-planning.md）
     // の型に当たるため、ブロックの範囲にスコープを絞る

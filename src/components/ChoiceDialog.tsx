@@ -23,7 +23,7 @@ export interface ChoiceDialogProps {
    * 既定（渡さない）が「キャンセルも Esc も無い」なのは、外部変更の衝突では
    * どちらの選択にも副作用があり、決めないまま閉じると宙ぶらりんが残るため
    * （下の JSDoc を参照）。**取り込みのようにキャンセルが正しい選択に
-   * なりうる場面でだけ渡す**（logic-tree M3）
+   * なりうる場面でだけ渡す**
    */
   onCancel?: () => void
   /** キャンセルのボタンの文言。onCancel を渡すときだけ意味がある。既定は「キャンセル」 */
@@ -40,7 +40,7 @@ export interface ChoiceDialogProps {
  * 最も押しやすいキーになってしまう。だから既定では明示的な選択だけを受ける。
  *
  * **`onCancel` は任意の逃げ道。** 渡したときだけキャンセルのボタンと Esc が
- * 有効になる（logic-tree M3、`ChoiceDialogProps.onCancel` 参照）。上の理由が
+ * 有効になる（`ChoiceDialogProps.onCancel` 参照）。上の理由が
  * 消えたわけではないので既定は変えていない——「不便だから全部にキャンセルを
  * 付ける」という判断はしないこと。渡すのは、キャンセルしても宙ぶらりんが
  * 残らない場面（例: 外部データの取り込み。やめても今の状態がそのまま残る
@@ -51,8 +51,7 @@ export interface ChoiceDialogProps {
  *
  * どのボタンも preventDefault してから handler を呼ぶ——Radix の
  * AlertDialogAction/AlertDialogCancel は内部が Dialog.Close なので、放っておくと
- * onOpenChange も発火する（M4 で踏んだ罠）。
- * 見た目は shadcn の既定トークンのままで、役割トークンへの寄せは M7
+ * onOpenChange も発火する。
  */
 export function ChoiceDialog(props: ChoiceDialogProps) {
   return (
@@ -63,8 +62,8 @@ export function ChoiceDialog(props: ChoiceDialogProps) {
       <AlertDialogContent
         // AlertDialogContent の既定幅（sm:max-w-sm＝384px）は ConfirmDialog を
         // 想定した2ボタン用。onCancel を足して3ボタンになると収まらない
-        // （logic-tree M3 の取り込みダイアログで実機確認：「キャンセル」
-        // 「新しいファイルに作る」「このツリーを上書き」の3つ＋説明文）。
+        //（取り込みダイアログの「キャンセル」「新しいファイルに作る」
+        // 「このツリーを上書き」の3つ＋説明文を想定）。
         //
         // 目安: ボタン文言 約24文字 × 16px（等幅の全角）＋ ボタンの左右
         // padding（px-2.5×2×3ボタン＝60px）＋ ボタン間 gap-2×2＝16px ＋
@@ -97,7 +96,7 @@ export function ChoiceDialog(props: ChoiceDialogProps) {
                 // onOpenChange を渡していない（内部からの close 要求を全部無視する
                 // 設計）ので、そのままでは何も起きず onCancel も呼ばれない。
                 // preventDefault で内部の close 発火を止め、経路を onCancel 一本にする
-                // （ConfirmDialog の AlertDialogAction と同じ罠。M4 で踏んだ）
+                // （ConfirmDialog の AlertDialogAction と同じ罠）
                 event.preventDefault()
                 props.onCancel?.()
               }}

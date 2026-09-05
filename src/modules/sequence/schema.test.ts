@@ -159,7 +159,7 @@ describe('sequence スキーマ（レベル1）', () => {
     expect(validate(d).ok).toBe(false)
   })
 
-  // ---- 変異耐性の宿題（sequence M1 の最終レビューが「実害小」と判断して繰り越した分。M16）----
+  // ---- 変異耐性の宿題 ----
   // 未知キーの拒否はトップレベルと failures マップだけ検査済みだった。
   // 入れ子の additionalProperties: false を1段ずつ固定する
 

@@ -1,5 +1,5 @@
 /**
- * リリースに添付する latest.json を作る（M19）。
+ * リリースに添付する latest.json を作る。
  *
  * updater は「全成果物に署名」と「latest.json を毎回添付」が必須になる。
  * 手で書くと版番号と署名がずれ、**「更新したのに更新されない」という
@@ -67,7 +67,7 @@ export function buildLatestJson({ version, signature, pubDate }) {
     notes: `${REPO}/releases/tag/v${version}`,
     pub_date: pubDate,
     platforms: {
-      // **mac は載せない**（M19 のスコープ。載せると未署名の .app が配られる）
+      // **mac は載せない**（載せると未署名の .app が配られる）
       'windows-x86_64': {
         signature,
         url: `${REPO}/releases/download/v${version}/facet_${version}_x64-setup.exe`,

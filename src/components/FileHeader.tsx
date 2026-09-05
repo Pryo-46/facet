@@ -18,8 +18,7 @@ export interface FileHeaderProps {
  *
  * **4ツール共通でここに置く。** キャンバス系（ロジックツリー・シーケンス）は
  * エディタ側に title の置き場所が無く、モジュールごとに実装すると
- * 4箇所に散る。用語集・エラーカタログのエディタが持っていた見出しは
- * ここへ一本化した
+ * 4箇所に散る
  */
 export function FileHeader(props: FileHeaderProps) {
   return (
@@ -40,7 +39,7 @@ export function FileHeader(props: FileHeaderProps) {
         }}
       />
       {/* **種類名は出さない。** 一覧の見出しが既に種類を示しているので、
-          帯にも出すと同じことを2箇所で言うことになる（人間の裁定。M13 実機確認）
+          帯にも出すと同じことを2箇所で言うことになる
 
           **`shrink-0` を付けないこと。** 付けると span が常に内容ぶんの幅を取り、
           `truncate` が永久に発火しないまま、長いファイル名が主役の入力欄を
@@ -49,7 +48,7 @@ export function FileHeader(props: FileHeaderProps) {
           `min-w-0` は要らない）
 
           ファイル名は副表示なので `ink-muted`。**透過は掛けない**——
-          トークンのコントラスト保証の外に出る（M21 で全面禁止） */}
+          トークンのコントラスト保証の外に出る */}
       <span className="truncate text-sm text-ink-muted">{props.fileName}</span>
     </div>
   )

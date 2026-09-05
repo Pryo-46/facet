@@ -28,7 +28,7 @@ export interface NodeBoxProps {
  */
 export function NodeBox(props: NodeBoxProps) {
   // 無効は `invalid` の枠＋淡い面（rev 9章 規約2）。欠落（text が空）は
-  // 破線＋淡い面（missing-face。M22）——**invalid が勝つ**（両方立つのは
+  // 破線＋淡い面（missing-face）——**invalid が勝つ**（両方立つのは
   // 空ノードが指摘の対象にもなっているとき）
   const face = props.invalid
     ? 'border-invalid bg-invalid-face'
@@ -39,7 +39,7 @@ export function NodeBox(props: NodeBoxProps) {
     <div
       // ノードのレイヤは pointer-events-none で操作を通す。操作を受けるのは
       // この矩形だけ——レイヤ全面が受けると、下にある空状態のボタンや
-      // 背景（Task 11 のパン）に触れなくなる
+      // 背景（パン操作）に触れなくなる
       className="pointer-events-auto absolute"
       style={{ left: props.x, top: props.y, width: props.width, height: props.height }}
     >
