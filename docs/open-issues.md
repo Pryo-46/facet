@@ -34,7 +34,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **`gen-types.mjs` はスキーマが減っても対応する型ファイルを消さない**（`scripts/gen-types.mjs`）。
 - **ロジックツリーのエッジに矢印を描いていない**（`src/modules/logic-tree/TreeEdges.tsx`）。
 - **`KeyHints` の `key={hint.keys}` は同じ文字列が2件あると衝突する**（`src/components/KeyHints.tsx`）。
-- **シーケンスのゾーン機能が未着手**（`schemas/sequence.schema.json`）。M3+ の候補のうち先送りされている。
+- **シーケンスのゾーン機能が未着手**（`schemas/sequence.schema.json`）。初期スコープから先送りされている。
 - **フォーカスモードが未実装**（`src/modules/issue-tree/`）。選択サブツリー以外を薄くする表示は設計ノートにあるだけ。
 - **課題ツリーに Markdown 出力が無い**（`src/modules/issue-tree/module.ts` の `outputs: []`）。
 
@@ -115,14 +115,13 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **用語集の別名バッジが `Badge` コンポーネントに寄せられていない**（`src/modules/glossary/AliasCell.tsx`）。手書きの `<span>` のまま。
 - **表記ゆれ「指摘」の波線下線が規約に書いただけで実装が無い**（rev 9章 無効軸）。
 - **`FileList.dom.test.tsx` のコメントが古い**（`src/components/FileList.dom.test.tsx`）。ボタンラベルの「＋」はアイコンに変わった。
-- **`docs/README.md` の履歴表に6件の行が無い**（`docs/README.md`）。M12・M27・M28・sequence-m5・issue-tree-m5・M30 が抜けている。
 - **`TerminalTab` の根 div が `flex` と `hidden` を同時に出している**（`src/components/TerminalTab.tsx`）。
 - **用語テーブルの `<th>` に `sticky` と `relative` が同時に付いている**（`src/modules/glossary/GlossaryEditor.tsx`）。
 - **エディタのキー処理が用語集とエラーカタログで二重化している**（`src/modules/glossary/GlossaryEditor.tsx`, `src/modules/error-catalog/ErrorCatalogEditor.tsx`）。
 - **`focusSibling` が `siblingsOf` と同一の式を持つ**（`src/modules/logic-tree/LogicTreeEditor.tsx`）。次の写経で3本目が生える形。
 - **`palette-fit.mjs` が Node の型ストリップに依存している**（`.claude/skills/palette-retheme/scripts/palette-fit.mjs`）。`.ts` を直接 import している。
 - **`layoutIssueTree` の doc に不変条件が書かれていない**（`src/modules/issue-tree/layout.ts`）。
-- **`sequence.schema.json` の `failures` の description が画面の語彙と揃っていない**（`schemas/sequence.schema.json`）。「未定義」のままで M22 の「未回答」に更新されていない。
+- **`sequence.schema.json` の `failures` の description が画面の語彙と揃っていない**（`schemas/sequence.schema.json`）。「未定義」のままで、画面・Skill が使う「未回答」に更新されていない。
 - **シーケンスの「未記入」判定が複数ファイルに散在している**（`src/modules/sequence/missing.ts`, `src/modules/sequence/ActorRefCell.tsx`）。
 - **幾何の primitive が2ファイルに分かれ互いに無関係**（`src/core/canvas/viewport.ts` の `Rect`, `src/core/canvas/tree-layout.ts` の `Point`）。
 - **Miro のクリップボード形式が非公開で Miro 側の変更で壊れうる**（`src/modules/logic-tree/miro-codec.ts`）。
