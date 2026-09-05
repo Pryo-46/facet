@@ -73,7 +73,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **`listOpenTargets` の除外が課題側と仮説側で非対称**（`src/modules/issue-tree/open-targets.ts`）。循環で到達できない課題のチップが押しても反応しない。
 - **`load.ts` が非整数・1未満の schemaVersion も旧版として移行経路に入れる**（`src/core/load.ts`）。
 - **`IssueBanner` から該当行へのジャンプが無い**（`src/components/IssueBanner.tsx`）。メッセージは行を指すが押しても飛ばない。
-- **欠落ジャンプが4モジュールで巡回 ref に頼る**（`src/modules/glossary/GlossaryEditor.tsx`, `src/modules/error-catalog/ErrorCatalogEditor.tsx`, `src/modules/logic-tree/LogicTreeEditor.tsx`, `src/modules/sequence/SequenceEditor.tsx`（`jumpAt`））。フォーカス位置を起点にしない。
+- **欠落ジャンプが4モジュールで巡回 ref に頼る**（`src/modules/glossary/GlossaryEditor.tsx`, `src/modules/error-catalog/ErrorCatalogEditor.tsx`, `src/modules/logic-tree/LogicTreeEditor.tsx`, `src/modules/sequence/SequenceEditor.tsx`）。フォーカス位置を起点にせず、シーケンスは `jumpAt` が担う。
 - **名前が空のアクターを面だけの空チップで示す**（`src/modules/sequence/ActorRefCell.tsx`）。視認性が低い。
 - **エラーカタログの集計は全行対象だがジャンプは表示中の行だけに飛ぶ**（`src/modules/error-catalog/ErrorCatalogEditor.tsx`）。
 - **エラーカタログの読み手（プロファイル）が3箇所で別々に選ばれる**（`src/modules/error-catalog/ErrorCatalogEditor.tsx`）。
