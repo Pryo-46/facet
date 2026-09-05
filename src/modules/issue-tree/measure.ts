@@ -50,13 +50,6 @@ export const SECTION_LABEL_FONT_CLASS = 'text-sm font-semibold'
  * **キャンバスの「仮説の展開」アートボードは 18px（27px 行高）で描かれて
  * いるが、18px は `src/index.css` の段（14/16/22px の3サイズ）に
  * 存在しないので、`text-base`（16px・24px 行高）に落とす。**
- *
- * **まだどこからも読まれていない（Task 4 で接続する）。** 展開中の課題タイトルも
- * いまは `TITLE_FONT_CLASS`（14px）で描かれ、`layout.ts` もその測定器で
- * `titleHeight` を測っている。差し替えるときは**エディタの測定用の見本を1本足し、
- * `layout.ts` が展開中の課題だけその測定器で測るように直すのと対で**行うこと
- *——片方だけ変えると、測定より広く描いて折り返しが1行増え、高さ固定＋
- * `overflow-hidden` の textarea で末尾の行が黙って見えなくなる
  */
 export const EXPANDED_TITLE_FONT_CLASS = 'text-base leading-normal font-semibold'
 /**

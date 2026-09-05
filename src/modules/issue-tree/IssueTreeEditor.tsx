@@ -212,7 +212,7 @@ const TRIGGER_BASE =
  * 幅も同じ理由で `layout.ts` の `slotW` が `badgeWidth`（`actionWidth` ではない）
  * で測っている。**旗の無い箱にはこの面のボタンが2つ並ぶ**ので、あちらは
  * `flagTriggersW` が2つぶん＋`BADGE_GAP` を予約している——片方だけ変えないこと（対で直す）。
- * **`DEFER_TRIGGER_LABEL` は Task 7 で削除された**——描くのも測るのも
+ * **`DEFER_TRIGGER_LABEL` は無い**——描くのも測るのも
  * `ISSUE_EVENT_LABELS` の1つで、幅を測る文字列と描く文字列が同じ定数から出ている
  */
 const FLAG_TRIGGER_FACE =

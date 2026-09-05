@@ -13,7 +13,7 @@
  * facet 全部——に効く。Windows（WebView2＝Chromium）だけが仕様どおりなので、
  * **Windows で開発している限り決して踏まない**種類の欠陥である。
  *
- * ## 実測（2026-08-15。実物の CellInput / WKWebView）
+ * ## 実測（実物の CellInput / WKWebView）
  *
  *   50 compositionend                         Δ 409.0
  *   51 keydown  Enter  keyCode=229  isComposing=false  Δ -12.0  ← 確定。行追加に化けていた
@@ -47,7 +47,7 @@ export const COMPOSITION_TAIL_MS = 100
 /**
  * 「IME がこの打鍵を処理中」を表す予約値。実在のキーには割り当てられない。
  *
- * WKWebView の実測（2026-08-15）で、**変換を確定した Enter は
+ * WKWebView の実測で、**変換を確定した Enter は
  * `isComposing: false` で来るのに `keyCode` は 229 だった**:
  *
  *   compositionend

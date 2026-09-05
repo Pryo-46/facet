@@ -102,7 +102,7 @@ export interface HypothesisPanelProps {
   onDelete: () => void
   /**
    * 判断イベントのドロップダウン。エディタが `menuPropsFor` で組んで渡す。
-   * **トリガーは状態のバッジそのもの**（Task 6）なので、これは「操作」だけでなく
+   * **トリガーは状態のバッジそのもの**なので、これは「操作」だけでなく
    * 「いまの状態」も運ぶ——パネルが同じ語をもう1つ描かないこと。
    * **必須にしてある**（`IssueBox` の `eventToggle` と同じ）——判断を付ける
    * 動線がマウスから消えていても型は通る、という穴を塞ぐ
@@ -293,7 +293,7 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
       {/* --- 検証結果 --- */}
       <div className={sectionBandClass} style={inBox(panel.judgement.label)}>
         <span className={sectionLabelClass}>{SECTION_LABELS.judgement}</span>
-        {/* **状態のバッジはドロップダウンのトリガーそのもの**（Task 6）。
+        {/* **状態のバッジはドロップダウンのトリガーそのもの。**
             パネルはここへ置くだけで、語も面もエディタが組む
             ——見る場所と変える場所が1つなので、**パネルが自分でもう1つ
             バッジを描いてはならない**（同じ語が帯に2つ出る） */}
