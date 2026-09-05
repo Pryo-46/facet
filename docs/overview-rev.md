@@ -361,7 +361,7 @@ ID捏造・不正データの予防として、各Skillに ID採番と書き込�
   - 無効軸：`invalid` ＋ `invalid-face`（赤）。重複・参照切れ・整合性違反・スキーマ違反
   - 着信軸：`pending` ＋ `pending-face`（青）。外から届いた入力に返答していない状態
   - 判断軸：`judge-yes` ＋ `judge-yes-fg`（支持の濃い面）／`judge-no` ＋ `judge-no-fg`（棄却の濃い面）／`judge-yes-face`（決着した課題の箱に敷く淡い緑）
-- **淡い面 `*-face` は同じ軸の色と同じ色相の、白（ダークは黒）へ寄せた面である。** その上に載る文字と枠のコントラストは `FACE_REQUIREMENTS` が課し、淡い面どうしの色差には識別を負わせない。
+- **淡い面 `*-face` は同じ軸の色と同じ色相の、白（ダークは黒）へ寄せた面である。** その上に載る文字と枠のコントラストは `FACE_REQUIREMENTS` が課し、淡い面どうしの色差には識別を負わせない。課すのは本文・抑えた文字・枠の3色で 4.5:1。`judge-yes-face` だけは枠が自軸の線ではなく `rule` なので 3:1 とし、抑制された行に出る `ink-faint` にも 3:1 を課す。
 - 意味色4つは標準・P型・D型のすべてで OKLab 色差 ≥ 0.10 を満たす（`DISTINCT_PAIRS`）。下げるときは 0.08 までで、理由を `palette-requirements.ts` に書く。
 
 **規約6条**:
@@ -423,7 +423,7 @@ ID捏造・不正データの予防として、各Skillに ID採番と書き込�
 - `text-sm` ＋ `leading-normal` 14px / 1.5：複数行の入力値とキャンバスの折り返し
 - `text-base` 16px / 1.25：UIラベル既定。カラム名・ボタン・バッジ・帯・ファイル一覧
 - `text-base` ＋ `leading-normal` 16px / 1.5：アプリが書いた文章。トースト・指摘・空状態
-- `text-xl` 22px / 1.3 / `font-medium`：文書タイトルとアプリ名
+- `text-xl` 22px / 1.3 / `font-medium`：文書タイトルとアプリ名（Tailwind 既定の 20px を `src/index.css` で 22px へ上書きする）
 
 行間は詰めた値を `@theme` の既定に持ち、明示してよいのは `leading-normal`（広げる側）と `leading-none`（バッジ・節見出し）の2つだけとする。段の逸脱・数値指定の行間・任意値は `src/styles/conventions.test.ts` が弾く。
 
@@ -470,6 +470,7 @@ Primary（塗り）／Secondary（枠線のみ）／Tertiary（枠なしアイ�
 - **端末（xterm）の中の面・文字・カーソル・選択は常にダーク固定にし、この4系統だけを流し込む。** ANSI の16色は役割トークンに対応物が無いので持たない。
   - 色値はソースに現れず、`palette.css` の `.dark` の値を実行時に読んで sRGB へ変換する（`src/core/terminal/theme.ts`）。使い捨ての非表示要素に `className = 'dark'` を付けて読むので、`.dark` は素のクラスセレクタのままにする。
   - **トークンが1つでも読めなければ配色を渡さず xterm の既定に落とす。** 半端に流し込むと面だけ変わって文字が読めない端末になる。
+  - 端末のフォントも同じく `--font-mono` を実行時に読んで `term.options.fontFamily` へ渡す。**代入は `document.fonts.load` で読み込みを待ってから行う**（xterm は代入した時点の書体でセル寸法を測るため）。
 - **ボタンのラベルの行間は要素セレクタで一律に揃える**（`src/index.css` の `@layer base` の `button { --tw-leading: 1.2 }`）。本文向けに広げた行間がボタンに効くと、和文フォントの縦メトリクスの非対称でラベルが上へ寄る。
   - **`line-height` を直接書かないこと。** Tailwind の `text-*` は utilities レイヤーで `line-height: var(--tw-leading, <既定>)` を生成し、後に宣言された utilities が base に勝つため届かない。
 - **角丸は2段＋円。** 部品・セル・チップ・バッジ・ボタン＝`rounded-sm`／浮遊面＝`rounded-md`／意図した円だけ `rounded-full`。裸の `rounded`・任意値・他の段は `src/styles/conventions.test.ts` が弾く。
