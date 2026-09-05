@@ -49,7 +49,7 @@ fn allow_skill_dir(app: tauri::AppHandle, dir: String, skills: Vec<String>) -> R
 /// （`allow_skill_dir` と同じ姿勢。rev 7章）
 ///
 /// **前提条件チェック（判断ではない）: `dir` が空文字列なら `Err` を返す。**
-/// 最終ブランチレビューで見つかった欠陥への防御——tauri-2.11.5 の scope 実装は
+/// tauri-2.11.5 の scope 実装は
 /// 空パスに `MAIN_SEPARATOR + "**"` を足すため、`allow_directory(Path::new(""), true)`
 /// は unix では `/**`（fs の実行時 scope をファイルシステム全体へ広げる）に
 /// なる。呼び出し元（`src/fs/settings-fs.ts` の `readLastProjectDir`）は既に
@@ -83,7 +83,7 @@ async fn move_to_trash(path: String) -> Result<(), String> {
         .map_err(|e| e.to_string())?
 }
 
-/// クリップボードの HTML を読む（logic-tree M3）。
+/// クリップボードの HTML を読む。
 ///
 /// `tauri-plugin-clipboard-manager` は **HTML の読み取り API を持たない**
 /// （型定義に「we can read html data only as a string so there's just readText(),
@@ -105,7 +105,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_clipboard_manager::init());
 
-    // 自動アップデート（M19）。**デスクトップ限定のプラグインなので分けてある。**
+    // 自動アップデート。**デスクトップ限定のプラグインなので分けてある。**
     // ここでも判断は持たない——チェックも適用も TypeScript 側から呼ぶ（rev 7章）
     #[cfg(desktop)]
     let builder = builder
