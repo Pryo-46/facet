@@ -37,8 +37,7 @@ const DETAIL_SENTINEL = '受信を待たずに画面を返す（DETAIL）'
 const VALUE_SENTINEL = '応募者を待たせない（VALUE）'
 const ASK_SENTINEL = '待ち画面で離脱しないか（ASK）'
 /**
- * 判断のドロップダウンの目印。**中身はエディタが組む**（m5 Task 6 で状態の
- * バッジもトリガーの中へ入った）ので、パネルの側で見るのは「帯のどこに
+ * 判断のドロップダウンの目印。**中身はエディタが組む**ので、パネルの側で見るのは「帯のどこに
  * 置かれるか」だけである——ここに本物のバッジを書き写すと、テストが
  * パネルではなく写しを検査することになる
  */
@@ -106,7 +105,7 @@ const posed = poseQuestions(data)
 function renderPanel(index: number, opts: { suppressed?: boolean } = {}) {
   const h = data.hypotheses[index]
   const ownerIndex = data.issues.findIndex((n) => n.id === h.issueId)
-  // **第4引数は「展開している課題の添字」**（m5）。パネルはその課題の全仮説に出る
+  // **第4引数は「展開している課題の添字」。** パネルはその課題の全仮説に出る
   const layout = layoutIssueTree(data, posed, fonts, ownerIndex)
   const placement = layout.hypotheses[index]
   if (placement === null) throw new Error(`仮説${index + 1}が図に位置を持たない`)
@@ -143,7 +142,7 @@ function renderPanel(index: number, opts: { suppressed?: boolean } = {}) {
       onRemoveFeedback={vi.fn()}
       onDelete={onDelete}
       // 判断のドロップダウンはエディタが組む（パネルは置き場所だけを持つ）。
-      // **状態のバッジもその中**（m5 Task 6：バッジ自身がトリガー）なので、
+      // **状態のバッジもその中**——バッジ自身がトリガーなので、
       // ここは目印のボタン1つでよい
       judgementMenu={<button type="button">{MENU_SENTINEL}</button>}
     />,
@@ -165,9 +164,9 @@ function precedes(a: Element, b: Element): boolean {
 
 describe('HypothesisPanel: 節の構成', () => {
   /**
-   * **「どう作るか」（`detail`）は価値仮説の次**（m5 の追加作業）。それまでは
-   * ソリューション仮説の節の中、タイトルの下の本文だった——見出しを持たないので
-   * 「タイトルと詳細のどちらが仮説の本体か」が実機で見分けられなかった。
+   * **「どう作るか」（`detail`）は価値仮説の次**。ソリューション仮説のタイトルの
+   * 下に本文として描くと、見出しを持たないので「タイトルと詳細のどちらが
+   * 仮説の本体か」が見分けられなくなる。
    *
    * **並びは `SECTION_LABELS` の鍵の順と対**（`layout.test.ts` が鍵の並びを、
    * ここが DOM の並びを固定する）
@@ -229,8 +228,7 @@ describe('HypothesisPanel: 節の構成', () => {
  * 見出しが項目名、プレースホルダが書き方の促し（または欄の短い呼び名）で、
  * **同じ語を縦に2つ並べない**（`FIELD_PLACEHOLDERS` の表）。
  *
- * m5 の追加作業で `detail` を「どう作るか」の節に上げたとき、**見出しに
- * 採ったのが元のプレースホルダと同じ語**だったので、一度そうなっていた。
+ * **見出しに採った語がプレースホルダと同じだと、同じ語が縦に2つ並ぶ。**
  * 節を増やす・見出しを言い換えるたびに再発しうる形なので、番人を置く
  */
 describe('HypothesisPanel: 節見出しと空欄の案内', () => {
@@ -317,8 +315,8 @@ describe('HypothesisPanel: ソリューション仮説と価値仮説', () => {
       expect(/missing|invalid/.test(field.className)).toBe(false)
       expect(/missing|invalid/.test((field.parentElement as HTMLElement).className)).toBe(false)
     }
-    // **パネルは欠落の語彙をひとつも使わない。** 「未決」のバッジは m5 Task 6 で
-    // 判断のトリガー（＝エディタが組む）の中へ移ったので、ここに `missing` の
+    // **パネルは欠落の語彙をひとつも使わない。** 「未決」のバッジは
+    // 判断のトリガー（＝エディタが組む）の中にあるので、ここに `missing` の
     // 面や線が現れたら、それは空の欄のために増えた印である
     expect(
       Array.from(document.querySelectorAll('[class*="missing"]')).map((e) => e.textContent),
@@ -338,7 +336,7 @@ describe('HypothesisPanel: ソリューション仮説と価値仮説', () => {
   })
 
   /**
-   * 問い（`asks`）は FB の節の中の**ブロック**として出る（m5 Task 5）。
+   * 問い（`asks`）は FB の節の中の**ブロック**として出る。
    * 入れ子の中身は `AskBlock.dom.test.tsx` が見るので、ここでは
    * 「節の中に出ている」ことだけを確かめる
    */
@@ -356,7 +354,7 @@ describe('HypothesisPanel: 検証結果', () => {
     // 日付は `YYYY-MM-DD` をそのまま出さない（画面は月日だけ）
     const date = screen.getByText('8/13 更新')
     expect(precedes(sectionLabel(SECTION_LABELS.judgement), date)).toBe(true)
-    // **最新の判断の語をパネルは自分で描かない**（m5 Task 6）——描くと、
+    // **最新の判断の語をパネルは自分で描かない**——描くと、
     // トリガーのバッジと合わせて同じ語が帯に2つ出る
     expect(screen.queryByText(EVENT_KIND_LABELS.rejected)).toBeNull()
   })

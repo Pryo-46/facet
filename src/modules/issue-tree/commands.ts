@@ -387,7 +387,7 @@ export function removeAsk(
   }
 }
 
-/** アプリが作る FB。**調子は `note`（ただのメモ）が既定**——m4 は選ばせる画面を持たず、嘘の分類を残さないため */
+/** アプリが作る FB。**調子は `note`（ただのメモ）が既定**——嘘の分類を記録として残さないため */
 function newFeedback(askId: string | null, today: string): Feedback {
   return { askId, text: '', by: '', sentiment: 'note', date: today }
 }
@@ -456,7 +456,7 @@ export function setFeedbackText(
 }
 
 /**
- * FB の調子（`sentiment`）を差し替える（アイコンのドロップダウン。m5 の追加作業）。
+ * FB の調子（`sentiment`）を差し替える（アイコンのドロップダウン）。
  *
  * **`setFeedbackText` と同じ規律**——並べ替えない、**日付も文言も書き換えない**
  *（`date` は「いつ言われたか」であって「いつ分類し直したか」ではない）。

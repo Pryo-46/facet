@@ -62,7 +62,7 @@ export interface IssueBoxProps {
   /**
    * 選択された課題ノードの末尾に置く「＋ 仮説を追加」。**必須にしてある**
    *（`eventToggle` / `onSelect` と同じ理由——押す場所を型で守る）。
-   * 仮説を足す動線はキーから消えた（m5）ので、これが抜けると
+   * 仮説を足す動線はキーには無いので、これが抜けると
    * **その課題に仮説を足す道が箱から消える**。
    *
    * **場所を決めるのはレイアウト**（`placement.addHypothesis`）で、選ばれて
@@ -213,8 +213,8 @@ export function IssueBox(props: IssueBoxProps) {
    * 「判断を選ぶと…」と「FB のアイコンから調子を選ぶと…」の2件
    *
    * **フォーカスでは選択しない**（`onFocus` を持たせない）——`Tab` で
-   * キャンバスを歩くたびに次々と箱が開いて図が動く。m5 が同じ理由で
-   * 仮説行の `onFocus` による自動展開を外している（設計ノート D8）
+   * キャンバスを歩くたびに次々と箱が開いて図が動く。仮説行の `onFocus` に
+   * よる自動展開も同じ理由で外している（設計ノート D8）
    */
   const onBoxClick = (e: React.MouseEvent<HTMLDivElement>): void => {
     const target = e.target as HTMLElement
@@ -338,7 +338,7 @@ export function IssueBox(props: IssueBoxProps) {
           （`HypothesisRow` に `origin` を渡してある） */}
       {props.children}
 
-      {/* 末尾の「＋ 仮説を追加」（m5 Task 7。キャンバスの `.addhypo`）。
+      {/* 末尾の「＋ 仮説を追加」（キャンバスの `.addhypo`）。
           **帯は幅いっぱいで、ボタンは左寄せ**（`align-self: flex-start` に
           あたる）——レイアウトはボタンの幅を測っておらず、左端だけを
           パネルと揃えている。**選ばれているときだけ矩形がある**——仮説が

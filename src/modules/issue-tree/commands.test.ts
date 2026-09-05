@@ -221,8 +221,8 @@ describe('仮説とFB', () => {
   const textsOf = (h: Hypothesis): string[] => h.feedbacks.map((f) => f.text)
 
   it('アプリが作る FB は「どの問いにも紐づかない・誰の発言か空・ただのメモ」で、日付だけが入る', () => {
-    // **sentiment の既定が note なのは、m4 が調子を選ばせる画面を持たないからである。**
-    // 嘘の分類（question 等）を既定にすると、選ばれていない分類が記録として残る
+    // **sentiment の既定は note である**——嘘の分類（question 等）を既定にすると、
+    // 選ばれていない分類が記録として残る
     const next = addFeedback(base(), 0, null, '2026-08-30')
     expect(next.data.hypotheses[0].feedbacks).toEqual([
       { askId: null, text: '', by: '', sentiment: 'note', date: '2026-08-30' },
@@ -303,9 +303,7 @@ describe('仮説とFB', () => {
   })
 
   /**
-   * **調子（`sentiment`）の差し替え**（m5 の追加作業）。それまでアプリから入る
-   * 調子は `note`（`newFeedback` の既定）だけで、**スキーマが受け入れる4語のうち
-   * 3語はアプリから選べなかった**。
+   * **調子（`sentiment`）の差し替え。**
    *
    * **他の欄が動かないことまで見る**——`date` は「いつ言われたか」であって
    * 「いつ分類し直したか」ではない（`setFeedbackText` が日付を触らないのと同じ規律）
@@ -346,7 +344,7 @@ describe('仮説とFB', () => {
   })
 })
 
-describe('詳細・価値仮説・聞きたいこと（m5）', () => {
+describe('詳細・価値仮説・聞きたいこと', () => {
   it('setHypothesisDetail は該当の1件だけを書き換え、他の仮説を動かさない', () => {
     const d = base()
     const next = setHypothesisDetail(d, 1, '中身のメモ')

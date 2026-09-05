@@ -3,8 +3,6 @@ import type { TreeNode } from '@/types/logic-tree'
 
 /**
  * Miro の JSON をロジックツリーへ。**この層は器を知らない**（復号済みの値を受ける）。
- *
- * 詳細は docs/superpowers/plans/ の miro-clipboard-design.md
  */
 
 const ENTITIES: ReadonlyMap<string, string> = new Map([

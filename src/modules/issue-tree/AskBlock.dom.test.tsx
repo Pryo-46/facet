@@ -356,10 +356,9 @@ describe('AskBlock: FB の行', () => {
 })
 
 /**
- * **調子（`sentiment`）を選べるようにした**（m5 の追加作業）。それまでスキーマの
- * 4語のうちアプリから入るのは `note` だけで（`newFeedback` の既定）、
- * `like` / `concern` / `question` は Skill か手書きでしか入らなかった
- *——「スキーマが受け入れる値を、アプリからは選べない」の形である。
+ * **調子（`sentiment`）を選べる。** アプリから入るのは `note`（`newFeedback` の
+ * 既定）だけでなく、スキーマの4語（`like` / `concern` / `question` / `note`）
+ * すべてを選べる。
  *
  * **トリガーはアイコンそのもの**（判断のバッジと同じ考え方。`KindMenu`）
  */

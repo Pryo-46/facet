@@ -109,10 +109,9 @@ export function HypothesisRow(props: HypothesisRowProps) {
       }}
       aria-label={`${label}を開く`}
       data-cell={hypothesisCellKey(props.hypothesisKey, { cell: 'hypothesis' })}
-      // **フォーカスが入っただけでは開かない**（m5 で `onFocus` を外した）
-      // ——`Tab` で行に着いた瞬間に開いて textarea へ移す形だと、1回の `Tab` で
-      // フォーカスが2回動き、キーで木を歩くときに行き先が読めなくなる
-      //（`open-issues.md` に上がっていた欠陥）。押したときだけ開く
+      // **フォーカスが入っただけでは開かない**——`Tab` で行に着いた瞬間に開いて
+      // textarea へ移す形だと、1回の `Tab` でフォーカスが2回動き、キーで木を
+      // 歩くときに行き先が読めなくなる。押したときだけ開く
       onClick={props.onExpand}
     >
       <span

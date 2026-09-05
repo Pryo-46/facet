@@ -151,9 +151,9 @@ describe('layoutIssueTree', () => {
     expect(pending.text.width).toBe(plain.text.width - BADGE_GAP - jb.width)
     expect(pending.text.x + pending.text.width).toBeLessThanOrEqual(jb.x)
 
-    // **展開した仮説に頭部は無い**（m5 Task 4）——「点・文言・バッジ」の1行は
+    // **展開した仮説に頭部は無い**——「点・文言・バッジ」の1行は
     // 畳まれているときだけで、開くとパネルが全部を負う。**FB待ちのバッジも
-    // 畳まれた行にしか出ない**（展開中は問いブロックの側に出す。Task 5）。
+    // 畳まれた行にしか出ない**（展開中は問いブロックの側に出す）。
     // 頭部を残すと、パネルの「ソリューション仮説」節と同じ文言が2箇所に出る
     const openLayout = run(data, 0)
     expect(openLayout.hypotheses[0]!.row).toBeNull()
@@ -318,7 +318,7 @@ describe('layoutIssueTree', () => {
       ],
     })
     const folded = run(data)
-    // **課題ごと開く**（m5）。仮説1本だけを開く道はもう無い
+    // **課題ごと開く。** 仮説1本だけを開く道は無い
     const open = run(data, 0)
     expect(folded.hypotheses[1]!.expanded).toBeNull()
     const p = open.hypotheses[1]!.expanded!
@@ -390,15 +390,15 @@ describe('layoutIssueTree', () => {
   })
 
   /**
-   * **「検証結果」の帯の高さはバッジで決まる**（m5 Task 6）。トリガーは
+   * **「検証結果」の帯の高さはバッジで決まる。** トリガーは
    * 「判断を追加」という**文言のボタン**（`ACTION_HEIGHT` ＝ 24px）ではなく
-   * **バッジ自身**（`BADGE_HEIGHT` ＝ 22px）になった。文言ボタンを消したのに
-   * 帯だけ 24px を空け続けると、**帯の 2px は誰も使わないまま根拠の欄を
+   * **バッジ自身**（`BADGE_HEIGHT` ＝ 22px）である。帯だけ 24px を空けると、
+   * **帯の 2px は誰も使わないまま根拠の欄を
    * 押し下げ、画面と測定が静かに食い違う**——測り直しの番人はここ
    */
   /**
-   * **展開した課題ノードの末尾に「＋ 仮説を追加」の場所を空ける**（m5 Task 7）。
-   * 仮説を足す動線はキーから消えたのでマウスにしかなく、**その高さ
+   * **展開した課題ノードの末尾に「＋ 仮説を追加」の場所を空ける。**
+   * 仮説を足す動線はキーには無くマウスにしかないので、**その高さ
    *（`ACTION_HEIGHT`）を箱の高さに入れ忘れると、ボタンが箱の下端からはみ出す**
    *——絶対配置なので画面は「はみ出したまま描く」だけで、何も落ちない。
    * ここが唯一の番人なので、**下端と一致すること（`toBe`）で見る**
@@ -425,8 +425,7 @@ describe('layoutIssueTree', () => {
   })
 
   /**
-   * **見出しと値の区別を付けるための字下げ**（m5 の追加作業。実機で「見出しと
-   * 値の区別がつかない」と言われた）。値の欄は節見出しの帯より**全角1文字
+   * **見出しと値の区別を付けるための字下げ。** 値の欄は節見出しの帯より**全角1文字
    *（`FIELD_INDENT`）だけ内側**から始まり、**右端は帯と揃う**。
    * **帯そのものは動かさない**——「見出しが左、値が一段右」という位置関係で読ませる。
    *
@@ -560,7 +559,7 @@ describe('layoutIssueTree', () => {
     const panel = withRationaleGone.hypotheses[0]?.expanded
     expect(panel).not.toBeNull()
     // **鍵の並びが描く順**（`SECTION_LABELS` の解説）。「どう作るか」（`detail`）は
-    // m5 の追加作業で価値仮説の次へ入った
+    // 価値仮説の次にある
     expect(Object.keys(SECTION_LABELS)).toEqual([
       'solution',
       'value',
@@ -836,7 +835,7 @@ describe('layoutIssueTree', () => {
   })
 
   /**
-   * **展開の単位は課題ノードである**（m5 Task 2）。開いた課題だけが幅を広げ、
+   * **展開の単位は課題ノードである。** 開いた課題だけが幅を広げ、
    * 同じ列の他の箱は `BOX_WIDTH` のまま——`tree-layout.ts` の `columnXs` が深さごとの
    * 最大幅で列の x を決めるので、押し広げは列の側で自動的に効く
    */

@@ -4,8 +4,7 @@ import type { LogicTreeSchemaVersion1, TreeNode } from '@/types/logic-tree'
 /**
  * ロジックツリー → Miro の JSON。**この層は器を知らない**（値を組むだけ）。
  *
- * 決定と根拠は docs/superpowers/plans/ の miro-clipboard-design.md の
- * 4章。要点だけ:
+ * 要点:
  *
  * - **autoLayout: true かつ座標も出す。** 座標が無いと兄弟の順序が壊れ（Miro が勝手に
  *   並べる）、autoLayout が false だと見た目が硬くなる。両方要る

@@ -33,8 +33,7 @@ export const BUNDLED_SKILLS: readonly string[] = [
  * - 同梱物としては**置かない**（`shouldSyncSkillFile`）
  * - プロジェクト側にあるものは**消さない**（`isRemovableSkillEntry`）
  *
- * m30 で書き出しスクリプトが生成物を使うようになり、Skill はもう
- * `npm install` を指示しない。それでも消さないのは人間の裁定——旧版で
+ * Skill はもう `npm install` を指示しない。それでも消さないのは人間の裁定——旧版で
  * 作られた `node_modules` が利用者の手元に残っていても、アプリが黙って
  * 数百 MB を消してよい理由にはならない、という判断による保護である
  */

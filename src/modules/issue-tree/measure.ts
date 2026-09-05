@@ -177,8 +177,8 @@ export const FIELD_INDENT = 14
  * **下のクラスと対で直すこと**——クラスを当て忘れるとボタンの実高が測定より
  * 低くなり、定数が嘘になる。
  *
- * **「検証結果」の帯はこれを空けない**（m5 Task 6）——判断のトリガーは文言の
- * ボタンからバッジ自身に変わったので、帯の高さは `BADGE_HEIGHT` で測る
+ * **「検証結果」の帯はこれを空けない**——判断のトリガーは文言のボタンではなく
+ * バッジ自身なので、帯の高さは `BADGE_HEIGHT` で測る
  *（`layout.ts` の `judgeLabelH`）
  */
 export const ACTION_HEIGHT = 24
@@ -190,8 +190,7 @@ export const ACTION_HEIGHT_CLASS = 'h-6'
  *
  * **`MINI_ICON_SIZE_CLASS`（10px）を借りないこと。** キャンバスは `.add` を
  * 12px、`.miniadd` を 10px と**書き分けている**ので、借りるとミニボタンの
- * アイコンを直したとき節末のボタンと FB の削除が黙って一緒に動く（m5 Task 7 で
- * 実際に借りていた）。
+ * アイコンを直したとき節末のボタンと FB の削除が黙って一緒に動く。
  *
  * **数の対（`ACTION_ICON_SIZE`）を置かないのは、この 12px を測る場所が
  * どこにも無いため。** 節末の `.add` と末尾の「＋ 仮説を追加」は幅いっぱいの
@@ -212,15 +211,15 @@ export const TRASH_ICON_SIZE = 16
 export const TRASH_ICON_SIZE_CLASS = 'size-4'
 /**
  * ボタンの左右の余白（px-1 = 4px）＋枠線 1px。**いまはどこからも読まれていない**
- *——m5 Task 4 で判断のトリガーが「検証結果」の見出しの帯へ移り、帯の中で
- * flex に並ぶようになったので、レイアウトがボタンの幅を測る必要が無くなった
- *（`layout.ts` の `actionWidth` はそれで消えた）。**小さなボタンを絶対配置で
- * 置く場所が再び出たときの対として残してある**（幅は文言の実測＋これ）
+ *——判断のトリガーは「検証結果」の見出しの帯の中で flex に並んでおり、
+ * レイアウトがボタンの幅を測る必要が無い（`layout.ts` に `actionWidth` は
+ * 無い）。**小さなボタンを絶対配置で置く場所が再び出たときの対として残してある**
+ *（幅は文言の実測＋これ）
  */
 export const ACTION_INSET_X = 5
 
 /**
- * **`PANEL_CONTENT_WIDTH` は m5 Task 2 で消した。**
+ * **`PANEL_CONTENT_WIDTH` は無い。**
  *
  * 箱の幅が可変になった（畳んで `BOX_WIDTH` ／開いて `EXPANDED_BOX_WIDTH`）ので、
  * パネルの中の文章が使える幅は箱ごとに違う。`layout.ts` が `contentWidth - PANEL_INDENT -
@@ -242,7 +241,7 @@ export const ASK_GAP = 4
 export const ASK_BLOCK_GAP = 4
 /**
  * **`ASK_PADDING_CLASS` / `ASK_GAP_CLASS` / `ASK_BLOCK_GAP_CLASS` /
- * `FB_COL_GAP_CLASS` は m5 Task 7 で消した。**
+ * `FB_COL_GAP_CLASS` は無い。**
  *
  * 「flex で積む作りに変えるときの対」として置いてあったが、問いブロックの子は
  * **すべて絶対配置で置くと決めてある**（`ISSUE_BOX_CLASS` / `PANEL_BOX_CLASS` と

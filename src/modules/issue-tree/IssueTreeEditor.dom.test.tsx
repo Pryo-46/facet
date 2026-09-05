@@ -162,9 +162,9 @@ describe('IssueTreeEditor（木の操作）', () => {
   })
 })
 
-describe('IssueTreeEditor（仮説は操作言語を持たない。m5）', () => {
-  // m5 でキーによる操作は課題の追加・削除・移動だけになった。仮説の追加・削除・
-  // 判断の変更はマウスのボタンへ移り（Task 6・7）、仮説側のセルはキーを取らない
+describe('IssueTreeEditor（仮説は操作言語を持たない）', () => {
+  // キーによる操作は課題の追加・削除・移動だけである。仮説の追加・削除・
+  // 判断の変更はマウスのボタンが担い、仮説側のセルはキーを取らない
 
   it('仮説の文言で Enter を打っても仮説は増えない（キーは課題だけが取る）', () => {
     const onChange = vi.fn()
@@ -660,7 +660,7 @@ const allKindsFile = (): IssueTreeSchemaVersion4 => ({
 })
 
 /**
- * FB待ちが**同じ仮説に2件**立つ形（m5 Task 8）。行き先が問いごとになったので、
+ * FB待ちが**同じ仮説に2件**立つ形。行き先が問いごとになったので、
  * 「2回押すと2件目の問いへ行く」を見るには同じ仮説の中に2件要る
  *——別々の仮説に散らすと、仮説単位の行き先へ戻した実装でも巡回して見える。
  *
@@ -803,7 +803,7 @@ describe('IssueTreeEditor（帯）', () => {
   })
 
   /**
-   * **飛び先の課題を開いてから当てる**（m5 Task 8）。問いの欄は展開パネルの中に
+   * **飛び先の課題を開いてから当てる。** 問いの欄は展開パネルの中に
    * しか無いので、開かないまま予約しても `data-cell` が DOM に無く、
    * **フォーカスは当たらない**（黙って外れる——落ちるテストが無い種類のずれ）。
    *
@@ -844,7 +844,7 @@ describe('IssueTreeEditor（帯）', () => {
     expect(screen.queryByText('ルートが2件あります')).toBeNull()
   })
 
-  it('操作ヒントを4件出す（表記が互いに重ならない。m5 で課題だけに絞った）', () => {
+  it('操作ヒントを4件出す（表記が互いに重ならない。課題だけに絞る）', () => {
     render(<Harness initial={file()} />)
     const hintSpan = (text: string) =>
       screen.getByText((_, element) => element?.tagName === 'SPAN' && element.textContent === text)
@@ -973,7 +973,7 @@ describe('IssueTreeEditor（解決の旗と帯のチップ）', () => {
     expect(toggle.getAttribute('aria-pressed')).toBe('true')
     expect(toggle.textContent).toBe('解決')
     fireEvent.click(toggle)
-    // **旗が外れる（差し替えではない）。** 解決を新規に付ける動線は m4 では
+    // **旗が外れる（差し替えではない）。** 解決を新規に付ける動線はここでは
     // 足していない——立っている旗を押すと、その旗だけが消える
     expect(onChange.mock.calls[0][0].issues[0].events).toEqual([])
   })
@@ -1205,7 +1205,7 @@ describe('IssueTreeEditor（旗の面と幅）', () => {
   })
 
   /**
-   * **祖先由来の抑制が勝つ優先順位は m5 でも動いていない**（`IssueBox.tsx` の
+   * **祖先由来の抑制が勝つ優先順位は動いていない**（`IssueBox.tsx` の
    * `face` の分岐で `suppressed` が旗より上にある）。ここを逆にすると、
    * 凍結された枝の途中に淡い緑の箱が1つだけ灯り、「その1件はまだ考える」と
    * 読めてしまう
@@ -1354,10 +1354,10 @@ describe('IssueTreeEditor（行のFB待ちバッジ）', () => {
   })
 
   /**
-   * **開いた仮説に頭部は無い**（m5 Task 4）——「点・文言・バッジ」の1行は
+   * **開いた仮説に頭部は無い**——「点・文言・バッジ」の1行は
    * 畳まれているときだけで、開くと `HypothesisPanel` が全部を負う。頭部を
    * 残すと、パネルの「ソリューション仮説」節と同じ文言が画面に2つ出る。
-   * **FB待ちのバッジは展開すると問いブロックの中へ移る**（m5 Task 5）
+   * **FB待ちのバッジは展開すると問いブロックの中へ移る**
    *——要対応の単位は問い1件なので、開いたら「どの問いが待っているか」を
    * その問いの隣で言う。行の頭部として重ねて出すと、同じ1件が2箇所に出る
    */
@@ -1537,14 +1537,14 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
       screen.getByRole('textbox', { name: `仮説1 の${EVENT_KIND_LABELS.rejected}の根拠` }),
     )
     // **トリガーはバッジなので、選んだ語がそのまま状態の表示になる**
-    //（m5 Task 6。名前は `仮説{N}に判断を追加` のまま——前半は動かさない規約）
+    //（名前は `仮説{N}に判断を追加` のまま——前半は動かさない規約）
     expect(screen.getByRole('button', { name: '仮説1に判断を追加' }).textContent).toBe(
       EVENT_KIND_LABELS.rejected,
     )
   })
 
   /**
-   * **FB の調子（`sentiment`）を選ぶ動線の番人**（m5 の追加作業）。3つを見る:
+   * **FB の調子（`sentiment`）を選ぶ動線の番人。** 3つを見る:
    *
    * 1. **保存された JSON の値**——アイコンの見た目だけを見ると、
    *    `setFeedbackSentiment` を配線し忘れた実装でも緑になりかねない
@@ -1645,20 +1645,19 @@ describe('IssueTreeEditor（仮説の行の操作）', () => {
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: '仮説1 のFB1' }))
   })
 
-  // **FB の並び替えと挿入位置の指定はキーから消えた（m5）。** `addFeedbackAfter` /
+  // **FB の並び替えと挿入位置の指定はキーには無い。** `addFeedbackAfter` /
   // `moveFeedback` はいまどの動線からも到達できない（`commands.ts` に残るが
-  // 呼び出し元が無い。Task 3 報告参照）。削除（FB・問い・仮説）と追加は
+  // 呼び出し元が無い）。削除（FB・問い・仮説）と追加は
   // すべてマウスのボタンに載っており、下の describe が見ている
 })
 
 /**
- * **仮説の追加・削除はマウスにしかない**（m5 Task 7）。キーの操作言語は課題の
- * 追加・削除・移動だけに絞られたので、仮説を足す・消す動線が画面に無いと
+ * **仮説の追加・削除はマウスにしかない。** キーの操作言語は課題の
+ * 追加・削除・移動だけなので、仮説を足す・消す動線が画面に無いと
  * 「キーでしか到達できない意味」どころか**どこからも到達できない意味**になる
- *（rev 10章の裏返し）。問いの削除も同じ理由でここに置いた——`removeAsk` は
- * m4 からあったが、押せる場所が無く「足せるが消せない」ままだった
+ *（rev 10章の裏返し）。問いの削除も同じ理由でここに置いた
  */
-describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task 7）', () => {
+describe('IssueTreeEditor（仮説の追加・削除のマウス動線）', () => {
   /** 課題3 に仮説3件。**2件だと「常に末尾を消す」実装と区別が付かない** */
   const threeHypotheses = (): IssueTreeSchemaVersion4 => {
     const base = file()
@@ -1855,7 +1854,7 @@ describe('IssueTreeEditor（仮説の追加・削除のマウス動線。m5 Task
     )
     openHypothesis(1)
     const loose = screen.getByRole('group', { name: `仮説1 の${NO_ASK_TEXT}` })
-    // **調子のトリガー（アイコン）はどのブロックの FB にも付く**（m5 の追加作業）
+    // **調子のトリガー（アイコン）はどのブロックの FB にも付く**
     // ——ここが見ているのは「問いの削除だけが無い」ことである
     expect(within(loose).queryAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
       `仮説1 に${NO_ASK_TEXT}を足す`,
@@ -1884,9 +1883,9 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
   })
 
   /**
-   * **フォーカスが入っただけでは開かない**（m5）。畳まれた行に `Tab` で着いた
+   * **フォーカスが入っただけでは開かない。** 畳まれた行に `Tab` で着いた
    * 瞬間に開いて textarea へ移す形は、1回の `Tab` でフォーカスが2回動くのと
-   * 同じで、キーで木を歩くときに行き先が読めなかった（`open-issues.md`）
+   * 同じで、キーで木を歩くときに行き先が読めなくなる
    */
   it('仮説の行にフォーカスしても展開しない', () => {
     render(<Harness initial={file()} />)
@@ -2113,9 +2112,8 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
     expect(onChange.mock.calls[1][0].issues).toHaveLength(4)
   })
 
-  // **「開いた課題から最後の仮説が消えると箱は畳まれる」は消す動線と一緒に
-  // 引っ越した**——m4 はキーボードの Backspace、m5 Task 7 からはパネルの
-  // ゴミ箱である。番人は下の describe（仮説の追加・削除のマウス動線）にある
+  // 「開いた課題から最後の仮説が消えると箱は畳まれる」の番人は
+  // 下の describe（仮説の追加・削除のマウス動線）にある
 
   /**
    * `apply` → `goTo` が展開と予約を担うのは経路によらず共通なので、
@@ -2212,11 +2210,11 @@ describe('IssueTreeEditor（展開の継ぎ目）', () => {
 
     openHypothesis(1)
     // **開いても語は1つのまま**——行末の俯瞰バッジは頭部ごと消え、判断の語を
-    // 運ぶのは「検証結果」節のバッジだけになった（m5 Task 4。頭部を残すと
+    // 運ぶのは「検証結果」節のバッジだけである（頭部を残すと
     // 同じ文言が2箇所に出る）
     expect(screen.getAllByText(EVENT_KIND_LABELS.rejected)).toHaveLength(1)
-    // **語を運んでいるのはトリガーそのもの**（m5 Task 6 でバッジがトリガーに
-    // なったので、バッジと文言ボタンで語が2つに割れることが無くなった）
+    // **語を運んでいるのはトリガーそのもの**（バッジがトリガーなので、
+    // バッジと文言ボタンで語が2つに割れることが無い）
     expect(screen.getByRole('button', { name: '仮説1に判断を追加' }).textContent).toBe(
       EVENT_KIND_LABELS.rejected,
     )

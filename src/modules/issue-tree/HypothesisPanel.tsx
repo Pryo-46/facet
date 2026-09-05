@@ -92,7 +92,7 @@ export interface HypothesisPanelProps {
   onAddFeedback: (askId: string | null) => void
   onRemoveFeedback: (feedbackIndex: number) => void
   /**
-   * この仮説を消す（「ソリューション仮説」の見出しの右端のゴミ箱。m5 Task 7）。
+   * この仮説を消す（「ソリューション仮説」の見出しの右端のゴミ箱）。
    * **必須にしてある**（`judgementMenu` と同じ理由）——キーから仮説の削除が
    * 消えたので、この動線が抜けると**どこからも消せない仮説**になる。
    *
@@ -119,11 +119,11 @@ export interface HypothesisPanelProps {
  */
 const sectionBandClass = 'absolute flex items-center gap-2 overflow-hidden select-none'
 
-// 仮説の欄は操作言語を通らない（キーは課題だけが取る。m5 の決定）。
+// 仮説の欄は操作言語を通らない（キーは課題だけが取る）。
 // ただし**ソリューション仮説のタイトルだけ** Enter を消費する——同じ文言は
 // 畳まれた行でも1行として測られており、改行を許すと開いているときだけ
 // 読める文が生まれる。rev 10章「ツール側で e.key を見ない」の明示的な例外で、
-// コマンドへの写像は行わない（m5 Task 3 で行から移ってきた）
+// コマンドへの写像は行わない
 const swallowEnter = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>): void => {
   if (e.key === 'Enter' && !e.nativeEvent.isComposing) e.preventDefault()
 }
@@ -268,8 +268,7 @@ export function HypothesisPanel(props: HypothesisPanelProps) {
       </div>
 
       {/* --- どう作るか（`detail`）---
-          **m5 の追加作業で節に昇格した。** それまではソリューション仮説の節の中、
-          タイトルの下の本文だった（`HypothesisPanel.detail` の解説）。
+          独立した節である（`HypothesisPanel.detail` の解説）。
           **アクセシブル名は `仮説{N} の詳細` のまま**——前半だけでなく、
           この名前でフォーカスの行き先を引いているテストが複数ある。
           見出しが変わっても `data-cell`（`detail:`）は同じ席を指す */}
