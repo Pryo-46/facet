@@ -139,7 +139,7 @@ describe('行間の明示（M23 決定2）', () => {
   })
 })
 
-describe('役割トークンの使い方（rev 9章 M21）', () => {
+describe('役割トークンの使い方（rev 9章）', () => {
   it('旧トークン名（warning / ok / surface-accent）をクラス名として使っていない', () => {
     const offenders = offendingLines(
       /\b(?:[a-z-]+:)?(bg|text|border|ring|outline|stroke|fill|decoration|placeholder|divide)-(warning|warning-fg|ok|ok-fg|surface-accent)\b/,

@@ -34,7 +34,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **`gen-types.mjs` はスキーマが減っても対応する型ファイルを消さない**（`scripts/gen-types.mjs`）。
 - **ロジックツリーのエッジに矢印を描いていない**（`src/modules/logic-tree/TreeEdges.tsx`）。
 - **`KeyHints` の `key={hint.keys}` は同じ文字列が2件あると衝突する**（`src/components/KeyHints.tsx`）。
-- **シーケンスのゾーン機能が未着手**（`schemas/sequence.schema.json`）。初期スコープから先送りされている。
+- **シーケンスのゾーン機能が未着手**（`schemas/sequence.schema.json`）。
 - **フォーカスモードが未実装**（`src/modules/issue-tree/`）。選択サブツリー以外を薄くする表示は設計ノートにあるだけ。
 - **課題ツリーに Markdown 出力が無い**（`src/modules/issue-tree/module.ts` の `outputs: []`）。
 
@@ -63,7 +63,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **`README-for-AI.md` はプロジェクト固有に聞こえない質問には効かない**（`src/core/reading-guide.md`）。AI がフォルダを読みに行かない場面がある。
 - **Skill 同梱の一致保証が best-effort に落ちている**（`src/core/skill-sync.ts`）。置き直しの削除が要素ごとに try/catch で握りつぶす。
 - **`bundle.resources` が `evals/` も `node_modules` も除外できない**（`src-tauri/tauri.conf.json`）。tauri のバンドラがパターン除外に対応していない。
-- **MSI が作れない**（`src-tauri/tauri.conf.json`）。WiX の `light.exe` がコードページ1252に無い文字を拒否するため v1.0.0 で対象から外した。
+- **MSI が作れない**（`src-tauri/tauri.conf.json`）。WiX の `light.exe` がコードページ1252に無い文字を拒否するため対象外にしている。
 - **`sequence` スキーマに `notes` 相当が無い**（`schemas/sequence.schema.json`）。`failures` を空にした理由を残す場所が無い。
 - **課題の見送りにキーボード経路が無い**（`src/modules/issue-tree/IssueTreeEditor.tsx`）。
 - **`moveHypothesis` が課題をまたげず、どの動線からも呼ばれていない**（`src/modules/issue-tree/commands.ts`）。
@@ -73,7 +73,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **`listOpenTargets` の除外が課題側と仮説側で非対称**（`src/modules/issue-tree/open-targets.ts`）。循環で到達できない課題のチップが押しても反応しない。
 - **`load.ts` が非整数・1未満の schemaVersion も旧版として移行経路に入れる**（`src/core/load.ts`）。
 - **`IssueBanner` から該当行へのジャンプが無い**（`src/components/IssueBanner.tsx`）。メッセージは行を指すが押しても飛ばない。
-- **欠落ジャンプが4モジュールで巡回 ref に頼る**（`src/modules/glossary/GlossaryEditor.tsx`, `src/modules/error-catalog/ErrorCatalogEditor.tsx`, `src/modules/logic-tree/LogicTreeEditor.tsx`）。フォーカス位置を起点にしない。
+- **欠落ジャンプが4モジュールで巡回 ref に頼る**（`src/modules/glossary/GlossaryEditor.tsx`, `src/modules/error-catalog/ErrorCatalogEditor.tsx`, `src/modules/logic-tree/LogicTreeEditor.tsx`, `src/modules/sequence/SequenceEditor.tsx`（`jumpAt`））。フォーカス位置を起点にしない。
 - **名前が空のアクターを面だけの空チップで示す**（`src/modules/sequence/ActorRefCell.tsx`）。視認性が低い。
 - **エラーカタログの集計は全行対象だがジャンプは表示中の行だけに飛ぶ**（`src/modules/error-catalog/ErrorCatalogEditor.tsx`）。
 - **エラーカタログの読み手（プロファイル）が3箇所で別々に選ばれる**（`src/modules/error-catalog/ErrorCatalogEditor.tsx`）。

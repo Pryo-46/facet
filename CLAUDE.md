@@ -13,10 +13,10 @@
 
 **主チェックアウト（`C:\Dev\Projects\facet`）で計画ファイルを作らないこと。**
 
-理由は2つある。M6 で両方とも実際に踏んだ。
+理由は2つある。
 
-- **マージ後の `git pull` が止まる。** 計画ファイルは追跡対象（M1 から一貫して各マイルストーンの最初のコミット）なので、主チェックアウトに同名の未追跡ファイルがあると「未追跡ファイルが上書きされる」で pull が中断する
-- **より悪いのは、残った未追跡コピーが着手前の古い版であること。** 計画は着手前のスキャンで修正されることがある（M6 では分割線の誤りなど3件を `739a79b` で直した）。主チェックアウトに残るのはその修正が入っていない版なので、**次にそのファイルを開いた人が誤った計画を読む**
+- **マージ後の `git pull` が止まる。** 計画ファイルは追跡対象（各マイルストーンの最初のコミット）なので、主チェックアウトに同名の未追跡ファイルがあると「未追跡ファイルが上書きされる」で pull が中断する
+- **より悪いのは、残った未追跡コピーが着手前の古い版であること。** 計画は着手前のスキャンで修正されることがある。主チェックアウトに残るのはその修正が入っていない版なので、**次にそのファイルを開いた人が誤った計画を読む**
 
 主チェックアウトに計画の未追跡コピーが残ってしまったら、`git show origin/main:<path>` と突き合わせて古い方を消すこと。中身が違うなら、消すべきは未追跡のコピーの方である。
 
@@ -31,7 +31,7 @@ git checkout -- sample-project/ && git clean -fdx sample-project/
 git status --short          # 空になること
 ```
 
-`-x` を付けるのは、`.gitignore` した自動生成物（アプリが置き直す `.claude/` 一式。**その `skills/*/scripts/generated/` は `npm run gen:skills` が作る生成物で、原本は `schemas/` と `src/` の側にある**——M30 より前はここに `npm install` 済みの `node_modules` が入り数百 MB になっていた）も落とすため。**お手本の JSON は追跡対象なので `checkout` が戻す**——`clean` では消えない。
+`-x` を付けるのは、`.gitignore` した自動生成物（アプリが置き直す `.claude/` 一式。その `skills/*/scripts/generated/` は `npm run gen:skills` が作る生成物で、原本は `schemas/` と `src/` の側にある）も落とすため。**お手本の JSON は追跡対象なので `checkout` が戻す。** `clean` では消えない。
 
 **2. マージする**（PR 経由でも `git merge` でも）
 
@@ -43,11 +43,11 @@ git pull
 npm install                 # ← 省略しない
 ```
 
-**`npm install` を飛ばさないこと。** マージが依存を増やしていることがあり（M6 では `@tauri-apps/plugin-clipboard-manager`）、古い `node_modules` のままだと `tsc -b` が「モジュールが見つからない」で落ちる。**このエラーは直前に触った変更のせいに見えるので、原因を誤診する。** 実際 M6 の後に一度踏んだ。
+**`npm install` を飛ばさないこと。** マージが依存を増やしていることがあり、古い `node_modules` のままだと `tsc -b` が「モジュールが見つからない」で落ちる。**このエラーは直前に触った変更のせいに見えるので、原因を誤診する。**
 
 ```
 npm test && npx tsc -b && npm run lint   # ここで緑を確認してから次へ
-(cd src-tauri && cargo test)             # Rust 側（M17 から。npm test には含まれない）
+(cd src-tauri && cargo test)             # Rust 側（npm test には含まれない）
 ```
 
 **4. worktree を消す**
@@ -80,7 +80,7 @@ git worktree list           # 主チェックアウトだけになること
 | 現在の状態 | `docs/open-issues.md` | Claude が着手できる残件の一覧。解消したら消す |
 | 記録 | git のコミットと PR | 経緯はここにだけある。文書には書かない |
 
-**実装計画を書く前に読むもの**: `docs/lessons-for-planning.md`、`docs/open-issues.md`、対象ツールの `docs/<tool>/` の scope。
+**実装計画を書く前に読むもの**: `docs/lessons-for-planning.md`、`docs/open-issues.md`、対象ツールの `docs/<tool>/` の scope または設計ノート。
 
 `rev N章` は `docs/overview-rev.md` の N 章を指す通称。**ファイル名と章番号は動かさない。**
 
