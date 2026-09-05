@@ -221,7 +221,7 @@ export function AliasCell(props: AliasCellProps) {
       >
         {aliases.map((alias, i) => (
           // チップの面は bg-surface だと表の面と同色で消える（テーブルの面が
-          // surface であることが原因。決定2）。bg-canvas ではなく border に
+          // surface になった決定2が原因）。bg-canvas ではなく border に
           // したのは、bg-canvas はサイドバーの選択行（決定17）で
           // 「地の色でへこんで見える＝選択中」の意味に既に使っており、
           // チップは選択状態ではなく単なる項目の区切りなので意味を借用しない
