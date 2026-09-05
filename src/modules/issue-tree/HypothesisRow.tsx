@@ -41,11 +41,11 @@ export interface HypothesisRowProps {
 }
 
 /**
- * 畳まれた仮説1件＝**課題の箱の中の1行**（M3 の文法）。
+ * 畳まれた仮説1件＝**課題の箱の中の1行**。
  *
  * 「点・文言・行末のバッジ」の1行だけを描く。詳細・価値仮説・検証結果・FB は
  * **展開したときにだけ** `HypothesisPanel` が出す。展開はビュー状態であり、
- * ファイルには書かない。**開くのは課題ノードごと**（m5）なので、同じ課題に
+ * ファイルには書かない。**開くのは課題ノードごと**なので、同じ課題に
  * ぶら下がる行は同時に開く。
  *
  * **畳まれた行の `<button>` と、パネルの中の文言の `<textarea>` は同じ
@@ -131,7 +131,7 @@ export function HypothesisRow(props: HypothesisRowProps) {
       <span className="absolute flex items-center justify-end" style={inRow(row.badge)}>
         <Badge variant={badgeVariantOf(group, props.suppressed)}>{BADGE_LABELS[group]}</Badge>
       </span>
-      {/* 「FB待ち」（M22）。**状態のバッジの後に描く**——先に置くと、
+      {/* 「FB待ち」。**状態のバッジの後に描く**——先に置くと、
           行の先頭の `inline-flex` を状態のバッジとして引いている検査が
           黙って別の要素を掴む。抑制された行には立たない（`derive.ts`） */}
       {row.feedbackBadge !== null && (

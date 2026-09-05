@@ -3,7 +3,7 @@ import { type Table, type TableOptions, UNDEFINED_TEXT } from '@/core/table-expo
 import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
 
 /**
- * ロジックツリーの表（モジュール規約8。M29）。
+ * ロジックツリーの表（モジュール規約8）。
  *
  * **階層を列に展開し、葉ごとに1行を出す。** コンサルのロジックツリー表の定番で、
  * 貼ったまま木の形が目で追える。**中間ノードは自分の行を持たない**ので、

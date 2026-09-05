@@ -123,7 +123,7 @@ const ISSUE_TREE_HINTS: readonly KeyHint[] = [
 /** 別枠のチップ。**見送りと解決を同じ形で並べる**——実効は同じ「配下を止める」で、
     意味だけが逆（追わない／答えが出た）なので、**帯のチップとまだ押していない
     トグルは**見た目の系統を分けない。**立った旗のバッジと箱の面は種別で分かれる**
-    ——実機確認で改めた（`FLAG_BADGE_GROUPS` と設計ノート D8）。
+    ——`FLAG_BADGE_GROUPS` と設計ノート D8 を見よ。
     データにも props にも依存しないのでモジュール直下に置く（毎レンダ作り直さない） */
 const FLAG_KINDS: readonly IssueEventKind[] = ['deferred', 'resolved']
 
@@ -134,10 +134,10 @@ const FLAG_KINDS: readonly IssueEventKind[] = ['deferred', 'resolved']
  * 見送り（今回は決めない）。
  *
  * **並びの表を `Record<JudgementKind, number>` にしてあるのは、種別が増えたときに
- * tsc をここで落とすためである。** 以前は `readonly JudgementKind[]` の手書きで、
- * `onHold` をスキーマへ足しても配列は6件のまま何も言わずに通った——
+ * tsc をここで落とすためである。** `readonly JudgementKind[]` の手書きだと、
+ * `onHold` をスキーマへ足しても配列は6件のまま何も言わずに通ってしまい、
  * **スキーマが受け入れる判断を、アプリからは選べない**状態が静かに残る。
- * `EVENT_KIND_LABELS` が `Record<JudgementKind, string>` だから落ちたのと同じ形にする
+ * `EVENT_KIND_LABELS` が `Record<JudgementKind, string>` だから落ちるのと同じ形にする
  */
 const JUDGEMENT_MENU_ORDER: Record<JudgementKind, number> = {
   supported: 1,
@@ -211,7 +211,7 @@ const TRIGGER_BASE =
  * （surface＋rule＋ink-muted、ホバーで canvas）で、幾何はバッジが決める。
  * **まだ押していない面は見送りと解決で分けない**——どちらも「押せる空きの枠」
  * であって、まだ何も表明していないからである。**立ったあとの面は種別で分かれる**
- *（解決＝判断の緑。実機確認で改めた。設計ノート D8）。
+ *（解決＝判断の緑。設計ノート D8）。
  * 幅も同じ理由で `layout.ts` の `slotW` が `badgeWidth`（`actionWidth` ではない）
  * で測っている。**旗の無い箱にはこの面のボタンが2つ並ぶ**ので、あちらは
  * `flagTriggersW` が2つぶん＋`BADGE_GAP` を予約している——片方だけ変えないこと（対で直す）。
@@ -260,9 +260,8 @@ export const CLEAR_JUDGEMENT_LABEL = '取り消す'
  * ネイティブの `select` にしないのは、ブラウザ既定のドロップダウンがキャンバスの
  * transform を無視して出るため（`StepShapeCell` と同じ理由）。
  *
- * **かつては課題の見送りも同じ部品で出していた**（`K extends JudgementKind` の
- * 型引数はそのためにあった）。見送りが `deferred` の1語に畳まれてトグルに
- * なったので、いま使うのは仮説の判断だけである
+ * 見送りは `deferred` の1語に畳まれてトグルになったので、この部品を使うのは
+ * 仮説の判断だけである
  */
 function KindMenu(props: KindMenuProps) {
   // 選んだときだけ Radix の「トリガーへフォーカスを戻す」を降ろす。
@@ -404,7 +403,7 @@ export function IssueTreeEditor({
   const [smallFont, setSmallFont] = useState<CanvasFont>(FALLBACK_SMALL_FONT)
 
   // 判断のドロップダウンは同時に1つだけ開く。**開いているセルの鍵を
-  // 1つだけ持つ**ことで構造的に複数オープンを禁止する（sequence M3 Task 11b）。
+  // 1つだけ持つ**ことで構造的に複数オープンを禁止する。
   // **見送りはここに載らない**——1択のドロップダウンをやめてトグルにしたので、
   // 開閉という状態そのものが無くなった。
 
@@ -440,11 +439,10 @@ export function IssueTreeEditor({
   // 選択中の**課題**の行鍵。**同時に1件だけ**（選ぶと箱が `BOX_WIDTH` →
   // `EXPANDED_BOX_WIDTH` に広がるので、複数開くと図が読めなくなる）。
   //
-  // **選択は箱のクリックで入り、もう一度クリックすると外れる**（m5 の実機確認後。
-  // それまではタイトルの左のシェブロンで開閉していた）。**フォーカスでは選択しない**
+  // **選択は箱のクリックで入り、もう一度クリックすると外れる。** **フォーカスでは選択しない**
   // ——`Tab` でキャンバスを歩くたびに次々と箱が開いて図が動く（設計ノート D8）。
   //
-  // **開くのは課題ノードであって仮説1本ではない**（m5。M3〜m4 は仮説単位だった）
+  // **開くのは課題ノードであって仮説1本ではない**
   // ——開いた課題にぶら下がる仮説はまとめてパネルを持つ。仮説どうしを見比べる
   // 場面で、開くたびに隣が畳まれると比較そのものができないため。
   //
@@ -477,7 +475,7 @@ export function IssueTreeEditor({
   // 読み込みの世代。進んだら実効フォントも読み直す。
   // **最初の1フレームはフォールバック書体のメトリクスで測っている**し、
   // 同梱フォントは unicode-range 分割なので、珍しい字のスライスは
-  // 初入力のとき後から届く（M26）——どちらも世代が進んだ時点で測り直す
+  // 初入力のとき後から届く——どちらも世代が進んだ時点で測り直す
   const fontGeneration = useFontGeneration()
   useEffect(() => {
     readFont()
@@ -780,9 +778,8 @@ export function IssueTreeEditor({
         return focusIssueAt(built.parents[index])
       case 'focus-child':
         return focusIssueAt(built.children[index]?.[0])
-      // **主修飾キー＋Enter はここでは使わない（m5）。** かつては課題セルの
-      // 副操作として仮説を追加していたが、仮説の追加はマウスのボタンへ移った
-      // （Task 6）——空いた `Ctrl+Enter` に別の意味を割り当てない
+      // **主修飾キー＋Enter はここでは使わない。** 仮説の追加はマウスのボタンの
+      // 担当なので、空いた `Ctrl+Enter` に別の意味を割り当てない
       case 'toggle-item-state':
         return false
       case 'cancel':
@@ -806,7 +803,7 @@ export function IssueTreeEditor({
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
       arrowsOwnedByField: false,
-      // M1 には導出表示（検索・フィルタ）が無いので並び替えは常に有効
+      // 導出表示（検索・フィルタ）が無いので並び替えは常に有効
       reorderEnabled: true,
       // 子を持てる構造。Tab＝子課題、←→＝親子移動になる
       hierarchical: true,
@@ -881,7 +878,7 @@ export function IssueTreeEditor({
           - `BODY_FONT_CLASS`（仮説の詳細・価値仮説・根拠・FB。14px / 行間 1.5）
           - `SMALL_FONT_CLASS`（節見出し・バッジ。14px / 行間 1.3）
 
-          M26 で `BODY` と `SMALL` はサイズが 14px に並んだが行間が違う（1.5 と 1.3）
+          `BODY` と `SMALL` はサイズが 14px で揃うが行間が違う（1.5 と 1.3）
           ので、1本を両方に使い回すと片方の高さを見誤る */}
       <span
         ref={titleProbeRef}
@@ -946,7 +943,7 @@ export function IssueTreeEditor({
               **文言は `tallyLine` と同じ言葉**（`toMissingTally` が
               `QUESTION_LABELS` から組み立てる）を出す。`tallyLine` 自体は
               消していない（Skill の報告が使う）。
-              帯そのものは共通部品 `MissingTally`（M22）——合計・0件チップ非表示・
+              帯そのものは共通部品 `MissingTally`——合計・0件チップ非表示・
               `whitespace-nowrap` は部品側が担う。**`as OpenKind` は
               `toMissingTally` の kind が `OpenKind` の4語（'hypothesis' |
               'result' | 'hold' | 'feedback'）と同じであることに依る** */}
@@ -964,7 +961,7 @@ export function IssueTreeEditor({
               ——見送り＝`surface-muted` の面・`rule` の枠・`ink-muted` の文字、
               解決＝判断の緑。**写像を2箇所に書かないこと**——ここを
               `badgeClass('deferred')` の決め打ちに戻すと、**同じ「解決」の語が
-              帯では灰・箱では緑**になる（m5 の実機確認まで実際にそうだった）。
+              帯では灰・箱では緑**になる。
               `IssueTreeEditor.dom.test.tsx` の「帯の別枠チップと箱のバッジは
               同じ面を出す」が両側から見ている。
 
@@ -992,7 +989,7 @@ export function IssueTreeEditor({
         </div>
       </div>
 
-      {/* 背景レイヤ（M1 は空。3レイヤが同一の transform を共有することを保つ枠） */}
+      {/* 背景レイヤ（空。3レイヤが同一の transform を共有することを保つ枠） */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 origin-top-left"
@@ -1055,7 +1052,7 @@ export function IssueTreeEditor({
                   onChange(setIssueEventNote(data, index, next), `${key}:event`)
                 }
                 onFieldKeyDown={(e, state) => onIssueKeyDown(e, index, state)}
-                // 選択は**課題ノード単位**（m5 実機確認後）。選ばれているか・
+                // 選択は**課題ノード単位**。選ばれているか・
                 // 開いているかは `placement` が運ぶので、ここでは押されたことだけを渡す
                 //（`IssuePlacement.expanded` ＝「開いているか」の唯一の出所）
                 onSelect={(toggle) => selectIssue(key, toggle)}
@@ -1119,7 +1116,7 @@ export function IssueTreeEditor({
                       //（同じ場所に2つ置かない）。**バッジの群は旗の種別から引く**
                       //（`FLAG_BADGE_GROUPS`。解決＝判断の緑 `yes`／見送り＝`deferred`）
                       //——ここを `'deferred'` の決め打ちに戻すと、解決の旗が
-                      // 見送りの見た目で描かれる（実機確認で見つかった欠陥）。
+                      // 見送りの見た目で描かれる。
                       // **抑制された配下では種別によらず `faint` へ落ちる**
                       //（`badgeVariantOf` の第2引数。種別より「いま作業する面ではない」が勝つ）。
                       // 幅はレイアウトが `badgeWidth(ISSUE_EVENT_LABELS[kind])` で空けている

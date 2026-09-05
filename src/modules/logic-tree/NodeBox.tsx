@@ -28,7 +28,7 @@ export interface NodeBoxProps {
  */
 export function NodeBox(props: NodeBoxProps) {
   // 無効は `invalid` の枠＋淡い面（rev 9章 規約2）。欠落（text が空）は
-  // 破線＋淡い面（missing-face。M22）——**invalid が勝つ**（両方立つのは
+  // 破線＋淡い面（missing-face）——**invalid が勝つ**（両方立つのは
   // 空ノードが指摘の対象にもなっているとき）
   const face = props.invalid
     ? 'border-invalid bg-invalid-face'

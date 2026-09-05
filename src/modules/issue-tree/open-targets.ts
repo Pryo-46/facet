@@ -134,7 +134,7 @@ export function nextOpenTarget(
 }
 
 /**
- * 「次の旗へ」の巡回列（帯のグレーのチップの行き先。M25 D17）。
+ * 「次の旗へ」の巡回列（帯のグレーのチップの行き先。rev 9章 D17）。
  *
  * **その旗を掲げた課題**だけが行き先で、配下（抑制）は入らない。条件は
  * `issueEventCount`（derive.ts）と同じ `latestKind` から引く——チップの
