@@ -10,10 +10,9 @@ export interface FieldState {
 
 /**
  * 折り返しの上限。これを超えたらセル内スクロールに切り替わる。
- * M8 は5行で確定したが、エラーカタログ（M10 決定17）が8列を1440pxの窓に
- * 並べると1列170px前後になり、日本語で1行11文字・5行で55文字が上限になる。
- * 対応文の多くが内部スクロールに落ちるため8行へ上げた（88文字まで表示できる）。
- * 行の高さが揃わなくなるが、読めないよりよい。
+ * エラーカタログが8列を1440pxの窓に並べると1列170px前後になり、日本語で
+ * 1行11文字・5行で55文字が上限になる。対応文の多くが内部スクロールに落ちるため
+ * 8行にしている（88文字まで表示できる）。行の高さが揃わなくなるが、読めないよりよい。
  * **全モジュール共通の値**なので、用語集の定義・備考セルも8行まで伸びる
  */
 const MAX_ROWS = 8
@@ -37,7 +36,7 @@ export interface CellInputProps {
    *
    * **名称・別名は false のままにすること。** input はブラウザ既定で改行を
    * 含むペーストから改行を落とすので、「名称に改行が入って Markdown の
-   * 見出しと表が壊れる」経路が構造的に塞がる（M8 決定4）
+   * 見出しと表が壊れる」経路が構造的に塞がる
    */
   multiline?: boolean
   placeholder?: string
@@ -104,8 +103,7 @@ export function CellInput(props: CellInputProps) {
 
   /**
    * 内容に合わせて行数を決める。**ピクセルの max-height を書かない**ので、
-   * フォントサイズや行間（複数行の欄は M23 で 16px・1.5、M26 で 14px・1.5）を
-   * 変えても自動で追従する。
+   * フォントサイズや行間を変えても自動で追従する。
    *
    * **jsdom はレイアウトを持たない**（scrollHeight が常に 0、lineHeight は
    * 空文字）。そこで抜けないと rows={NaN} を React へ渡すことになるため、
@@ -113,9 +111,9 @@ export function CellInput(props: CellInputProps) {
    *
    * 関数として括り出してあるのは、内容が変わったとき（値の変化）だけでなく
    * **幅が変わったとき**にも呼び直す必要があるため（下の ResizeObserver）。
-   * 列幅ドラッグや窓リサイズで折り返しに必要な行数が変わっても元の実装は
-   * 依存配列に幅を持たず再計算しなかった。既定の overflow: auto で
-   * はみ出た行が隠れ、「入れたはずの行が消えた」ように見えていた
+   * 列幅ドラッグや窓リサイズで折り返しに必要な行数が変わっても、依存配列に
+   * 幅を持たないと再計算されない。既定の overflow: auto で
+   * はみ出た行が隠れ、「入れたはずの行が消えた」ように見える
    */
   const measure = () => {
     const el = areaRef.current
@@ -143,9 +141,9 @@ export function CellInput(props: CellInputProps) {
   }, [draft, value, multiline, autoSize])
 
   /**
-   * 幅の変化に反応する。列幅ドラッグ（M8 決定8〜10）で定義・備考列が
-   * 狭まったとき、あるいは窓リサイズで定義列が縮んで吸収したとき
-   * （M8 決定9）、textarea 自身の幅が変わる。ResizeObserver で
+   * 幅の変化に反応する。列幅ドラッグで定義・備考列が
+   * 狭まったとき、あるいは窓リサイズで定義列が縮んで吸収したとき、
+   * textarea 自身の幅が変わる。ResizeObserver で
    * それを直接検知する——値の変化を見る上の effect では幅の変化は拾えない
    *
    * **multiline のときだけ張る。** 単一行の <input> は折り返さないので
@@ -169,7 +167,7 @@ export function CellInput(props: CellInputProps) {
   }, [multiline, autoSize])
 
   /**
-   * 遅延スライスの到着（M26）。同梱フォントは unicode-range 分割なので、
+   * 遅延スライスの到着。同梱フォントは unicode-range 分割なので、
    * 珍しい字を打った直後はフォールバック書体で折り返しが決まり、
    * スライスが届いた瞬間に必要行数が変わり得る。値も幅も変わらないので
    * 上の 2 つの effect はどちらも拾えない——loadingdone だけが契機になる。
@@ -229,12 +227,12 @@ export function CellInput(props: CellInputProps) {
       onFieldKeyDown?.(e, {
         empty: el.value === '',
         // 折り返しの途中では caretAtStart / caretAtEnd が false になるので、
-        // ↑↓ は操作言語に取られずブラウザの行内移動が生きる（M8 決定4）。
+        // ↑↓ は操作言語に取られずブラウザの行内移動が生きる。
         //
         // **選択範囲があるときは両方 false になる（＝行間移動に1打鍵余分に要る）。
         // これは仕様である**——Excel をはじめ表形式の入力欄は同じ挙動で、
         // 「選択したまま矢印でセルを移る」を許すと選択の解除と移動の
-        // どちらを意図したのか判別できない（M8 で残件から落とした）
+        // どちらを意図したのか判別できない
         caretAtStart: el.selectionStart === 0 && el.selectionEnd === 0,
         caretAtEnd:
           el.selectionStart === el.value.length && el.selectionEnd === el.value.length,

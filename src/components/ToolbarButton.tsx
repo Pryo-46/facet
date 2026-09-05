@@ -12,7 +12,7 @@ export interface ToolbarButtonProps {
 
 /**
  * 「このツールは対応していません」——ツールが宣言していない出力・交換に
- * 共通の理由（M29 フォローアップのレビュー指摘）。**ボタンの label が
+ * 共通の理由。**ボタンの label が
  * 「何を」に当たるので、理由の中で繰り返さない**（`表形式でコピー` ボタンに
  * わざわざ「表形式コピーに対応していません」と言い直さない）。3箇所で
  * 別々の文言だったものを1本化した——分かれていると、直すときに1箇所
@@ -22,9 +22,8 @@ export interface ToolbarButtonProps {
 export const UNSUPPORTED_REASON = 'このツールは対応していません'
 
 /**
- * 額縁の出力ボタン（ExportMenu・表形式でコピー・Miro 交換）の共通の土台
- *（M29 フォローアップ。人間が実機を触って「どのボタンがいま使えるのか、
- * なぜ押せないのかが分からない」と指摘したことに端を発する）。
+ * 額縁の出力ボタン（ExportMenu・表形式でコピー・Miro 交換）の共通の土台。
+ * 「どのボタンがいま使えるのか、なぜ押せないのか」を画面で答えるための部品。
  *
  * **`disabled` 属性を使わない。** ブラウザは `disabled` な要素からポインタ
  * イベントを丸ごと落とすため、`:hover` を起点にする `title` のツールチップが
@@ -40,8 +39,7 @@ export const UNSUPPORTED_REASON = 'このツールは対応していません'
  * `dark:border-input` を内蔵しており、`border-input` と `border-rule-muted` の
  * ダーク値は別の変数（`--input` は `--rule` 相当、`--rule-muted` はそれより
  * 明確に暗い。`src/styles/palette.css`）を指すため、暗いテーマでは `dark:` 側を
- * 名指しで上書きしないと `border-rule-muted` を書いた意味が消える
- *（レビュー指摘。M27 の暗い配色を回さずに気付けなかった）。
+ * 名指しで上書きしないと `border-rule-muted` を書いた意味が消える。
  *
  * ホバーで見た目が変わらないようにする。**important 修飾（`!`）は使わない。**
  * `Button` は `cn()`（`src/lib/utils.ts` の `twMerge(clsx(...))`）でクラスを
@@ -54,7 +52,7 @@ export const UNSUPPORTED_REASON = 'このツールは対応していません'
  * `dark:hover:bg-input/50` をクラス一覧から消し去るので、生成 CSS 側で
  * 特異性を争う場面がそもそも生まれない。**`!` を付けると twMerge はそれを別グループ
  * として重複排除の対象から外してしまい**、負けるはずの `hover:bg-muted` 等が
- * 死んだクラスとして残ってしまう（レビュー指摘。実際に `tailwind-merge` を
+ * 死んだクラスとして残ってしまう（実際に `tailwind-merge` を
  * 通して確かめた）。**modifier チェーンが完全一致しない組は、twMerge には
  * 重複と見えない**——bare の `border-rule-muted` と `dark:border-input` は
  * チェーンが違う（無し vs `dark:`）ので消し合わず、両方生き残ってしまう。

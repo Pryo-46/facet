@@ -10,10 +10,9 @@ import type { TerminalSession } from '@/core/terminal/sessions'
 /**
  * 端末タブ1本。xterm 1個と PTY 1本が対応する。
  *
- * **面・文字・カーソル・選択は常にダーク固定**（M28 実機確認）。端末は
+ * **面・文字・カーソル・選択は常にダーク固定。** 端末は
  * facet の面ではなく「端末の面」で、ライトのアプリの中でも黒いままの方が
- * 読みやすいという人間の判断——M17 の「端末も facet の役割トークンに
- * 合わせる」を反転した。色そのものの出所は変えない——`palette.css` の
+ * 読みやすい。色そのものの出所は変えない——`palette.css` の
  * `.dark` が持つ値を実行時に読んで変換する（`src/core/terminal/theme.ts`。
  * conventions.test.ts）。**ANSI の16色は xterm の既定のまま**で、
  * 読みやすさは `minimumContrastRatio` に任せる（理由は theme.ts）
@@ -26,7 +25,7 @@ export interface TerminalTabProps {
   /** 畳んでいる／非アクティブ。**アンマウントはしない**（設計 決定6） */
   hidden: boolean
   /**
-   * 動いているタブへの差し込み指示（M28）。**`seq` が変わったときだけ**流す。
+   * 動いているタブへの差し込み指示。**`seq` が変わったときだけ**流す。
    * `seq` は App が持つ単調増加の連番で、同じ指示が二度実行されないための鍵。
    *
    * **`text` を effect の依存に入れないこと**——同じファイルを続けて2回渡す
@@ -36,7 +35,7 @@ export interface TerminalTabProps {
   /** コピー／貼り付けの口。**額縁が注入する**（コンポーネントは `@/fs/` を知らない） */
   clipboardIo: ClipboardIo
   /**
-   * セッションを殺さない失敗の通知先（M28。App のトーストへ出る）。
+   * セッションを殺さない失敗の通知先（App のトーストへ出る）。
    * **`session.message` を使わないこと**——あれは `exited` / `failed` の欄で、
    * コピーの失敗でタブを死んだ扱いにしてはいけない
    */
@@ -51,9 +50,9 @@ export interface TerminalTabProps {
 const SHIFT_ENTER_SEQUENCE = `${String.fromCharCode(27)}\r`
 
 /**
- * 差し込み（M28）を流すまでの「静穏」判定に使う時間（ミリ秒）。
+ * 差し込みを流すまでの「静穏」判定に使う時間（ミリ秒）。
  *
- * 実機の診断で確定した事実: `claude` は raw mode の初期化の一環として
+ * `claude` は raw mode の初期化の一環として
  * REPL の入力欄を作るより**前**に DECSET 2004（bracketed paste mode）を
  * 有効にする。つまり 2004 を見た瞬間は「貼り付けを受け付ける準備ができた」
  * ではなく、単に「端末の設定を済ませた」に過ぎない。2004 を見た後、
@@ -79,7 +78,7 @@ export const INSERTION_MAX_WAIT_MS = 8000
 const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err))
 
 /**
- * 端末の配色を**ダーク側の役割トークン固定**で作る（M28 実機確認）。
+ * 端末の配色を**ダーク側の役割トークン固定**で作る。
  * `palette.css` は `.dark` クラスでダーク値を再定義しており、カスタム
  * プロパティは継承するので、`.dark` を付けた要素からは、アプリがライトの
  * ときでもダーク側の値が読める。読む先は非表示の使い捨て要素——`document.body`
@@ -142,12 +141,11 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   const pendingFontRef = useRef<string | null>(null)
 
   /**
-   * まだ差し込んでいない保留の列（M28）。**実機で末尾のスペースが消える
-   * 不具合の修正**——spawn 解決直後は claude の TUI がまだ立ち上がっておらず、
+   * まだ差し込んでいない保留の列。spawn 解決直後は claude の TUI がまだ立ち上がっておらず、
    * xterm が貼り付けを囲む条件（DECSET 2004 = bracketed paste mode）を
    * 満たさない。
    *
-   * **2004 を見ただけでも足りない**（実機診断で確定。`INSERTION_QUIET_MS`
+   * **2004 を見ただけでも足りない**（`INSERTION_QUIET_MS`
    * のコメント参照）。ここでは差し込まず、2004 を見た後に出力が
    * `INSERTION_QUIET_MS` 途切れる（＝静穏＝描き終えて入力待ちになった）まで
    * 待ってから差し込む（下の起動 effect の onData）。`INSERTION_MAX_WAIT_MS`
@@ -155,7 +153,7 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
    *
    * **起動時の差し込み（`session.initialText`）だけでなく、まだ流していない
    * 間に押された `insertion`（@ ボタン／ドロップ）もここへ積む。**
-   * 差し込み口を1本にする M28 の設計に合わせ、待ち合わせも1箇所に揃える
+   * 差し込み口を1本にする設計に合わせ、待ち合わせも1箇所に揃える
    * （下の insertion effect）。先頭が `initialText`、その後ろに押された順で
    * `insertion` が並ぶ
    */
@@ -408,7 +406,7 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
         const queued = pendingRef.current
         pendingRef.current = []
         for (const data of queued) send(data)
-        // 起動時の差し込み（M28）は上の onData が「2004 を見て、かつ静穏」の
+        // 起動時の差し込みは上の onData が「2004 を見て、かつ静穏」の
         // 合図を見て流す。**ここでは差し込まない**——ここは claude の TUI が
         // 立ち上がるより前で、囲まれずに1文字ずつ打たれたのと同じに見える
         // （@ のファイル検索が末尾のスペースを候補の確定として食う）。
@@ -488,7 +486,7 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   }, [])
 
   /**
-   * 動いているタブへの差し込み（M28）。
+   * 動いているタブへの差し込み。
    *
    * **`lastInsertedRef`（消化済みの `seq` を覚える重複排除の ref）の宣言と、
    * マウントを跨ぐ危険についての注記は上（起動 effect の直前）。** ここでは
@@ -572,7 +570,7 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
   }, [ptyIo])
 
   /**
-   * 端末の中の右クリック（M28）。**メニューは出さず1動作で済ませる**
+   * 端末の中の右クリック。**メニューは出さず1動作で済ませる**
    *（Windows Terminal と同じ作法）。選択があればコピーして選択を解除、
    * 無ければ貼り付ける。
    *

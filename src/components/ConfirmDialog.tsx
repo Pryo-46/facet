@@ -25,11 +25,10 @@ export interface ConfirmDialogProps {
  *
  * **開いている間は呼び出し側が KeyContext.modalOpen を true にすること。**
  * 操作言語を止めないと、Esc をダイアログとエディタで取り合う（rev 10章の
- * 境界規則。M3 で resolveCommand に配線点を作ってある）。
+ * 境界規則。resolveCommand に配線点を作ってある）。
  *
  * 用語の削除に確認は挟まない（rev 5章。会議中の入力速度を削ぐため）。
  * 確認するのは「ファイルの削除」など、Undo で取り消せない操作だけ。
- * 見た目は shadcn の既定トークンのままで、役割トークンへの寄せは M7
  *
  * `description` は改行を含みうる（出力前の確認が指摘を箇条書きで並べる）。
  * `<p>` は既定で改行を潰すので `whitespace-pre-line` を当てている

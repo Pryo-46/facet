@@ -100,7 +100,7 @@ const SOME_PTY_OUTPUT = new Uint8Array([0x61])
  * modes を読むので、モードを立てるだけでは足りず、出力を流して
  * callback を発火させる必要がある。
  *
- * **これだけでは流れない**（M28修正の核心）。2004 を検出しても静穏タイマーが
+ * **これだけでは流れない。** 2004 を検出しても静穏タイマーが
  * 動き出すだけで、`INSERTION_QUIET_MS` 経つまで `term.paste()` は呼ばれない。
  * 「もう流し終えた」状態まで進めたいテストは `enableBracketedPasteAndSettle`
  * を使う
@@ -136,7 +136,7 @@ function fakeClipboard(text = '') {
 
 /**
  * 既定の props を1箇所に集める。**props が増えるたびに全テストを触らずに済む**
- * ようにするため（M28 で insertion / clipboardIo / onError が増える）。
+ * ようにするため（insertion / clipboardIo / onError が増える）。
  * `rerender` するテストは、この戻り値を展開してから差分だけ上書きする
  */
 function tabProps(over: Partial<TabProps> & { ptyIo: PtyIo }): TabProps {
@@ -551,8 +551,8 @@ describe('TerminalTab', () => {
   })
 
   it('アンマウント後に term.onData 経由の書き込みが遅れて失敗しても onFailed は呼ばれない（disposed で守る）', async () => {
-    // レビュー指摘: term.onData の中の write().catch() が disposed で
-    // 守られていなかった。書き込みが「アンマウント後に」失敗する経路を、
+    // term.onData の中の write().catch() は disposed で守る必要がある。
+    // 書き込みが「アンマウント後に」失敗する経路を、
     // write() の解決を手元で握って再現する
     const pty = fakePty()
     let rejectWrite: (err: unknown) => void = () => undefined
@@ -604,7 +604,7 @@ describe('TerminalTab', () => {
   })
 
   it('StrictMode で捨てられた側の Shift+Enter ハンドラの書き込みが失敗しても onFailed は呼ばれない（生き残った側は呼ばれる）', async () => {
-    // レビュー指摘: attachCustomKeyEventHandler は起動 effect の中で無条件に
+    // attachCustomKeyEventHandler は起動 effect の中で無条件に
     // 呼ばれるため、StrictMode の二重マウントで2回登録される。ptyIdRef は
     // コンポーネント本体の useRef で両方の effect クロージャから共有されて
     // いるので、捨てられた側のハンドラが発火しても書き込み先は「生き残った
@@ -651,7 +651,7 @@ describe('TerminalTab', () => {
 
   it('起動待ちの間に打った入力を捨てず、spawn の解決後に打った順で送る', async () => {
     // `term.onData` の登録が spawn の解決後だと、ここで打った文字はどこにも
-    // 届かない（M11 の残件「起動待ちの間に端末へ打った入力が無音で消える」）。
+    // 届かない（起動待ちの間に端末へ打った入力が無音で消える）。
     // spawn の解決をテストから握って、その窓を作る
     const writes: Array<[number, string]> = []
     let release: () => void = () => undefined
@@ -721,8 +721,8 @@ describe('TerminalTab', () => {
     expect(writes).toEqual([`${String.fromCharCode(27)}\r`])
   })
 
-  describe('起動時の差し込み（M28 実機修正: 2004 かつ出力が静まってから流す）', () => {
-    // 実機の診断で確定した事実: xterm が貼り付けを ESC[200~ … ESC[201~ で
+  describe('起動時の差し込み（2004 かつ出力が静まってから流す）', () => {
+    // xterm が貼り付けを ESC[200~ … ESC[201~ で
     // 囲むのはアプリが DECSET 2004（bracketed paste mode）を送った後だけ
     // ——ここまでは正しかった。だが `claude` は raw mode の初期化の一環として
     // REPL の入力欄を作るより**前**に 2004 を有効にするため、2004 を見た
@@ -734,10 +734,10 @@ describe('TerminalTab', () => {
     // 静穏が来なければ、待たずに流す（保留し続けるのが一番悪い）。
     //
     // **判定は xterm のパーサ任せ**（term.modes.bracketedPasteMode）。
-    // 以前は PTY の生バイト列から ESC[?2004h を自前で探していたが、
-    // 実機では DEC private mode がアプリによって `CSI ? 1049 ; 2004 h` の
-    // ようにまとめて送られることがあり、リテラル一致では取り逃がして
-    // いた（起動時の差し込みが行われない不具合の原因）。
+    // PTY の生バイト列から ESC[?2004h を自前で探すと、実機では DEC private
+    // mode がアプリによって `CSI ? 1049 ; 2004 h` のようにまとめて送られる
+    // ことがあり、リテラル一致では取り逃がす（起動時の差し込みが行われない
+    // 不具合の原因になる）。
 
     it('bracketedPasteMode が false のまま PTY 出力が来ても差し込まれない', async () => {
       const pty = fakePty()
@@ -749,9 +749,9 @@ describe('TerminalTab', () => {
       expect(term.paste).not.toHaveBeenCalled()
     })
 
-    // **ここが今回の修正の核心。** 2004 を見ただけ（静穏を待つ前）では
-    // 流れないことを主張する。以前はここで即座に term.paste() が呼ばれて
-    // いたが、それが「呼ばれているのに入力欄に残らない」不具合の原因だった
+    // **2004 を見ただけ（静穏を待つ前）では流れない。** 即座に
+    // term.paste() を呼ぶと、「呼ばれているのに入力欄に残らない」
+    // 不具合の原因になる
     it('bracketedPasteMode が true になっただけでは流れない', async () => {
       const pty = fakePty()
       renderTab({ ptyIo: pty.io, session: session({ initialText: '@docs/a.json ' }) })
@@ -950,7 +950,7 @@ describe('TerminalTab', () => {
       // 上のテストは onExit（PTY 側の自然終了）を突く。上限が最大
       // INSERTION_MAX_WAIT_MS（8秒）ある以上、待っている最中にタブを閉じる
       // ／フォルダを切り替える（＝cleanup が走る）方が実機で最も踏まれやすい
-      // 経路だが、対応するテストが無かった（最終レビュー指摘）
+      // 経路である
       const pty = fakePty()
       vi.useFakeTimers()
       const { unmount } = renderTab({
@@ -1087,7 +1087,7 @@ describe('TerminalTab', () => {
   })
 })
 
-describe('端末の配色（M28: ダーク固定）', () => {
+describe('端末の配色（ダーク固定）', () => {
   /**
    * jsdom は `palette.css` を読まないので `getPropertyValue` は空文字を返す。
    * `TerminalTab` は `.dark` を付けた使い捨て要素から読むので、その要素への

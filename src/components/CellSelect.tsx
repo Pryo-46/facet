@@ -19,13 +19,13 @@ export interface CellSelectProps {
   className: string
   /**
    * セルの操作言語（Tab・Alt+↑↓ 等）。**素の ↑↓ はこの部品が消費し、
-   * ここへは渡らない**——部品が意味を与えた打鍵は親へ渡さない（sequence M1 の教訓）
+   * ここへは渡らない**——部品が意味を与えた打鍵は親へ渡さない
    */
   onKeyDown?: (e: React.KeyboardEvent<HTMLButtonElement>) => void
 }
 
 /**
- * テーブルセルの選択肢（ネイティブ `<select>` の置換。M25 決定4・rev 9章）。
+ * テーブルセルの選択肢（ネイティブ `<select>` の置換。rev 9章）。
  *
  * ネイティブをやめたのは**開いたときのリストが OS 描画で styled にできない**ため
  * （閉じた見た目は appearance-none で既にカスタムだった）。開閉は `KindMenu`
