@@ -13,7 +13,7 @@ import { extractImportStatements, isValueImportStatement } from '../src/core/imp
  * バイト一致するかはズレようがない。見るのは「**変換が壊れていないか**」
  * である——生成物が実際に動き、アプリ側と同じ結果を返すこと。
  *
- * **網羅の強制はここへ引き継いだ**（旧 `skill-canonical-copy.test.ts`）。
+ * **網羅の強制はここで持つ。**
  * `SKILL_SOURCES` は手書きの表で、`BUNDLED_SKILLS` から導出していない
  * ——導出すると恒真式になり何も縛らない。**6本目の Skill を足した人が
  * 表に足し忘れると、ここが赤くなる。**

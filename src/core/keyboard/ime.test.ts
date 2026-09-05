@@ -19,7 +19,7 @@ describe('isCompositionTail', () => {
   })
 
   /**
-   * WKWebView の実測（2026-08-15）では、compositionend の**後**に届いた
+   * WKWebView の実測では、compositionend の**後**に届いた
    * 確定の keydown の timeStamp が **20ms 古かった**——WebKit は keydown に
    * ネイティブイベント本来の時刻を、compositionend にはディスパッチ時刻を
    * 刻むため。**「後に届いたのだから時刻も後」と決めつけないこと**

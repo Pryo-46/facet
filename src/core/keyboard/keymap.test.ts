@@ -294,7 +294,7 @@ describe('toKeyEventLike', () => {
   })
 
   /**
-   * WKWebView の実測（2026-08-15）。変換を確定した Enter は
+   * WKWebView の実測。変換を確定した Enter は
    * `isComposing: false` で来るが `keyCode` は 229 のままだった:
    *
    *   11 compositionend
