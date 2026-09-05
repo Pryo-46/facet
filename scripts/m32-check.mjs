@@ -1,6 +1,6 @@
 // M32 の機械検査。worktree の直下で `node scripts/m32-check.mjs [candidates|code] [paths...]` と呼ぶ。
 //   candidates: 経緯の語を含む行を列挙する（HARD は最終的に 0 行、soft は目視で判断）
-//   code:       origin/main との差分のうち、コメントとテスト名以外に変更が無いことを確かめる
+//   code:       origin/main との差分のうち、コメント・テスト名・テンプレート文字列のメッセージ以外に変更が無いことを確かめる
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 
@@ -53,6 +53,7 @@ if (mode === 'code') {
       .map((l) => l.trim())
       .filter((l) => l !== '')
   const TEST_TITLE = /^(describe|it|test)(\.(each|skip|only|todo))?\(/
+  const blankTemplates = (l) => l.replace(/`[^`]*`/g, '``')
   const changed = vcs('diff', '--name-only', 'origin/main', '--', ...targets)
     .split('\n')
     .filter((f) => f && f !== SELF && EXT.test(f))
@@ -82,6 +83,7 @@ if (mode === 'code') {
     for (let i = 0; i < before.length; i++) {
       if (before[i] === after[i]) continue
       if (TEST_TITLE.test(before[i]) && TEST_TITLE.test(after[i])) continue
+      if (blankTemplates(before[i]) === blankTemplates(after[i])) continue
       console.log(`BAD  ${f}: コード行が変わっている\n     ${before[i]}\n   → ${after[i]}`)
       bad++
     }

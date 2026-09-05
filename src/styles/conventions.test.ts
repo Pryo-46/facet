@@ -119,7 +119,7 @@ describe('フォントサイズの段階（3サイズ4段）', () => {
     const offenders = offendingLines(/\btext-(xs|lg|[2-9]xl)\b|\btext-\[[^\]]*\]/)
     expect(
       offenders,
-      `使ってよいのは text-sm / text-base / text-xl の3段（複数行は text-sm + leading-normal。M26 で 16px から下げた）:\n${offenders.join('\n')}`,
+      `使ってよいのは text-sm / text-base / text-xl の3段（複数行は text-sm + leading-normal）:\n${offenders.join('\n')}`,
     ).toEqual([])
   })
 })
@@ -144,7 +144,7 @@ describe('役割トークンの使い方（rev 9章）', () => {
     const offenders = offendingLines(
       /\b(?:[a-z-]+:)?(bg|text|border|ring|outline|stroke|fill|decoration|placeholder|divide)-(warning|warning-fg|ok|ok-fg|surface-accent)\b/,
     )
-    expect(offenders, `M21 で消えたトークン。missing / invalid / pending / judge-* / surface-muted に振り分けること:\n${offenders.join('\n')}`).toEqual([])
+    expect(offenders, `廃止したトークン。missing / invalid / pending / judge-* / surface-muted に振り分けること:\n${offenders.join('\n')}`).toEqual([])
   })
 
   it('欠落・無効・着信の面は淡い面（bg-*-face）だけ。線色そのものを面にしない', () => {
@@ -221,7 +221,7 @@ describe('角丸の段', () => {
     }
     expect(
       offenders,
-      `角丸は rounded-sm（部品）/ rounded-md（浮遊面）/ rounded-full（円）だけ（M25 決定5）:\n${offenders.join('\n')}`,
+      `角丸は rounded-sm（部品）/ rounded-md（浮遊面）/ rounded-full（円）だけ:\n${offenders.join('\n')}`,
     ).toEqual([])
   })
 })
