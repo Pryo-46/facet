@@ -271,7 +271,7 @@ export const ACHROMATIC_MAX_C = 0.01
  * `oklch(L C H)` は sRGB より広いので、C を上げすぎた値はブラウザ（と
  * `oklchToLinear`）が sRGB へクランプする。クランプされてもコントラストも
  * ΔE も通るため、「C 0.12 の黄土」と書いたまま 0.102 の色が出ている状態を
- * 誰も見つけられない——ライトの `missing` が実際にそうだった。
+ * 誰も見つけられない——ライトの `missing` がこれを踏む。
  * 往復（oklch → 線形 sRGB → oklch）で C が戻るかどうかで見る
  */
 export const GAMUT_MAX_C_DRIFT = 0.005

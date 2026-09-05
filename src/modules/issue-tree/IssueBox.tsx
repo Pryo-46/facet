@@ -99,7 +99,7 @@ export interface IssueBoxProps {
  *    （当人＝実線／配下＝faint）が運ぶ。**見送りと解決は面を分ける**
  *    ——見送りは `bg-surface-muted`、解決は `bg-judge-yes-face`（淡い緑）。
  *    分ける理由は「一目で『解決方針が決まった課題』＝これ以上考えなくてよい
- *    とわかる」こと。**祖先由来の抑制が勝つ優先順位は動いていない**
+ *    とわかる」こと。**祖先由来の抑制が勝つ**
  *    ——祖先が旗を掲げている配下は、自分が解決でも `bg-surface-muted` ＋
  *    `ink-faint` に落ちる（下の `face` の分岐で `suppressed` が上にある）。
  *    枠はどちらも `border-rule`（`rule` は両方の面の上で 3:1 を満たす。

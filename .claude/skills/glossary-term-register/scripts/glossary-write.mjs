@@ -186,7 +186,7 @@ if (targetPath) {
     let other;
     try { other = JSON.parse(fs.readFileSync(p, "utf8")); } catch { continue; }
     if (other?.type === "glossary") {
-      warnings.push(`用語集の単一性違反: 同じフォルダに別の用語集 ${f} があります。どちらを正とするかは人間の判断です`);
+      warnings.push(`用語集の単一性違反: 同じフォルダに別の用語集 ${f} があります。どちらを正とするかはここでは決めません`);
     }
   }
   // 改行コードの担保（プロジェクト雛形の責務だが、雛形が無い場合に備えて気づけるようにする）

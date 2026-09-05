@@ -327,8 +327,8 @@ export const ISSUE_EVENT_LABELS: Record<IssueEventKind, string> = {
  * **見送りと解決は別々に数える。** 実効（配下を抑制する）は同じでも意味は逆で、
  * 「追わないもの」と「答えが出たもの」が1つの数に混ざると台帳として読めない。
  *
- * **配下に眠る凍結中の問いの数は導出しない**——出す画面が無い（人間の裁定。
- * 別枠は件数だけ）。必要が出たら poseQuestions を抑制なしで回す形で足せる
+ * **配下に眠る凍結中の問いの数は導出しない**——出す画面が無い（別枠は件数だけ）。
+ * 必要が出たら poseQuestions を抑制なしで回す形で足せる
  */
 export function issueEventCount(
   issues: readonly Pick<IssueNode, 'events'>[],

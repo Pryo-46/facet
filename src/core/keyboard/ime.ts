@@ -6,8 +6,7 @@
  * 仕様では、変換を確定した Enter の keydown は `isComposing === true` で来る。
  * ところが **WebKit は composition 系のイベントを keydown より先に投げる**ため、
  * 確定した瞬間には既に変換が終わったことになっており、その Enter は
- * `isComposing === false` で届く（WebKit bug 165004。2016年の報告から
- * 2026年に main で直るまで開いていた）。
+ * `isComposing === false` で届く（WebKit bug 165004）。
  *
  * これは macOS の WKWebView と Linux の WebKitGTK ——つまり Windows 以外の
  * facet 全部——に効く。Windows（WebView2＝Chromium）だけが仕様どおりなので、

@@ -70,11 +70,11 @@ class FakeResizeObserver {
     FakeResizeObserver.instances.push(this)
   }
   // **実物の ResizeObserver は observe() を呼んだ時点で初回通知を1回自動で
-  // 発火する**（対象の現在の寸法で）。このフェイクがそれを模していなかった
-  // ため、「fit() は済んでいるが起動直後の pty_resize がまだ実寸で1回も
-  // 飛んでいない」という穴を、既存のテストが誰も踏まずに素通りしていた
-  // （指摘1）。jsdom の要素は getBoundingClientRect が既定で 0 を返すため、
-  // ここでの自動発火は通常 0x0 になり、寸法 0 のガードに素直に吸収される
+  // 発火する**（対象の現在の寸法で）。このフェイクがそれを模していないと、
+  // 「fit() は済んでいるが起動直後の pty_resize がまだ実寸で1回も飛んで
+  // いない」という穴を既存のテストが誰も踏まずに素通りする。jsdom の要素は
+  // getBoundingClientRect が既定で 0 を返すため、ここでの自動発火は通常
+  // 0x0 になり、寸法 0 のガードに素直に吸収される
   observe = vi.fn((target: Element) => {
     const rect = target.getBoundingClientRect()
     this.trigger(rect.width, rect.height)
@@ -285,7 +285,7 @@ describe('TerminalTab', () => {
     )
   })
 
-  it('起動直後、fit() 後の実寸で pty_resize を1回呼ぶ（指摘1: spawn 前の fit() では ptyId が無く resize できない穴）', async () => {
+  it('起動直後、fit() 後の実寸で pty_resize を1回呼ぶ（spawn 前の fit() では ptyId が無く resize できない）', async () => {
     // spawn 解決前（ptyIdRef.current が null の間）に「隠れている間は測らない」
     // effect が fit() を1回走らせ、xterm の既定サイズ（80x24）を実寸へ変える
     // ことがある。その時点では PTY へ resize を送れないため、何もしないと
@@ -391,10 +391,9 @@ describe('TerminalTab', () => {
   })
 
   it('StrictMode で捨てられた側の PTY が終了イベントを出しても onExited は呼ばれない（生き残った側の終了は伝わる）', async () => {
-    // 指摘1: disposed で守られていない onExit は、捨てられた側（kill 済み）の
-    // 終了イベントを生きているセッションの終了として誤通知してしまう。
-    // これが実機の3症状（誤った終了表示／フォルダ切替の確認が出ない／
-    // タブを閉じても kill が飛ばない）の共通原因だった
+    // disposed で守らない onExit は、捨てられた側（kill 済み）の終了イベントを
+    // 生きているセッションの終了として誤通知する（誤った終了表示／フォルダ切替
+    // の確認が出ない／タブを閉じても kill が飛ばない、の共通原因になる）
     const pty = fakePtyMultiSpawn()
     const onRunning = vi.fn()
     const onExited = vi.fn()
@@ -427,7 +426,7 @@ describe('TerminalTab', () => {
     const onRunning = vi.fn()
     renderTab({ ptyIo: pty.io, onRunning })
     // 表示中でマウントすると「隠れている間は測らない」effect の fit() に加え、
-    // spawn 解決直後にも実寸で pty_resize が1回飛ぶ（指摘1の修正）。
+    // spawn 解決直後にも実寸で pty_resize が1回飛ぶ（起動直後の resize）。
     // ResizeObserver 由来の呼び出しだけを見たいので、起動が落ち着いた
     // （running になった）時点で fit の呼び出し回数と resized の記録を
     // 両方クリアする
@@ -455,7 +454,7 @@ describe('TerminalTab', () => {
     renderTab({ ptyIo: pty.io, onRunning })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
     fit.fit.mockClear()
-    // 起動直後の resize（指摘1の修正）を含めない。ここで見たいのは
+    // 起動直後の resize を含めない。ここで見たいのは
     // ResizeObserver 由来の呼び出しだけ
     pty.resized.length = 0
 
@@ -473,7 +472,7 @@ describe('TerminalTab', () => {
     renderTab({ ptyIo: pty.io, onRunning })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
     fit.fit.mockClear()
-    // 起動直後の resize（指摘1の修正）を含めない。ここで見たいのは
+    // 起動直後の resize を含めない。ここで見たいのは
     // ResizeObserver 由来の呼び出しだけ
     pty.resized.length = 0
 

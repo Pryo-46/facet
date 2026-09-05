@@ -269,7 +269,7 @@ describe('openFolder', () => {
     expect(h.banners().io).toContain('読み込めないファイルがあるため開けませんでした')
   })
 
-  // 指摘2であわせて足したテスト群: openFolder の戻り値（boolean）契約。
+  // openFolder の戻り値（boolean）契約。
   // switchFolder（App.tsx）は `opened` が true のときだけ端末を殺す
   // （設計 決定12）ので、false を返すべき箇所で誤って true を返すと、
   // フォルダを切り替えられなかったのに実行中の Claude Code だけを失う

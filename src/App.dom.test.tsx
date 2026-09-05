@@ -498,7 +498,7 @@ describe('フォルダ切替', () => {
     fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
     fireEvent.click(await screen.findByRole('button', { name: '終了して切り替える' }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
-    // 指摘2: 「タブを閉じても Claude が残る」症状の肯定側——フォルダ切替の
+    // 「タブを閉じても Claude が残る」症状の肯定側——フォルダ切替の
     // 確認を承認したら killAllPtys が実際に呼ばれること
     expect(killAllPtysMock).toHaveBeenCalled()
   })
@@ -567,7 +567,7 @@ describe('タブを閉じる確認', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Claude 1 を閉じる' }))
     fireEvent.click(await screen.findByRole('button', { name: '終了する' }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
-    // 指摘2: 「タブを閉じても Claude が残る」症状の肯定側——閉じる確認を
+    // 「タブを閉じても Claude が残る」症状の肯定側——閉じる確認を
     // 承認したら、そのタブの ptyId で実際に kill が呼ばれること
     expect(ptyKillMock).toHaveBeenCalledWith(1)
   })

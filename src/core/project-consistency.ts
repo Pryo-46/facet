@@ -16,7 +16,7 @@ function fileName(path: string): string {
  * 現状は singleton モジュールの単一性違反（用語集の単一性。rev 5章）のみ。
  * rejected / listOnly のファイルも type が読めていれば数える——仕様は
  * 「type: glossary のファイルが2つ以上」という物理条件であり、
- * 壊れた用語集ファイルも「どちらを正とするか」の人間の判断対象に含まれるため。
+ * 壊れた用語集ファイルも「どちらを正とするか」を決める対象に含まれるため。
  */
 export function checkProjectConsistency(
   files: ProjectFileEntry[],

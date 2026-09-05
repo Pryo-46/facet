@@ -33,9 +33,9 @@ export const BUNDLED_SKILLS: readonly string[] = [
  * - 同梱物としては**置かない**（`shouldSyncSkillFile`）
  * - プロジェクト側にあるものは**消さない**（`isRemovableSkillEntry`）
  *
- * Skill はもう `npm install` を指示しない。それでも消さないのは人間の裁定——旧版で
+ * Skill はもう `npm install` を指示しない。それでも消さないのは、旧版で
  * 作られた `node_modules` が利用者の手元に残っていても、アプリが黙って
- * 数百 MB を消してよい理由にはならない、という判断による保護である
+ * 数百 MB を消してよい理由にはならないためである
  */
 const SKILL_DEPS_DIR = 'node_modules'
 
@@ -99,7 +99,7 @@ export function shouldSyncSkillFile(path: string): boolean {
  * こと**であって、ディレクトリを空にすることではない。facet が書いたものは
  * 消してよいが、`node_modules` と `package-lock.json` は消さない
  * ——`npm install` の指示はもう無いが、旧版が利用者の手元に作った残骸を
- * アプリが黙って数百 MB 消してよい理由にはならない、という人間の裁定である
+ * アプリが黙って数百 MB 消してよい理由にはならない
  */
 export function isRemovableSkillEntry(name: string): boolean {
   return name !== SKILL_DEPS_DIR && name !== SKILL_LOCK_FILE
