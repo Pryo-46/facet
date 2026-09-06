@@ -1031,11 +1031,41 @@ export function describeLegacyArtifacts(found: LegacyArtifacts): string | null {
 Run: `npx vitest run src/core/legacy-artifacts.test.ts`
 Expected: PASS
 
+- [ ] **Step 4b: `.claude/` を読むための scope 許可を足す**
+
+**これが無いと mac で検出そのものが落ちる。** fs の実行時 scope は `require_literal_leading_dot: true`（unix の既定）で照合するので、ダイアログが入れる `<dir>/**` も `allow_project_dir` が入れる `<dir>/**` も、ドット始まりの `.claude` に一致しない。
+
+`src-tauri/src/lib.rs` に、`allow_project_dir` の隣へ1本足す:
+
+```rust
+/// プロジェクトフォルダの `.claude` を fs の実行時 scope に入れる（読むためだけ）。
+///
+/// **実行時 scope は `require_literal_leading_dot: true`（unix の既定）で照合するので、
+/// `<dir>/**` はドット始まりの要素に一致しない。** ダイアログが入れる scope も
+/// `allow_project_dir` が入れる scope も同じ形なので、これが無いと mac では
+/// `<dir>/.claude/skills/<名前>` の存在確認が forbidden path で落ちる。
+/// `tauri.conf.json` の `requireLiteralLeadingDot: false` は静的 scope にしか効かない。
+/// 判断は一切置かない（rev 7章）
+#[tauri::command]
+fn allow_dot_claude(app: tauri::AppHandle, dir: String) -> Result<(), String> {
+    if dir.is_empty() {
+        return Err("dir must not be empty".to_string());
+    }
+    let scope = app.fs_scope();
+    scope
+        .allow_directory(std::path::Path::new(&dir).join(".claude"), true)
+        .map_err(|e| e.to_string())
+}
+```
+
+`generate_handler!` に `allow_dot_claude` を足す。**自前コマンドは ACL 対象外なので `capabilities/default.json` への追記は要らない。**
+
 - [ ] **Step 5: 存在を確かめる側を書く**
 
 `src/fs/legacy-artifacts-io.ts`:
 
 ```ts
+import { invoke } from '@tauri-apps/api/core'
 import { join } from '@tauri-apps/api/path'
 import { exists, readTextFile } from '@tauri-apps/plugin-fs'
 import {
@@ -1052,6 +1082,14 @@ import {
  * 本来の作業（ファイルを開く）を邪魔しない
  */
 export async function findLegacyArtifacts(projectDir: string): Promise<LegacyArtifacts> {
+  // **`.claude/` を読む前に呼ぶ。** これが無いと mac では最初の `exists` が
+  // forbidden path で落ちる（理由は `src-tauri/src/lib.rs` の `allow_dot_claude`）
+  try {
+    await invoke('allow_dot_claude', { dir: projectDir })
+  } catch {
+    // 許可が取れなくても続ける。取れていれば読めるし、取れていなければ
+    // 下の `exists` が失敗して「無い」に倒れる
+  }
   const skills: string[] = []
   for (const name of LEGACY_SKILL_DIRS) {
     try {

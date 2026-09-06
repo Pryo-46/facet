@@ -110,7 +110,9 @@ marketplace は git の内容をそのまま配るので、`scripts/generated/*.
 
 旧版を使ったフォルダには `<project>/.claude/skills/` の5本が残る。プロジェクトスコープの Skill はプラグインより先に見つかるので、**放置すると古い版が発火する。**
 
-アプリはフォルダを開いたときに存在を見て、あればトーストで消すよう促す。読むだけなので `fs:allow-remove` は要らない。
+アプリはフォルダを開いたときに存在を見て、あればトーストで消すよう促す。消さないので `fs:allow-remove` は要らない。
+
+**読むための実行時 scope は要る。** fs の実行時 scope は `require_literal_leading_dot: true`（unix の既定）で照合するので、`<dir>/**` はドット始まりの要素に一致しない。ダイアログが入れる scope も `allow_project_dir` が入れる scope も同じ形なので、mac では `<dir>/.claude/` を別に許可しなければ存在確認が落ちる。自前コマンドを1本持ち、パスを組み立てるだけの仕事をさせる。
 
 **促す条件は facet が置いた名前に限る。** ソースコードのリポジトリを facet のプロジェクトフォルダに指定することがあり、そこには利用者自身の `.claude/` がある。`.claude/` や `.claude/skills/` の存在そのものは条件にしない。
 
@@ -127,7 +129,7 @@ marketplace は git の内容をそのまま配るので、`scripts/generated/*.
 | --- | --- |
 | `src/core/skill-sync.ts` と対応するテスト | 置き直しをしない |
 | `src/fs/skill-resources.ts` | 同上 |
-| Rust の `allow_skill_dir` | 書き込み先が無い |
+| Rust の `allow_skill_dir` | 書き込み先が無い（読み取りの scope 許可だけが残る） |
 | capabilities の `fs:allow-mkdir` / `fs:allow-remove` / `$RESOURCE/skills/**` | 同上 |
 | `README-for-AI.md` の書き出し | Skill へ移る |
 
