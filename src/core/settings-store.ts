@@ -17,7 +17,9 @@ export interface SettingsStore {
  * テストの `beforeEach` で `reset()` を呼ぶこと
  */
 export function createSettingsStore(): SettingsStore {
-  const initial: AppSettings = DEFAULT_SETTINGS
+  // **DEFAULT_SETTINGS を複製する。** 呼び手が getSnapshot の戻り値を直接変異させても
+  // グローバルな既定値が汚染されないようにする
+  const initial: AppSettings = { theme: DEFAULT_SETTINGS.theme, canvas: { ...DEFAULT_SETTINGS.canvas } }
   // **同一参照を返し続けること。** useSyncExternalStore は getSnapshot が
   // 毎回新しいオブジェクトを返すと無限ループする
   let current: AppSettings = initial

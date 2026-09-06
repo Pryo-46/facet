@@ -44,4 +44,15 @@ describe('createSettingsStore', () => {
     store.reset()
     expect(store.getSnapshot()).toEqual(DEFAULT_SETTINGS)
   })
+
+  it('reset 後に戻り値を変異させても DEFAULT_SETTINGS は動かない', () => {
+    // initial が DEFAULT_SETTINGS の複製なので、ストアから返すスナップショットを
+    // 変異させても共有定数が汚染されない
+    const store = createSettingsStore()
+    store.set({ ...DEFAULT_SETTINGS, theme: 'dark' })
+    store.reset()
+    const snapshot = store.getSnapshot()
+    snapshot.canvas.panWithEmptyDrag = false
+    expect(DEFAULT_SETTINGS.canvas.panWithEmptyDrag).toBe(true)
+  })
 })
