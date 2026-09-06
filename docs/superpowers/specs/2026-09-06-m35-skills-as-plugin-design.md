@@ -151,7 +151,8 @@ marketplace は git の内容をそのまま配るので、`scripts/generated/*.
 
 ## 検証
 
-- `claude plugin validate plugins/facet` を CI に載せる
+- `claude plugin validate plugins/facet` が警告なく通る（手で走らせる。このリポジトリに CI は無い）
+- `marketplace.json` と `plugin.json` が同じ名前と版を述べることをテストで縛る
 - 起動引数の純関数を3通りでテストする
 - スキーマのバイト一致テストは移動後のパスで通す
 - 生成物のコミット漏れを `git diff --exit-code` で検出する
