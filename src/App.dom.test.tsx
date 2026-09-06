@@ -58,7 +58,6 @@ const {
   skillCalls,
   pickedFolder,
   syncGate,
-  syncReadingGuideMock,
   disk,
   writeProjectFileMock,
   saveLastProjectDirMock,
@@ -88,7 +87,6 @@ const {
     skillCalls: [] as string[],
     pickedFolder: { value: '/proj' },
     syncGate: { promise: null as Promise<void> | null, release: null as (() => void) | null },
-    syncReadingGuideMock: vi.fn(async () => undefined),
     disk: new Map<string, string>(),
     writeProjectFileMock: vi.fn(async (_path: string, _text: string) => undefined),
     saveLastProjectDirMock: vi.fn(async (_dir: string) => undefined),
@@ -229,12 +227,6 @@ vi.mock('@/core/skill-sync', async (orig) => ({
     // 既定（`promise` が null）では素通り。gate が張られている間だけ止まる
     await syncGate.promise
   },
-}))
-vi.mock('@/fs/reading-guide-io', () => ({ tauriReadingGuideIo: {} }))
-// READING_GUIDE_FILENAME 等は実物のまま、同期関数だけ差し替える（skill-sync の mock と同じ形）
-vi.mock('@/core/reading-guide', async (orig) => ({
-  ...(await orig<typeof import('@/core/reading-guide')>()),
-  syncReadingGuide: syncReadingGuideMock,
 }))
 // `requestClose` の結果をテストから直接差し込むための薄いラッパー。
 // **他のメソッドは実物のまま**——フォルダ切替テストが依存する openFolder の
@@ -557,17 +549,6 @@ describe('最後に開いたフォルダの保存', () => {
   })
 })
 
-describe('読み方ガイド', () => {
-  it('フォルダを開くと読み方ガイドを配る', async () => {
-    syncReadingGuideMock.mockClear()
-    render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
-    await waitFor(() => {
-      expect(syncReadingGuideMock).toHaveBeenCalledWith('/proj', expect.anything())
-    })
-  })
-})
-
 describe('タブを閉じる確認', () => {
   it('実行中のタブの × を押すと確認ダイアログが出て、その時点ではまだ閉じない', async () => {
     await openPane()
@@ -823,11 +804,6 @@ describe('起動時のフォルダ復元', () => {
     render(<App />)
     await waitFor(() => expect(screen.getByTitle('/restored')).toBeTruthy())
     expect(allowProjectDirCalls).toEqual(['/restored'])
-    // 復元が `openProject` の全パイプライン（Skill 同期・読み方ガイド配置を
-    // 含む）に正しく乗っていることを直接検証する
-    await waitFor(() => {
-      expect(syncReadingGuideMock).toHaveBeenCalledWith('/restored', expect.anything())
-    })
   })
 
   it('保存済みパスが無ければ何も開かず通常起動する', async () => {

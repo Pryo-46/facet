@@ -5,6 +5,8 @@ description: 仕様整理ツールのエラーカタログファイル（type=er
 
 # エラー登録
 
+**このフォルダのデータの読み方は `facet:read-project` が持つ。** 既存のファイルを読んでから書くときは先にそちらを見ること。
+
 仕様整理ツール（Tauri製アプリ）のエラーカタログファイルを、ユーザーと対話しながら組み立てる。
 
 **このSkillが紐づく対象: `type: "errorCatalog"` × `schemaVersion 1`。** スキーマが改訂されたらこのSkillも追従させる（アプリとSkillは別々にバージョン管理される成果物であり、この対応が依存関係の記録）。**特に `resolutionLevel` の enum と、同梱スクリプトが持つ警告の判定条件は、アプリ側の実装（`src/modules/error-catalog/warnings.ts` / `consistency.ts`）の複製である**——接点はファイルだけという決定（rev 4章）の帰結なので、片方だけ直さないこと。

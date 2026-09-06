@@ -11,3 +11,9 @@ export const WRITE_SKILLS: readonly string[] = [
   'write-issue-tree',
   'write-logic-tree',
 ]
+
+/** データを読むだけの Skill */
+export const READ_SKILL = 'read-project'
+
+/** facet が配る Skill のすべて */
+export const FACET_SKILLS: readonly string[] = [READ_SKILL, ...WRITE_SKILLS]

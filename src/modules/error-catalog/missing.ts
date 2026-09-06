@@ -5,7 +5,8 @@ import type { ErrorField, ResolutionLevel } from './fields'
 /**
  * セルの欠落（黄色い面）の判定（決定14）。
  *
- * 判定源は reading-guide と一対一（docs/missing-semantics.md）。
+ * 判定源は read-project Skill（plugins/facet/skills/read-project/SKILL.md）と
+ * 一対一（docs/missing-semantics.md）。
  *
  * **欠落は `ConsistencyIssue` ではない。** 用語集と同じく、エディタが
  * この判定を直接見てセルを塗る（`term.definition === ''` を見ているのと同じ形）。

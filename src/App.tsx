@@ -41,7 +41,6 @@ import { currentPlatform } from '@/core/keyboard/platform'
 import { titleOf, withTitle } from '@/core/load'
 import { dropModal, pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
 import type { ProjectFile } from '@/core/project-file'
-import { READING_GUIDE_FILENAME, syncReadingGuide } from '@/core/reading-guide'
 import { scanFolder } from '@/core/scan'
 import { type AppSettings } from '@/core/settings'
 import { appSettings } from '@/core/settings-store'
@@ -98,7 +97,6 @@ import {
   writeProjectFile,
 } from '@/fs/project-fs'
 import { killAllPtys, tauriPtyIo } from '@/fs/pty'
-import { tauriReadingGuideIo } from '@/fs/reading-guide-io'
 import { readLastProjectDir, readSettings, saveLastProjectDir, saveSettings } from '@/fs/settings-fs'
 import { allowSkillDir, tauriSkillSyncIo } from '@/fs/skill-resources'
 import { checkForUpdate, type AvailableUpdate } from '@/fs/updater'
@@ -689,30 +687,19 @@ function App() {
   }, [controller])
 
   /**
-   * フォルダを開き、開けたときだけ読み方ガイドを配る（スペック設計2）。
-   * ガイドを書けなくても開くこと自体は成立させる——Skill 同期と同じ姿勢
-   *（設計 決定13）。開けなかったフォルダには書かない（開けない場所へ
-   * ファイルを増やさない）
+   * フォルダを開き、開けたときだけ最後に開いたフォルダとして保存する。
+   * 保存できなくても開くこと自体は成立させる。開けなかったフォルダは
+   * 保存しない（開けない場所を次回の復元先にしない）
    */
   const openProject = async (dir: string): Promise<boolean> => {
     const opened = await controller.openFolder(dir)
     if (!opened) return false
     // 保存できなくても次回単に復元されないだけで、このセッションの作業には
-    // 影響しない。読み方ガイドの配置失敗（下）とは違いトーストは出さない
+    // 影響しない。だからトーストは出さない
     try {
       await saveLastProjectDir(dir)
     } catch (err: unknown) {
       console.error('最後に開いたフォルダの保存に失敗しました', err)
-    }
-    try {
-      await syncReadingGuide(dir, tauriReadingGuideIo)
-    } catch (err: unknown) {
-      showToast({
-        message: `読み方ガイド（${READING_GUIDE_FILENAME}）を配置できませんでした: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-        key: 'reading-guide-sync',
-      })
     }
     return true
   }
