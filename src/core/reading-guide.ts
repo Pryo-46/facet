@@ -19,7 +19,7 @@
  */
 import guideText from './reading-guide.md?raw'
 
-/** プロジェクトフォルダ直下に置くガイドのファイル名（スペック設計1で確定） */
+/** プロジェクトフォルダ直下に置くガイドのファイル名 */
 export const READING_GUIDE_FILENAME = 'README-for-AI.md'
 
 /** ガイド原本の全文 */

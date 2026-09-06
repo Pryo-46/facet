@@ -14,8 +14,8 @@ describe('Badge', () => {
 
   it('開いている語（open / hold / invalid / pending）は淡い面と線を持ち、決着した語（yes / no）は濃い面を持つ', () => {
     // 「開いているものは淡い面と線、決着したものは濃い面」（rev 9章 規約2。
-    // M21 の実機確認で「線だけでは方眼と罫線に埋もれて拾えない」と判断されて
-    // 淡い面を足した）を部品の口で固定する
+    // 線だけでは方眼と罫線に埋もれて拾えないため、淡い面を足している）を
+    // 部品の口で固定する
     const pale = { open: 'missing', hold: 'missing', invalid: 'invalid', pending: 'pending' } as const
     for (const [v, axis] of Object.entries(pale) as [keyof typeof pale, string][]) {
       expect(badgeClass(v), v).toContain(`bg-${axis}-face`)

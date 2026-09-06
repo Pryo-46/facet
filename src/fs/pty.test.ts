@@ -76,7 +76,7 @@ describe('killAllPtys', () => {
 
   it('**spawn の解決前に呼ばれても取りこぼさない**', async () => {
     // `live` への登録は pty_spawn の解決後なので、invoke が in-flight の
-    // 間に全殺しが走ると素通りしていた（M11 の残件）
+    // 間に全殺しが走ると素通りする
     const gate = gatedSpawn()
     const spawning = tauriPtyIo.spawn(spec())
 

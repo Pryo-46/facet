@@ -13,7 +13,7 @@ import type { OutputProfile } from '@/core/registry'
  *
  * **プロファイルが1本のときはドロップダウンを出さない。** 選択肢が1つしかない
  * メニューは操作を1手増やすだけで何も選ばせない。用語集は1本なので、
- * M8 までと同じ2つのボタンがそのまま出る
+ * 2つのボタンがそのまま出る
  */
 export interface ExportMenuProps {
   outputs: readonly OutputProfile<unknown>[]
@@ -21,7 +21,7 @@ export interface ExportMenuProps {
    * 出力できる状態にないとき（ファイル未選択・編集中データなし）の理由。
    * **null なら押せる。** `outputs` が空のとき（＝この出力口を持たないツール）は
    * `unusable` が null でもここで自前の理由に差し替える——**ファイル未選択を
-   * 先に見る**ため、呼び出し側は「選んでいるか」だけを渡せばよい（M29 フォローアップ）
+   * 先に見る**ため、呼び出し側は「選んでいるか」だけを渡せばよい
    */
   unusable: string | null
   onCopy: (profile: OutputProfile<unknown>) => void
@@ -72,10 +72,9 @@ export function ExportMenu({ outputs, unusable, onCopy, onExport }: ExportMenuPr
     )
   }
   // プロファイルが無い＝出力できるファイルを選んでいない、またはこのツールが
-  // Markdown 出力を持たない。ボタンは出したまま押せなくする（M8 までと同じ
-  // 見た目を保ち、額縁のボタンが消えたり出たりしない）。**押せない理由は
-  // ToolbarButton の title で読める**（M29 フォローアップ。以前は disabled 属性
-  // だけで、なぜ押せないかを説明する手段が無かった）。「Markdown 出力を持たない」の
+  // Markdown 出力を持たない。ボタンは出したまま押せなくする（見た目を保ち、
+  // 額縁のボタンが消えたり出たりしない）。**押せない理由は
+  // ToolbarButton の title で読める**。「Markdown 出力を持たない」の
   // 判定は `outputs` を持つこのコンポーネントだけができる——`App.tsx` はここへは
   // 踏み込まず、`!canExport` の判定だけを `unusable` として渡す
   const only = outputs[0]

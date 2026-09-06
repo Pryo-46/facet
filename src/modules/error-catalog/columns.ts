@@ -8,14 +8,14 @@ import type { ErrorField } from './fields'
 import { DEV_PROFILE, SUPPORT_PROFILE, type ErrorProfile, type ProfileId } from './profiles'
 
 /**
- * 表の列（M10 決定10・決定16）。
+ * 表の列（決定10・決定16）。
  *
  * `'no'` は編集対象ではない**導出列**（データ配列の index + 1）。フィールドでは
  * ないので `ErrorField` には入れず、列としてだけ先頭に足す。
  *
  * **幅を持たない列は `causeForSupport`**（用語集の `definition` に相当する位置）。
  * 他の列が px を持ち1列が残りを取るので、テーブルは常に親幅に収まる。
- * 写像の実装は `@/core/list-editor/columns` にある（M9 で引き上げ）
+ * 写像の実装は `@/core/list-editor/columns` にある
  */
 export type ErrorColumn = 'no' | ErrorField
 

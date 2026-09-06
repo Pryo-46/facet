@@ -7,7 +7,7 @@ import type { AnyToolModule, ModuleRegistry } from './registry'
  * - editable: スキーマ検証まで通過。エディタで開ける
  * - rejected: レベル1（拒否）。構造が解釈できないため開けない
  * - listOnly: 未知 type / 未知の新しい schemaVersion。一覧表示のみ・編集不可
- *   （M2 で赤バッジ等の本格対応。M1 ではクラッシュしない受け皿として持つ）
+ *   （クラッシュせずに受け止める区分）
  */
 export type LoadResult =
   | { status: 'editable'; type: string; title: string; data: unknown }

@@ -9,7 +9,7 @@ export interface FileIo {
   /**
    * そのパスにファイルがあるか。**名前解決をディスクに問い合わせるために要る**——
    * 走査時のスナップショットだけで決めると、走査後に外部で増えたファイルを
-   * 黙って上書きする（M4 の申し送りのデータ喪失）
+   * 黙って上書きする
    */
   exists: (path: string) => Promise<boolean>
 }
@@ -63,9 +63,8 @@ export async function createFile(
  *    **ほぼ常に write が in-flight**。待たずに `trash()` すると、ゴミ箱移動の後に
  *    write が着地してファイルを作り直す——UI の一覧からは消えているので、
  *    次のフォルダ走査まで見えない孤児になる。`settle()` がその待ちで、
- *    **書かずに待つ**のが要点。M4 までは「pending を空にした flush()」で
- *    同じことをしていたが、M5 で flush() が「静止するまで繰り返す」意味論に
- *    なったため、失敗して復元された pending を書き直してしまう。
+ *    **書かずに待つ**のが要点。flush() は「静止するまで繰り返す」意味論なので、
+ *    代わりに使うと失敗して復元された pending を書き直してしまう。
  *    **ここを flush() に戻さないこと。**
  * 3. **失敗した write の復元を捨てる**: in-flight の write が失敗すると autosave の
  *    catch が内容を `pending` へ戻す（再試行のための仕組み）。消すファイルには
@@ -107,7 +106,7 @@ export async function trashFile(opts: {
  *
  * 判定は type で行い、開けないファイル（rejected / listOnly）も数える——
  * 単一性は「type: glossary のファイルが2つ以上」という物理条件であり、
- * 壊れた用語集も「どちらを正とするか」の判断対象に含まれる（M2 で確定）
+ * 壊れた用語集も「どちらを正とするか」の判断対象に含まれる
  */
 export function canCreateFileOfType(
   module: AnyToolModule,
@@ -136,7 +135,7 @@ export interface ScannedFile {
  * リネームしても壊れないこと）。2つ以上あるのは単一性違反で、
  * その検出と表示は checkProjectConsistency の担当なのでここでは作らない。
  *
- * **呼び出し側は「再走査した直後の一覧」を渡すこと**（M5 の handleExternalChange）。
+ * **呼び出し側は「再走査した直後の一覧」を渡すこと**（handleExternalChange）。
  * 古いスナップショットを渡すと、外部で増えた用語集を見落として2つ目を作る
  *（データ喪失にはならない——名前解決はディスクを見るので上書きはしない——が、
  *   単一性違反を1件増やす）

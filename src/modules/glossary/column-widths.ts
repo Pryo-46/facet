@@ -2,7 +2,7 @@ import { createColumnWidthStore } from '@/core/column-resize'
 import { DEFAULT_WIDTHS } from './columns'
 
 /**
- * 用語テーブルの列幅（M8 決定7）。
+ * 用語テーブルの列幅（決定7）。
  *
  * **アプリを閉じるまで保持し、ファイル切替をまたぐ。** GlossaryEditor は
  * App 側で `key={selected.path}` を付けて作り直されるので、エディタ内の

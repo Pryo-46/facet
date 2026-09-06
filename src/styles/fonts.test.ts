@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 /**
- * 同梱フォントの生成 CSS（M26。rev 9章 D6〜D8）の検査。
+ * 同梱フォントの生成 CSS（rev 9章 D6〜D8）の検査。
  *
  * fontsource の static 版 CSS は woff2 と woff を両方参照するので素の
  * import はできない（woff まで dist に入る）。woff2 だけ参照する CSS を
@@ -20,7 +20,7 @@ const facesOf = (family: string, weight: string): string[] =>
     (f) => f.includes(`'${family}'`) && new RegExp(`font-weight:\\s*${weight};`).test(f),
   )
 
-describe('同梱フォントの生成 CSS（M26）', () => {
+describe('同梱フォントの生成 CSS', () => {
   it('woff2 以外のフォント参照が無い', () => {
     // .woff2) は .woff) に一致しない（2 が続くので閉じ括弧が来ない）
     expect(css).not.toMatch(/\.woff\)/)

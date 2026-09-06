@@ -43,7 +43,7 @@ describe('createFile', () => {
     expect(created.text.endsWith('\n')).toBe(true)
   })
 
-  it('走査後に外部で増えたファイルを上書きしない（M4 の申し送りのデータ喪失）', async () => {
+  it('走査後に外部で増えたファイルを上書きしない', async () => {
     const write = vi.fn().mockResolvedValue(undefined)
     // 一覧は空（走査時点のスナップショット）だが、ディスクには Skill が書いた
     // 用語集がある。existingNames だけで決めると、これを切り詰めて書き潰す
@@ -238,7 +238,7 @@ describe('canCreateFileOfType', () => {
   it('singleton モジュールは同じ type が既にあれば作れない——rejected/listOnly な用語集も1件として数える', () => {
     // canCreateFileOfType 自体は type の文字列しか見ない（status を受け取らない）ので、
     // rejected/listOnly の用語集も editable の用語集も、ここでは同じ 'glossary' という
-    // 入力に潰れる——それが「単一性は status を問わない物理条件」（M2 で確定）の意味であり、
+    // 入力に潰れる——それが「単一性は status を問わない物理条件」の意味であり、
     // 別の入力・別の分岐が無い以上、この1テストで両方を主張する（別テストに分けると
     // 「rejected/listOnly も数える」というテスト名だけが違う実質同一テストになり、
     // 壊れていないのに壊れているように見せかける）。

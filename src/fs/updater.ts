@@ -29,7 +29,7 @@ export interface AvailableUpdate {
  * 新版があれば返す。無ければ null。
  *
  * **例外はそのまま投げる。** 握り潰すか見せるかは呼び出し側が決める——
- * 起動時のチェックは静かに諦め、利用者が押したときだけ見せる（M19 の設計）
+ * 起動時のチェックは静かに諦め、利用者が押したときだけ見せる
  */
 export async function checkForUpdate(): Promise<AvailableUpdate | null> {
   const update = await check()

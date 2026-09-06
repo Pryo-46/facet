@@ -17,7 +17,7 @@ async function settingsFilePath(): Promise<string> {
  * いずれでも例外を投げず `null` を返す（起動時復元は「無ければ通常起動」で
  * 扱う。spec スコープ節）。
  *
- * **空文字列を素通ししないこと（最終レビューで見つかった欠陥）。** `""` を
+ * **空文字列を素通ししないこと。** `""` を
  * そのまま返すと `allowProjectDir("")` → Rust 側 `scope.allow_directory(Path::new(""), true)`
  * に届き、tauri-2.11.5 の scope 実装は空パスに `MAIN_SEPARATOR + "**"` を
  * 足すため、unix では `/**`——fs の実行時 scope をファイルシステム全体へ

@@ -1,5 +1,5 @@
 /**
- * 表形式コピー（モジュール規約8。M29）の型。
+ * 表形式コピー（モジュール規約8）の型。
  *
  * **規約5（`OutputProfile`）に乗せない理由**: あちらは「Markdown 文字列を返す
  * 純関数」と `.md` 書き出しを前提にしている。表形式コピーは出力が TSV と HTML の
@@ -68,7 +68,7 @@ export const DEFAULT_TABLE_OPTIONS: TableOptions = {
  * 仕様書に貼った瞬間に未定義が見えなくなるのは文章仕様書の悪癖の再生産である
  *（rev 5章）。`glossary/markdown.ts` と `error-catalog/markdown.ts` と
  * `logic-tree/markdown.ts` が各自ローカル定数で持っている値と同じ。
- * **今回は表側だけがここを使う**——Markdown 側の3つを畳むのは M29 の仕事ではない
+ * **表側だけがここを使う**——Markdown 側の3つを畳むのはここでは扱わない
  */
 export const UNDEFINED_TEXT = '（未定義）'
 

@@ -87,7 +87,7 @@ export const WATCH_DEBOUNCE_MS = 300
  * 戻り値は監視を止める関数。
  *
  * **`watch` は fs プラグインの Cargo feature `watch` と `fs:allow-watch` の
- * 両方が要る**（片方でも欠けると実行時に失敗する。M2 の
+ * 両方が要る**（片方でも欠けると実行時に失敗する。
  * `core:window:allow-destroy` と同じ罠）
  */
 export async function watchFolder(dir: string, onEvent: () => void): Promise<() => void> {

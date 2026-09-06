@@ -7,18 +7,18 @@ import {
 import type { GlossaryField } from './fields'
 
 /**
- * 用語テーブルの列（M8 決定1）。
+ * 用語テーブルの列（決定1）。
  *
  * **定義列だけが幅を持たず、残りを埋める。** 他4列が px を持つので、
  * テーブルは常に親幅に収まり横スクロールが出ない。「定義を広げたい」は
  * 他の列を狭めることで達成される。
  *
- * 写像の実装は `@/core/list-editor/columns` にある（M9 で引き上げ）。
+ * 写像の実装は `@/core/list-editor/columns` にある。
  * このファイルが持つのは**列データそのものだけ**
  *
  * `'no'` は編集対象ではない**導出列**（データ配列の index + 1）。フィールドでは
- * ないので `GlossaryField` には入れず、列としてだけ先頭に足す（M22。
- * エラーカタログ `columns.ts` の形を写す）
+ * ないので `GlossaryField` には入れず、列としてだけ先頭に足す
+ *（エラーカタログ `columns.ts` の形を写す）
  */
 export type GlossaryColumn = 'no' | GlossaryField
 
@@ -30,7 +30,7 @@ export const COLUMNS: readonly ColumnSpec<GlossaryColumn>[] = [
   { field: 'kind', defaultWidth: 128 },
   { field: 'definition', defaultWidth: null },
   { field: 'aliases', defaultWidth: 176 },
-  // 備考は自由記述で長くなりやすいので、名称・別名より広く取る（M7 の要望7）
+  // 備考は自由記述で長くなりやすいので、名称・別名より広く取る
   { field: 'notes', defaultWidth: 256 },
 ]
 

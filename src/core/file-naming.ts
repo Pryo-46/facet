@@ -33,8 +33,8 @@ export function fileNameCandidate(baseName: string, n: number): string {
  *
  * **`isTaken` にはディスクへの問い合わせを含めること。** 走査時のスナップショット
  * だけで決めると、走査後に外部で増えたファイル（Skill が書いた用語集など）を
- * 黙って上書きする——確認もエラーも出さずに他人のファイルを消す経路になる
- * （M4 の申し送りのデータ喪失）。判定が非同期なので、この関数自体も非同期
+ * 黙って上書きする——確認もエラーも出さずに他人のファイルを消す経路になる。
+ * 判定が非同期なので、この関数自体も非同期
  */
 export async function resolveAvailableFileName(
   baseName: string,

@@ -55,7 +55,7 @@ describe('logicTreeModule', () => {
 })
 
 describe('出力プロファイル（規約5）', () => {
-  it('Markdown 出力を1本宣言している（M2 で 0本から1本にした）', () => {
+  it('Markdown 出力を1本宣言している', () => {
     // 図と箇条書きを1本のプロファイルにまとめている（形式の軸でプロファイルを割らない）
     expect(logicTreeModule.outputs).toHaveLength(1)
     expect(logicTreeModule.outputs[0].id).toBe('default')

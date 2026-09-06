@@ -1,7 +1,7 @@
 import type { ErrorField } from './fields'
 
 /**
- * 出力プロファイル（M10 決定11）。
+ * 出力プロファイル（決定11）。
  *
  * **プロファイルが持つのはフィールドの並び1本だけ。** ここから
  * 画面の列（No ＋ fields）と Markdown の列（No ＋ fields − resolutionLevel）の

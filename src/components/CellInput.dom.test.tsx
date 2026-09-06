@@ -66,7 +66,7 @@ describe('CellInput', () => {
  * macOS（WKWebView）と Linux（WebKitGTK）は、変換を確定した Enter の keydown を
  * compositionend の **後** に投げる。そのイベントの isComposing は false なので、
  * 操作言語の IME ガード（resolveCommand の1行目）をすり抜ける。
- * WebKit bug 165004 ——2016年の報告から2026年に main で直るまで開いていた
+ * WebKit bug 165004
  */
 describe('CellInput: 変換確定の Enter（WebKit の順序）', () => {
   const setup = () => {

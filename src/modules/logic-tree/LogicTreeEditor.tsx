@@ -88,7 +88,7 @@ export function LogicTreeEditor({
   // 読み込みの世代。進んだら実効フォントも読み直す。
   // **最初の1フレームはフォールバック書体のメトリクスで測っている**し、
   // 同梱フォントは unicode-range 分割なので、珍しい字のスライスは
-  // 初入力のとき後から届く（M26）——どちらも世代が進んだ時点で測り直す
+  // 初入力のとき後から届く——どちらも世代が進んだ時点で測り直す
   const fontGeneration = useFontGeneration()
   useEffect(() => {
     readFont()
@@ -155,7 +155,7 @@ export function LogicTreeEditor({
   }
 
   /**
-   * 欠落セルへのジャンプ（M22）。ロジックツリーの欠落は「text が空」の1種類
+   * 欠落セルへのジャンプ。ロジックツリーの欠落は「text が空」の1種類
    * だけなので、GlossaryEditor と違い kind で場合分けしない
    */
   const jumpToMissing = (): void => {
@@ -262,7 +262,7 @@ export function LogicTreeEditor({
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
       arrowsOwnedByField: false,
-      // M1 には導出表示（検索・フィルタ）が無いので並び替えは常に有効
+      // 導出表示（検索・フィルタ）が無いので並び替えは常に有効
       reorderEnabled: true,
       // 子を持てる構造。Tab＝子追加、←→＝親子移動になる
       hierarchical: true,
@@ -303,7 +303,7 @@ export function LogicTreeEditor({
               指摘の一覧を額縁へ寄せたのと同じ理由） */}
           {/* **0件のときだけ出す。** 雛形はルート1件を持つので、ここに来るのは
               外部で作られた0件ファイルだけ。マウスだけの人がノードを増やす
-              一般的な動線が無いのは M14 以前からの別の穴（open-issues 参照） */}
+              一般的な動線が無いのは別の穴（open-issues 参照） */}
           {data.nodes.length === 0 && (
             <button
               type="button"
@@ -314,7 +314,7 @@ export function LogicTreeEditor({
               ノードを追加
             </button>
           )}
-          {/* 欠落（未記入）の集計。**共通部品 `MissingTally`（M22）**——合計・
+          {/* 欠落（未記入）の集計。**共通部品 `MissingTally`**——合計・
               0件チップ非表示・`whitespace-nowrap` は部品側が担う。ここは
               欠落が1種類しかないので `onJump` は kind を見ずに巡回するだけ */}
           <MissingTally tally={tallyMissing(data.nodes)} onJump={jumpToMissing} />
@@ -322,7 +322,7 @@ export function LogicTreeEditor({
         </div>
       </div>
 
-      {/* 背景レイヤ（M1 は空。シーケンスの失敗ゾーンのために枠だけ確保する） */}
+      {/* 背景レイヤ（空。シーケンスの失敗ゾーンのために枠だけ確保する） */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 origin-top-left"

@@ -294,7 +294,7 @@ describe('toKeyEventLike', () => {
   })
 
   /**
-   * WKWebView の実測（2026-08-15）。変換を確定した Enter は
+   * WKWebView の実測。変換を確定した Enter は
    * `isComposing: false` で来るが `keyCode` は 229 のままだった:
    *
    *   11 compositionend
@@ -357,7 +357,7 @@ describe('toKeyEventLike', () => {
   })
 })
 
-// ---- sequence M1 で足した分: horizontal / toggle-item-state / ←→ の arrowsOwnedByField ----
+// ---- horizontal / toggle-item-state / ←→ の arrowsOwnedByField ----
 
 describe('horizontal（横リスト＝アクターヘッダ）', () => {
   it('Alt+← は move-item-up（前へ）、Alt+→ は move-item-down（次へ）', () => {

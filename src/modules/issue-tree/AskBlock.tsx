@@ -77,7 +77,7 @@ interface SentimentMenuProps extends MenuOpenProps {
 }
 
 /**
- * FB の調子を1つ選ぶドロップダウン（m5 の追加作業）。
+ * FB の調子を1つ選ぶドロップダウン。
  *
  * **トリガーは調子のアイコンそのもの**——`IssueTreeEditor` の `KindMenu`
  *（判断のバッジ自身がトリガー）と同じ考え方で、**状態を見る場所と変える場所を
@@ -277,7 +277,7 @@ export function AskBlock(props: AskBlockProps) {
           {MINI_ADD_NOTE_LABEL}
         </button>
       </span>
-      {/* 問いの削除（m5 Task 7）。**問いのあるブロックだけ**——レイアウトが
+      {/* 問いの削除。**問いのあるブロックだけ**——レイアウトが
           `remove` を出すのは `askIndex` が問いを指すブロックだけで、
           「どの問いにも紐づかないFB」の受け皿には消す対象の問いが無い。
           **FB の行の削除と同じ形**（右端・同じ列幅）で、名前だけが
@@ -302,7 +302,7 @@ export function AskBlock(props: AskBlockProps) {
         const name = `${label} のFB${row.feedbackIndex + 1}`
         return (
           <span key={`fb:${row.feedbackIndex}`}>
-            {/* **アイコンはドロップダウンのトリガーそのもの**（m5 の追加作業）
+            {/* **アイコンはドロップダウンのトリガーそのもの**
                 ——形が「いまの調子」を、押せることが「変えられる」を運ぶ。
                 判断のバッジがトリガーになっているのと同じ考え方（`KindMenu`） */}
             <span className="flex items-center justify-center" style={inBlock(row.icon)}>

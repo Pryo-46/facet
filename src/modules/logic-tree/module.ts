@@ -20,15 +20,14 @@ export const logicTreeModule: ToolModule<LogicTreeSchemaVersion1> = {
   idPrefixes: ['node'],
   Editor: LogicTreeEditor,
   checkConsistency: checkLogicTreeConsistency,
-  // 規約5: M1 で 0 本だった出力を M2 で1本にした。
-  // **図と箇条書きを1本にまとめる**——形式の軸でプロファイルを割らない（rev 6章）
+  // 規約5: **図と箇条書きを1本にまとめる**——形式の軸でプロファイルを割らない（rev 6章）
   outputs: [
     { id: 'default', label: 'Markdown', fileSuffix: '', toMarkdown: logicTreeToMarkdown },
   ],
-  // 規約7（任意）: Miro のマインドマップとのクリップボード交換（M2）。
+  // 規約7（任意）: Miro のマインドマップとのクリップボード交換。
   // **他のツールは宣言しない**——額縁はこの有無でボタンの活性を決める
   clipboardExchanges: [miroMindmapExchange],
-  // 規約8: 表形式コピー（M29）。**読み手は1本**。木なので numberStyle と
+  // 規約8: 表形式コピー。**読み手は1本**。木なので numberStyle と
   // repeatParent を宣言する——階層を列に展開する唯一のツールである
   tableExport: {
     options: ['numbering', 'numberStyle', 'repeatParent', 'showUndefined'],

@@ -6,7 +6,7 @@ import { BADGE_BORDER, BADGE_BOX_HEIGHT, BADGE_PADDING_X } from '@/components/ba
  *
  * **定数と Tailwind クラスは必ず対で直すこと。** 測定が実際より小さいと、
  * ブラウザに与えられる幅が前提より狭くなり、測定より多い行数に折り返して
- * 文字が切れる（logic-tree M1 の measure.ts と同じ約束）。
+ * 文字が切れる（logic-tree の measure.ts と同じ約束）。
  *
  * 値は `docs/issue-tree/俯瞰モック/俯瞰.html`・`展開.html` の CSS から取った
  * ——`.issue` の `padding: 6px 10px` / `gap: 5px`、`.rows` の `gap: 3px`、
@@ -36,8 +36,8 @@ export const ISSUE_BOX_CLASS = 'border px-2.5 py-1.5'
 export const TITLE_FONT_CLASS = 'text-sm leading-normal font-semibold'
 /**
  * 節見出しのフォント（段1 = text-sm 14px / 1.3 / 600）。**キャンバスの
- * 「仮説の展開」アートボードは 16px で描かれているが、`src/index.css` の段
- * （M23／M26）に節見出しは段1 と名指しされている（index.css:22）ので、
+ * 「仮説の展開」アートボードは 16px で描かれているが、`src/index.css` の段に
+ * 節見出しは段1 と名指しされている（index.css:22）ので、
  * サイズはそちらに合わせて落とす。** 展開タイトル（下）と同寸になって
  * 階層が潰れるのを避けるため、サイズではなく太さ（`font-semibold`）で
  * 見出しと本文を区別する（段の思想＝密度はサイズでなく行高で稼ぐ、
@@ -48,15 +48,8 @@ export const SECTION_LABEL_FONT_CLASS = 'text-sm font-semibold'
 /**
  * 展開時の課題タイトルのフォント（段2 = text-base 16px / 1.5 / 600）。
  * **キャンバスの「仮説の展開」アートボードは 18px（27px 行高）で描かれて
- * いるが、18px は `src/index.css` の段（14/16/22px の3サイズ、M23／M26）に
+ * いるが、18px は `src/index.css` の段（14/16/22px の3サイズ）に
  * 存在しないので、`text-base`（16px・24px 行高）に落とす。**
- *
- * **まだどこからも読まれていない（Task 4 で接続する）。** 展開中の課題タイトルも
- * いまは `TITLE_FONT_CLASS`（14px）で描かれ、`layout.ts` もその測定器で
- * `titleHeight` を測っている。差し替えるときは**エディタの測定用の見本を1本足し、
- * `layout.ts` が展開中の課題だけその測定器で測るように直すのと対で**行うこと
- *——片方だけ変えると、測定より広く描いて折り返しが1行増え、高さ固定＋
- * `overflow-hidden` の textarea で末尾の行が黙って見えなくなる
  */
 export const EXPANDED_TITLE_FONT_CLASS = 'text-base leading-normal font-semibold'
 /**
@@ -65,27 +58,25 @@ export const EXPANDED_TITLE_FONT_CLASS = 'text-base leading-normal font-semibold
 export const HYPO_TITLE_FONT_CLASS = 'text-sm leading-normal font-medium'
 
 /**
- * 課題の箱の幅（**固定。導出しない**）。**M24 で全種類の箱に広がった。**
+ * 課題の箱の幅（**固定。導出しない**）。全種類の箱に共通。
  *
  * 箱の中には課題の文言と仮説の行という**性質の違う文章が縦に積まれる**ので、
  * 一番長い行に幅を合わせると、短い課題と長い課題で箱幅がばらつき、木が
  * 階段状に見える。シーケンスがガター幅を導出しないと決めた（design-notes
  * 論点7）のと同じ判断。
  *
- * **M24 より前、仮説も見送りも持たない箱だけはタイトルの自然幅だった。**
- * その結果、同じ列の中で右上のバッジの右端が散り、「どれが未決か」を知るには
- * 全ノードを個別に読む必要があった（rev 9章 D3 rev.3 ＝ スキャン性）。
- * いまは例外なくこの幅で、**バッジは列ごとに縦一列に揃う。**
+ * 仮説も見送りも持たない箱をタイトルの自然幅にすると、同じ列の中で右上の
+ * バッジの右端が散り、「どれが未決か」を知るには全ノードを個別に読む必要が
+ * 出る（rev 9章 D3 rev.3 ＝ スキャン性）。例外なくこの幅にするので、
+ * **バッジは列ごとに縦一列に揃う。**
  *
  * **値は 360 で、ロジックツリーのノード（`NODE_WIDTH`＝320）とは違う。**
- * m5 で旗のトグルが2つ（見送り／解決）になり、タイトルの右に空ける枠が
- * 広がってタイトルが 200 → 164px に痩せたので、依頼者の指示で箱の側を
- * 伸ばした（タイトルは 204px 前後に戻る）。
+ * 旗のトグルが2つ（見送り／解決）あり、タイトルの右に空ける枠が広い分を
+ * 箱の側で吸収する（タイトルは 204px 前後）。
  *
- * **3つを共有定数に束ねていない理由は生きている**——`NODE_WIDTH`（320）は
- * 固定、シーケンスの `LABEL_MAX_WIDTH`（320）は**上限**であって固定では
- * ない。意味が違うものを1つの定数にすると、片方の事情で動かしたとき
- * （まさに今回がそれ）に無関係な図まで一緒に動く
+ * **3つを共有定数に束ねない**——`NODE_WIDTH`（320）は固定、シーケンスの
+ * `LABEL_MAX_WIDTH`（320）は**上限**であって固定ではない。意味が違うものを
+ * 1つの定数にすると、片方の事情で動かしたときに無関係な図まで一緒に動く
  */
 export const BOX_WIDTH = 360
 /** 箱の中の文章が使える幅 */
@@ -94,8 +85,7 @@ export const BOX_CONTENT_WIDTH = BOX_WIDTH - ISSUE_INSET_X * 2
 /**
  * 展開中の課題ノードの幅（**固定。導出しない**——`BOX_WIDTH` と同じ判断）。
  * 展開すると仮説・問い・FB まで縦に積まれるので、畳んだ幅（`BOX_WIDTH`）の
- * ままでは1行が細くなりすぎる。**m5 で `BOX_WIDTH` が 320 → 360 に伸びた
- * ときも、この値は動かしていない**（依頼者の指示は畳んだ箱の側だけ）。
+ * ままでは1行が細くなりすぎる。**`BOX_WIDTH` とは独立に決める。**
  * 値はデザインキャンバスの「仮説の展開」アートボードから
  */
 export const EXPANDED_BOX_WIDTH = 780
@@ -158,8 +148,7 @@ export const SECTION_GAP = 4
 /**
  * **節見出しの下の「値の欄」の字下げ（全角1文字ぶん）。**
  *
- * 実機確認で「見出しと値の区別が付かない」と言われた（m5 の追加作業）。
- * **見出しの書体は上げない**——`src/index.css` の段は節見出しを段1（`text-sm`
+ * 見出しと値の区別を付けるためである。**見出しの書体は上げない**——`src/index.css` の段は節見出しを段1（`text-sm`
  * ＝14px）と名指ししており（`SECTION_LABEL_FONT_CLASS` の解説）、そこを動かすのは
  * 別の領域である。代わりに**値の欄だけを一段右へ**寄せ、「見出しが左・値がその
  * 内側」という位置関係で読ませる。**見出しの帯は動かさない。**
@@ -181,8 +170,8 @@ export const FIELD_INDENT = 14
  * **下のクラスと対で直すこと**——クラスを当て忘れるとボタンの実高が測定より
  * 低くなり、定数が嘘になる。
  *
- * **「検証結果」の帯はこれを空けない**（m5 Task 6）——判断のトリガーは文言の
- * ボタンからバッジ自身に変わったので、帯の高さは `BADGE_HEIGHT` で測る
+ * **「検証結果」の帯はこれを空けない**——判断のトリガーは文言のボタンではなく
+ * バッジ自身なので、帯の高さは `BADGE_HEIGHT` で測る
  *（`layout.ts` の `judgeLabelH`）
  */
 export const ACTION_HEIGHT = 24
@@ -194,8 +183,7 @@ export const ACTION_HEIGHT_CLASS = 'h-6'
  *
  * **`MINI_ICON_SIZE_CLASS`（10px）を借りないこと。** キャンバスは `.add` を
  * 12px、`.miniadd` を 10px と**書き分けている**ので、借りるとミニボタンの
- * アイコンを直したとき節末のボタンと FB の削除が黙って一緒に動く（m5 Task 7 で
- * 実際に借りていた）。
+ * アイコンを直したとき節末のボタンと FB の削除が黙って一緒に動く。
  *
  * **数の対（`ACTION_ICON_SIZE`）を置かないのは、この 12px を測る場所が
  * どこにも無いため。** 節末の `.add` と末尾の「＋ 仮説を追加」は幅いっぱいの
@@ -216,15 +204,15 @@ export const TRASH_ICON_SIZE = 16
 export const TRASH_ICON_SIZE_CLASS = 'size-4'
 /**
  * ボタンの左右の余白（px-1 = 4px）＋枠線 1px。**いまはどこからも読まれていない**
- *——m5 Task 4 で判断のトリガーが「検証結果」の見出しの帯へ移り、帯の中で
- * flex に並ぶようになったので、レイアウトがボタンの幅を測る必要が無くなった
- *（`layout.ts` の `actionWidth` はそれで消えた）。**小さなボタンを絶対配置で
- * 置く場所が再び出たときの対として残してある**（幅は文言の実測＋これ）
+ *——判断のトリガーは「検証結果」の見出しの帯の中で flex に並んでおり、
+ * レイアウトがボタンの幅を測る必要が無い（`layout.ts` に `actionWidth` は
+ * 無い）。**小さなボタンを絶対配置で置く場所が再び出たときの対として残してある**
+ *（幅は文言の実測＋これ）
  */
 export const ACTION_INSET_X = 5
 
 /**
- * **`PANEL_CONTENT_WIDTH` は m5 Task 2 で消した。**
+ * **`PANEL_CONTENT_WIDTH` は無い。**
  *
  * 箱の幅が可変になった（畳んで `BOX_WIDTH` ／開いて `EXPANDED_BOX_WIDTH`）ので、
  * パネルの中の文章が使える幅は箱ごとに違う。`layout.ts` が `contentWidth - PANEL_INDENT -
@@ -246,7 +234,7 @@ export const ASK_GAP = 4
 export const ASK_BLOCK_GAP = 4
 /**
  * **`ASK_PADDING_CLASS` / `ASK_GAP_CLASS` / `ASK_BLOCK_GAP_CLASS` /
- * `FB_COL_GAP_CLASS` は m5 Task 7 で消した。**
+ * `FB_COL_GAP_CLASS` は無い。**
  *
  * 「flex で積む作りに変えるときの対」として置いてあったが、問いブロックの子は
  * **すべて絶対配置で置くと決めてある**（`ISSUE_BOX_CLASS` / `PANEL_BOX_CLASS` と
@@ -332,7 +320,7 @@ export const MIN_FIELD_WIDTH = 80
 export const CELL_INPUT_CLASS =
   'h-full w-full resize-none overflow-hidden bg-transparent whitespace-pre-wrap break-all outline-none placeholder:text-ink-muted focus:ring-2 focus:ring-inset focus:ring-ring'
 
-/** 読み取り専用の文章（以前の判断の根拠・判断が無いときの案内・固定文の見出し）。文字色は同上 */
+/** 読み取り専用の文章（判断が無いときの案内・固定文の見出し）。文字色は同上 */
 export const STATIC_TEXT_CLASS =
   'absolute overflow-hidden text-sm leading-normal break-all whitespace-pre-wrap'
 
@@ -340,14 +328,12 @@ export const STATIC_TEXT_CLASS =
 export const BODY_FIELD_CLASS = 'text-sm leading-normal'
 
 /**
- * **`CHEVRON_SIZE` / `CHEVRON_SIZE_CLASS` / `CHEVRON_GAP` は m5 の実機確認後に
- * 消した。**
+ * **`CHEVRON_SIZE` / `CHEVRON_SIZE_CLASS` / `CHEVRON_GAP` は無い。**
  *
- * 課題タイトルの左にあった開閉トグル（シェブロン）を撤去し、**箱そのものの
- * クリックによる選択**に置き換えたため（依頼者の指示。設計ノート D8）。
- * トグルが消えたので、タイトルの左に空けていた `CHEVRON_SIZE + CHEVRON_GAP`
- * ＝ 20px も消え、**畳んだ箱のタイトルは 204 → 224px に広がった**
- *（`layout.test.ts` の「畳んだ箱の幅は 360」が実寸で見ている）。
+ * 課題タイトルの左に開閉トグル（シェブロン）は無く、選択は**箱そのものの
+ * クリック**で行う（設計ノート D8）。トグルが無いので、タイトルの左に
+ * `CHEVRON_SIZE + CHEVRON_GAP`（20px）を空けない——**畳んだ箱のタイトルは
+ * 224px**（`layout.test.ts` の「畳んだ箱の幅は 360」が実寸で見ている）。
  *
  * 定数を残さないのは上の `ASK_*_CLASS` / `PANEL_CONTENT_WIDTH` と同じ判断
  *——**誰も読まない数は、隣の数と食い違っても何も落ちない**ぶん静かに嘘になる

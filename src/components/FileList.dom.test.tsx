@@ -211,7 +211,7 @@ describe('削除', () => {
 describe('行の説明（aria-describedby）', () => {
   // アクセシブル名は「<title>（<ファイル名>）を開く」。title は読まれるが、
   //「開けない」「編集不可」・issue 件数バッジは aria-describedby 側なので
-  // 読まれない（M8 残件4 のうち title の部分だけが解消した）。
+  // 読まれない。
   const description = (name: string): string => {
     const button = screen.getByRole('button', { name: `${name} を開く` })
     const id = button.getAttribute('aria-describedby')
@@ -249,7 +249,7 @@ describe('行の説明（aria-describedby）', () => {
   })
 })
 
-describe('種類の見出しとソート（M13）', () => {
+describe('種類の見出しとソート', () => {
   it('種類ごとに見出しを出す', () => {
     setup([
       file('シーケンス.json', {
@@ -258,7 +258,7 @@ describe('種類の見出しとソート（M13）', () => {
       file('用語集.json'),
     ])
     // 見出しレベルは h2。額縁の h1（`facet`）との間に入る見出しは無いので、
-    // h3 にするとレベルが飛ぶ（エディタの h2 は M13 で帯へ一本化した）
+    // h3 にするとレベルが飛ぶ（エディタの h2 は帯へ一本化してある）
     expect(screen.getByRole('heading', { level: 2, name: '用語集' })).not.toBeNull()
     expect(screen.getByRole('heading', { level: 2, name: 'シーケンス' })).not.toBeNull()
   })

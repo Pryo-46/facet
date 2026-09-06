@@ -1,14 +1,14 @@
 /**
  * Miro のマインドマップをコピーしたときのクリップボード原本（Windows の CF_HTML）。
  *
- * 2026-08-29 に実機の Miro から採取した 9,768 バイトを **base64 で持つ**。生のテキストで
+ * 実機の Miro から採取した 9,768 バイトを **base64 で持つ**。生のテキストで
  * 置かないのは、CF_HTML が CR+LF を含み、Git の改行変換で壊れると**オフセット（バイト位置）が
  * 全部ずれて無効になる**ため。
  *
  * **これは書き出し（facet → Miro）のテストの土台である。** エクスポートの壊れ方は
- * インポートのテストでも往復テストでも検出できない——実際 M2 の調査では data-meta の
- * 閉じタグ（miro-data-v1 の閉じ側）を落としたまま復号も往復も通ってしまい、実機で3回
- * 空振りした。**生成物をこの原本とバイト単位で照合すること。**
+ * インポートのテストでも往復テストでも検出できない——data-meta の
+ * 閉じタグ（miro-data-v1 の閉じ側）が欠けても復号も往復も通ってしまう。
+ * **生成物をこの原本とバイト単位で照合すること。**
  *
  * 中身の木（Miro 上の見た目。兄弟順は y 座標の昇順）:
  *
@@ -19,9 +19,6 @@
  *
  * **objects の配列順は上の木とも見た目とも一致しない**（親, 子1, 孫1, 子2, 子3, 孫2 の順で
  * 入っている＝ボードで作った順）。木はエッジから復元し、兄弟順は y 座標で決めること。
- *
- * 設計と観測の詳細:
- * docs/superpowers/plans/2026-08-29-logic-tree-m3-miro-clipboard-design.md
  */
 export const MIRO_MINDMAP_CF_HTML_BASE64 =
   "VmVyc2lvbjowLjkNClN0YXJ0SFRNTDowMDAwMDAwMTA1DQpFbmRIVE1MOjAwMDAwMDk3NjgNClN0YXJ0RnJhZ21lbnQ6MDAwMDAw" +

@@ -6,13 +6,12 @@ import { poseQuestions, readSlot, type AnswerPath } from './questions'
 const PATHS: readonly AnswerPath[] = ['failed', 'unknown', 'ifExecuted']
 
 /**
- * シーケンスの欠落（M22。docs/missing-semantics.md 決定1）。
+ * シーケンスの欠落（docs/missing-semantics.md 決定1）。
  *
  * 未回答＝**立っている問い**に decision が無い（reading-guide:「未回答」）。
  * 立っていない問いへの答え（種別切替の残骸）は数えない——整合性検証が
  * unposed-answer として別に指摘する軸であり、欠落ではない。
- * 未記入＝アクターの name／ステップの label が空（出力が（未定義）と書く2箇所。
- * reading-guide には M22 で追記した）。
+ * 未記入＝アクターの name／ステップの label が空——出力が（未定義）と書く2箇所。
  *
  * handled / notApplicable は欠落ではないが総量の把握に要るので添えて返す
  * （notApplicable は「考慮しなくてよいと**決めた**」＝確定。未回答とは別物）

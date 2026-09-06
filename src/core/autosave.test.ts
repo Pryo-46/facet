@@ -292,8 +292,7 @@ describe('createAutoSaver', () => {
     io.settlers[0].resolve() // write('B') 完了 → write('C') が飛ぶ
     await vi.advanceTimersByTimeAsync(0)
     expect(io.calls).toEqual(['B', 'C'])
-    // 修正前はここで true を返して終わっていた（write('C') を残したまま
-    // ウィンドウを destroy しうる経路。M4 の申し送り）
+    // ここで true を返すと、write('C') を残したままウィンドウを destroy しうる
     expect(flushed).toBeNull()
 
     io.settlers[1].resolve()

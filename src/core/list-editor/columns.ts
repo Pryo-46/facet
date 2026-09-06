@@ -4,8 +4,8 @@
  * **`defaultWidth` が null の列は幅を持たず、残りを埋める。** 他の列が px を
  * 持ち1列が残りを取るので、テーブルは常に親幅に収まり横スクロールが出ない。
  * 「この列を広げたい」は他の列を狭めることで達成される。窓を狭めたときも
- * 幅を持たない列が縮んで吸収する（M8 決定1で用語集について確定した形を、
- * M9 で列構成に依存しない形へ一般化した）
+ * 幅を持たない列が縮んで吸収する。列構成に依存しない形なので、
+ * どのツールでも同じ写像を使える
  */
 export interface ColumnSpec<TField extends string> {
   field: TField
@@ -32,7 +32,7 @@ export function defaultWidths(columns: readonly ColumnSpec<string>[]): number[] 
  * `i` より後ろで最初に幅を持つ列の、幅配列上の添字を返す。無ければ null。
  *
  * 幅を持たない列の右端にハンドルを置くとき、掴めるのは右隣の固定幅の列の幅
- * なので、その添字をここで引く（M8 Task 15）
+ * なので、その添字をここで引く
  */
 export function nextWidthIndex(
   index: readonly (number | null)[],

@@ -28,7 +28,7 @@ export interface FileListProps {
   onCreate: (module: AnyToolModule) => void
   onDelete: (file: ProjectFile) => void
   /**
-   * そのファイルを Claude Code ペインへ渡す（M28）。**選択は動かさない**——
+   * そのファイルを Claude Code ペインへ渡す。**選択は動かさない**——
    * 編集中のファイルを開いたまま別のファイルを渡せることが、この動線の要点
    */
   onHandoff: (file: ProjectFile) => void
@@ -63,7 +63,7 @@ function FileRow(props: {
   const descId = useId()
   return (
     // items-stretch で削除ボタンが行の高さいっぱいになる（要望8）。
-    // 行の区切りは rule-muted（弱い境界。要望9。M27 で grid から分離）
+    // 行の区切りは rule-muted（弱い境界。要望9）
     <li className="flex items-stretch border-b border-rule-muted">
       <button
         type="button"
@@ -92,7 +92,7 @@ function FileRow(props: {
           )}
         </span>
       </button>
-      {/* Claude Code へ渡す（M28）。**選択状態は動かさない**——編集中のファイルを
+      {/* Claude Code へ渡す。**選択状態は動かさない**——編集中のファイルを
           開いたまま、別のファイルを渡せるのがこのボタンの存在理由。
           開けない・編集不可のファイルにも出す——渡す先は Claude であって
           facet ではないので、facet が開けないことは渡せない理由にならない
@@ -195,10 +195,10 @@ export function FileList(props: FileListProps) {
         ) : (
           props.groups.map((group, i) => (
             <div key={group.key}>
-              {/* 見出しは装飾ではなく文書構造なので heading。面は M8 の
+              {/* 見出しは装飾ではなく文書構造なので heading。面は
                   「見出しの面」トークンを使う（rev 9章）。
                   **h2 にすること。** 額縁の h1（`facet`）の直下で、間に入る
-                  見出しは無い（エディタの h2 は M13 で帯へ一本化した）ので、
+                  見出しは無い（エディタの h2 は帯へ一本化してある）ので、
                   h3 にするとレベルが飛ぶ。
 
                   **罫線は上に置く（下ではない）。** 見出しとその下の行は同じ

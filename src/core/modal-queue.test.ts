@@ -54,7 +54,7 @@ describe('dropModal', () => {
   })
 })
 
-describe('pushModal: tableCopy（M29）', () => {
+describe('pushModal: tableCopy', () => {
   const request = {
     kind: 'tableCopy' as const,
     key: 'export',

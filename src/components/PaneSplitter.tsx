@@ -26,7 +26,7 @@ export interface PaneSplitterProps {
    * キーボードの基準がこちらになる。** store（意図）を直接基準にすると、
    * ウィンドウが狭まって意図と表示が乖離した状態でハンドルに触れたときに
    * デッドゾーンが生まれ、かつクランプ後の値をそのまま意図として書き戻して
-   * しまう（レビュー指摘。`column-resize.ts` の `referenceWidths` 参照）。
+   * しまう（`column-resize.ts` の `referenceWidths` 参照）。
    *
    * **省略可能。** 省略すると `useColumnResize` が従来どおり store を基準に
    * する——このコンポーネント単体のテスト（`PaneSplitter.dom.test.tsx`）は

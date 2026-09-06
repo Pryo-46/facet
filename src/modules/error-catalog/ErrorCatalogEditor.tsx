@@ -37,14 +37,14 @@ import { EMPTY_FILTER, filterErrorIndices, isDerivedView, type ErrorFilter } fro
 // 解決レベルの選択肢はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂時に静かにずれる）
 const LEVEL_OPTIONS = errorCatalogSchema.$defs.errorEntry.properties.resolutionLevel.enum
 
-// フォーカスは面の塗り替えではなくリングで示す（M8 修正3）。エラー・未記入セルは
+// フォーカスは面の塗り替えではなくリングで示す。エラー・未記入セルは
 // 輪郭（CELL_FACE_CLASS）で示す。フォーカスで背景を塗り替えても消えないが、
 // リングで示す方針は変えない
 const cellInput =
   'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
 
 /**
- * 列の境界の縦罫。先頭列（No）には引かない（M8 決定2）。
+ * 列の境界の縦罫。先頭列（No）には引かない。
  *
  * **色は辺指定（border-l-*）で書く。** 無方向の `border-rule-muted` は
  * border-color を4辺へ流すので、ヘッダーの `border-b` と同じ th に載ると
@@ -150,7 +150,7 @@ export function ErrorCatalogEditor({
   const derivedView = isDerivedView(filter)
   const reorderEnabled = !derivedView
 
-  // 画面に出ている行を額縁へ知らせる（M29）。実装は共通フックが持つ
+  // 画面に出ている行を額縁へ知らせる。実装は共通フックが持つ
   useVisibleIdsReport(
     derivedView ? visible.map((i) => data.errors[i].id) : null,
     data.errors.length,
@@ -168,7 +168,7 @@ export function ErrorCatalogEditor({
   const jumpAt = useRef<Record<string, number>>({})
 
   /**
-   * 欠落セルへのジャンプ（M22）。**集計は全行、ジャンプは表示中**——絞り込み中は
+   * 欠落セルへのジャンプ。**集計は全行、ジャンプは表示中**——絞り込み中は
    * 集計と巡回先がずれうる（用語集 GlossaryEditor と同じ理由・同じ形）。
    * `'undecided'` は resolutionLevel セルへ、`'blank'` はその行の
    * TALLIED_FIELDS 順で最初に isMissingCell が真になるフィールドへ飛ぶ
@@ -418,7 +418,7 @@ export function ErrorCatalogEditor({
       </div>
       {/* 指摘の一覧は額縁が出す（rev 6章）。ここで `issues` を使うのは
           セル・行の赤表示だけ */}
-      {/* テーブルは surface の面に載せ、外枠だけ rule で締める（M8 決定2）。
+      {/* テーブルは surface の面に載せ、外枠だけ rule で締める。
           **overflow を掛けない**——既定幅は横スクロールが出ない前提で決めてあり
           （columns.test.ts が検査）、overflow を足すと sticky の親が変わって
           見出しの固定が静かに壊れる */}

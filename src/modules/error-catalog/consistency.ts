@@ -7,7 +7,7 @@ import { FIELD_LABELS, type ResolutionLevel } from './fields'
 import { resolutionLabel } from './resolution-labels'
 
 /**
- * エラーカタログのモジュール内検証（規約4。M10 決定13）。
+ * エラーカタログのモジュール内検証（規約4。決定13）。
  * レベル2＝受け入れて赤表示。自ファイルで完結する検証のみで、
  * 単一性違反はコア横断検証の管轄。
  *

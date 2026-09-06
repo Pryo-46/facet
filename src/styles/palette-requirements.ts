@@ -18,7 +18,7 @@
  * **下の表（`TOKENS` / `REQUIREMENTS` / `FACE_REQUIREMENTS` / `FACE_PAIRS` /
  * `DISTINCT_PAIRS` / `ACHROMATIC`）を変えたら、次の5箇所を対で直すこと。**
  * `measure.ts` の「定数と Tailwind クラスは必ず対で直す」と同じ約束である
- *（issue-tree-m5 で `judge-yes-face` と `ink-faint` を足したとき、2ラウンド
+ *（`judge-yes-face` と `ink-faint` を足したとき、2ラウンド
  * 続けてこれを踏んだ）:
  *
  * 1. `.claude/skills/palette-retheme/SKILL.md` の手順5の表——**面ごとに載る色**と
@@ -90,8 +90,8 @@ export const MODES = [
  *
  * **`grid` がここに無いのは意図的。** 方眼紙の線は純粋な装飾であり、
  * WCAG 1.4.11（情報を伝える非テキスト UI 要素は 3:1）の対象外。
- * むしろ薄いことに意味がある（M7 設計スペック 決定2）。
- * **`rule-muted`（表の罫線・弱い境界。M27 で `grid` から分離）も同じ扱い**——
+ * むしろ薄いことに意味がある。
+ * **`rule-muted`（表の罫線・弱い境界。grid とは別トークン）も同じ扱い**——
  * 行の区切りは行間の余白と互い違いの内容が既に運んでおり、線は補助。
  * 3:1 を課すと `rule` と同じ濃さになり、「見せる境界」と区別が付かなくなる
  */
@@ -118,7 +118,7 @@ export const REQUIREMENTS = [
  * （ダークの rule を canvas だけ見て決めたとき surface 上で 2.997:1 と 3:1 を割った）。
  * surface-muted（一段沈んだ面）も、選択中タブ・種類見出し・見送りの箱として
  * 文字とバッジと罫線が載る汎用の面なので、同じ集合に入れる。
- * M8 の `surface-accent` を集合に入れなかった判断（淡い緑を選べなくなる）は、
+ * `surface-accent` を集合に入れなかった判断（淡い緑を選べなくなる）は、
  * 面が無彩色になった今は効かない——無彩色の面なら 3:1 / 4.5:1 は明度だけで作れる
  */
 export const BACKGROUNDS = ['canvas', 'surface', 'surface-muted'] as const
@@ -127,7 +127,7 @@ export const BACKGROUNDS = ['canvas', 'surface', 'surface-muted'] as const
  * 面に載せる色の要件。judge-yes-fg / judge-no-fg は自分の面にしか
  * 載らない専用の文字色で、`BACKGROUNDS` に対して測る意味が無い。
  *
- * **淡い面（`*-face`。M21 の実機確認で追加）も同じ表で見る。** 淡い面は
+ * **淡い面（`*-face`）も同じ表で見る。** 淡い面は
  * `BACKGROUNDS` には入れない——地ではなく「ここが欠けている／無効だ」と
  * 示すための局所的な面であり、全トークンをその上で測る対象ではない。
  * 代わりに、その面の上に**実際に載る3色**（`ink` の本文・`ink-muted` の
@@ -217,12 +217,11 @@ export const FACE_PAIRS = [{ a: 'judge-yes', b: 'judge-no', min: 3.0 }] as const
 
 /**
  * 意味色どうしの識別。**標準・P型・D型のすべてで** OKLab の色差が
- * `DISTINCT_MIN` 以上であること。M7 は warning/ok の色差を印字するだけで
- * 失敗させなかった（M7 決定4）が、意味色が4つに増えた今は
+ * `DISTINCT_MIN` 以上であること。意味色が4つに増えた今は
  * 「色は当てにならない」と学習された瞬間に警告機能が死ぬので、門番にする。
  *
  * **満たせないときは 0.08 まで下げてよい。** 下げたらこの定数の隣に
- * 実測値と理由を書く。閾値を黙って消さない（設計スペック 決定5）
+ * 実測値と理由を書く。閾値を黙って消さない
  *
  * **淡い面（`missing-face` / `invalid-face` / `pending-face` / `judge-yes-face`）は
  * ここに入れない。**
@@ -249,7 +248,7 @@ export const DISTINCT_MIN = 0.1
 
 /**
  * 無彩色でなければならないトークン。「色を持つのは意味だけ」（rev 9章）を
- * 機械検査にする。微かな暖色（M7 の canvas は C 0.012）も装飾なので弾く
+ * 機械検査にする。微かな暖色（例: canvas の C 0.012）も装飾なので弾く
  */
 export const ACHROMATIC = [
   'canvas',
@@ -272,13 +271,13 @@ export const ACHROMATIC_MAX_C = 0.01
  * `oklch(L C H)` は sRGB より広いので、C を上げすぎた値はブラウザ（と
  * `oklchToLinear`）が sRGB へクランプする。クランプされてもコントラストも
  * ΔE も通るため、「C 0.12 の黄土」と書いたまま 0.102 の色が出ている状態を
- * 誰も見つけられない——M21 のライトの `missing` が実際にそうだった。
+ * 誰も見つけられない——ライトの `missing` がこれを踏む。
  * 往復（oklch → 線形 sRGB → oklch）で C が戻るかどうかで見る
  */
 export const GAMUT_MAX_C_DRIFT = 0.005
 
 /**
- * 閾値ちょうどを置かない（M7 の教訓）。**この余裕は `palette-fit.mjs` の
+ * 閾値ちょうどを置かない。**この余裕は `palette-fit.mjs` の
  * 提案（`fitLightness` に渡す条件）とも共有する。** 値を変えるならここ
  * 1箇所を直せば両方に効く——書き写すと片方だけ直したときに食い違う。
  *
@@ -297,7 +296,7 @@ export const GAMUT_MAX_C_DRIFT = 0.005
  * 素の閾値を 0.1% 上回るだけの値も緑で通る。**余裕の側を守るのは人だけ**であり、
  * `MARGIN` は機械の門ではなく**値を選ぶときに人が当てる規律**である。
  *
- * **実例（issue-tree-m5）。** `judge-yes-face` のダークを 0.27 から 0.26 へ
+ * **実例。** `judge-yes-face` のダークを 0.27 から 0.26 へ
  * 下げたのは、この面に載る `ink-faint` が 0.27 では **3.045:1** で、素の 3:1 は
  * 満たすが `MARGIN` 込みの 3.09 に届かなかったからである。**機械はどちらの値でも
  * 緑だった**——0.27 に戻す変異を当てても検査は1本も落ちない（落ち始めるのは

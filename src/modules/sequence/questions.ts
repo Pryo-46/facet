@@ -76,7 +76,7 @@ export function unposedAnswers(step: SequenceStep): AnswerPath[] {
  * **主語はステップの種別が務める**——内部処理なら「処理が」、呼出なら「呼出が」。
  * 主語の無いステータスラベルを疑問文にしただけの文言（`処理失敗したら？`
  * `失敗が確定したら？`）は日本語として不自然で、何を書けばよいかも伝わらない
- * ため、M28 で言い直した。抽象度は変えていない——具体の場面は
+ * ため、主語を立てて言い直してある。抽象度は変えていない——具体の場面は
  * `questionHints` が title 属性で添える。
  *
  * **短く保つこと。** ガターの問いラベル列は `QUESTION_LABEL_WIDTH` 固定で、
@@ -147,10 +147,9 @@ export function questionHints(step: StepShape): QuestionLabels {
  * 答えスロット1つの読み出し。`unknown` は下位の `ifExecuted` を内包する形なので
  * 素直なプロパティアクセスにならない——その差を吸収するのがこの関数の仕事。
  *
- * **読み方の正はここ1箇所。** かつては commands.ts に置き、SequenceEditor.tsx が
- * ローカルに複製していた（M2 の申し送りの既知の負債）。`npm run gen:skills` が
+ * **読み方の正はここ1箇所。** `npm run gen:skills` が
  * このファイルを `.mjs` へ変換して sequence-register へ同梱するため、
- * 値 import を持たないこのファイルへ集約した
+ * 値 import を持たないこのファイルへ集約してある
  */
 export function readSlot(
   step: Pick<SequenceStep, 'failures'>,

@@ -99,8 +99,8 @@ describe('アクターを追加ボタン', () => {
   })
 
   it('「アクターを追加」ボタンで新しいアクターの名前欄にフォーカスが移る', () => {
-    // ボタン経路のフォーカスを固定する（M2 の最終レビューが「ステップを追加」
-    // ボタンで同じ穴を見つけている——キー経路だけ固定してボタン経路を放置しない）
+    // ボタン経路のフォーカスを固定する——「ステップを追加」ボタンにも同じ穴が
+    // ありうるため、キー経路だけ固定してボタン経路を放置しない
     render(<Harness initial={doc()} />)
     fireEvent.click(screen.getByRole('button', { name: 'アクターを追加' }))
     expect(document.activeElement?.getAttribute('aria-label')).toBe('アクター4の名前')
@@ -142,7 +142,7 @@ describe('アクターヘッダ', () => {
     expect(last(onChange).actors).toHaveLength(2)
   })
 
-  it('名前が空のアクターヘッダは欠落の面（破線＋淡い面）を持つ（M22 決定1）', () => {
+  it('名前が空のアクターヘッダは欠落の面（破線＋淡い面）を持つ（決定1）', () => {
     const d = doc()
     d.actors[1] = { ...d.actors[1], name: '' }
     setup(d)
@@ -268,7 +268,7 @@ describe('ステップ行', () => {
   })
 })
 
-describe('セルのドロップダウンは同時に1つだけ（Task 11b）', () => {
+describe('セルのドロップダウンは同時に1つだけ', () => {
   // from/to/種別 の3セルは SequenceEditor が持つ単一の `openCell` で
   // 制御される（各セルの `open` prop に `openCell === 自分の鍵` を渡す）。
   // これにより2つ目を開いた瞬間に1つ目が閉じる——複数同時オープン自体を
@@ -322,8 +322,8 @@ describe('セルのドロップダウンは同時に1つだけ（Task 11b）', (
   })
 
   it('メニューが1つ開いている状態では、ラベル欄へ実際にフォーカスが移らず、Enter もステップを増やさない（Radix の focus trap の確認）', () => {
-    // Task 11a を巻き戻すと anyModalOpen はメニューの開閉に反応しなくなる。
-    // それでも実ブラウザでは Radix の FocusScope（modal 既定）がメニュー内に
+    // anyModalOpen がメニューの開閉に反応しない実装でも、実ブラウザでは
+    // Radix の FocusScope（modal 既定）がメニュー内に
     // キーボードフォーカスを閉じ込めるので、ラベル欄へ Enter が届く経路自体が
     // 生じないはず。**実ブラウザのキーボードイベントは常に
     // document.activeElement へ届く**——`fireEvent.keyDown(label, ...)` の
@@ -333,8 +333,7 @@ describe('セルのドロップダウンは同時に1つだけ（Task 11b）', (
     // 押し戻されて失敗すること（= activeElement が label にならないこと）を
     // 確認したうえで、実際に focus が残っている要素（トラップ内）へ Enter を
     // 送ってもステップが増えないことを見る。もし label.focus() が成功して
-    // しまう（トラップが効かない）なら、それは Task 11b で作り込んだ穴なので
-    // 報告すべき懸念になる
+    // しまう（トラップが効かない）なら、報告すべき懸念になる
     const { onChange } = setup()
     const from = screen.getByLabelText('ステップ1の送り手')
     const label = screen.getByLabelText('ステップ1の文言')
@@ -364,14 +363,14 @@ describe('問いスロット（ガター）', () => {
     expect(screen.getByLabelText('ステップ3の答え: 処理が失敗したら？')).toBeDefined()
   })
 
-  it('notApplicable は「考慮不要」の接頭ぶん実効幅が狭く、同じ理由文言でも handled よりスロットの高さが大きくなる（M22 レビュー: ANSWER_WRAP の追随漏れと wrap キャッシュの鍵衝突を捕まえる）', () => {
+  it('notApplicable は「考慮不要」の接頭ぶん実効幅が狭く、同じ理由文言でも handled よりスロットの高さが大きくなる（ANSWER_WRAP の追随漏れと wrap キャッシュの鍵衝突を捕まえる）', () => {
     // GutterSlot は notApplicable のとき CellInput に pl-18 を足して左を空ける
     // （考慮不要の接頭と重ならないため）。実効幅が狭くなるぶん、同じ文言でも
     // notApplicable は handled より多くの行に折り返り、スロットが高くなるはず。
     // NOT_APPLICABLE_ANSWER_WRAP が無い、または wrap のキャッシュ鍵が箱名を
     // 分けていないと、notApplicable 側が handled 側と同じ（狭すぎない）高さを
     // 返し、この差が消える。入力長はフォント段に依存する。handled と notApplicable
-    // の行数が割れる長さを選ぶこと（M23 で 16px 段に合わせて 16→24 に変更）
+    // の行数が割れる長さを選ぶこと
     const reason = '在'.repeat(24)
     const d = doc()
     d.steps[0] = { ...d.steps[0], failures: { failed: { decision: 'handled', text: reason } } }
@@ -387,7 +386,7 @@ describe('問いスロット（ガター）', () => {
     expect(notApplicableHeight).toBeGreaterThan(handledHeight)
   })
 
-  it('未回答のスロットに placeholder の語を出さない（面が「未回答」を示す。M22 決定1）', () => {
+  it('未回答のスロットに placeholder の語を出さない（面が「未回答」を示す。決定1）', () => {
     setup()
     const cell = screen.getByLabelText('ステップ1の答え: 呼出が失敗したら？') as HTMLTextAreaElement
     expect(cell.getAttribute('placeholder')).toBeNull()
@@ -414,7 +413,7 @@ describe('問いスロット（ガター）', () => {
   it('問いラベルにツールチップ（title）が付き、種別で文面が変わる', () => {
     setup()
     // ラベル列は aria-label を持たないので、文言そのもので引く。
-    // getByText は要素を返すので、その title を見る（M28）
+    // getByText は要素を返すので、その title を見る
     const titleOf = (question: string): string | null =>
       screen.getByText(question).getAttribute('title')
     expect(titleOf('呼出が失敗したら？')).toBe(questionHints({ kind: 'call', awaitsReply: true }).failed)
@@ -700,7 +699,7 @@ describe('操作ヒントとラベルの面', () => {
     expect(screen.getByLabelText('ステップ1の文言').className).toContain('bg-surface')
   })
 
-  it('文言が空のステップのラベルセルは欠落の面（破線＋淡い面）を持つ（M22 決定1）', () => {
+  it('文言が空のステップのラベルセルは欠落の面（破線＋淡い面）を持つ（決定1）', () => {
     const d = doc()
     d.steps[0] = { ...d.steps[0], label: '' }
     setup(d)

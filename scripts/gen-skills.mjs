@@ -20,7 +20,7 @@ const ts = require('typescript')
  * 同梱 Skill ごとの、スキーマ名と共有ソース。
  *
  * **手書きの表である。`BUNDLED_SKILLS` から導出しない**——導出すると
- * 恒真式になり、網羅を何も縛らなくなる（logic-tree-m2 で確立した理屈）。
+ * 恒真式になり、網羅を何も縛らなくなる。
  * 一致は `scripts/gen-skills.test.mjs` が強制する
  */
 export const SKILL_SOURCES = {

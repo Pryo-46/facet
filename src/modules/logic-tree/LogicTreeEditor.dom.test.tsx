@@ -102,7 +102,7 @@ describe('LogicTreeEditor（描画）', () => {
   })
 
   // 指摘の一覧を出すのは額縁（IssueBanner）で、エディタではない（rev 6章）。
-  // ここに戻すと件数が増えるほど木の上部を覆う——それが M14 で直した欠陥
+  // ここに戻すと件数が増えるほど木の上部を覆う
   it('整合性検証の指摘の一覧はエディタが出さない', () => {
     render(
       <LogicTreeEditor
@@ -156,8 +156,8 @@ describe('LogicTreeEditor（描画）', () => {
       />,
     )
     const target = screen.getByLabelText('ノード1')
-    // 無効は `invalid` の枠＋淡い面（rev 9章 規約2。M21 の実機確認で、
-    // 1px の枠だけでは方眼に埋もれて拾えないと判断して面を足した）
+    // 無効は `invalid` の枠＋淡い面（rev 9章 規約2）——1px の枠だけでは
+    // 方眼に埋もれて拾えないので面を足す
     expect(target.className).toContain('border-invalid')
     expect(target.className).toContain('bg-invalid-face')
     expect(target.className).not.toContain('border-rule')
@@ -259,7 +259,7 @@ describe('LogicTreeEditor（キーボード操作）', () => {
     expect(onChange.mock.calls[0][0].nodes[2].parentId).toBe(ID(1))
   })
 
-  it('IME 変換中の Enter ではノードが増えない（M1 の最重要要件）', () => {
+  it('IME 変換中の Enter ではノードが増えない', () => {
     render(<Harness initial={file([[1, null, '親'], [2, 1, '']])} />)
     const el = screen.getByLabelText('ノード2')
     fireEvent.compositionStart(el)

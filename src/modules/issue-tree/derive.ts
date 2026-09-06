@@ -112,7 +112,7 @@ export function leafIssueIds(issues: readonly IssueNode[]): Set<string> {
 export interface HypothesisQuestions {
   /** 「未決」＝ events が0件 */
   result: boolean
-  /** 「保留」＝最新が onHold（見たが判断できなかった。次のレビューで拾い直す） */
+  /** 「保留」＝最新が onHold（見たが判断できなかった。次に見直すときに拾い直す） */
   hold: boolean
   /**
    * 「FB待ち」＝ **FB が1件も付いていない、文言のある問いの件数**。
@@ -123,7 +123,7 @@ export interface HypothesisQuestions {
    * 仮説が、1つも返っていない仮説と同じ「1」に潰れる。
    *
    * **文言が空の問いは数えない**——「＋ 聞きたいこと」を押した瞬間に要対応が
-   * 増えると、書き始める前から急かされることになる（2026-08-30 の決定）
+   * 増えると、書き始める前から急かされることになる
    */
   feedback: number
 }
@@ -226,11 +226,6 @@ export const QUESTION_LABELS = {
  * 判断の種別の表示ラベル（展開したパネルのバッジ・その根拠のアクセシブル名・
  * 判断を選ぶドロップダウンの項目に出る文言）。
  *
- * **v4 まではここに「以前の判断」の節も含まれていた**——覆される前の判断を
- * 読み取り専用で並べる節があり、その行のバッジがこの語を出していた。仮説の
- * `events` が `maxItems: 1` になって覆りがデータに残らなくなったので、
- * 節ごと消えた（設計ノート D2 の反転節）。
- *
  * **いまは `BADGE_LABELS` と同じ語しか並んでいない**——判断の種別を5語に畳んだ
  * ため、俯瞰のバッジと展開のバッジが同じ言葉を出す。それでも `BADGE_LABELS` と
  * 別に置くのは、鍵が違う（こちらは `JudgementKind`、あちらは `BadgeGroup`）
@@ -265,9 +260,8 @@ export function tallyLine(t: IssueTreeTally): string {
 /**
  * 帯（MissingTally 部品）へ渡す共通形。kind は OpenKind と同じ語で、
  * チップの onJump がそのまま goToNextOpen に渡せる。
- * variant の対応は元々 badge-variant.ts の chipVariantOf が持っていたものと
- * 同じ——未決・仮説なしは破線（open）、保留は実線（hold）、FB待ちは着信の青
- *（pending）——欠落ではなく、返事を待っている。M22 でここに一本化し、chipVariantOf は削った
+ * variant の対応——未決・仮説なしは破線（open）、保留は実線（hold）、FB待ちは着信の青
+ *（pending）——欠落ではなく、返事を待っている
  */
 export function toMissingTally(t: IssueTreeTally): MissingTally {
   return {
@@ -333,8 +327,8 @@ export const ISSUE_EVENT_LABELS: Record<IssueEventKind, string> = {
  * **見送りと解決は別々に数える。** 実効（配下を抑制する）は同じでも意味は逆で、
  * 「追わないもの」と「答えが出たもの」が1つの数に混ざると台帳として読めない。
  *
- * **配下に眠る凍結中の問いの数は導出しない**——出す画面が無い（人間の裁定。
- * 別枠は件数だけ）。必要が出たら poseQuestions を抑制なしで回す形で足せる
+ * **配下に眠る凍結中の問いの数は導出しない**——出す画面が無い（別枠は件数だけ）。
+ * 必要が出たら poseQuestions を抑制なしで回す形で足せる
  */
 export function issueEventCount(
   issues: readonly Pick<IssueNode, 'events'>[],

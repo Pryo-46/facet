@@ -111,11 +111,11 @@ describe('TableCopyDialog: コピーと記憶', () => {
   })
 })
 
-describe('TableCopyDialog: 閉じ方と二重発火（M4 の罠）', () => {
+describe('TableCopyDialog: 閉じ方と二重発火', () => {
   it('コピーは onCopy を1回だけ呼び、onCancel は呼ばない', () => {
     // AlertDialogAction の内部実装は Dialog.Close なので、onOpenChange を
     // onCancel に配線した状態でクリックすると、preventDefault を怠れば
-    // onCopy と onCancel が同時に発火する（ConfirmDialog が踏んだ罠と同じ形）
+    // onCopy と onCancel が同時に発火する（ConfirmDialog にもある罠と同じ形）
     const onCopy = vi.fn()
     const onCancel = vi.fn()
     render(<TableCopyDialog {...base} onCopy={onCopy} onCancel={onCancel} />)

@@ -261,7 +261,7 @@ describe('shouldSyncSkillFile', () => {
     // 書き出しスクリプトは `require("ajv/dist/2020.js")` を通る。SKILL.md は
     // 利用者に「Skill ディレクトリで npm install」と指示するので、置いた先に
     // マニフェストが無いと `npm install` が何もインストールせず、
-    // 「ajv が見つかりません」から抜けられない（レビュー指摘）
+    // 「ajv が見つかりません」から抜けられない
     expect(shouldSyncSkillFile('package.json')).toBe(true)
     expect(shouldSyncSkillFile('package-lock.json')).toBe(true)
   })

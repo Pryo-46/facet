@@ -15,9 +15,6 @@ import { UNSUPPORTED_REASON } from '@/components/ToolbarButton'
 /**
  * 額縁レベルの DOM テスト。**このファイルが守っているのは1点だけ**——
  * 端末にフォーカスがある間、グローバル層（rev 10章）が Ctrl+Z を横取りしないこと。
- *
- * open-issues が「全ツールの Undo が同時に静かに壊れうる唯一の穴」と
- * 記録していた層で、ここに初めてテストが入る（M11）
  */
 
 /**
@@ -33,7 +30,7 @@ import { UNSUPPORTED_REASON } from '@/components/ToolbarButton'
  * `ptyExitHandlers` は spawn ごとに `onExit` を捕まえておく口。「確認待ちの
  * 間にタブが自然終了した」状況をテストから直接作るために使う——タブを閉じる
  * 確認ダイアログの `onConfirm` が古い state を掴まないことを検証するテスト
- * （レビュー指摘2）専用で、それ以外のテストは呼ばない
+ * 専用で、それ以外のテストは呼ばない
  */
 /**
  * `skillCalls` は「Skill の同期がいつ走ったか」を順番ごと記録する口。
@@ -45,7 +42,7 @@ import { UNSUPPORTED_REASON } from '@/components/ToolbarButton'
  * `syncGate` は同期を途中で止めておく口——「まだ終わっていない同期」が
  * 無いと重複排除は観測できない。
  *
- * `disk` は「/proj の中身」をテストから差し替えるための可変状態（M13）。
+ * `disk` は「/proj の中身」をテストから差し替えるための可変状態。
  * 既定は空なので、**このファイルの既存テストが前提にしている「listJsonFiles は
  * 常に []」はそのまま保たれる**——中身を置くテストだけが自分で足し、
  * afterEach で片付ける
@@ -96,7 +93,7 @@ const {
     // 既存テストはどれも起動時復元を前提にしていないので、既定を変えない
     restoreConfig: { lastDir: null as string | null, exists: false, allowError: null as Error | null },
     allowProjectDirCalls: [] as string[],
-    // 自動アップデート専用の可変状態（M19）。**既定は「更新なし」**——
+    // 自動アップデート専用の可変状態。**既定は「更新なし」**——
     // 既存テストはどれも更新を前提にしていないので、既定を変えない
     updateConfig: {
       available: null as { version: string } | null,
@@ -108,7 +105,7 @@ const {
     // 額縁の版番号専用の可変状態。**既定は「取れる」**——額縁に必ず出るものなので、
     // 取れない既定にすると全テストが「取得に失敗した画面」を見ることになる
     versionConfig: { value: '9.9.9', error: null as Error | null },
-    // Miro のクリップボード交換専用の可変状態（logic-tree M3、Task 9）。
+    // Miro のクリップボード交換専用の可変状態。
     // `copyHtmlToClipboardMock` / `readClipboardHtmlMock` を spy 化するのは、
     // ボタンの活性を「クリックしてハンドラが呼ばれたか」で確かめるため
     //（jest-dom を入れていないので toBeDisabled/toBeEnabled は使わない）。
@@ -117,7 +114,7 @@ const {
     copyHtmlToClipboardMock: vi.fn(async (_html: string, _altText: string) => undefined),
     clipboardHtmlConfig,
     readClipboardHtmlMock: vi.fn(async () => clipboardHtmlConfig.value),
-    // 差し込みを額縁レベルで観測するための口（M28）。**タブごとに別の xterm
+    // 差し込みを額縁レベルで観測するための口。**タブごとに別の xterm
     // オブジェクトが返る**ので、`paste` の呼び出しはここへ積んで共有する
     pasted: [] as string[],
     // 起動時の差し込み診断用（#8 調査）。**既定は 'sync'**——既存テストは
@@ -125,7 +122,7 @@ const {
     // 通したいので、書き換えるテストだけが 'async' にしてマイクロタスク越しに
     // 届く実機寄りの順序（invoke が先に解決し、その後で 2004 が来る）を試す
     ptyDataMode: { value: 'sync' as 'sync' | 'async' },
-    // Markdown の平文コピー（`AppIo.copyText` → `copyToClipboard`）専用の spy（M29）。
+    // Markdown の平文コピー（`AppIo.copyText` → `copyToClipboard`）専用の spy。
     // 絞り込みがコピーへ追従することを確かめるには、コピーされた文字列そのものを
     // 見る必要があるので、他の spy と同じ理由でモック化する
     copyTextMock: vi.fn(async (_text: string) => undefined),
@@ -136,8 +133,8 @@ vi.mock('@/fs/project-fs', () => ({
   // **`pickedFolder.value` を `'/proj'` に固定し直さないこと**——フォルダ切替
   // （A→B→A）のテストがこれを書き換えて成立している
   pickProjectFolder: async () => pickedFolder.value,
-  // `disk` 経由に変えたが、既定は空なので「listJsonFiles は常に []」という
-  // 既存テストの前提はそのまま（M13）
+  // `disk` 経由だが、既定は空なので「listJsonFiles は常に []」という
+  // 既存テストの前提はそのまま
   listJsonFiles: async () => [...disk.keys()],
   readProjectFile: async (path: string) => disk.get(path) ?? '',
   writeProjectFile: writeProjectFileMock,
@@ -164,17 +161,17 @@ vi.mock('@/fs/app-window', () => ({
 }))
 vi.mock('@/fs/clipboard', () => ({
   copyToClipboard: copyTextMock,
-  // Miro 等とのクリップボード交換（logic-tree M3、Task 9）。呼ばれたかどうかを
+  // Miro 等とのクリップボード交換。呼ばれたかどうかを
   // テストから見たいので spy 化する（`clipboardHtmlConfig` で返す HTML を制御する）
   copyHtmlToClipboard: copyHtmlToClipboardMock,
   readClipboardHtml: readClipboardHtmlMock,
-  // 端末の右クリックのコピー／貼り付け（M28）。このファイルは TerminalPane を
+  // 端末の右クリックのコピー／貼り付け。このファイルは TerminalPane を
   // モック化していない配線テストなので、`TerminalPane` の必須 props として
   // 実在だけ要る。挙動は TerminalTab.dom.test.tsx / TerminalPane.dom.test.tsx
   // の担当
   tauriClipboardIo: { readText: async () => '', writeText: async () => undefined },
 }))
-// エクスプローラからのドロップ（M28）。jsdom には Tauri のグローバルが無いので、
+// エクスプローラからのドロップ。jsdom には Tauri のグローバルが無いので、
 // 購読は何もしない関数に差し替える（このファイルのテストはドロップを主張しない）
 vi.mock('@/fs/drag-drop', () => ({
   onDragDrop: async () => () => undefined,
@@ -190,8 +187,8 @@ vi.mock('@/fs/pty', () => ({
     }) => {
       const id = ptyExitHandlers.size + 1
       ptyExitHandlers.set(id, spec.onExit)
-      // 起動時の差し込み（M28）は、PTY の出力に ESC[?2004h（DECSET 2004。
-      // bracketed paste の有効化）が現れてから流れる（実機修正）。この
+      // 起動時の差し込みは、PTY の出力に ESC[?2004h（DECSET 2004。
+      // bracketed paste の有効化）が現れてから流れる。この
       // フェイクは「どのタブへ差し込まれるか」という配線だけを見たいので、
       // 実物の claude が送る合図を起動直後に送って詰まらせない。
       // **既定（'sync'）は `spawn` の中で同期に届く**——`Channel.onmessage` が
@@ -280,7 +277,7 @@ vi.mock('@xterm/xterm', () => ({
         }
         callback?.()
       }),
-      // 差し込みを額縁レベルで観測するための口（M28）。**タブごとに別の
+      // 差し込みを額縁レベルで観測するための口。**タブごとに別の
       // オブジェクトが返るので、共有の配列へ積む**
       paste: vi.fn((text: string) => {
         pasted.push(text)
@@ -303,7 +300,7 @@ vi.mock('@xterm/addon-fit', () => ({
     return { fit: vi.fn() }
   }),
 }))
-// 自動アップデート（M19）。**既定は「更新なし」で即座に解決する**——
+// 自動アップデート。**既定は「更新なし」で即座に解決する**——
 // 起動時チェックは全テストで走るので、ここが遅いと全部が遅くなる
 vi.mock('@/fs/updater', () => ({
   checkForUpdate: async () => {
@@ -377,7 +374,7 @@ afterEach(() => {
   copyTextMock.mockClear()
 })
 /**
- * **止めたままの同期を次のテストへ持ち越さない（レビュー指摘）。**
+ * **止めたままの同期を次のテストへ持ち越さない。**
  * 重複排除の台帳（`App.tsx` の `skillSyncInFlight`）はモジュール変数なので
  * テスト間で共有される。gate で止めた同期を残すと、そのフォルダは次のテストで
  * 「まだ走っている」扱いになり、**同期が黙って走らなくなる**。
@@ -431,8 +428,8 @@ describe('グローバル層と端末ペインの境界', () => {
 describe('Skill の同期のタイミング', () => {
   /**
    * Skill はプロジェクトに属するものであって端末セッションに属さない。
-   * 以前は `openTerminal` が同期していたため、「＋ タブを追加」を押した
-   * 回数だけ「消して置き直す」が走っていた（sequence M4 の実機確認）
+   * `openTerminal` 側で同期すると、「＋ タブを追加」を押した回数だけ
+   * 「消して置き直す」が走ってしまう
    */
   it('フォルダを開いたときに走る（scope の付与が先）', async () => {
     render(<App />)
@@ -501,7 +498,7 @@ describe('フォルダ切替', () => {
     fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
     fireEvent.click(await screen.findByRole('button', { name: '終了して切り替える' }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
-    // 指摘2: 「タブを閉じても Claude が残る」症状の肯定側——フォルダ切替の
+    // 「タブを閉じても Claude が残る」症状の肯定側——フォルダ切替の
     // 確認を承認したら killAllPtys が実際に呼ばれること
     expect(killAllPtysMock).toHaveBeenCalled()
   })
@@ -516,8 +513,8 @@ describe('フォルダ切替', () => {
 
   it('**終了済みのタブしか無くてもフォルダ切替で消える**（確認は出ない）', async () => {
     // `hasRunning` は starting / running しか見ないので、exited のタブだけが
-    // 残っていると openFolder が確認も後始末もせず素通りしていた——旧フォルダ
-    // の残骸がタブバーに残る（M11 の残件）
+    // 残っていると openFolder が確認も後始末もせず素通りし、旧フォルダ
+    // の残骸がタブバーに残る
     await openPane()
     await screen.findByRole('button', { name: 'Claude 1' })
 
@@ -556,8 +553,6 @@ describe('読み方ガイド', () => {
 })
 
 describe('タブを閉じる確認', () => {
-  // 実機確認の指摘Bで計画の決定12（確認なしで即座に殺す）が覆り、
-  // 実行中のタブは確認ダイアログを経由するようになった（M11 Task 11）
   it('実行中のタブの × を押すと確認ダイアログが出て、その時点ではまだ閉じない', async () => {
     await openPane()
     fireEvent.click(screen.getByRole('button', { name: 'Claude 1 を閉じる' }))
@@ -572,7 +567,7 @@ describe('タブを閉じる確認', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Claude 1 を閉じる' }))
     fireEvent.click(await screen.findByRole('button', { name: '終了する' }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
-    // 指摘2: 「タブを閉じても Claude が残る」症状の肯定側——閉じる確認を
+    // 「タブを閉じても Claude が残る」症状の肯定側——閉じる確認を
     // 承認したら、そのタブの ptyId で実際に kill が呼ばれること
     expect(ptyKillMock).toHaveBeenCalledWith(1)
   })
@@ -584,7 +579,7 @@ describe('タブを閉じる確認', () => {
     expect(screen.getByRole('button', { name: 'Claude 1' })).toBeTruthy()
   })
 
-  // レビュー指摘2: onConfirm は承認まで遅延実行されるので、× を押した瞬間の
+  // onConfirm は承認まで遅延実行されるので、× を押した瞬間の
   // クロージャではなく、承認された時点の最新の台帳から ptyId を引き直す必要がある
   it('確認待ちの間にタブが自然終了しても壊れない（古い ptyId で kill を呼ばない）', async () => {
     ptyKillMock.mockClear()
@@ -606,23 +601,23 @@ describe('タブを閉じる確認', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
     // **kill はちょうど1回。** 承認された時点で台帳の ptyId は既に null
     // なので、`closeTerminalNow` は kill を呼ばない。**1回だけ飛ぶのは
-    // TerminalTab の cleanup**（M17。タブが消えてアンマウントされる）で、
+    // TerminalTab の cleanup**（タブが消えてアンマウントされる）で、
     // 自分が知っている ptyId を無条件に殺す——既に死んだ id への
     // pty_kill は Rust 側で何も起きず、ID は単調増加なので他人を殺すこともない。
-    // **2回になったら M11 の退行**（controller が古い＝自然終了前の
+    // **2回になったら退行**（controller が古い＝自然終了前の
     // ptyId で kill を呼んでいる）である
     expect(ptyKillMock.mock.calls).toEqual([[1]])
   })
 })
 
 /**
- * 名前の帯（M13）。**ここが守っているのは配線の2本立て**——帯の
+ * 名前の帯。**ここが守っているのは配線の2本立て**——帯の
  * `onTitleChange` は `record`（履歴）と `applyEdit`（自動保存＋一覧）の
  * 両方を呼ぶ必要があり、片方を落としても TypeScript もユニットテストも
  * 何も言わない。`record` だけなら名前が保存されず、`applyEdit` だけなら
  * Undo が静かに効かなくなる。どちらも「動いているように見える」壊れ方をする
  */
-describe('名前の帯（M13）', () => {
+describe('名前の帯', () => {
   const GLOSSARY_PATH = '/proj/用語集.json'
 
   const putGlossary = (title: string, over: Record<string, unknown> = {}) => {
@@ -695,7 +690,7 @@ describe('名前の帯（M13）', () => {
     const input = await openBand('こわれた（broken.json）')
     const band = input.parentElement
     if (band === null) throw new Error('unreachable: 帯が無い')
-    // 種類は一覧の見出しが示すので、帯では言わない（M13 実機確認の裁定）
+    // 種類は一覧の見出しが示すので、帯では言わない
     expect(band.textContent).not.toContain('用語集')
     // 書けないファイルなので入力欄は読み取り専用のまま
     expect(input.hasAttribute('readonly')).toBe(true)
@@ -733,7 +728,7 @@ describe('アプリ終了', () => {
 })
 
 describe('額縁の帯', () => {
-  it('ヘッダーはフォルダのパスを出さない（ファイル一覧の直上へ移した）', async () => {
+  it('ヘッダーはフォルダのパスを出さない', async () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
     await waitFor(() => {
@@ -750,12 +745,12 @@ describe('額縁の帯', () => {
 })
 
 /**
- * 指摘バナーと額縁の配線（M14 で各エディタから額縁へ寄せた分。M16）。
+ * 指摘バナーと額縁の配線。
  * IssueBanner 単体・「各エディタが一覧を出さない」は別ファイルが押さえて
  * いるので、ここで固定するのは**両者を繋ぐ配線**だけ——App が selected.issues を
  * IssueBanner へ渡し、エディタの上（縦フレックスの前の兄弟）に置いていること
  */
-describe('指摘バナーと額縁の配線（M14）', () => {
+describe('指摘バナーと額縁の配線', () => {
   const GLOSSARY_PATH = '/proj/用語集.json'
   const DUP_MESSAGE = '名称「受注」が2件重複しています（#1 ／ #2）'
   const term = (id: string, name: string) => ({
@@ -813,7 +808,7 @@ describe('起動時のフォルダ復元', () => {
     await waitFor(() => expect(screen.getByTitle('/restored')).toBeTruthy())
     expect(allowProjectDirCalls).toEqual(['/restored'])
     // 復元が `openProject` の全パイプライン（Skill 同期・読み方ガイド配置を
-    // 含む）に正しく乗っていることを直接検証する（最終レビュー指摘）
+    // 含む）に正しく乗っていることを直接検証する
     await waitFor(() => {
       expect(syncReadingGuideMock).toHaveBeenCalledWith('/restored', expect.anything())
     })
@@ -861,7 +856,7 @@ describe('起動時のフォルダ復元', () => {
   })
 })
 
-describe('自動アップデート（M19）', () => {
+describe('自動アップデート', () => {
   /**
    * 起動時チェックが解決しきるまで待つ。**待たずに手動クリックすると、
    * 多重起動の錠前（updateBusyRef）に握り潰されて何も起きない。**
@@ -1009,7 +1004,7 @@ describe('額縁の版番号', () => {
 })
 
 /**
- * 額縁の Miro 交換の配線（logic-tree M3、Task 9）。**額縁はツールを名指ししない**
+ * 額縁の Miro 交換の配線。**額縁はツールを名指ししない**
  * ——ボタンの活性は選択中モジュールが `clipboardExchanges` を宣言しているかどうか
  * だけで決まる（ロジックツリー以外は宣言しない）。ボタン自体は ExportMenu と同じ
  * 原則で常に出す（消えたり出たりしない）。
@@ -1017,12 +1012,12 @@ describe('額縁の版番号', () => {
  * このリポジトリは jest-dom を入れていないので `toBeDisabled()` / `toBeEnabled()`
  * は使わない。活性の検証は「クリックしてハンドラ（`copyHtmlToClipboardMock` /
  * `readClipboardHtmlMock`）が呼ばれたかどうか」で行う。**`ToolbarButton` は
- * disabled 属性を使わない**（M29 フォローアップ。`disabled` はポインタイベントを
+ * disabled 属性を使わない**（`disabled` はポインタイベントを
  * 丸ごと落とし、押せない理由を説明する `title` のツールチップを道連れに殺すため）
  * ので、押せないときも click イベント自体は発火する——押せないことは
  * `onClick` がガードされて中の処理まで届かないことで確かめる
  */
-describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
+describe('額縁の Miro 交換の配線', () => {
   const GLOSSARY_PATH = '/proj/用語集.json'
   const LOGIC_TREE_PATH = '/proj/木.json'
 
@@ -1079,7 +1074,7 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
     expect(copyButton.getAttribute('title')).toBe(UNSUPPORTED_REASON)
     // 定数（UNSUPPORTED_REASON）を経由するアサーションだけだと、定数の値そのものが
     // 誤って変わっても緑のまま通ってしまう。実際に画面へ出る文言を最低1箇所は
-    // リテラルで固定する（レビュー指摘）
+    // リテラルで固定する
     expect(copyButton.getAttribute('title')).toBe('このツールは対応していません')
     fireEvent.click(copyButton)
     expect(copyHtmlToClipboardMock).not.toHaveBeenCalled()
@@ -1116,7 +1111,7 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
     const importButton = screen.getByRole('button', { name: 'Miro から取り込む' })
     // aria-disabled が外れるまで待つ（jest-dom は入れていないので直接 DOM を見る。
     // toBeEnabled() の代わり。ToolbarButton は disabled 属性を持たないので
-    // `hasAttribute('disabled')` では判定できない——M29 フォローアップ）
+    // `hasAttribute('disabled')` では判定できない）
     await waitFor(() => expect(importButton.getAttribute('aria-disabled')).toBeNull())
 
     // 押せるようになったことを「押して実際に取り込みが始まる」ところまで確かめる
@@ -1151,7 +1146,7 @@ describe('額縁の Miro 交換の配線（logic-tree M3）', () => {
   })
 })
 
-describe('Claude Code へファイルを渡す（M28）', () => {
+describe('Claude Code へファイルを渡す', () => {
   const GLOSSARY_PATH = '/proj/用語集.json'
 
   const putGlossary = () => {
@@ -1166,7 +1161,7 @@ describe('Claude Code へファイルを渡す（M28）', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
     fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
-    // 選択の完了を待つ（名前の帯（M13）の openBand と同じ理由）。**選択は
+    // 選択の完了を待つ（名前の帯の openBand と同じ理由）。**選択は
     // `selectFile` 経由で非同期に進む**ので、待たずに次のクリックへ進むと
     // `selectedPath` がまだ null のまま「ペインを開く」を押すことになり、
     // 参照無しで開いてしまう
@@ -1234,9 +1229,9 @@ describe('Claude Code へファイルを渡す（M28）', () => {
   })
 
   it('動いているタブがあれば、@ は新しいタブを作らずそのタブへ差し込む（会話中の差し込み）', async () => {
-    // App レベルで「会話中の差し込み」経路（insertionSeq → targetId: active.id）が
-    // 一度も走っていなかった（最終レビュー指摘）。ペインを開いてタブを1本
-    // 立ててから @ を押し、既存タブへの insertion 経由で差し込まれることを見る
+    // App レベルの「会話中の差し込み」経路（insertionSeq → targetId: active.id）を、
+    // ペインを開いてタブを1本立ててから @ を押し、既存タブへの insertion 経由で
+    // 差し込まれることで確かめる
     putGlossary()
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
@@ -1259,10 +1254,10 @@ describe('Claude Code へファイルを渡す（M28）', () => {
   })
 
   it('終了済みのタブがアクティブなときに @ を押すと、死んだ PTY へは書きに行かず新しいタブを起こす', async () => {
-    // handoffToTerminal は activeId === null かどうかで「タブが無い」を判定
-    // していたが、markExited / markFailed はセッションを台帳に残し activeId も
+    // handoffToTerminal が activeId === null かどうかだけで「タブが無い」を
+    // 判定すると、markExited / markFailed はセッションを台帳に残し activeId も
     // 指したままにするので、終了済みのタブがアクティブなときに死んだ PTY へ
-    // 書きに行ってしまっていた（最終レビュー指摘）
+    // 書きに行ってしまう
     putGlossary()
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
@@ -1291,7 +1286,7 @@ describe('Claude Code へファイルを渡す（M28）', () => {
   })
 })
 
-describe('表形式でコピー（M29）', () => {
+describe('表形式でコピー', () => {
   // モジュールスコープの可変状態はテスト間で漏れる（`table-copy-options.ts` の
   // JSDoc）。ここで reset しないと、先に走ったテストが変えた設定（No 列オフ等）
   // が後続のテストへ持ち越される
@@ -1360,7 +1355,7 @@ describe('表形式でコピー（M29）', () => {
     // **押せないことそのものを確かめる。** `controller.copyTable()` がファイル
     // 未選択で早期リターンするので、下のクリック結果だけを見る書き方だと
     // 「押せない」を偽陽性で通してしまう。`ToolbarButton` は disabled 属性を
-    // 使わない（M29 フォローアップ）ので、DOM の disabled が false のままで
+    // 使わないので、DOM の disabled が false のままで
     // あることと、aria-disabled が立っていることの両方を確かめる
     expect(button).toHaveProperty('disabled', false)
     expect(button.getAttribute('aria-disabled')).toBe('true')
@@ -1371,7 +1366,7 @@ describe('表形式でコピー（M29）', () => {
 
   it('表形式コピーを持たないツール（シーケンス）を開くと、理由が変わって押せないまま', async () => {
     // ファイルは選べている（canExport は true）が、`tableExport` を宣言していない
-    // ツールなので理由は「対応していません」側に切り替わる（M29 フォローアップ）
+    // ツールなので理由は「対応していません」側に切り替わる
     disk.set(
       '/proj/シーケンス.json',
       JSON.stringify({ schemaVersion: 1, type: 'sequence', title: 'シーケンス', actors: [], steps: [] }),

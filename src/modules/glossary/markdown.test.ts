@@ -26,8 +26,8 @@ describe('glossaryToMarkdown', () => {
     expect(md.split('\n').some((line) => /^# /.test(line))).toBe(false)
   })
 
-  // M13: 帯から title を空にできるようになったので、空欄が出力に漏れる経路が
-  // 生まれた。空のまま出すと `## ` だけの行になり、Markdown 上で見出しですらない
+  // title は帯側で空にできるので、空のまま出すと `## ` だけの行になり、
+  // Markdown 上で見出しですらない
   it('title が空なら (無題) を出す（`## ` だけの行にしない）', () => {
     const md = glossaryToMarkdown(glossary([term({ kind: 'actor' })], ''))
     expect(md).toContain('## (無題)')
@@ -164,7 +164,7 @@ describe('glossaryToMarkdown', () => {
   })
 })
 
-describe('glossaryToMarkdown: 絞り込み（M29）', () => {
+describe('glossaryToMarkdown: 絞り込み', () => {
   it('visible を渡すと、その ID の用語だけを出す', () => {
     // 既存のテストが使っているデータの形に合わせて2件用意すること
     const data: GlossarySchemaVersion1 = {

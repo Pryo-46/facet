@@ -128,7 +128,7 @@ const pathFor = (container: HTMLElement, parent: number, child: number): SVGPath
 
 describe('IssueTreeEdges: 線の引き元', () => {
   /**
-   * 線は**課題の箱の矩形**から引く。M3 の文法では仮説は箱の中の行なので、
+   * 線は**課題の箱の矩形**から引く。仮説は箱の中の行なので、
    * 箱はぶら下がる仮説のぶんだけ縦に伸びる——**その伸びた矩形から引く**
    *（別の矩形を作って引くと、線が箱の縁からずれた所を指す）
    */

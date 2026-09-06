@@ -24,7 +24,7 @@ export function checkLogicTreeConsistency(data: LogicTreeSchemaVersion1): Consis
   const built = buildTree(nodes)
 
   // ID 重複（ID は機械的識別子なので正規化しない完全一致）。
-  // グループ化は core/duplicate.ts に一元化されている（M9）
+  // グループ化は core/duplicate.ts に一元化されている
   for (const [id, indices] of findDuplicates(nodes, (n) => n.id)) {
     issues.push({
       rule: 'duplicate-id',

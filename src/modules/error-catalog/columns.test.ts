@@ -3,7 +3,7 @@ import { PROFILE_COLUMNS } from './columns'
 import { CAUSE_MIN_WIDTH } from './column-widths'
 import { DEV_PROFILE, PROFILES, SUPPORT_PROFILE } from './profiles'
 
-/** 1440px の窓からサイドバーと余白を引いた実効幅の目安（M10 決定17） */
+/** 1440px の窓からサイドバーと余白を引いた実効幅の目安（決定17） */
 const EFFECTIVE_WIDTH = 1150
 
 describe('PROFILE_COLUMNS', () => {

@@ -30,7 +30,7 @@ export interface BuiltTree extends Omit<BuiltFlatTree, 'roots'> {
  *
  * **木の組み立て自体は `flat-tree-core.ts` が持つ**——あちらは登録 Skill へ
  * バイト一致でコピーされるため値 import を持てず、`computeRowKeys` を
- * 使う本関数と分けてある（logic-tree-m2 で分離）
+ * 使う本関数と分けてある
  */
 export function buildTree(nodes: readonly FlatNode[]): BuiltTree {
   const core = buildFlatTree(nodes)

@@ -105,8 +105,8 @@ const SEQ_FONT_CLASS = 'text-sm leading-normal'
 
 /**
  * 問いラベルのフォント階級（GutterSlot のラベル列と同じ）。
- * **`SEQ_FONT_CLASS` で代用しないこと**——M26 で入力値が 14px へ下がって
- * サイズは並んだが、**行間が違う**（答えセルは `leading-normal` = 1.5、
+ * **`SEQ_FONT_CLASS` で代用しないこと**——サイズは同じでも、
+ * **行間が違う**（答えセルは `leading-normal` = 1.5、
  * ラベルは text-sm 既定の 1.3。src/index.css の --text-sm--line-height）。
  * 代用すると 21px の行高でラベルを測ることになり、高さを過大に見積もって
  * 行が無駄に伸びる
@@ -147,8 +147,8 @@ const ANSWER_BOX_WIDTH = ANSWER_CONTENT_WIDTH + ANSWER_INSET_X * 2
  * レール（行の左端の編集セル列。編集の足場であって図の一部ではない）の内訳。
  *
  * **編集セルは矢印の脇に置かない。** 脇に置くと、図が細いとき（アクター1人など）に
- * ガターの問いラベル列と横方向で衝突する（実機確認の第一報。「呼出」チップが
- * 「結果がわからなかったら？」に重なった）。行の左端に固定幅の列を切り、
+ * ガターの問いラベル列と横方向で衝突する（「呼出」チップが
+ * 「結果がわからなかったら？」に重なるケースがある）。行の左端に固定幅の列を切り、
  * 横の帯域を [レール][図][ガター] に分けることで衝突を構造ごと無くす。
  *
  * x は行に依らず固定なので、モジュールの定数として1回だけ積む。
@@ -213,7 +213,7 @@ const ANSWER_WRAP: WrapOptions = {
   insetY: ANSWER_INSET_Y,
 }
 /**
- * notApplicable の答え用（M22）。GutterSlot は「考慮不要」の接頭ぶん左だけ
+ * notApplicable の答え用。GutterSlot は「考慮不要」の接頭ぶん左だけ
  * 広く空ける（`ANSWER_NOT_APPLICABLE_PREFIX_PAD_X`）ので、右は変わらないまま
  * 左右非対称になる。`wrapWithin` は `insetX * 2`（左右の合計）しか見ないので、
  * 左右それぞれの実際の inset を足して2で割った値を渡せば、合計は実物と合う
@@ -269,8 +269,7 @@ export function SequenceEditor({
   })
   // エディタ内ダイアログが開いている間も操作言語を止める（rev 10章 境界規則）。
   // 額縁由来の modalOpen と OR を取る——どれか一つが開いていれば止まる。
-  // **セルのドロップダウンはここに含めない**（Task 11b でカウンタごと
-  // 巻き戻した）。同時に1つしか開かなくなり、Radix の FocusScope
+  // **セルのドロップダウンはここに含めない**。同時に1つしか開かなくなり、Radix の FocusScope
   // （modal 既定）がメニュー内にキーを閉じ込めるため、操作言語への漏れは
   // 起きない（SequenceEditor.dom.test.tsx で検証済み）
   const anyModalOpen = modalOpen || confirmTarget !== null
@@ -301,7 +300,7 @@ export function SequenceEditor({
   // 読み込みの世代。進んだら実効フォントも読み直す。
   // **最初の1フレームはフォールバック書体のメトリクスで測っている**し、
   // 同梱フォントは unicode-range 分割なので、珍しい字のスライスは
-  // 初入力のとき後から届く（M26）——どちらも世代が進んだ時点で測り直す
+  // 初入力のとき後から届く——どちらも世代が進んだ時点で測り直す
   const fontGeneration = useFontGeneration()
   useEffect(() => {
     readFont()
@@ -414,13 +413,13 @@ export function SequenceEditor({
       const text = slot.text ?? ''
       const state = slotStateOf(slot.decision)
       // 空スロットは全角1文字で1行ぶんの高さを測る（placeholder の語に
-      // 依存させない。M22 で placeholder の「未定義」自体を消した）。
+      // 依存させない）。
       // notApplicable は「考慮不要」の接頭ぶん実効幅が狭いので専用の WrapOptions で測る。
       // **箱名も 'answer-na' に分ける。** wrap のキャッシュ鍵は `${box}:${text}` で
       // WrapOptions を含まないので、同じ 'answer' のまま options だけ変えると、
       // 同一文字列が先に測られた側（handled/ghosts の ANSWER_WRAP）の結果を誤って
-      // 引いてしまう（M22 レビューで発覚。ghosts（下の wrap 呼び出し）は常に
-      // ANSWER_WRAP なので 'answer' のままでよい）
+      // 引いてしまう。ghosts（下の wrap 呼び出し）は常に
+      // ANSWER_WRAP なので 'answer' のままでよい
       const block = wrap(
         state === 'notApplicable' ? 'answer-na' : 'answer',
         text === '' ? 'あ' : text,
@@ -491,7 +490,7 @@ export function SequenceEditor({
   })
   /** ガターの順に並べたスロットの data-cell 鍵（↑↓ の移動が使う） */
   const slotCells: string[] = []
-  /** そのうち未回答のものだけ（帯のチップのジャンプ先。M22） */
+  /** そのうち未回答のものだけ（帯のチップのジャンプ先） */
   const unansweredCells: string[] = []
   data.steps.forEach((_step, index) => {
     const row = layout.rows[index]
@@ -542,7 +541,7 @@ export function SequenceEditor({
   const stepHas = (index: number, field: string): boolean =>
     invalidStepFields.get(index)?.has(field) ?? false
 
-  // 帯の集計（M22。docs/missing-semantics.md 決定1）。**数え方の正は missing.ts**——
+  // 帯の集計（docs/missing-semantics.md 決定1）。**数え方の正は missing.ts**——
   // ここで stepViews から数え直さない（stepViews の `answer.state` は描画用に残る）。
   // 数えるのは立っている問いだけで、立たない問いへの答えは整合性検証が
   // unposed-answer として別に指摘する——その規則も missing.ts が持つ
@@ -601,7 +600,7 @@ export function SequenceEditor({
   const jumpAt = useRef<Record<string, number>>({})
 
   /**
-   * 帯のチップから次の欠落へ飛ぶ（M22）。**フォーカス位置は起点にせず巡回 ref で数える**
+   * 帯のチップから次の欠落へ飛ぶ。**フォーカス位置は起点にせず巡回 ref で数える**
    * （用語集と同じ。課題ツリーの nextOpenTarget とは違う——物足りなければ open-issues 行き）。
    * 未回答はガターの並び順、未記入はアクター → ステップの順に巡る
    */
@@ -708,7 +707,7 @@ export function SequenceEditor({
       caretAtStart: state.caretAtStart,
       caretAtEnd: state.caretAtEnd,
       arrowsOwnedByField: false,
-      // M1 には導出表示（検索・フィルタ）が無いので並び替えは常に有効
+      // 導出表示（検索・フィルタ）が無いので並び替えは常に有効
       reorderEnabled: true,
       hierarchical: false,
       // ヘッダは横並びのリスト。Alt+←→ が並び替えになる（design-notes 論点9）
@@ -732,10 +731,10 @@ export function SequenceEditor({
 
   const onRefKeyDown = (e: React.KeyboardEvent, index: number, field: 'from' | 'to'): void => {
     handleKey(e, { kind: 'ref', index, field }, {
-      // 選択専用のボタンであって文字を編集する欄ではない（sequence M3）
+      // 選択専用のボタンであって文字を編集する欄ではない
       editing: false,
       fieldEmpty: false,
-      // **参照セルの Backspace で行を消さない。** M2 までと同じ判断
+      // **参照セルの Backspace で行を消さない。**
       deletableField: false,
       caretAtStart: false,
       caretAtEnd: false,
@@ -807,7 +806,7 @@ export function SequenceEditor({
           するのは、display:none だと getComputedStyle がフォントを返さない環境があるため。
           見本が2本あるのは、答えセル（`SEQ_FONT_CLASS` = text-sm + leading-normal）と
           問いラベル列（`LABEL_FONT_CLASS` = text-sm）でフォント階級が違うため
-          ——M26 でサイズは 14px に並んだが行間が違う（1.5 と 1.3）ので、
+          ——サイズは同じでも行間が違う（1.5 と 1.3）ので、
           1本を両方に使い回すと片方の高さを見誤る */}
       <span
         ref={probeRef}
@@ -843,7 +842,7 @@ export function SequenceEditor({
             <Plus aria-hidden className="size-4" />
             ステップを追加
           </button>
-          {/* マウスだけの人の唯一のアクター追加手段（sequence M3 で from/to のインライン作成を外したため） */}
+          {/* マウスだけの人の唯一のアクター追加手段（from/to にインライン作成を持たないため） */}
           <button
             type="button"
             className={`${buttonBase} pointer-events-auto shrink-0 gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink hover:bg-canvas`}
@@ -858,10 +857,10 @@ export function SequenceEditor({
             <Plus aria-hidden className="size-4" />
             アクターを追加
           </button>
-          {/* 要対応の集計。**ガター上部（キャンバスの transform 層）からこの帯へ
-              移した**（M25 の計画外修正）——実機で「破線チップがアクターボックスと
-              同じ高さ・同じ角丸・同じ破線黄で並び、図の要素に見える」と出たため。
-              論点7 の「ガター上部に集計」はこの点だけ反転した（ガターのスロット列
+          {/* 要対応の集計。**ガター上部（キャンバスの transform 層）ではなく
+              この帯に置く**——ガター上部だと破線チップがアクターボックスと
+              同じ高さ・同じ角丸・同じ破線黄で並び、図の要素に見える。
+              論点7 の「ガター上部に集計」はこの点だけ反転している（ガターのスロット列
               そのものはキャンバス内のまま。design-notes 論点7 の追記を見よ）。
               回答済・考慮不要は欠落ではないのでチップにしない（押す先が無い）。
               チップの pointer-events-auto は MissingTally 部品が持つ */}
@@ -911,11 +910,11 @@ export function SequenceEditor({
           const key = actorKeys[index]
           const width = actorWidths[index]
           // **面と枠のクラスは片方だけ出す。** 両方並べると勝つのは生成 CSS の
-          // 順序であってクラス名の順序ではない（M8 が cascade layers で踏んだ形）
+          // 順序であってクラス名の順序ではない（cascade layers の生成順で決まる）
           const face = invalidActors.has(index)
             ? 'border-invalid bg-invalid-face'
             : actor.name === ''
-              ? // 名前が空＝未記入（M22 決定1）。語で埋めず面で示す
+              ? // 名前が空＝未記入（決定1）。語で埋めず面で示す
                 'border-dashed border-missing bg-missing-face'
               : 'border-rule bg-surface'
           return (
@@ -949,7 +948,7 @@ export function SequenceEditor({
           const isSelf = view.shape === 'self'
           // 通常時は不透明の bg-surface を敷く——枠線の無いラベルセルが
           // 入力可能に見えないという実機フィードバックへの対応。
-          // 文言が空＝未記入（M22 決定1）は破線＋淡い面で示す。**枠のクラスを
+          // 文言が空＝未記入（決定1）は破線＋淡い面で示す。**枠のクラスを
           // ここで自前に持つ**のは、通常時の枠が self（SELF_BOX_CLASS ＋
           // border-rule）と通常（枠なしの LABEL_BOX_CLASS）で持ち方が違うため。
           // 面と枠のクラスは片方だけ出す（:871 のコメントと同じ理由）
@@ -961,7 +960,7 @@ export function SequenceEditor({
           const labelTop = row.arrowY - ARROW_GAP - view.label.height
           // 文言の置き方はレイアウトが決める（`labelLeft`）。**ここで
           // 計算し直さないこと**——ガターの左端は文言の右端から導いており、
-          // 置き方が2箇所にあると図が静かに重なる（実機確認で踏んだ）
+          // 置き方が2箇所にあると図が静かに重なる
           const labelLeft = row.labelLeft
           // 編集の足場（#番号 / from / to / 形）はレールの中の固定 x に置く。
           // **矢印の位置もアクターの数も見ない**——だから from==to の呼出（線が引けない）でも
@@ -1044,9 +1043,7 @@ export function SequenceEditor({
               </div>
 
               {/* Tab 順は視覚順（レール→図→ガター）に合わせ、from/to/種別のあとに置く。
-                  実機フィードバックによる確定事項——実機確認前は文言が先頭で、
-                  from/to は既定値が入っているため打つ必要が薄いにもかかわらず
-                  最初に Tab が止まっていた */}
+                  from/to は既定値が入っているため打つ必要が薄く、先頭に来る理由が無い */}
               <div
                 className="pointer-events-auto absolute"
                 style={{
@@ -1074,7 +1071,7 @@ export function SequenceEditor({
 
               {/* ガターの行ブラケット＋行見出し（ブレスト決定9）。答えスロットが
                   どのステップの行かを、図の番号と縦線で括って見せる。
-                  M2: ghost スロットも同じ列に積むので、末尾は答え・ghost の
+                  ghost スロットも同じ列に積むので、末尾は答え・ghost の
                   どちらが最後に来ても正しく括れるよう ghost 込みで計算し直す */}
               {(() => {
                 const lastIndex = view.answers.length + view.ghosts.length - 1
@@ -1185,8 +1182,8 @@ export function SequenceEditor({
             type="button"
             aria-label="末尾にステップを追加"
             // **破線にしないこと。** rev 9章の欠落軸は「破線＝まだ見ていない」を
-            // 意味づけており、破線のボタンは図の欠落要素に見える（M25 で破線チップを
-            // ガターから帯へ移したのと同じ理由）。副次であることは文字色で示す
+            // 意味づけており、破線のボタンは図の欠落要素に見える（欠落チップと同じ理由）。
+            // 副次であることは文字色で示す
             className={`${buttonBase} gap-1 border border-rule bg-surface px-3 py-1 text-base text-ink-muted hover:bg-canvas hover:text-ink`}
             onClick={() => apply(addStepLast(data), 'from')}
           >

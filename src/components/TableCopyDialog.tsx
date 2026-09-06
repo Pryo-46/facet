@@ -26,7 +26,7 @@ export interface TableCopyDialogProps {
 }
 
 /**
- * 表形式コピーの設定ダイアログ（M29）。
+ * 表形式コピーの設定ダイアログ。
  *
  * **`ConfirmDialog` / `ChoiceDialog` を流用できない。** どちらも二択専用で、
  * 本文に入力要素を持てない。土台の `AlertDialog` は共通。
@@ -35,7 +35,7 @@ export interface TableCopyDialogProps {
  * ストアの値から始め、**[コピー] を押したときだけ書き戻す**——キャンセルで
  * 閉じた操作が次回の既定を変えるのは、押した本人の意図と食い違う。
  *
- * **チェックボックスとラジオはネイティブを使う。** M25 がネイティブ `<select>` を
+ * **チェックボックスとラジオはネイティブを使う。** ネイティブ `<select>` を
  * やめたのは「開いたときのリストが OS 描画で styled にできない」ためで、
  * インラインで完結するチェックボックス・ラジオにその問題は無い。
  * 読み手の選択だけ `Chip` にするのは、エディタ側の表示プロファイル切り替えと
@@ -166,7 +166,7 @@ export function TableCopyDialog(props: TableCopyDialogProps) {
           <AlertDialogCancel>キャンセル</AlertDialogCancel>
           {/* AlertDialogAction も内部実装は AlertDialogCancel と同じ Dialog.Close で、
               クリックすると onOpenChange(false) も発火してしまう（Radix の仕様。
-              ConfirmDialog が踏んだ M4 の罠と同じ形）。onOpenChange を onCancel に
+              ConfirmDialog にもある罠と同じ形）。onOpenChange を onCancel に
               配線した今、これを止めないとコピーのたびに onCancel まで呼ばれる。
               preventDefault で内部の close 発火を止め、経路を copy() 一本にする */}
           <AlertDialogAction

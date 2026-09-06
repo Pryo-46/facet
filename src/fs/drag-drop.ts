@@ -2,7 +2,7 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import type { DragDropEvent } from '@tauri-apps/api/webview'
 
 /**
- * ウィンドウへのファイルのドラッグ＆ドロップを購読する（M28。エクスプローラから
+ * ウィンドウへのファイルのドラッグ＆ドロップを購読する（エクスプローラから
  * ペインへ放り込む動線）。
  *
  * **`async` にしてあるのは、`getCurrentWebview()` が同期で throw しうるため。**

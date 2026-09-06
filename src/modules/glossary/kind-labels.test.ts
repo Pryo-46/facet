@@ -10,7 +10,7 @@ describe('kindLabel', () => {
     }
   })
 
-  it('undecided は M6 の Markdown 出力と同じ「未分類」', () => {
+  it('undecided は Markdown 出力と同じ「未分類」', () => {
     expect(kindLabel('undecided')).toBe('未分類')
   })
 

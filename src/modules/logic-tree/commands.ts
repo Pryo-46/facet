@@ -72,7 +72,7 @@ export function addSiblingAfter(data: LogicTreeSchemaVersion1, index: number): E
  * 部分木ごと消す（空欄 Backspace）。
  *
  * 確認ダイアログは挟まない（rev 5章。会議中の入力速度を削ぐため）。
- * 1操作1コミットの Undo で戻せる。葉だけに限らないのは、M1 には
+ * 1操作1コミットの Undo で戻せる。葉だけに限らないのは、
  * ドラッグも右クリックも無いため、限ると誤った枝を消す手段が消えるから
  */
 export function deleteSubtree(data: LogicTreeSchemaVersion1, index: number): EditResult {

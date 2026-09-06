@@ -3,7 +3,7 @@ import type { Term } from '@/types/glossary'
 import type { GlossaryField } from './fields'
 
 /**
- * 用語集の欠落判定（M22。docs/missing-semantics.md 決定1）。
+ * 用語集の欠落判定（docs/missing-semantics.md 決定1）。
  * 判定源は src/core/reading-guide.md の「未決」と一対一——
  * definition の空＝未定義、kind の undecided＝未分類。
  * 別名・備考の空は欠落ではない（session-notes: 検知対象外）。

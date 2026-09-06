@@ -17,15 +17,12 @@ import type { ToastItem } from './toasts'
 /**
  * 額縁の副作用の**順序**を持つコントローラ（コア。React も Tauri も知らない）。
  *
- * **なぜ切り出したか**: M4・M5 の最終レビューが見つけた配線バグはほぼすべて
- * `App.tsx`——リポジトリで唯一自動テストが無いファイル——にあった。M5 では
- * 判断（`planExternalChange`）をコアへ出したが、残っていたのは**順序**
- *（dispose → 一覧差し替え → 通知/ダイアログ → saver 張り直し）であり、
- * それは純関数では表現できない。ここが「順序をテストで固定する」場所である。
+ * **なぜ切り出したか**: 判断（`planExternalChange`）は純関数だが、**順序**
+ *（dispose → 一覧差し替え → 通知/ダイアログ → saver 張り直し）は純関数では
+ * 表現できない。`App.tsx` には自動テストが無いので、順序はここでテストに固定する。
  *
- * **なぜ React の state / ref を使わないか**: M5 の Critical のうち2件は
- *「レンダごとに代入する ref では過去の値を凍結できない」「1つの状態を2つの
- * 機構が共有していた」だった。クロージャ変数なら代入は同期で確定し、
+ * **なぜ React の state / ref を使わないか**: レンダごとに代入する ref では過去の値を
+ * 凍結できず、1つの状態を2つの機構で共有すると事故が起きる。クロージャ変数なら代入は同期のうちに終わり、
  * 「変更前の一覧」も「確定時点の選択」もそのまま読める。ホストへの通知
  *（`host.setFiles` 等）は表示の複製にすぎず、判断には使わない
  */
@@ -33,7 +30,7 @@ import type { ToastItem } from './toasts'
 /**
  * バナー（**いま続いている状態**を出す場所。起きた出来事はトースト）の種別。
  * 単一スロットだと「監視を開始できません」（継続する状態）が次の操作の
- * 成功で消え、逆に再走査の失敗は成功しても残った（M5 の申し送り）
+ * 成功で消え、逆に再走査の失敗は成功しても残る
  */
 export type BannerKind =
   /** 直近の操作（読み込み・作成・削除・書き出し）の失敗。次の成功で消える */
@@ -62,9 +59,9 @@ export interface AppIo {
   trash: (path: string) => Promise<void>
   join: (dir: string, name: string) => Promise<string>
   copyText: (text: string) => Promise<void>
-  /** HTML としてコピーする。altText は他アプリに貼るための平文（logic-tree M3） */
+  /** HTML としてコピーする。altText は他アプリに貼るための平文 */
   copyHtml: (html: string, altText: string) => Promise<void>
-  /** クリップボードの HTML。載っていなければ空文字（logic-tree M3） */
+  /** クリップボードの HTML。載っていなければ空文字 */
   readClipboardHtml: () => Promise<string>
   /** 保存先を尋ねる。null＝キャンセル */
   askSavePath: (defaultPath: string) => Promise<string | null>
@@ -85,7 +82,7 @@ export interface AppHost {
    */
   setDocument: (data: unknown | null) => void
   /**
-   * 編集を履歴へ積む（額縁の `onChange` と同じ経路。logic-tree M3）。
+   * 編集を履歴へ積む（額縁の `onChange` と同じ経路）。
    *
    * **`setDocument` と混同しないこと。** あちらは履歴を作り直す＝Undo 履歴の破棄で、
    * 外部変更の取り込みのように「元に戻せてはいけない」場面のもの。こちらは
@@ -123,13 +120,13 @@ export interface AppController {
   copyMarkdown(profile: OutputProfile<unknown>): Promise<void>
   /** 選択中ファイルの Markdown を .md として書き出す（rev 8章） */
   exportMarkdown(profile: OutputProfile<unknown>): Promise<void>
-  /** 表形式コピーの設定ダイアログを出す（規約8。M29） */
+  /** 表形式コピーの設定ダイアログを出す（規約8） */
   copyTable(): void
-  /** エディタからの「画面に出ている行」の報告（M29） */
+  /** エディタからの「画面に出ている行」の報告 */
   setVisibleIds(ids: VisibleRows, total: number | null): void
-  /** 選択中のデータを外部ツールの形式でクリップボードへ（logic-tree M3） */
+  /** 選択中のデータを外部ツールの形式でクリップボードへ */
   copyToExternal(exchange: ClipboardExchange<unknown>): Promise<void>
-  /** クリップボードから外部ツールの形式を取り込む（logic-tree M3） */
+  /** クリップボードから外部ツールの形式を取り込む */
   importFromExternal(exchange: ClipboardExchange<unknown>): Promise<void>
   /** アンマウント時。**flush しない**（失敗で復元された pending を捨てないため） */
   dispose(): void
@@ -155,16 +152,16 @@ export function createAppController(
   // ---- 状態（すべてクロージャ変数。共有マップは計画書の「状態変数の共有マップ」） ----
   // projectDir / selectedPath はここが所有する状態そのもの。host への通知
   //（setProjectDir/setSelectedPath）は表示の複製にすぎず、判断には使わない——
-  // AppHost に getter を足して host 側の値を読み返す形にはしない。それは M5 で
-  // 実際に障害を起こした構造（表示用の値を判断材料にすると、React の反映を待つ
-  // 隙に判断が狂う）への逆戻りである。createNewFile が projectDir を、
+  // AppHost に getter を足して host 側の値を読み返す形にはしない。それは表示用の値を
+  // 判断材料にする構造への逆戻りで、React の反映を待つ隙に判断が狂う。
+  // createNewFile が projectDir を、
   // requestDelete が selectedPath を読む（rescan/externalChange も同様に読む）
   let files: ProjectFile[] = []
   let saver: AutoSaver | null = null
   let projectDir: string | null = null
   let selectedPath: string | null = null
   /**
-   * 画面に出ている行の ID 集合と全行数（M29）。エディタが報告する。
+   * 画面に出ている行の ID 集合と全行数。エディタが報告する。
    * **null / null ＝「絞り込みなし・件数不明」**（絞り込みを持たないツール）
    */
   let visibleIds: VisibleRows = null
@@ -234,12 +231,12 @@ export function createAppController(
   const closeCurrentFile = async (): Promise<boolean> => {
     // flush を待っている間に handleSelectedGone / deleteFile が saver を
     // 差し替える（null にする）ことがある。判断に使う値は関数の中で引いて
-    // 凍結する（M5 の教訓）——自分が掴んだ saver の後始末だけを行い、
+    // 凍結する——自分が掴んだ saver の後始末だけを行い、
     // 差し替え後の値には触らない
     const current = saver
     if (current !== null) {
-      // flush 失敗時に dispose すると、catch が復元した pending を破棄してしまう
-      //（M1 レビューの二重失敗エッジ）。dispose せず中断する
+      // flush 失敗時に dispose すると、catch が復元した pending を破棄してしまう。
+      // dispose せず中断する
       if (!(await current.flush())) return false
       current.dispose()
       if (saver === current) saver = null
@@ -264,7 +261,7 @@ export function createAppController(
       if (!(await closeCurrentFile())) return false
       const scan = await io.scan(dir)
       if (token !== selectSeq) return false
-      // 一部でも読めなければ入れ替えない（途中失敗で新旧が混ざった状態を作らない。M1 で確定）
+      // 一部でも読めなければ入れ替えない（途中失敗で新旧が混ざった状態を作らない）
       if (scan.unreadable.length > 0) {
         host.setBanner('io', `読み込めないファイルがあるため開けませんでした: ${scan.unreadable.join(' / ')}`)
         return false
@@ -301,7 +298,7 @@ export function createAppController(
     if (!(await closeCurrentFile())) return
     try {
       // 選択時に必ずディスクから読み直す（走査時キャッシュを編集の起点にすると、
-      // 直前の自動保存分を古い内容で上書きするデータ喪失経路になる。M1 で確定）
+      // 直前の自動保存分を古い内容で上書きするデータ喪失経路になる）
       const text = await io.read(path)
       if (token !== selectSeq) return
       // 読んだ内容は「アプリが知っているディスクの内容」
@@ -469,12 +466,12 @@ export function createAppController(
   /**
    * 外部変更を取り込む。**ディスクを正として `selectFile` で張り直す**——
    * 「必ずディスクから読み直す」「検証をやり直す」「saver を張り直す」
-   * 「履歴を作り直す」が既存の1本道で揃う（M1 で確定した原則）。
+   * 「履歴を作り直す」が既存の1本道で揃う。
    * **履歴の作り直しが Undo 履歴の破棄そのもの**である——履歴の中身は
    * 取り込み前のファイルを指しており、残すと Ctrl+Z がディスクの内容を
    * 無言で巻き戻す（rev 3章）。
    *
-   * M3 の申し送りは「取り込みは applyEdit の4本目の経路になる」と予告していたが、
+   * **取り込みは applyEdit の4本目の経路にはしない**——
    * applyEdit は「自動保存へ渡す」＋「履歴に record」なので取り込みには合わない
    *（ディスクから読んだ内容を書き戻すことになり、履歴も破棄でなく追加になる）。
    * **applyEdit を通るのは下の overwriteWithMine（上書き）側**
@@ -499,7 +496,7 @@ export function createAppController(
    * 「同じ内容だから書かない」に落ちて、外部の内容が残ったまま画面と食い違う。
    * **module は呼び出し側（rescan）が「変更前の」一覧から引いて渡す**——クロージャ変数に
    * 写す方式でも、ダイアログが見える前に `applyFiles` が反映されて「変更後」を
-   * 指してしまう場合があるため、取得済みの値をそのまま使い続ける（レビューで発覚）
+   * 指してしまう場合があるため、取得済みの値をそのまま使い続ける
    */
   const overwriteWithMine = (
     path: string,
@@ -566,9 +563,9 @@ export function createAppController(
   }
 
   /**
-   * 開いていたファイルが外部で消えたときの後始末（M4 の deleteFile と同じ形）。
+   * 開いていたファイルが外部で消えたときの後始末（deleteFile と同じ形）。
    * **flush しない**——消えたファイルへ書き戻すと、削除されたはずのファイルが
-   * 復活する（M4 の削除で踏んだ事故と同じ。M4 の申し送り）
+   * 復活する
    */
   const handleSelectedGone = (path: string, name: string): void => {
     // 進行中の selectFile / openFolder の結果を捨てさせる
@@ -648,9 +645,8 @@ export function createAppController(
 
     const selected = plan.selected
     // **一覧を差し替える前に自動保存を止める。** 取り込むか上書きするかを決める前に
-    // ディスクが動くと判断の前提が壊れる（M5 の申し送り。App では setFiles → dispose の
-    // 順だったが、React の再レンダ待ちにより実質「dispose が先」だった。同期の
-    // コントローラでは順序が可視になるので、意図どおり dispose を先に置く）。
+    // ディスクが動くと判断の前提が壊れる（同期のコントローラでは順序が可視になるので、
+    // 意図どおり dispose を先に置く）。
     // 再開は確定時（取り込み＝selectFile が張り直す／上書き＝新しい baseline で張り直す）
     if (selected.kind === 'reload' || selected.kind === 'ask') {
       saver?.dispose()
@@ -684,7 +680,7 @@ export function createAppController(
    * そちらで書き直さないため）。
    * **押下時に再走査する**——空フォルダを開いた後に外部（Skill 等）が用語集を
    * 書いた状態で押されうるボタンなので、走査時のスナップショットで判断すると
-   * 見落として2つ目を作る（M4 の申し送り）
+   * 見落として2つ目を作る
    */
   const ensureFileOfType = async (module: AnyToolModule): Promise<void> => {
     if (projectDir === null) {
@@ -698,8 +694,8 @@ export function createAppController(
     // 外部で増えたファイルを見落として単一性違反を自分で作る
     if (outcome.kind === 'failed') return // バナーは rescan が出している
     if (outcome.kind === 'skipped') {
-      // **無音にしない**（M5 の申し送り）——従来バナーが出るのは走査の失敗だけだったが、
-      // フォルダ切替中・未選択・後続走査の割り込みも「作らなかった」という結果は同じ
+      // **無音にしない**——走査の失敗に限らず、フォルダ切替中・未選択・
+      // 後続走査の割り込みも「作らなかった」という結果は同じ
       host.setBanner(
         'io',
         `フォルダの状態を確認できなかったため、${module.displayName}を作成しませんでした（フォルダの切り替え中です。もう一度お試しください）。`,
@@ -757,7 +753,7 @@ export function createAppController(
       onConfirm: async () => {
         saver?.dispose()
         // 破棄済みの saver を掴んだままにしない（forceClose が失敗した場合に
-        // アプリが開き続ける。M5 の申し送りの残件）
+        // アプリが開き続ける）
         saver = null
         try {
           await io.forceClose()
@@ -796,7 +792,7 @@ export function createAppController(
    * **未定義には出さない。** 未定義は出力に `（未定義）` として残すのが規約で、
    * 正常な「まだ決めていない」状態である。確認を挟むのは赤だけ。
    *
-   * **`OutputProfile` ではなく `describeIssueEffect` だけを取る**（M29）——
+   * **`OutputProfile` ではなく `describeIssueEffect` だけを取る**——
    * 表形式コピーには `OutputProfile` が無く（`TableVariant` は `toMarkdown` も
    * `fileSuffix` も持たない）、必要なのはこの1つだけだった
    */
@@ -816,7 +812,7 @@ export function createAppController(
   }
 
   /**
-   * 赤が出ているファイルの出力に確認を挟む（sequence M3。**4ツール共通**）。
+   * 赤が出ているファイルの出力に確認を挟む（**4ツール共通**）。
    * 通してよければ run() を呼ぶ。key を固定して、押し直しで積み上がらないようにする
    */
   const guardIssues = (run: () => Promise<void>, profile: OutputProfile<unknown>): boolean => {
@@ -834,7 +830,7 @@ export function createAppController(
   }
 
   /**
-   * トーストに付ける件数（M29）。**報告の無いツールでは何も付けない**——
+   * トーストに付ける件数。**報告の無いツールでは何も付けない**——
    * ロジックツリーの行は葉の数であって「ノード 12 件」ではなく、
    * 数え方を説明せずに数字を出すと誤読される
    */
@@ -915,7 +911,7 @@ export function createAppController(
     const doc = currentDocument()
     if (doc === null) return
     try {
-      // **コピーは絞り込みに追従する**（M29）。書き出し（`doExportMarkdown`）は
+      // **コピーは絞り込みに追従する。** 書き出し（`doExportMarkdown`）は
       // 全件のまま——クリップボードは「今見ているものを持っていく」一時的な動線だが、
       // ファイルは成果物であり、絞り込んだままの .md は一見完全な顔で Git に残る
       await io.copyText(profile.toMarkdown(doc.data, visibleIds))
@@ -977,7 +973,7 @@ export function createAppController(
   }
 
   /**
-   * 選択中のデータを外部ツールの形式でクリップボードへ（logic-tree M3）。
+   * 選択中のデータを外部ツールの形式でクリップボードへ。
    * **判断は `exchange`（`ClipboardExchange`）が持ち、ここは順序だけ**を持つ
    */
   const copyToExternal = async (exchange: ClipboardExchange<unknown>): Promise<void> => {
@@ -993,7 +989,7 @@ export function createAppController(
   }
 
   /**
-   * クリップボードから取り込む（logic-tree M3）。
+   * クリップボードから取り込む。
    *
    * **押された時点で読み直す。** ボタンの活性はウィンドウがアクティブになった時点の
    * スナップショットで、その後ユーザーが別のものをコピーしている可能性がある。

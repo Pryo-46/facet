@@ -1,11 +1,10 @@
 /**
  * Mermaid `sequenceDiagram` の組み立て（design-notes 論点8・11）。
  *
- * **ラベルのエスケープ（`escapeMermaidLabel`）はコアへ引き上げ済み。** 論点11 は
+ * **ラベルのエスケープ（`escapeMermaidLabel`）はコアにある。** 論点11 は
  * 「先に出力を実装した側が正規化関数を1本立て、後発がそれに乗る」としており、
- * sequence が1本目としてここに持っていたが、logic-tree の出力を作った
- * logic-tree-m3 で `@/core/mermaid.ts` へ引き上げた（`markdown-table.ts` が
- * 用語集→コアと辿った道と同じ）。ここでは re-export して既存の import 経路
+ * `@/core/mermaid.ts` がその置き場（`markdown-table.ts` が用語集→コアと
+ * 辿った道と同じ）。ここでは re-export して既存の import 経路
  * （`from './mermaid'`）を壊さない
  */
 

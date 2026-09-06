@@ -15,7 +15,7 @@
  * `text-${色}` のように組み立てると生成 CSS に載らず画面だけが無色になる。
  *
  * `h-[20px]` は任意値だが、conventions.test.ts が弾く任意値は `text-[...]` だけ。
- * 文字は `text-sm`（M23 決定1。14px の補助段）。`leading-none` の行箱 14px ＋枠 2px＝16px を
+ * 文字は `text-sm`（14px の補助段）。`leading-none` の行箱 14px ＋枠 2px＝16px を
  * `items-center` が箱 20px の中で上下 2px ずつの余白で挟む
  */
 export type BadgeVariant = 'open' | 'hold' | 'invalid' | 'pending' | 'yes' | 'no' | 'deferred' | 'faint'
