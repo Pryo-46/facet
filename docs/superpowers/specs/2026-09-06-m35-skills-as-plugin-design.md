@@ -27,6 +27,7 @@
 - 同梱 Skill の同期機構と、それが要求していた権限を撤去する
 - 生成物 `scripts/generated/*.mjs` を追跡対象にする
 - Skill を動詞から始まる名前へ改め、文書とアプリ内の文言を追従させる
+- 設定画面に「AI」タブを足し、プラグインの導入手順と Skill の一覧を置く
 
 **やらないこと**
 
@@ -107,7 +108,16 @@ marketplace は git の内容をそのまま配るので、`scripts/generated/*.
 
 旧版を使ったフォルダには `<project>/.claude/skills/` の5本が残る。プロジェクトスコープの Skill はプラグインより先に見つかるので、**放置すると古い版が発火する。**
 
-アプリはフォルダを開いたときに同梱名のディレクトリと `README-for-AI.md` の存在だけを見て、あればトーストで消すよう促す。読むだけなので `fs:allow-remove` は要らない。
+アプリはフォルダを開いたときに存在を見て、あればトーストで消すよう促す。読むだけなので `fs:allow-remove` は要らない。
+
+**促す条件は facet が置いた名前に限る。** ソースコードのリポジトリを facet のプロジェクトフォルダに指定することがあり、そこには利用者自身の `.claude/` がある。`.claude/` や `.claude/skills/` の存在そのものは条件にしない。
+
+| 見るもの | 促す条件 |
+| --- | --- |
+| `.claude/skills/<旧名>/` | 旧名5つ（`glossary-term-register` など）のいずれかがある。facet 以外が付けない名前なので、存在だけで判定してよい |
+| `README-for-AI.md` | 中身が原本と一致する。利用者が自分で書いた同名ファイルを消させないため |
+
+新名（`write-term` など）は条件にしない。プラグインの中にしか無く、`.claude/skills/` にあるならそれは利用者が置いたものである。
 
 ### 7. 撤去するもの
 
@@ -121,7 +131,19 @@ marketplace は git の内容をそのまま配るので、`scripts/generated/*.
 
 `overview-rev.md` の「Skillの配布と同期」と「読み方ガイド」の節、`project-setup.md` の capabilities 表が同時に置き換わる。
 
-### 8. facet 自身の開発
+### 8. 設定画面の「AI」タブ
+
+**導入は後回しにできる。** アプリ内端末は同梱版で動くので、`plugin install` をしないまま使い続ける人がいる。その人が後から外の Claude Code でも使いたくなったとき、手順の在り処が要る。
+
+`SettingsDialog` の `SETTINGS_TABS` に `{ id: 'ai', label: 'AI', Panel: AiSettings }` を足す。パネルが持つのは3つ。
+
+- **いまどちらの Skill が使われているか**（同梱版／導入済みの版）。`claude plugin list --json` の結果をそのまま反映する
+- **導入の手順**。`marketplace add` と `install` の2コマンドを、コピーできる形で置く
+- **Skill の一覧**。`facet:write-term` などの名前と、何をするものかの1行
+
+導入すると何が変わるかも1文で書く。facet を開かなくても、同じフォルダを Claude Code で開けば Skill が使える。
+
+### 9. facet 自身の開発
 
 `.claude/settings.json` にリポジトリ自身を project スコープの marketplace として宣言し、このリポジトリで作業する Claude が移動後の Skill をそのまま使えるようにする。
 
@@ -134,10 +156,11 @@ marketplace は git の内容をそのまま配るので、`scripts/generated/*.
 
 **実機確認（人間）**
 
-1. `plugin install` した Claude Code で、facet のフォルダを開かずに用語登録 Skill が発火すること
+1. 設定画面の「AI」タブの手順どおりに導入でき、facet のフォルダを開かずに `facet:write-term` が発火すること
 2. アプリの端末ペインで、未導入の状態でも Skill が使えること
 3. 導入済みの状態で、同じ Skill が2つ現れないこと
 4. 旧版が置いた `.claude/skills/` があるフォルダで、削除を促すトーストが出ること
+5. 利用者自身の `.claude/` があるリポジトリを開いても、トーストが出ないこと
 
 ## 実測
 
