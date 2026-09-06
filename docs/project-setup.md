@@ -23,11 +23,13 @@
 
 ## Rust と capabilities
 
-**Rust は原則書かない**（[`overview-rev.md`](overview-rev.md) 7章）。ロジックは全て TypeScript 側。例外は次の3つだけ。
+**Rust は原則書かない**（[`overview-rev.md`](overview-rev.md) 7章）。ロジックは全て TypeScript 側。プラグインの登録（`lib.rs` の `.plugin(...)` 1行と Cargo 依存1行）は判断もロジックも持たないので、原則の例外に数えない。例外は次の5つだけ。
 
-- **自前の Tauri コマンドは `move_to_trash` の1本**（OS のゴミ箱へ移す。fs プラグインは完全削除しか持たない）。判断は置かず `trash` クレートを呼ぶだけ。**自前コマンドは ACL 対象外なので capabilities への追記は要らない**
+- **自前の Tauri コマンドは `move_to_trash`**（OS のゴミ箱へ移す。fs プラグインは完全削除しか持たない）。判断は置かず `trash` クレートを呼ぶだけ。**自前コマンドは ACL 対象外なので capabilities への追記は要らない**
 - **PTY（擬似端末）のコマンド4本**（`pty_spawn` / `pty_write` / `pty_resize` / `pty_kill`。M11。Claude Code の端末ペインを本物の端末として動かすため）。判断は置かず、実行ファイル名も引数も TypeScript が渡す。**こちらも自前コマンドなので ACL 対象外**
-- **プラグインの登録**（`lib.rs` の `.plugin(...)` 1行と Cargo 依存1行）。判断もロジックも持たないので原則の例外ではない
+- **プロジェクトフォルダの fs scope 再付与**（`allow_project_dir`）。ダイアログが入れる scope はセッション限りで、起動時の復元がダイアログを経由しないため。**こちらも自前コマンドなので ACL 対象外**
+- **旧版の残骸を読むための fs scope 許可**（`allow_dot_claude`）。fs の実行時 scope は unix既定の `require_literal_leading_dot: true` によりドット始まりの要素に一致しないため。**こちらも自前コマンドなので ACL 対象外**
+- **クリップボードの HTML 読み取り**（`read_clipboard_html`）。プラグインが HTML の読み取り API を持たないため。**こちらも自前コマンドなので ACL 対象外**
 
 **新しい Tauri の JS API を使うたびに `src-tauri/capabilities/default.json` を確認すること。** 権限が無いと**実行時に静かに動かない**。これまでに5回踏んでいる:
 
