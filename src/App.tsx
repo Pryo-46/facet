@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Download, Moon, PanelLeft, Redo2, RefreshCw, Sun, SquareTerminal, Undo2 } from 'lucide-react'
+import { Download, Moon, PanelLeft, Redo2, RefreshCw, Settings, Sun, SquareTerminal, Undo2 } from 'lucide-react'
 import { ChoiceDialog } from '@/components/ChoiceDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ExportMenu } from '@/components/ExportMenu'
 import { FileHeader } from '@/components/FileHeader'
 import { EDITOR_MIN_WIDTH, PANE_MIN_WIDTH, PaneSplitter } from '@/components/PaneSplitter'
+import { SettingsDialog } from '@/components/SettingsDialog'
 import { TableCopyDialog } from '@/components/TableCopyDialog'
 import { TerminalPane } from '@/components/TerminalPane'
 import { ToolbarButton, UNSUPPORTED_REASON } from '@/components/ToolbarButton'
@@ -42,6 +43,8 @@ import { dropModal, pushModal, shiftModal, type ModalRequest } from '@/core/moda
 import type { ProjectFile } from '@/core/project-file'
 import { READING_GUIDE_FILENAME, syncReadingGuide } from '@/core/reading-guide'
 import { scanFolder } from '@/core/scan'
+import { type AppSettings } from '@/core/settings'
+import { appSettings } from '@/core/settings-store'
 import { BUNDLED_SKILLS, syncBundledSkills } from '@/core/skill-sync'
 import { fileReference, fileReferences } from '@/core/terminal/file-reference'
 import {
@@ -57,6 +60,7 @@ import {
   openSession,
   type TerminalState,
 } from '@/core/terminal/sessions'
+import { prefersDark, resolveTheme, watchPrefersDark } from '@/core/theme'
 import { dismissToast, dismissToastByKey, pushToast, type ToastItem } from '@/core/toasts'
 import {
   buttonLabel,
@@ -95,7 +99,7 @@ import {
 } from '@/fs/project-fs'
 import { killAllPtys, tauriPtyIo } from '@/fs/pty'
 import { tauriReadingGuideIo } from '@/fs/reading-guide-io'
-import { readLastProjectDir, saveLastProjectDir } from '@/fs/settings-fs'
+import { readLastProjectDir, readSettings, saveLastProjectDir, saveSettings } from '@/fs/settings-fs'
 import { allowSkillDir, tauriSkillSyncIo } from '@/fs/skill-resources'
 import { checkForUpdate, type AvailableUpdate } from '@/fs/updater'
 import { appRegistry } from '@/modules'
@@ -214,7 +218,10 @@ function globalKeyContext(modalOpen: boolean): KeyContext {
 }
 
 function App() {
-  const [dark, setDark] = useState(false)
+  const settings = useSyncExternalStore(appSettings.subscribe, appSettings.getSnapshot)
+  const [systemDark, setSystemDark] = useState(prefersDark)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const dark = resolveTheme(settings.theme, systemDark) === 'dark'
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [paneOpen, setPaneOpen] = useState(false)
   const [terminals, setTerminals] = useState<TerminalState>(emptyTerminalState)
@@ -400,7 +407,8 @@ function App() {
   //「外部変更の二択」の3つ。開いている間は操作言語を止める（rev 10章の境界規則）
   const [modals, setModals] = useState<ModalRequest[]>([])
   const head = modals[0] ?? null
-  const modalOpen = modals.length > 0
+  // 設定画面はキューに積まないので、ここで数に足す（rev 10章の境界規則）
+  const modalOpen = modals.length > 0 || settingsOpen
   // window リスナーはマウント時の1回しか張らないので、最新値は ref から読む
   //（**state 直読みに「簡潔化」しないこと**。常に初期値 false になる）
   const modalOpenRef = useRef(modalOpen)
@@ -623,14 +631,39 @@ function App() {
 
   const editingData = history === null ? null : history.present
 
+  const updateSettings = useCallback((next: AppSettings) => {
+    appSettings.set(next)
+    // 保存に失敗しても次回復元されないだけで、このセッションの作業には影響しない
+    void saveSettings(next).catch((err: unknown) => {
+      console.error('設定の保存に失敗しました', err)
+    })
+  }, [])
+
+  // 押すとライトかダークの明示選択になり、その時点で system 追従から外れる
   const toggleTheme = () => {
-    const next = !dark
-    setDark(next)
-    // アプリ本体の面・文字を切り替える。**端末（TerminalTab）は追従しない**
-    // ——常にダーク固定にしている（端末は facet の面
-    // ではなく「端末の面」）
-    document.documentElement.classList.toggle('dark', next)
+    updateSettings({ ...settings, theme: dark ? 'light' : 'dark' })
   }
+
+  // OS 側の切り替えは system のときだけ効くが、購読は常に張っておく
+  //（設定を system に戻した瞬間から正しい値で始まる）
+  useEffect(() => watchPrefersDark(setSystemDark), [])
+
+  // **クラスの付け外しという形を保つこと。** 端末ペインは palette.css の
+  // `.dark` セレクタに依存しているので、別の当て方にすると端末だけ追従しない
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark)
+  }, [dark])
+
+  // 起動時に設定を読む。readSettings は読めなくても既定を返す
+  useEffect(() => {
+    void (async () => {
+      try {
+        appSettings.set(await readSettings())
+      } catch (err: unknown) {
+        console.error('設定の読み込みに失敗しました', err)
+      }
+    })()
+  }, [])
 
   // アンマウント時。**flush しない**——失敗で復元された pending を捨てる経路になる。
   // 実際のウィンドウ close は下の interceptClose を通る。
@@ -1213,6 +1246,15 @@ function App() {
               )}
             </button>
           )}
+          <button
+            type="button"
+            aria-label="設定"
+            title="設定"
+            className={`${buttonBase} p-1 text-ink-muted`}
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings aria-hidden className="size-4" />
+          </button>
           {/* 名前は「今どちらか」でなく「押すとどうなるか」。アイコンだけの
               ボタンは押す前に結果が読めないと意味が取れない */}
           <button
@@ -1396,6 +1438,12 @@ function App() {
       </div>
 
       <ToastStack toasts={toasts} onDismiss={dismiss} modalOpen={modalOpen} />
+      <SettingsDialog
+        open={settingsOpen}
+        settings={settings}
+        onChange={updateSettings}
+        onClose={() => setSettingsOpen(false)}
+      />
       <ConfirmDialog
         open={head?.kind === 'confirm'}
         title={head?.kind === 'confirm' ? head.title : ''}
