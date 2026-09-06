@@ -348,7 +348,21 @@ claude plugin install facet@facet --scope project
 ```
 
 Run: `git diff --stat .claude/`
-Expected: `.claude/settings.json` に marketplace と `enabledPlugins` の宣言が入る（コマンドが書く内容はそのままコミットする。手で書き足さない）
+Expected: `.claude/settings.json` に marketplace と `enabledPlugins` の宣言が入る
+
+**コマンドが書いた絶対パスをそのままコミットしない。** `claude plugin marketplace add` は `source.path` に実行時の作業ディレクトリを絶対パスで書く。それは作業機に固有で、しかも worktree を指す——`CLAUDE.md` の後片付けが消すディレクトリなので、マージ後は存在しない場所を指す宣言が主チェックアウトに配られる。
+
+相対パス（`"path": "."`）に書き換えて、それでも Skill が解決できるか確かめる:
+
+```bash
+claude -p "Skill ツールで使える facet プラグインの skill 名を、名前だけ改行区切りで列挙して。他は書かないで。"
+```
+
+解決できるならその形でコミットする。解決できないなら `.claude/settings.json` を追跡から外し（`.gitignore` に足す）、代わりに `CLAUDE.md` に1行置く:
+
+> このリポジトリで作業する Claude が同梱 Skill を使うには、一度 `claude plugin marketplace add ./ --scope local` を実行する。
+
+**どちらを選んだかと、判断に使ったコマンドの出力を報告に書くこと。**
 
 Run:
 
