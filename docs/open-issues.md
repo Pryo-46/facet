@@ -37,6 +37,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **シーケンスのゾーン機能が未着手**（`schemas/sequence.schema.json`）。
 - **フォーカスモードが未実装**（`src/modules/issue-tree/`）。選択サブツリー以外を薄くする表示は設計ノートにあるだけ。
 - **課題ツリーに Markdown 出力が無い**（`src/modules/issue-tree/module.ts` の `outputs: []`）。
+- **右ドラッグのパンを有効にしている間はキャンバスの `contextmenu` を止める**（`src/core/canvas/use-viewport.ts`）。rev 10章が右クリックに予約しているコンテキストメニューを作ると、この設定を選んだ利用者だけ開けない。
 
 ## 挙動の穴
 
