@@ -733,20 +733,13 @@ import { bundledPluginDir, readFacetPluginEnabled } from '@/fs/claude-plugin'
 
 ```ts
   /**
-   * 利用者が facet のプラグインを導入して有効にしているか。**判定は起動時に
-   * 1回だけ。** 端末に渡す引数と、設定の AI タブの案内がこれで決まる
-   */
-  const [pluginInstalled, setPluginInstalled] = useState(false)
-  /**
-   * `claude` に渡す引数。導入済みなら同梱版を渡さない
-   *（同じ名前の Skill が2つ現れる）
+   * `claude` に渡す引数。**判定は起動時に1回だけ。** 利用者が facet の
+   * プラグインを導入していれば同梱版は渡さない（同じ名前の Skill が2つ現れる）
    */
   const [claudeArgs, setClaudeArgs] = useState<readonly string[]>([])
   useEffect(() => {
     void (async () => {
-      const enabled = await readFacetPluginEnabled()
-      setPluginInstalled(enabled)
-      if (enabled) return
+      if (await readFacetPluginEnabled()) return
       try {
         setClaudeArgs(buildClaudeArgs(await bundledPluginDir()))
       } catch (err: unknown) {
@@ -758,9 +751,9 @@ import { bundledPluginDir, readFacetPluginEnabled } from '@/fs/claude-plugin'
   }, [])
 ```
 
-**`pluginInstalled` と `claudeArgs` を別々に持つ。** 「引数が空＝導入済み」と読み替えると、同梱物の場所を引けなかった場合にも導入済みと表示され、設定の AI タブが導入手順を隠す。
-
 `<TerminalTab ... />` に `claudeArgs={claudeArgs}` を足す。
+
+**判定結果そのものを持つ state は Task 7 で足す。** ここで足すと、使う側（設定の AI タブ）が無いので未使用の変数になり lint が落ちる。
 
 **端末の起動が判定より先に走ると、引数が空のまま起動する。** 端末は利用者がタブを開いたときに作られるので、起動直後の1回の判定はそれより先に終わる。ただし競合の可能性はゼロではないので、実機確認（人間）で「アプリ起動直後に端末タブを開いても Skill が使える」ことを確かめる。
 
@@ -1270,11 +1263,31 @@ describe('設定の AI タブが挙げる Skill', () => {
 
 - [ ] **Step 8: App が判定を渡す**
 
-`src/App.tsx` の `<SettingsDialog ... />` に、Task 4 で置いた state をそのまま渡す:
+Task 4 で置いた effect に、判定結果そのものを持つ state を足す（Task 4 では使う側が無く、未使用の変数になるのでここで足す）:
+
+```ts
+  /**
+   * 利用者が facet のプラグインを導入して有効にしているか。
+   * 設定の AI タブが、導入手順を出すかどうかをこれで決める
+   */
+  const [pluginInstalled, setPluginInstalled] = useState(false)
+```
+
+effect の中で、判定した値をそのまま入れる:
+
+```ts
+      const enabled = await readFacetPluginEnabled()
+      setPluginInstalled(enabled)
+      if (enabled) return
+```
+
+`<SettingsDialog ... />` に渡す:
 
 ```tsx
         pluginInstalled={pluginInstalled}
 ```
+
+**`claudeArgs.length === 0` を「導入済み」と読み替えない。** 同梱物の場所を引けなかった場合も空になり、そのとき導入済みと表示されて導入手順が隠れる。
 
 - [ ] **Step 9: テストが通ることを確かめる**
 
