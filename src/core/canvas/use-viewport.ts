@@ -179,8 +179,9 @@ export function useViewport(
     }
   }, [enabled, panWithSpaceDrag, ref])
 
-  // 右ドラッグをパンに使う間は OS のメニューを止める。**押した瞬間に開くと
-  // ドラッグが続かない。** 使わない間は張らないので、既定のメニューは出る
+  // 右ドラッグをパンに使う間は OS のメニューを止める。**Windows では contextmenu が
+  // 右ボタンの離上で発火するので、止めないとパンの終わりに毎回メニューが開く。**
+  // 使わない間は張らないので、既定のメニューは出る
   useEffect(() => {
     const el = ref.current
     if (el === null || !panWithRightDrag) return

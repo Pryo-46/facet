@@ -414,7 +414,7 @@ export function IssueTreeEditor({
     onOpenChange: (open) => setOpenCell(open ? cell : null),
   })
 
-  // ズーム・パン（Ctrl+ホイール／Space・中ボタンのドラッグ）と新しい課題への追従。
+  // ズーム・パン（手段は設定。既定は地の左ドラッグ・Space・中ボタンとホイール）と新しい課題への追従。
   // モーダルが開いている間は止める（キーはモーダルが取る。rev 10章 境界規則）
   const { transform, spaceHeld, ensureVisible } = useViewport(containerRef, !modalOpen)
 

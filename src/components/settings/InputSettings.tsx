@@ -31,12 +31,15 @@ export function InputSettings({ settings, onChange }: SettingsPanelProps) {
         {PAN_KEYS.map((key) => {
           const isLast = enabledPans.length === 1 && enabledPans[0] === key
           return (
-            <label key={key} className="flex items-center gap-2 text-base text-ink">
+            <label
+              key={key}
+              className="flex items-center gap-2 text-base text-ink"
+              title={isLast ? '盤面を動かす手段が無くなるので、これは外せません' : undefined}
+            >
               <input
                 type="checkbox"
                 checked={canvas[key]}
                 disabled={isLast}
-                title={isLast ? '盤面を動かす手段が無くなるので、これは外せません' : undefined}
                 onChange={(e) => update(key, e.target.checked)}
               />
               {PAN_LABELS[key]}

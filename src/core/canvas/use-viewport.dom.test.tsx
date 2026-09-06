@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { useRef } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
 import { useViewport } from './use-viewport'
 import { DEFAULT_SETTINGS } from '../settings'
 import { appSettings } from '../settings-store'
@@ -368,6 +368,40 @@ describe('useViewport（パン）', () => {
     })
     render(<Harness />)
     expect(fireEvent.contextMenu(canvas())).toBe(false)
+  })
+
+  it('動作中に panWithRightDrag を有効にすると contextmenu を止めるようになる', () => {
+    // **実利用の主動線は「設定画面で切り替えて閉じ、そのまま使う」で、エディタは
+    // 再マウントしない。** panWithRightDrag が effect の依存配列から落ちても
+    // 他のテストは全部緑のまま通るので、ここで直接押さえる
+    render(<Harness />)
+    expect(fireEvent.contextMenu(canvas())).toBe(true)
+    act(() => {
+      appSettings.set({
+        ...DEFAULT_SETTINGS,
+        canvas: { ...DEFAULT_SETTINGS.canvas, panWithRightDrag: true },
+      })
+    })
+    expect(fireEvent.contextMenu(canvas())).toBe(false)
+  })
+
+  it('動作中に panWithSpaceDrag を有効にすると Space の監視が張られるようになる', () => {
+    // panWithSpaceDrag も同じ理由で直接押さえる（上のテストと対）
+    appSettings.set({
+      ...DEFAULT_SETTINGS,
+      canvas: { ...DEFAULT_SETTINGS.canvas, panWithSpaceDrag: false },
+    })
+    render(<Harness />)
+    expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(true)
+    expect(canvas().dataset.space).toBe('false')
+    act(() => {
+      appSettings.set({
+        ...DEFAULT_SETTINGS,
+        canvas: { ...DEFAULT_SETTINGS.canvas, panWithSpaceDrag: true },
+      })
+    })
+    expect(fireEvent.keyDown(window, { code: 'Space', key: ' ' })).toBe(false)
+    expect(canvas().dataset.space).toBe('true')
   })
 
   it('Space を離した後の左ドラッグは Space 経由のパンとして扱わない', () => {

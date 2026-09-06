@@ -274,7 +274,7 @@ export function SequenceEditor({
   // 起きない（SequenceEditor.dom.test.tsx で検証済み）
   const anyModalOpen = modalOpen || confirmTarget !== null
 
-  // ズーム・パン（Ctrl+ホイール／Space・中ボタンのドラッグ）と新しい行への追従。
+  // ズーム・パン（手段は設定。既定は地の左ドラッグ・Space・中ボタンとホイール）と新しい行への追従。
   // モーダルが開いている間は止める（キーはモーダルが取る。rev 10章 境界規則）
   const { transform, spaceHeld, ensureVisible } = useViewport(containerRef, !anyModalOpen)
 
