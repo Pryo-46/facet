@@ -158,3 +158,23 @@ describe('生成した questions.mjs', () => {
     expect(gen.questionLabels(step)).toEqual(app.questionLabels(step))
   })
 })
+
+import { execSync } from 'node:child_process'
+
+describe('生成物の配布', () => {
+  it('作業ツリーに未コミットの生成物が残らない', () => {
+    // marketplace は git の内容をそのまま配る。生成物が追跡外だったり
+    // 生成し直した結果をコミットし忘れたりすると、install した先の Skill が
+    // 「generated が無い」で落ちる。`pretest` で生成し直した直後に差分が
+    // 出るなら、それはコミットされていない。
+    //
+    // **見るのは生成物のディレクトリだけ。** Skill 全体を対象にすると、
+    // SKILL.md を書きかけているだけで赤くなり、編集とテストを同時に
+    // 回せなくなる
+    const status = execSync(
+      'git status --porcelain -- plugins/facet/skills/*/scripts/generated',
+      { encoding: 'utf8', shell: 'bash' },
+    )
+    expect(status).toBe('')
+  })
+})
