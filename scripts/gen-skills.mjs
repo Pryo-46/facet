@@ -4,8 +4,11 @@
  * **`gen-types.mjs` と同じ思想だが、走査では決まらないので表を持つ。**
  * どの Skill がどの共有ソースを要るかはディレクトリ構造に現れないため。
  *
- * 生成物は追跡しない（`.gitignore`）。`src/types/*.ts` と同じ扱いで、
- * `pretest` / `prebuild` / `predev` / `prepare` の4経路で毎回作り直す
+ * 生成物は追跡対象。marketplace は git の内容をそのまま配るため、コミット
+ * し忘れると install した先で「generated が無い」まま動く（コミット漏れは
+ * `scripts/gen-skills.test.mjs` が検出する）。それでも
+ * `pretest` / `prebuild` / `predev` / `prepare` の4経路で毎回作り直し、
+ * 手元の原本とのずれを毎回消す
  */
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'

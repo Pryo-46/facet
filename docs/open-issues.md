@@ -139,3 +139,4 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **畳まれた仮説行の文言だけ書体クラスを定数から引かず直書きしている**（`src/modules/issue-tree/HypothesisRow.tsx`）。
 - **`docs/issue-tree/仮説検証モジュール-設計ノート.md`（71KB）の圧縮**。決着済みの論点や古い検討過程が残り、参照コストが高い。
 - **`schemas/*.json` の description に日付や人の判断の経緯が残る**（`schemas/issue-tree.schema.json` の `events`）。生成物 `src/types/` にそのまま写る。
+- **`allow_dot_claude` は旧版の残骸を読むためだけに `<project>/.claude` へ recursive な実行時 scope を与えている**（`src-tauri/src/lib.rs`）。旧版の検出を畳むときに一緒に消す。
