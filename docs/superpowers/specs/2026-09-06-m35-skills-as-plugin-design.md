@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | プロジェクトフォルダへの書き込み | `.claude/skills/` 5本＋`README-for-AI.md` | **無し**（利用者が編集した JSON だけ） |
 | 外の Claude Code | Skill 無し | `plugin install` で使える |
-| Skill 名 | `glossary-term-register` | `facet:register-term` |
+| Skill 名 | `glossary-term-register` | `facet:write-term` |
 | fs の削除・作成権限 | 必要 | **不要** |
 
 ## スコープ
@@ -45,11 +45,11 @@ facet/
     .claude-plugin/plugin.json
     skills/
       read-project/                      # 読み方ガイド（読み取り専用）
-      register-term/
-      register-error/
-      create-sequence/
-      create-logic-tree/
-      create-issue-tree/
+      write-term/
+      write-error/
+      write-sequence/
+      write-logic-tree/
+      write-issue-tree/
   .claude/skills/palette-retheme/        # 開発用。移さない
 ```
 
@@ -59,15 +59,17 @@ facet/
 
 ### 2. Skill の名前
 
-**名前は動詞から始める。** プラグイン名が前に付いて `facet:register-term` と読まれるので、対象名だけでは何をする Skill か分からない。
+**名前は動詞から始める。** プラグイン名が前に付いて `facet:write-term` と読まれるので、対象名だけでは何をする Skill か分からない。
 
-| いま | あと | 動詞の理由 |
+動詞は `read` と `write` の2つだけを使う。**登録 Skill はどれも新規作成・追記・修正の3つを担う**ので、`create` や `edit` ではどちらかの場面が名前から外れる。
+
+| いま | あと | 動詞 |
 | --- | --- | --- |
-| `glossary-term-register` | `register-term` | プロジェクトに1つのマスタへ追記する |
-| `error-catalog-register` | `register-error` | 同上 |
-| `sequence-register` | `create-sequence` | ファイルを新しく作る |
-| `logic-tree-register` | `create-logic-tree` | 同上 |
-| `issue-tree-register` | `create-issue-tree` | 同上 |
+| `glossary-term-register` | `write-term` | 書く |
+| `error-catalog-register` | `write-error` | 書く |
+| `sequence-register` | `write-sequence` | 書く |
+| `logic-tree-register` | `write-logic-tree` | 書く |
+| `issue-tree-register` | `write-issue-tree` | 書く |
 | （`README-for-AI.md`） | `read-project` | 読むだけで書かない |
 
 **名前は英数字とハイフンに限る。** 日本語を置くと非 ASCII が落ちて `facet:-----` に潰れる。日本語は `description` と本文が担う。
