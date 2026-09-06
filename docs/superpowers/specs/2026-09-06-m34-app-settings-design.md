@@ -86,7 +86,7 @@ d3 の `filter` がストアの現在値を毎回読む。**値を effect のク
 
 適用の口は現状の `document.documentElement.classList.toggle('dark', …)` を使う。端末ペインは `src/styles/palette.css` の `.dark` クラスセレクタに依存しているので、クラスの付け外しという形を保つ限り端末側も `palette.css` も変更が要らない。
 
-`setting` が `'system'` のときだけ `matchMedia('(prefers-color-scheme: dark)')` の変更を購読する。jsdom は `matchMedia` を持たないので、`src/test-setup.ts` にスタブを足す。
+`matchMedia('(prefers-color-scheme: dark)')` の現在値と変更の購読も同じファイルに置き、`matchMedia` を持たない環境はライト扱いに落とす。jsdom の既定がそれなので `src/test-setup.ts` にスタブは足さず、追従を見るテストだけが `window.matchMedia` を差し替える。
 
 トップバーのテーマトグルは残す。押すとライトかダークの明示選択になり、その時点で `'system'` から外れる。ボタンの名前は実効テーマの逆を出す既存の規約に従う。
 
