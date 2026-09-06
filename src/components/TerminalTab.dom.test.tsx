@@ -161,13 +161,13 @@ function renderTab(over: Partial<TabProps> & { ptyIo: PtyIo }) {
 }
 
 function fakePty() {
-  const spawned: Array<{ cwd: string; program: string }> = []
+  const spawned: Array<{ cwd: string; program: string; args: string[] }> = []
   const resized: Array<{ id: number; cols: number; rows: number }> = []
   let onData: ((b: Uint8Array) => void) | null = null
   let onExit: ((c: number | null) => void) | null = null
   const io: PtyIo = {
     spawn: async (spec) => {
-      spawned.push({ cwd: spec.cwd, program: spec.program })
+      spawned.push({ cwd: spec.cwd, program: spec.program, args: [...spec.args] })
       onData = spec.onData
       onExit = spec.onExit
       return 7
@@ -248,7 +248,17 @@ describe('TerminalTab', () => {
     const onRunning = vi.fn()
     renderTab({ ptyIo: pty.io, onRunning })
     await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
-    expect(pty.spawned).toEqual([{ cwd: '/proj', program: 'claude' }])
+    expect(pty.spawned).toEqual([{ cwd: '/proj', program: 'claude', args: [] }])
+  })
+
+  it('渡した claudeArgs がそのまま spawn に届く（--plugin-dir の配線が途中で落ちない）', async () => {
+    const pty = fakePty()
+    const onRunning = vi.fn()
+    renderTab({ ptyIo: pty.io, onRunning, claudeArgs: ['--plugin-dir', '/resources/plugins/facet'] })
+    await waitFor(() => expect(onRunning).toHaveBeenCalledWith(1, 7))
+    expect(pty.spawned).toEqual([
+      { cwd: '/proj', program: 'claude', args: ['--plugin-dir', '/resources/plugins/facet'] },
+    ])
   })
 
   it('PTY の出力を xterm へそのまま渡す', async () => {
