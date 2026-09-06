@@ -65,7 +65,10 @@ describe('SettingsDialog', () => {
     clickTab('操作')
     const last = screen.getByRole('checkbox', { name: '空きスペースの左ドラッグ' })
     expect(last.hasAttribute('disabled')).toBe(true)
-    fireEvent.click(last)
+    // fireEvent.click は jsdom の change 発火を直接叩くため disabled を無視する。
+    // ネイティブの .click() は isDisabled チェックを通るので、ブラウザの実際の
+    // 挙動（disabled はクリックを配送しない）をここで再現できる
+    last.click()
     expect(onChange).not.toHaveBeenCalled()
   })
 

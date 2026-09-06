@@ -37,12 +37,7 @@ export function InputSettings({ settings, onChange }: SettingsPanelProps) {
                 checked={canvas[key]}
                 disabled={isLast}
                 title={isLast ? '盤面を動かす手段が無くなるので、これは外せません' : undefined}
-                // disabled を貼るだけだと弱い罠が残る——jsdom は disabled な
-                // チェックボックスへの click でも change を発火するので、
-                // isLast を関数側でも見て onChange を通さない
-                onChange={(e) => {
-                  if (!isLast) update(key, e.target.checked)
-                }}
+                onChange={(e) => update(key, e.target.checked)}
               />
               {PAN_LABELS[key]}
             </label>
