@@ -19,7 +19,7 @@ const ts = require('typescript')
 /**
  * 同梱 Skill ごとの、スキーマ名と共有ソース。
  *
- * **手書きの表である。`BUNDLED_SKILLS` から導出しない**——導出すると
+ * **手書きの表である。`WRITE_SKILLS` から導出しない**——導出すると
  * 恒真式になり、網羅を何も縛らなくなる。
  * 一致は `scripts/gen-skills.test.mjs` が強制する
  */

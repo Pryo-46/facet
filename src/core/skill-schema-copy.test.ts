@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { BUNDLED_SKILLS, shouldSyncSkillFile } from './skill-sync'
+import { WRITE_SKILLS } from './skills'
 
 /**
  * 同梱 Skill は、自分が検証に使う JSON Schema のバイト一致コピーを持つ。
@@ -52,10 +52,10 @@ const SCHEMA_COPIES = [
 ]
 
 describe('同梱 Skill が配布するスキーマ', () => {
-  it('BUNDLED_SKILLS のすべてを網羅する', () => {
+  it('書き込み Skill のすべてを網羅する', () => {
     // 同梱 Skill を増やしたらここも増やす（増やし忘れると、その Skill だけが
     // 出荷先で「スキーマが見つかりません」に戻る）
-    expect(SCHEMA_COPIES.map((c) => c.skill).sort()).toEqual([...BUNDLED_SKILLS].sort())
+    expect(SCHEMA_COPIES.map((c) => c.skill).sort()).toEqual([...WRITE_SKILLS].sort())
   })
 
   describe.each(SCHEMA_COPIES)('$skill', ({ skill, schema, script }) => {
@@ -70,12 +70,6 @@ describe('同梱 Skill が配布するスキーマ', () => {
       // 変えるとコピーが探索から外れるので、名前の対応をここで固定する
       const src = readFileSync(`plugins/facet/skills/${skill}/${script}`, 'utf8')
       expect(src).toContain(`"${schema}"`)
-    })
-
-    it('プロジェクトフォルダへ同期される', () => {
-      // 置き直しの除外（evals/・.gitignore・node_modules/）に当たらないこと。
-      // 除外に当たると同梱物には入るのに置いた先には現れない
-      expect(shouldSyncSkillFile(`schemas/${schema}`)).toBe(true)
     })
   })
 })

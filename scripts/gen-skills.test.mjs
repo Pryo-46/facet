@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 import { SKILL_SOURCES } from './gen-skills.mjs'
-import { BUNDLED_SKILLS } from '../src/core/skill-sync.ts'
+import { WRITE_SKILLS } from '../src/core/skills.ts'
 import { extractImportStatements, isValueImportStatement } from '../src/core/import-analysis.ts'
 
 /**
@@ -15,7 +15,7 @@ import { extractImportStatements, isValueImportStatement } from '../src/core/imp
  * である——生成物が実際に動き、アプリ側と同じ結果を返すこと。
  *
  * **網羅の強制はここで持つ。**
- * `SKILL_SOURCES` は手書きの表で、`BUNDLED_SKILLS` から導出していない
+ * `SKILL_SOURCES` は手書きの表で、`WRITE_SKILLS` から導出していない
  * ——導出すると恒真式になり何も縛らない。**6本目の Skill を足した人が
  * 表に足し忘れると、ここが赤くなる。**
  */
@@ -41,8 +41,8 @@ function generatedPath(skill, file) {
 }
 
 describe('SKILL_SOURCES', () => {
-  it('BUNDLED_SKILLS のすべてを網羅する', () => {
-    expect(Object.keys(SKILL_SOURCES).sort()).toEqual([...BUNDLED_SKILLS].sort())
+  it('書き込み Skill のすべてを網羅する', () => {
+    expect(Object.keys(SKILL_SOURCES).sort()).toEqual([...WRITE_SKILLS].sort())
   })
 })
 

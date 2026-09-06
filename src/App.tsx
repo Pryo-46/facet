@@ -44,7 +44,6 @@ import type { ProjectFile } from '@/core/project-file'
 import { scanFolder } from '@/core/scan'
 import { type AppSettings } from '@/core/settings'
 import { appSettings } from '@/core/settings-store'
-import { BUNDLED_SKILLS, syncBundledSkills } from '@/core/skill-sync'
 import { buildClaudeArgs } from '@/core/terminal/claude-args'
 import { fileReference, fileReferences } from '@/core/terminal/file-reference'
 import {
@@ -100,7 +99,6 @@ import {
 } from '@/fs/project-fs'
 import { killAllPtys, tauriPtyIo } from '@/fs/pty'
 import { readLastProjectDir, readSettings, saveLastProjectDir, saveSettings } from '@/fs/settings-fs'
-import { allowSkillDir, tauriSkillSyncIo } from '@/fs/skill-resources'
 import { checkForUpdate, type AvailableUpdate } from '@/fs/updater'
 import { appRegistry } from '@/modules'
 
@@ -144,55 +142,6 @@ const appIo: AppIo = {
     await forceClose()
   },
   createSaver: (spec) => createAutoSaver({ delayMs: AUTOSAVE_DELAY_MS, ...spec }),
-}
-
-/**
- * 走っている最中の Skill 同期（フォルダごとに1本）。
- *
- * **同じフォルダの同期を並走させない。置き直しは冪等ではない:**
- * - 削除は tauri-plugin-fs が先に `symlink_metadata` を見るため、相手が先に
- *   消したパスでは「メタデータが取れない」で失敗する
- * - 片方の削除ループが相手の書き込みより後ろへずれ込むと、**置いたばかりの
- *   `scripts/` を消してしまう**（そちらの書き込みが ENOENT で落ちる）
- *
- * 出る症状は「Skill をプロジェクトへ配置できませんでした」——複数の実バグが
- * 同じ文言で出るので、次の実機確認を誤診させる。
- *
- * **並走が起きる経路。** StrictMode が二重に起こすのはマウント時の effect
- * だけで、マウント時点の `projectDir` は `null` なのでこの effect は即
- * return する。同期が始まるのはフォルダを開いた**更新**時で、
- * 更新の effect は二重に起こらない（`src/App.dom.test.tsx` を StrictMode で
- * 包んで実測: `interceptClose` は2回呼ばれるのに、同期は1回だけだった）。
- *
- * それでも並走はしうる: 同期が終わる前に**別のフォルダへ切り替えて戻る**と、
- * 前の同期が走ったまま同じフォルダの同期がもう1本始まる。
- *
- * **起動時に前回のフォルダを復元する機能があるが、その復元は別の
- * `useEffect` の中で非同期に `projectDir` をセットするため**、マウント直後
- *（この Skill 同期 effect が走る時点）ではまだ `projectDir` は `null` の
- * まま——StrictMode の二重マウントも、Skill 同期に関しては依然として
- * 発火しない（重複排除がガードしているのは相変わらず A→B→A のケースだけ）
- */
-const skillSyncInFlight = new Map<string, Promise<void>>()
-
-/**
- * フォルダ `dir` へ同梱 Skill を置く。走っている最中なら**その同じ実行を待つ**。
- *
- * `allowSkillDir` は同期の**前**に呼ぶ。mac では `.claude/` がダイアログ由来の
- * scope に入らないので、これが無いと同期の最初の `exists` で落ちる
- */
-function syncSkillsOnce(dir: string): Promise<void> {
-  const running = skillSyncInFlight.get(dir)
-  if (running !== undefined) return running
-  const task = (async () => {
-    await allowSkillDir(dir)
-    await syncBundledSkills(dir, tauriSkillSyncIo, BUNDLED_SKILLS)
-  })().finally(() => {
-    // 終わったら忘れる。次にフォルダを開き直したときは改めて置き直す
-    skillSyncInFlight.delete(dir)
-  })
-  skillSyncInFlight.set(dir, task)
-  return task
 }
 
 /**
@@ -1027,44 +976,6 @@ function App() {
       unlisten?.()
     }
   }, [])
-
-  /**
-   * 同梱 Skill の配置（設計 決定10）。**フォルダ1つにつき1回**——Skill は
-   * プロジェクトに属するもので、端末セッションの数とは関係が無い。
-   * `projectDir` をキーにした effect にすることで、`openFolder` /
-   * `switchFolder`、そして起動時の自動復元まで、**フォルダが変わる
-   * すべての経路が自動的に1本にまとまる**（経路を足すたびに同期の呼び出しを
-   * 書き足して回る必要が無い）。
-   *
-   * 同期に失敗しても起動は続ける（Skill が無くても端末は使える。設計 決定13）。
-   *
-   * **後片付けは「トーストを出さない」だけ。** 書き込み先のパスは捕まえた `dir`
-   * から作るので、同期中にフォルダを切り替えても新しいフォルダには一切書かない
-   *（走り切って古いフォルダを置き直して終わるだけで、実害が無い）。
-   * 一方、そのとき失敗のトーストを出すと、ユーザーには**いま開いている**
-   * フォルダの話に読める。だから切り替え後は黙って捨てる
-   */
-  useEffect(() => {
-    const dir = projectDir
-    if (dir === null) return
-    let current = true
-    void (async () => {
-      try {
-        await syncSkillsOnce(dir)
-      } catch (err: unknown) {
-        if (!current) return
-        showToast({
-          message: `Skill をプロジェクトへ配置できませんでした（Skill 無しで起動します）: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-          key: 'skill-sync',
-        })
-      }
-    })()
-    return () => {
-      current = false
-    }
-  }, [projectDir, showToast])
 
   // フォルダ単位の監視（rev 3章。ファイル単位では外部リネームが取れない）。
   // イベントの種類は見ず、束ねて再走査する。フォルダを切り替えたら張り替える
