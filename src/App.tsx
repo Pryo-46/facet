@@ -38,6 +38,7 @@ import {
 import { isOutsideGlobalLayer } from '@/core/keyboard/global-layer'
 import { resolveCommand, toKeyEventLike, type KeyContext } from '@/core/keyboard/keymap'
 import { currentPlatform } from '@/core/keyboard/platform'
+import { describeLegacyArtifacts } from '@/core/legacy-artifacts'
 import { titleOf, withTitle } from '@/core/load'
 import { dropModal, pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
 import type { ProjectFile } from '@/core/project-file'
@@ -85,6 +86,7 @@ import {
   tauriClipboardIo,
 } from '@/fs/clipboard'
 import { onDragDrop } from '@/fs/drag-drop'
+import { findLegacyArtifacts } from '@/fs/legacy-artifacts-io'
 import {
   allowProjectDir,
   askSaveMarkdownPath,
@@ -668,6 +670,14 @@ function App() {
       await saveLastProjectDir(dir)
     } catch (err: unknown) {
       console.error('最後に開いたフォルダの保存に失敗しました', err)
+    }
+    // 旧版が置いたものが残っていると、プロジェクトスコープの Skill が
+    // プラグインより先に見つかって古い版が発火する。**消すのは利用者**
+    try {
+      const message = describeLegacyArtifacts(await findLegacyArtifacts(dir))
+      if (message !== null) showToast({ message, key: 'legacy-artifacts' })
+    } catch (err: unknown) {
+      console.error('旧版の成果物を確認できませんでした', err)
     }
     return true
   }

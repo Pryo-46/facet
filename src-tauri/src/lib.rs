@@ -25,6 +25,25 @@ fn allow_project_dir(app: tauri::AppHandle, dir: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// プロジェクトフォルダの `.claude` を fs の実行時 scope に入れる（読むためだけ）。
+///
+/// **実行時 scope は `require_literal_leading_dot: true`（unix の既定）で照合するので、
+/// `<dir>/**` はドット始まりの要素に一致しない。** ダイアログが入れる scope も
+/// `allow_project_dir` が入れる scope も同じ形なので、これが無いと mac では
+/// `<dir>/.claude/skills/<名前>` の存在確認が forbidden path で落ちる。
+/// `tauri.conf.json` の `requireLiteralLeadingDot: false` は静的 scope にしか効かない。
+/// 判断は一切置かない（rev 7章）
+#[tauri::command]
+fn allow_dot_claude(app: tauri::AppHandle, dir: String) -> Result<(), String> {
+    if dir.is_empty() {
+        return Err("dir must not be empty".to_string());
+    }
+    let scope = app.fs_scope();
+    scope
+        .allow_directory(std::path::Path::new(&dir).join(".claude"), true)
+        .map_err(|e| e.to_string())
+}
+
 /// ファイルを OS のゴミ箱へ移す。
 ///
 /// Tauri の fs プラグインにゴミ箱 API が無く、
@@ -77,6 +96,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             move_to_trash,
             allow_project_dir,
+            allow_dot_claude,
             read_clipboard_html,
             pty::pty_spawn,
             pty::pty_write,
