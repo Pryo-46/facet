@@ -7,7 +7,7 @@ description: facet 自身の配色（src/styles/palette.css）を、渡された
 
 外部テーマ（shadcn 系の `theme.css`、色のリスト）を受け取り、`src/styles/palette.css` の20トークン×2モードを埋めて、`npm test` が緑になる状態まで持っていく。
 
-**この Skill が触るのはアプリ自身のソースである。** 同じディレクトリにある `glossary-term-register` / `error-catalog-register` は**ユーザーのデータ**（プロジェクトフォルダの JSON）を作る Skill で、アプリは AI が触ったことを知らない。こちらは**アプリのリポジトリの中身**を書き換える。既存2本の形を期待して読むと、無いものを探すことになる:
+**この Skill が触るのはアプリ自身のソースである。** `plugins/facet/skills/` にある `write-term` / `write-error` は**ユーザーのデータ**（プロジェクトフォルダの JSON）を作る Skill で、アプリは AI が触ったことを知らない。こちらは**アプリのリポジトリの中身**を書き換える。既存2本の形を期待して読むと、無いものを探すことになる:
 
 - **スキーマは無い。** 検証するのは JSON Schema ではなく `src/styles/palette.test.ts` である
 - **正規形で書き出すスクリプトは無い。** 同梱スクリプトは**測るだけ**で、`palette.css` を書くのは Claude の `Edit` である（手順7に理由を書く）

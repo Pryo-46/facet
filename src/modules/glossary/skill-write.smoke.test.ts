@@ -12,7 +12,7 @@ import { checkGlossaryConsistency } from './consistency'
  *
  * **なぜ出力の突き合わせなのか。** スクリプトの警告判定は consistency.ts の
  * 手複製で、consistency.ts 自体は値 import ＋ `@/` エイリアスを持つため
- * sequence-register 式のバイト一致コピーにできない。手複製が黙ってズレる
+ * write-sequence 式のバイト一致コピーにできない。手複製が黙ってズレる
  * 経路（実際に fold の trim 欠落・alias 計上規則でズレた）を、実行結果の
  * 突き合わせで塞ぐ。契約は「アプリの message がスクリプトの stdout に
  * 逐語で現れる」——スクリプトが接頭辞や独自警告を足すのは妨げない
@@ -20,7 +20,7 @@ import { checkGlossaryConsistency } from './consistency'
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const SCRIPT = path.join(
   REPO_ROOT,
-  '.claude/skills/glossary-term-register/scripts/glossary-write.mjs',
+  'plugins/facet/skills/write-term/scripts/glossary-write.mjs',
 )
 
 const term = (over: Record<string, unknown>) => ({

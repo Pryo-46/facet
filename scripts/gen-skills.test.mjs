@@ -36,7 +36,7 @@ function skillOf(schema) {
 
 /** vitest の cwd はプロジェクトルート。相対のまま組み立ててよい */
 function generatedPath(skill, file) {
-  return path.join('.claude', 'skills', skill, 'scripts', 'generated', file)
+  return path.join('plugins', 'facet', 'skills', skill, 'scripts', 'generated', file)
 }
 
 describe('SKILL_SOURCES', () => {
@@ -117,7 +117,7 @@ describe('生成した canonical.mjs', () => {
 describe('生成した derive.mjs', () => {
   it('お手本の集計行がアプリ側と一致する', async () => {
     const gen = await import(
-      pathToFileURL(path.resolve(generatedPath('issue-tree-register', 'derive.mjs'))).href
+      pathToFileURL(path.resolve(generatedPath('write-issue-tree', 'derive.mjs'))).href
     )
     const app = await import('../src/modules/issue-tree/derive.ts')
     const data = JSON.parse(readFileSync(path.join('sample-project', '課題ツリー.json'), 'utf8'))
@@ -132,7 +132,7 @@ describe('生成した derive.mjs', () => {
 describe('生成した flat-tree-core.mjs', () => {
   it('お手本の並べ直しがアプリ側と一致する', async () => {
     const gen = await import(
-      pathToFileURL(path.resolve(generatedPath('logic-tree-register', 'flat-tree-core.mjs'))).href
+      pathToFileURL(path.resolve(generatedPath('write-logic-tree', 'flat-tree-core.mjs'))).href
     )
     const app = await import('../src/core/canvas/flat-tree-core.ts')
     const data = JSON.parse(
@@ -147,7 +147,7 @@ describe('生成した flat-tree-core.mjs', () => {
 describe('生成した questions.mjs', () => {
   it('お手本の先頭ステップの問いがアプリ側と一致する', async () => {
     const gen = await import(
-      pathToFileURL(path.resolve(generatedPath('sequence-register', 'questions.mjs'))).href
+      pathToFileURL(path.resolve(generatedPath('write-sequence', 'questions.mjs'))).href
     )
     const app = await import('../src/modules/sequence/questions.ts')
     const data = JSON.parse(

@@ -45,32 +45,32 @@ afterEach(() => {
 describe('syncBundledSkills', () => {
   it('同梱 Skill を .claude/skills/<名前>/ へ置く', async () => {
     const { io, written } = fakeIo()
-    await syncBundledSkills('/proj', io, ['glossary-term-register'])
+    await syncBundledSkills('/proj', io, ['write-term'])
     expect(written.map((w) => w.path)).toEqual([
-      '/proj/.claude/skills/glossary-term-register/SKILL.md',
-      '/proj/.claude/skills/glossary-term-register/scripts/write.mjs',
+      '/proj/.claude/skills/write-term/SKILL.md',
+      '/proj/.claude/skills/write-term/scripts/write.mjs',
     ])
-    expect(written[0]?.text).toBe('# glossary-term-register')
+    expect(written[0]?.text).toBe('# write-term')
   })
 
   it('既にある中身は消してから置き直す（Skill の更新を取り残さない）', async () => {
     // 前回の同期が置いた `old.mjs` は今回の同梱物に無い。消えないと
     // 消えたはずのファイルがプロジェクトに残り続ける
     const { io, removed } = fakeIo(
-      ['/proj/.claude/skills/glossary-term-register'],
+      ['/proj/.claude/skills/write-term'],
       ['SKILL.md', 'scripts', 'old.mjs'],
     )
-    await syncBundledSkills('/proj', io, ['glossary-term-register'])
+    await syncBundledSkills('/proj', io, ['write-term'])
     expect(removed).toEqual([
-      '/proj/.claude/skills/glossary-term-register/SKILL.md',
-      '/proj/.claude/skills/glossary-term-register/scripts',
-      '/proj/.claude/skills/glossary-term-register/old.mjs',
+      '/proj/.claude/skills/write-term/SKILL.md',
+      '/proj/.claude/skills/write-term/scripts',
+      '/proj/.claude/skills/write-term/old.mjs',
     ])
   })
 
   it('無いディレクトリは消そうとしない', async () => {
     const { io, removed } = fakeIo()
-    await syncBundledSkills('/proj', io, ['glossary-term-register'])
+    await syncBundledSkills('/proj', io, ['write-term'])
     expect(removed).toEqual([])
   })
 
@@ -81,14 +81,14 @@ describe('syncBundledSkills', () => {
     // node_modules は残ったままロックだけ失われ、次の npm install がロックを
     // 見ずに解決し直す（どちらも同期では置き直さないので消したら復元されない）
     const { io, removed } = fakeIo(
-      ['/proj/.claude/skills/glossary-term-register'],
+      ['/proj/.claude/skills/write-term'],
       ['SKILL.md', 'node_modules', 'package-lock.json'],
     )
-    await syncBundledSkills('/proj', io, ['glossary-term-register'])
-    expect(removed).not.toContain('/proj/.claude/skills/glossary-term-register/node_modules')
-    expect(removed).not.toContain('/proj/.claude/skills/glossary-term-register/package-lock.json')
+    await syncBundledSkills('/proj', io, ['write-term'])
+    expect(removed).not.toContain('/proj/.claude/skills/write-term/node_modules')
+    expect(removed).not.toContain('/proj/.claude/skills/write-term/package-lock.json')
     // それ以外はこれまでどおり消える
-    expect(removed).toEqual(['/proj/.claude/skills/glossary-term-register/SKILL.md'])
+    expect(removed).toEqual(['/proj/.claude/skills/write-term/SKILL.md'])
   })
 
   it('**消せない要素が1つあっても Skill は置き直される**', async () => {
@@ -98,7 +98,7 @@ describe('syncBundledSkills', () => {
     // ここで諦めると「消えかけたまま書き戻されない」——「読む前に消す」と
     // 同じ形の恒久的な破損が一段あとに移るだけになる
     const { io, removed, written } = fakeIo(
-      ['/proj/.claude/skills/glossary-term-register'],
+      ['/proj/.claude/skills/write-term'],
       ['.DS_Store', 'SKILL.md'],
     )
     const withForbidden: SkillSyncIo = {
@@ -109,17 +109,17 @@ describe('syncBundledSkills', () => {
       },
     }
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    await syncBundledSkills('/proj', withForbidden, ['glossary-term-register'])
+    await syncBundledSkills('/proj', withForbidden, ['write-term'])
     // 消せた方は消え（ループが止まっていない）、
-    expect(removed).toEqual(['/proj/.claude/skills/glossary-term-register/SKILL.md'])
+    expect(removed).toEqual(['/proj/.claude/skills/write-term/SKILL.md'])
     // 何より Skill が置き直されている
     expect(written.map((w) => w.path)).toEqual([
-      '/proj/.claude/skills/glossary-term-register/SKILL.md',
-      '/proj/.claude/skills/glossary-term-register/scripts/write.mjs',
+      '/proj/.claude/skills/write-term/SKILL.md',
+      '/proj/.claude/skills/write-term/scripts/write.mjs',
     ])
     // **握りつぶすが黙らない。** 現場で追えるよう、どの要素がなぜ消せなかったかを残す
     expect(warn).toHaveBeenCalledTimes(1)
-    expect(String(warn.mock.calls[0]?.[0])).toContain('glossary-term-register/.DS_Store')
+    expect(String(warn.mock.calls[0]?.[0])).toContain('write-term/.DS_Store')
     expect(String(warn.mock.calls[0]?.[0])).toContain('forbidden path')
   })
 
@@ -127,30 +127,30 @@ describe('syncBundledSkills', () => {
     // .claude/skills/ を丸ごと消すと、ユーザーの Skill が巻き添えになる。
     // facet が壊してよいのは facet が書いたものだけ
     const { io, removed } = fakeIo([
-      '/proj/.claude/skills/glossary-term-register',
+      '/proj/.claude/skills/write-term',
       '/proj/.claude/skills/my-own-skill',
     ])
-    await syncBundledSkills('/proj', io, ['glossary-term-register'])
+    await syncBundledSkills('/proj', io, ['write-term'])
     // 列挙も削除も同梱名のディレクトリの内側で閉じている
-    expect(removed.every((p) => p.startsWith('/proj/.claude/skills/glossary-term-register/'))).toBe(
+    expect(removed.every((p) => p.startsWith('/proj/.claude/skills/write-term/'))).toBe(
       true,
     )
     expect(removed).not.toContain('/proj/.claude/skills/my-own-skill')
     expect(removed).not.toContain('/proj/.claude/skills')
-    expect(removed).not.toContain('/proj/.claude/skills/glossary-term-register')
+    expect(removed).not.toContain('/proj/.claude/skills/write-term')
   })
 
   it('**readBundled が失敗したら何も消さない**（読む前に消さない）', async () => {
     // 先に消してから読み出しに失敗すると、プロジェクト側の Skill が
     // 消えたまま復旧しない（次の同期も同じ理由で失敗する）
-    const { io, removed, written } = fakeIo(['/proj/.claude/skills/glossary-term-register'])
+    const { io, removed, written } = fakeIo(['/proj/.claude/skills/write-term'])
     const failing: SkillSyncIo = {
       ...io,
       readBundled: async () => {
         throw new Error('同梱物が読めません')
       },
     }
-    await expect(syncBundledSkills('/proj', failing, ['glossary-term-register'])).rejects.toThrow(
+    await expect(syncBundledSkills('/proj', failing, ['write-term'])).rejects.toThrow(
       '同梱物が読めません',
     )
     expect(removed).toEqual([])
@@ -176,8 +176,8 @@ describe('syncBundledSkills', () => {
 
   it('入れ子のファイルの親ディレクトリを作る', async () => {
     const { io, dirs } = fakeIo()
-    await syncBundledSkills('/proj', io, ['glossary-term-register'])
-    expect(dirs).toContain('/proj/.claude/skills/glossary-term-register/scripts')
+    await syncBundledSkills('/proj', io, ['write-term'])
+    expect(dirs).toContain('/proj/.claude/skills/write-term/scripts')
   })
 
   it('1本が失敗しても残りを置く', async () => {
@@ -204,10 +204,10 @@ describe('syncBundledSkills', () => {
         { path: 'evals/fixtures/existing-project/用語集.json', text: '{}' },
       ],
     }
-    await syncBundledSkills('/proj', withDevFiles, ['glossary-term-register'])
+    await syncBundledSkills('/proj', withDevFiles, ['write-term'])
     expect(written.map((w) => w.path)).toEqual([
-      '/proj/.claude/skills/glossary-term-register/SKILL.md',
-      '/proj/.claude/skills/glossary-term-register/scripts/write.mjs',
+      '/proj/.claude/skills/write-term/SKILL.md',
+      '/proj/.claude/skills/write-term/scripts/write.mjs',
     ])
   })
 
@@ -220,9 +220,9 @@ describe('syncBundledSkills', () => {
         { path: '.gitignore', text: 'node_modules/\n' },
       ],
     }
-    await syncBundledSkills('/proj', withGitignore, ['glossary-term-register'])
+    await syncBundledSkills('/proj', withGitignore, ['write-term'])
     expect(written.map((w) => w.path)).toContain(
-      '/proj/.claude/skills/glossary-term-register/.gitignore',
+      '/proj/.claude/skills/write-term/.gitignore',
     )
   })
 
@@ -236,12 +236,12 @@ describe('syncBundledSkills', () => {
         { path: 'package-lock.json', text: '{}' },
       ],
     }
-    await syncBundledSkills('/proj', withManifest, ['glossary-term-register'])
+    await syncBundledSkills('/proj', withManifest, ['write-term'])
     expect(written.map((w) => w.path)).toContain(
-      '/proj/.claude/skills/glossary-term-register/package.json',
+      '/proj/.claude/skills/write-term/package.json',
     )
     expect(written.map((w) => w.path)).toContain(
-      '/proj/.claude/skills/glossary-term-register/package-lock.json',
+      '/proj/.claude/skills/write-term/package-lock.json',
     )
   })
 })
@@ -332,11 +332,11 @@ describe('BUNDLED_SKILLS', () => {
     // アプリが置き直さない Skill は、プロジェクトフォルダで claude を起動した
     // ユーザーには存在しない。ここから漏れると Skill が黙って使えなくなる
     expect([...BUNDLED_SKILLS]).toEqual([
-      'glossary-term-register',
-      'error-catalog-register',
-      'sequence-register',
-      'issue-tree-register',
-      'logic-tree-register',
+      'write-term',
+      'write-error',
+      'write-sequence',
+      'write-issue-tree',
+      'write-logic-tree',
     ])
   })
 

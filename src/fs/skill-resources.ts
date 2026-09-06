@@ -54,9 +54,9 @@ async function collect(dir: string, base: string): Promise<Array<{ path: string;
 
 export const tauriSkillSyncIo: SkillSyncIo = {
   async readBundled(skill) {
-    // bundle.resources で `.claude/skills/` を同梱しているので、
-    // 実行時のパスは `skills/<名前>` に潰れる
-    const root = await resolveResource(`skills/${skill}`)
+    // bundle.resources で `plugins/facet` を `plugin` として同梱しているので、
+    // 実行時のパスは `plugin/skills/<名前>` になる
+    const root = await resolveResource(`plugin/skills/${skill}`)
     return collect(root, root)
   },
   exists: (path) => exists(path),

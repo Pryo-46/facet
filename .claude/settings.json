@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "facet": {
+      "source": {
+        "source": "directory",
+        "path": "C:\\Dev\\Projects\\facet\\.claude\\worktrees\\m35-skills-as-plugin"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "facet@facet": true
+  }
+}

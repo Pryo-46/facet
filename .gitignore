@@ -16,7 +16,7 @@ src-tauri/gen/
 src/types/*.ts
 
 # 同梱 Skill の生成物（正は schemas/*.schema.json と src/ の実体。npm run gen:skills で再生成）
-.claude/skills/*/scripts/generated/
+plugins/facet/skills/*/scripts/generated/
 
 # ログ
 logs

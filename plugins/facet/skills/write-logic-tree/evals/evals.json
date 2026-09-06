@@ -1,5 +1,5 @@
 {
-  "skill_name": "logic-tree-register",
+  "skill_name": "write-logic-tree",
   "evals": [
     {
       "id": 0,
@@ -26,7 +26,7 @@
       "id": 3,
       "name": "defer-to-issue-tree",
       "prompt": "適性検査サービスの連携について PoC をやります。何を確かめるべきか、仮説を立てて整理しておきたいです。プロジェクトフォルダは <PROJECT_DIR> です。",
-      "expected_output": "type=logicTree の JSON が作られていない。仮説・検証を伴う整理は課題ツリー（issue-tree-register）の担当なので、そちらへ譲っている（issueTree の JSON が作られるか、課題ツリーの Skill を使う旨を伝えている）。",
+      "expected_output": "type=logicTree の JSON が作られていない。仮説・検証を伴う整理は課題ツリー（write-issue-tree）の担当なので、そちらへ譲っている（issueTree の JSON が作られるか、課題ツリーの Skill を使う旨を伝えている）。",
       "files": []
     },
     {

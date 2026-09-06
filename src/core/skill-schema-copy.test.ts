@@ -7,7 +7,7 @@ import { BUNDLED_SKILLS, shouldSyncSkillFile } from './skill-sync'
  *
  * **なぜコピーなのか。** 書き出しスクリプトはスキーマを実行時に探索するが、
  * 探索先に実体が無ければ見つからない——`schemas/` は facet のリポジトリに
- * しか無く、アプリが同梱・配布するのは `.claude/skills/` だけである。
+ * しか無く、アプリが同梱・配布するのは `plugins/facet/skills/` だけである。
  * したがって **facet のチェックアウトを持たないマシン（＝出荷先のすべて）では
  * 3本の登録 Skill が最初の書き込みで `die(2)` する。** `--schema` /
  * 環境変数という逃げ道も、指す先のファイルがどこにも無いので使えない。
@@ -25,27 +25,27 @@ import { BUNDLED_SKILLS, shouldSyncSkillFile } from './skill-sync'
  */
 const SCHEMA_COPIES = [
   {
-    skill: 'glossary-term-register',
+    skill: 'write-term',
     schema: 'glossary.schema.json',
     script: 'scripts/glossary-write.mjs',
   },
   {
-    skill: 'error-catalog-register',
+    skill: 'write-error',
     schema: 'error-catalog.schema.json',
     script: 'scripts/error-catalog-write.mjs',
   },
   {
-    skill: 'sequence-register',
+    skill: 'write-sequence',
     schema: 'sequence.schema.json',
     script: 'scripts/sequence-write.mjs',
   },
   {
-    skill: 'issue-tree-register',
+    skill: 'write-issue-tree',
     schema: 'issue-tree.schema.json',
     script: 'scripts/issue-tree-write.mjs',
   },
   {
-    skill: 'logic-tree-register',
+    skill: 'write-logic-tree',
     schema: 'logic-tree.schema.json',
     script: 'scripts/logic-tree-write.mjs',
   },
@@ -59,7 +59,7 @@ describe('同梱 Skill が配布するスキーマ', () => {
   })
 
   describe.each(SCHEMA_COPIES)('$skill', ({ skill, schema, script }) => {
-    const copyPath = `.claude/skills/${skill}/schemas/${schema}`
+    const copyPath = `plugins/facet/skills/${skill}/schemas/${schema}`
 
     it(`schemas/${schema} とバイト一致する`, () => {
       expect(readFileSync(copyPath)).toEqual(readFileSync(`schemas/${schema}`))
@@ -68,7 +68,7 @@ describe('同梱 Skill が配布するスキーマ', () => {
     it('書き出しスクリプトが探すファイル名と一致する', () => {
       // findSchema はスキーマをファイル名で探す。スクリプト側の名前だけを
       // 変えるとコピーが探索から外れるので、名前の対応をここで固定する
-      const src = readFileSync(`.claude/skills/${skill}/${script}`, 'utf8')
+      const src = readFileSync(`plugins/facet/skills/${skill}/${script}`, 'utf8')
       expect(src).toContain(`"${schema}"`)
     })
 

@@ -24,7 +24,7 @@ import type {
  *（シーケンスの questions.ts と同じ位置づけ）。
  *
  * **このファイルは `npm run gen:skills` が `.mjs` へ変換し、
- * .claude/skills/issue-tree-register/scripts/generated/derive.mjs として
+ * plugins/facet/skills/write-issue-tree/scripts/generated/derive.mjs として
  * 登録 Skill へ同梱される。** だから値 import・相対 import・enum を持たない
  * ——`transpileModule` は import を解決しないので、値 import があると
  * 置いた先で解決できなくなるため。制約と出力の一致は

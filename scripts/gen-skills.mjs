@@ -24,17 +24,17 @@ const ts = require('typescript')
  * 一致は `scripts/gen-skills.test.mjs` が強制する
  */
 export const SKILL_SOURCES = {
-  'glossary-term-register': { schema: 'glossary', shared: ['src/core/canonical.ts'] },
-  'error-catalog-register': { schema: 'error-catalog', shared: ['src/core/canonical.ts'] },
-  'sequence-register': {
+  'write-term': { schema: 'glossary', shared: ['src/core/canonical.ts'] },
+  'write-error': { schema: 'error-catalog', shared: ['src/core/canonical.ts'] },
+  'write-sequence': {
     schema: 'sequence',
     shared: ['src/core/canonical.ts', 'src/modules/sequence/questions.ts'],
   },
-  'issue-tree-register': {
+  'write-issue-tree': {
     schema: 'issue-tree',
     shared: ['src/core/canonical.ts', 'src/modules/issue-tree/derive.ts'],
   },
-  'logic-tree-register': {
+  'write-logic-tree': {
     schema: 'logic-tree',
     shared: ['src/core/canonical.ts', 'src/core/canvas/flat-tree-core.ts'],
   },
@@ -97,9 +97,9 @@ const Ajv2020 = require('ajv/dist/2020.js').default ?? require('ajv/dist/2020.js
 const standaloneCode = require('ajv/dist/standalone').default ?? require('ajv/dist/standalone')
 
 for (const [skill, { schema: schemaName }] of entries) {
-  const outDir = path.join(ROOT, '.claude', 'skills', skill, 'scripts', 'generated')
+  const outDir = path.join(ROOT, 'plugins', 'facet', 'skills', skill, 'scripts', 'generated')
   // SKILL_SOURCES から共有ソースを外す・改名する・Skill を1本外すと、対応する古い
-  // .mjs は書き直されず残ってしまう。tauri.conf.json は .claude/skills をディレクトリ
+  // .mjs は書き直されず残ってしまう。tauri.conf.json は plugins/facet をディレクトリ
   // ごとバンドルするので、掃除しないと残骸がそのまま配布物に載る。作り直す前に空にする
   await rm(outDir, { recursive: true, force: true })
   await mkdir(outDir, { recursive: true })

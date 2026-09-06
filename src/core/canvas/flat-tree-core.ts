@@ -2,7 +2,7 @@
  * 平坦配列を木に戻す純粋部分（index ベース。`key` を持たない）。
  *
  * **このファイルは `npm run gen:skills` が `ts.transpileModule` で `.mjs` へ変換し**
- * `.claude/skills/logic-tree-register/scripts/generated/flat-tree-core.mjs`
+ * `plugins/facet/skills/write-logic-tree/scripts/generated/flat-tree-core.mjs`
  * として同梱される。だから値 import・相対 import・enum を持たない——
  * `transpileModule` は import を解決しないので、値 import があると置いた
  * 先で解決できなくなる。この制約と「消去できない構文（enum・パラメータ

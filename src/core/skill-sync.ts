@@ -2,29 +2,17 @@
  * 同梱 Skill をプロジェクトフォルダへ置き直す（コア・I/O 注入）。
  *
  * **これが無いと機能の目的が達成できない。** Skill は facet リポジトリの
- * `.claude/skills/` にあり、ユーザーが開くプロジェクトフォルダには入っていない。
+ * `plugins/facet/skills/` にあり、ユーザーが開くプロジェクトフォルダには入っていない。
  * 作業ディレクトリをプロジェクトフォルダにして claude を起動しても、
  * プロジェクトレベルの Skill が見つからず用語登録 Skill が使えない（設計 決定10）
  */
 
+import { WRITE_SKILLS } from './skills'
+
 /**
- * アプリに同梱する Skill（ユーザーのデータを作るもの）。
- *
- * `src-tauri/tauri.conf.json` の `bundle.resources` は
- * `"../.claude/skills": "skills"`（`src-tauri/` からの相対パス）と
- * ディレクトリごと同梱しているので、
- * **Skill を増やしてもそちらの追従は要らない。ここに1行足すだけでよい。**
- *
- * ここに載せない Skill（`palette-retheme` など facet 自身のソースを触るもの）は
- * ユーザーのプロジェクトフォルダには置かれない
+ * アプリに同梱する Skill。名前の一覧は `src/core/skills.ts` が持つ
  */
-export const BUNDLED_SKILLS: readonly string[] = [
-  'glossary-term-register',
-  'error-catalog-register',
-  'sequence-register',
-  'issue-tree-register',
-  'logic-tree-register',
-]
+export const BUNDLED_SKILLS: readonly string[] = WRITE_SKILLS
 
 /**
  * `npm install` を要求していた旧版が作った依存の置き場（Skill 直下の1件）。

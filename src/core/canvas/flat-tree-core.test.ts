@@ -5,7 +5,7 @@ import { buildFlatTree, orderFlatNodes } from './flat-tree-core'
 
 /**
  * このファイルは `npm run gen:skills` が `.mjs` へ変換して登録 Skill
- * （logic-tree-register）へ同梱するので、値 import も enum も持てない。
+ * （write-logic-tree）へ同梱するので、値 import も enum も持てない。
  * **制約を破った瞬間にここが赤くなる**——生成物側の検査（変換が壊れて
  * いないか・出力がアプリ側と一致するか）は scripts/gen-skills.test.mjs が持つ
  */

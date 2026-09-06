@@ -19,7 +19,7 @@ import { tallySequenceMissing } from './missing'
  * 兼ねる。契約は「アプリの message がスクリプトの stdout に逐語で現れる」
  */
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
-const SCRIPT = path.join(REPO_ROOT, '.claude/skills/sequence-register/scripts/sequence-write.mjs')
+const SCRIPT = path.join(REPO_ROOT, 'plugins/facet/skills/write-sequence/scripts/sequence-write.mjs')
 
 /**
  * duplicate-id / missing-actor / to-mismatch / self-call の4ルールを
