@@ -38,14 +38,14 @@ import {
 import { isOutsideGlobalLayer } from '@/core/keyboard/global-layer'
 import { resolveCommand, toKeyEventLike, type KeyContext } from '@/core/keyboard/keymap'
 import { currentPlatform } from '@/core/keyboard/platform'
+import { describeLegacyArtifacts } from '@/core/legacy-artifacts'
 import { titleOf, withTitle } from '@/core/load'
 import { dropModal, pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
 import type { ProjectFile } from '@/core/project-file'
-import { READING_GUIDE_FILENAME, syncReadingGuide } from '@/core/reading-guide'
 import { scanFolder } from '@/core/scan'
 import { type AppSettings } from '@/core/settings'
 import { appSettings } from '@/core/settings-store'
-import { BUNDLED_SKILLS, syncBundledSkills } from '@/core/skill-sync'
+import { buildClaudeArgs } from '@/core/terminal/claude-args'
 import { fileReference, fileReferences } from '@/core/terminal/file-reference'
 import {
   activateSession,
@@ -78,6 +78,7 @@ import {
 } from '@/core/update-check'
 import { readAppVersion } from '@/fs/app-version'
 import { forceClose, interceptClose } from '@/fs/app-window'
+import { bundledPluginDir, readFacetPluginEnabled } from '@/fs/claude-plugin'
 import {
   copyHtmlToClipboard,
   copyToClipboard,
@@ -85,6 +86,7 @@ import {
   tauriClipboardIo,
 } from '@/fs/clipboard'
 import { onDragDrop } from '@/fs/drag-drop'
+import { findLegacyArtifacts } from '@/fs/legacy-artifacts-io'
 import {
   allowProjectDir,
   askSaveMarkdownPath,
@@ -98,9 +100,7 @@ import {
   writeProjectFile,
 } from '@/fs/project-fs'
 import { killAllPtys, tauriPtyIo } from '@/fs/pty'
-import { tauriReadingGuideIo } from '@/fs/reading-guide-io'
 import { readLastProjectDir, readSettings, saveLastProjectDir, saveSettings } from '@/fs/settings-fs'
-import { allowSkillDir, tauriSkillSyncIo } from '@/fs/skill-resources'
 import { checkForUpdate, type AvailableUpdate } from '@/fs/updater'
 import { appRegistry } from '@/modules'
 
@@ -147,55 +147,6 @@ const appIo: AppIo = {
 }
 
 /**
- * 走っている最中の Skill 同期（フォルダごとに1本）。
- *
- * **同じフォルダの同期を並走させない。置き直しは冪等ではない:**
- * - 削除は tauri-plugin-fs が先に `symlink_metadata` を見るため、相手が先に
- *   消したパスでは「メタデータが取れない」で失敗する
- * - 片方の削除ループが相手の書き込みより後ろへずれ込むと、**置いたばかりの
- *   `scripts/` を消してしまう**（そちらの書き込みが ENOENT で落ちる）
- *
- * 出る症状は「Skill をプロジェクトへ配置できませんでした」——複数の実バグが
- * 同じ文言で出るので、次の実機確認を誤診させる。
- *
- * **並走が起きる経路。** StrictMode が二重に起こすのはマウント時の effect
- * だけで、マウント時点の `projectDir` は `null` なのでこの effect は即
- * return する。同期が始まるのはフォルダを開いた**更新**時で、
- * 更新の effect は二重に起こらない（`src/App.dom.test.tsx` を StrictMode で
- * 包んで実測: `interceptClose` は2回呼ばれるのに、同期は1回だけだった）。
- *
- * それでも並走はしうる: 同期が終わる前に**別のフォルダへ切り替えて戻る**と、
- * 前の同期が走ったまま同じフォルダの同期がもう1本始まる。
- *
- * **起動時に前回のフォルダを復元する機能があるが、その復元は別の
- * `useEffect` の中で非同期に `projectDir` をセットするため**、マウント直後
- *（この Skill 同期 effect が走る時点）ではまだ `projectDir` は `null` の
- * まま——StrictMode の二重マウントも、Skill 同期に関しては依然として
- * 発火しない（重複排除がガードしているのは相変わらず A→B→A のケースだけ）
- */
-const skillSyncInFlight = new Map<string, Promise<void>>()
-
-/**
- * フォルダ `dir` へ同梱 Skill を置く。走っている最中なら**その同じ実行を待つ**。
- *
- * `allowSkillDir` は同期の**前**に呼ぶ。mac では `.claude/` がダイアログ由来の
- * scope に入らないので、これが無いと同期の最初の `exists` で落ちる
- */
-function syncSkillsOnce(dir: string): Promise<void> {
-  const running = skillSyncInFlight.get(dir)
-  if (running !== undefined) return running
-  const task = (async () => {
-    await allowSkillDir(dir)
-    await syncBundledSkills(dir, tauriSkillSyncIo, BUNDLED_SKILLS)
-  })().finally(() => {
-    // 終わったら忘れる。次にフォルダを開き直したときは改めて置き直す
-    skillSyncInFlight.delete(dir)
-  })
-  skillSyncInFlight.set(dir, task)
-  return task
-}
-
-/**
  * 額縁が取るグローバル層のキー文脈（rev 10章）。Undo/Redo だけを扱うため
  * 構造依存層の文脈は固定値でよい。modalOpen はダイアログが開いている間 true
  */
@@ -225,6 +176,45 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [paneOpen, setPaneOpen] = useState(false)
   const [terminals, setTerminals] = useState<TerminalState>(emptyTerminalState)
+  /**
+   * `claude` に渡す引数。**判定は起動時に1回だけ。** 利用者が facet の
+   * プラグインを導入していれば同梱版は渡さない（同じ名前の Skill が2つ現れる）。
+   *
+   * **初期値は `null`（＝判定がまだ済んでいない）。** `[]` を初期値にすると
+   * 「判定した結果 Skill 無しで良い」と区別が付かず、判定前に端末タブを
+   * 開いたときに Skill 無しのまま起動してしまう（`TerminalTab` の spawn は
+   * 起動時の値を1回読むだけで、あとから直せない）。`TerminalPane` は
+   * `claudeArgs === null` の間 `TerminalTab` をマウントしない
+   */
+  const [claudeArgs, setClaudeArgs] = useState<readonly string[] | null>(null)
+  /**
+   * 利用者が facet のプラグインを導入して有効にしているか。
+   * 設定の AI タブが、導入手順を出すかどうかをこれで決める
+   */
+  const [pluginInstalled, setPluginInstalled] = useState(false)
+  useEffect(() => {
+    void (async () => {
+      const enabled = await readFacetPluginEnabled()
+      setPluginInstalled(enabled)
+      if (enabled) {
+        // 利用者のプラグインで足りるので、同梱版は渡さない。**それでも
+        // 判定は済んでいる**ので `null` のままにしない（`[]` のまま
+        // 止めると `TerminalPane` が `TerminalTab` を永久にマウントしない）
+        setClaudeArgs([])
+        return
+      }
+      try {
+        setClaudeArgs(buildClaudeArgs(await bundledPluginDir()))
+      } catch (err: unknown) {
+        // 同梱物の場所が引けないのは異常だが、ここで止めても端末は開ける。
+        // Skill 無しで起動して、設定の AI タブが導入手順を出す。
+        // **ここでも判定は済んだ扱いにする**——`null` のままだと
+        // 同じ理由でタブが永久にマウントされない
+        console.error('同梱プラグインの場所を解決できませんでした', err)
+        setClaudeArgs([])
+      }
+    })()
+  }, [])
   // タブを閉じる確認ダイアログの `onConfirm` は承認まで遅延実行される。
   // `historyRef` / `modalOpenRef` と同じ「最新値の
   // 読み取り口」——確認待ちの間にタブが自然終了（`onExited`）していても、
@@ -689,30 +679,27 @@ function App() {
   }, [controller])
 
   /**
-   * フォルダを開き、開けたときだけ読み方ガイドを配る（スペック設計2）。
-   * ガイドを書けなくても開くこと自体は成立させる——Skill 同期と同じ姿勢
-   *（設計 決定13）。開けなかったフォルダには書かない（開けない場所へ
-   * ファイルを増やさない）
+   * フォルダを開き、開けたときだけ最後に開いたフォルダとして保存する。
+   * 保存できなくても開くこと自体は成立させる。開けなかったフォルダは
+   * 保存しない（開けない場所を次回の復元先にしない）
    */
   const openProject = async (dir: string): Promise<boolean> => {
     const opened = await controller.openFolder(dir)
     if (!opened) return false
     // 保存できなくても次回単に復元されないだけで、このセッションの作業には
-    // 影響しない。読み方ガイドの配置失敗（下）とは違いトーストは出さない
+    // 影響しない。だからトーストは出さない
     try {
       await saveLastProjectDir(dir)
     } catch (err: unknown) {
       console.error('最後に開いたフォルダの保存に失敗しました', err)
     }
+    // 旧版が置いたものが残っていると、プロジェクトスコープの Skill が
+    // プラグインより先に見つかって古い版が発火する。**消すのは利用者**
     try {
-      await syncReadingGuide(dir, tauriReadingGuideIo)
+      const message = describeLegacyArtifacts(await findLegacyArtifacts(dir))
+      if (message !== null) showToast({ message, key: 'legacy-artifacts' })
     } catch (err: unknown) {
-      showToast({
-        message: `読み方ガイド（${READING_GUIDE_FILENAME}）を配置できませんでした: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-        key: 'reading-guide-sync',
-      })
+      console.error('旧版の成果物を確認できませんでした', err)
     }
     return true
   }
@@ -1021,44 +1008,6 @@ function App() {
       unlisten?.()
     }
   }, [])
-
-  /**
-   * 同梱 Skill の配置（設計 決定10）。**フォルダ1つにつき1回**——Skill は
-   * プロジェクトに属するもので、端末セッションの数とは関係が無い。
-   * `projectDir` をキーにした effect にすることで、`openFolder` /
-   * `switchFolder`、そして起動時の自動復元まで、**フォルダが変わる
-   * すべての経路が自動的に1本にまとまる**（経路を足すたびに同期の呼び出しを
-   * 書き足して回る必要が無い）。
-   *
-   * 同期に失敗しても起動は続ける（Skill が無くても端末は使える。設計 決定13）。
-   *
-   * **後片付けは「トーストを出さない」だけ。** 書き込み先のパスは捕まえた `dir`
-   * から作るので、同期中にフォルダを切り替えても新しいフォルダには一切書かない
-   *（走り切って古いフォルダを置き直して終わるだけで、実害が無い）。
-   * 一方、そのとき失敗のトーストを出すと、ユーザーには**いま開いている**
-   * フォルダの話に読める。だから切り替え後は黙って捨てる
-   */
-  useEffect(() => {
-    const dir = projectDir
-    if (dir === null) return
-    let current = true
-    void (async () => {
-      try {
-        await syncSkillsOnce(dir)
-      } catch (err: unknown) {
-        if (!current) return
-        showToast({
-          message: `Skill をプロジェクトへ配置できませんでした（Skill 無しで起動します）: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-          key: 'skill-sync',
-        })
-      }
-    })()
-    return () => {
-      current = false
-    }
-  }, [projectDir, showToast])
 
   // フォルダ単位の監視（rev 3章。ファイル単位では外部リネームが取れない）。
   // イベントの種類は見ず、束ねて再走査する。フォルダを切り替えたら張り替える
@@ -1425,6 +1374,7 @@ function App() {
                 paneVisible={paneOpen}
                 insertion={insertion}
                 clipboardIo={tauriClipboardIo}
+                claudeArgs={claudeArgs}
                 onError={(message) => showToast({ message })}
                 onOpen={() => openTerminal()}
                 onClose={closeTerminal}
@@ -1443,6 +1393,7 @@ function App() {
         open={settingsOpen}
         settings={settings}
         onChange={updateSettings}
+        pluginInstalled={pluginInstalled}
         onClose={() => setSettingsOpen(false)}
       />
       <ConfirmDialog

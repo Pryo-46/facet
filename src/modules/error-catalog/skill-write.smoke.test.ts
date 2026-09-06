@@ -12,7 +12,7 @@ import { checkErrorCatalogConsistency } from './consistency'
  *
  * **なぜ出力の突き合わせなのか。** スクリプトの警告判定は consistency.ts の
  * 手複製で、consistency.ts 自体は値 import ＋ `@/` エイリアスを持つため
- * sequence-register 式のバイト一致コピーにできない。手複製が黙ってズレる
+ * write-sequence 式のバイト一致コピーにできない。手複製が黙ってズレる
  * 経路（実際に duplicate-id / duplicate-name でズレた）を、実行結果の
  * 突き合わせで塞ぐ。契約は「アプリの message がスクリプトの stdout に
  * 逐語で現れる」——スクリプトが接頭辞や独自警告を足すのは妨げない
@@ -20,7 +20,7 @@ import { checkErrorCatalogConsistency } from './consistency'
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
 const SCRIPT = path.join(
   REPO_ROOT,
-  '.claude/skills/error-catalog-register/scripts/error-catalog-write.mjs',
+  'plugins/facet/skills/write-error/scripts/error-catalog-write.mjs',
 )
 
 const entry = (over: Record<string, unknown>) => ({

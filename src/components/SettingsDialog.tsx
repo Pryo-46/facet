@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { AiSettings } from './settings/AiSettings'
 import { GeneralSettings } from './settings/GeneralSettings'
 import { InputSettings } from './settings/InputSettings'
 import type { SettingsPanelProps } from './settings/types'
@@ -18,6 +19,7 @@ import type { AppSettings } from '@/core/settings'
 const SETTINGS_TABS = [
   { id: 'general', label: '一般', Panel: GeneralSettings },
   { id: 'input', label: '操作', Panel: InputSettings },
+  { id: 'ai', label: 'AI', Panel: AiSettings },
 ] as const satisfies readonly {
   id: string
   label: string
@@ -29,6 +31,11 @@ export interface SettingsDialogProps {
   settings: AppSettings
   /** 値が変わるたび呼ぶ。保存は呼び手の担当 */
   onChange: (next: AppSettings) => void
+  /**
+   * facet のプラグインを導入して有効にしているか。
+   * 未導入なら、アプリの端末は同梱版を `--plugin-dir` で渡している
+   */
+  pluginInstalled: boolean
   onClose: () => void
 }
 
@@ -44,7 +51,13 @@ export interface SettingsDialogProps {
  *
  * タブの選択は覚えず、開くたび先頭から始める
  */
-export function SettingsDialog({ open, settings, onChange, onClose }: SettingsDialogProps) {
+export function SettingsDialog({
+  open,
+  settings,
+  onChange,
+  pluginInstalled,
+  onClose,
+}: SettingsDialogProps) {
   return (
     <Dialog
       open={open}
@@ -66,7 +79,7 @@ export function SettingsDialog({ open, settings, onChange, onClose }: SettingsDi
           </TabsList>
           {SETTINGS_TABS.map(({ id, Panel }) => (
             <TabsContent key={id} value={id}>
-              <Panel settings={settings} onChange={onChange} />
+              <Panel settings={settings} onChange={onChange} pluginInstalled={pluginInstalled} />
             </TabsContent>
           ))}
         </Tabs>

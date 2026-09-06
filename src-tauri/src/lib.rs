@@ -2,51 +2,11 @@ mod pty;
 
 use tauri_plugin_fs::FsExt as _;
 
-/// プロジェクトフォルダ配下の `.claude/` を fs プラグインの実行時 scope に入れる。
-///
-/// **これが無いと mac で Skill を置けない。** フォルダ選択のダイアログが入れる
-/// 許可は `<フォルダ>` と `<フォルダ>/**` の2パターンで、この scope の glob 判定は
-/// unix では `require_literal_leading_dot: true` が既定になる（tauri の
-/// `scope/fs.rs`。Windows は false）。つまり `**` は `.claude` のような
-/// ドット始まりの要素に一致せず、`.claude/skills/` への `exists` が
-/// 「forbidden path」で落ちる。**Windows では既定が逆なので表に出ない。**
-///
-/// **`tauri.conf.json` の `plugins.fs.requireLiteralLeadingDot: false` では
-/// これは直らない。** その設定が届くのは capabilities 由来の scope までで
-/// （同梱 Skill 側の `.gitignore` を読むために実際に入れてある）、ダイアログが
-/// 許可を入れる実行時 scope は `FsScope::default()` から作られており設定を
-/// 見ない（tauri-plugin-fs の `lib.rs`）。**2つの scope は別物で、
-/// 設定とこのコマンドはどちらも要る。**
-///
-/// パターンに `.claude` を literal で入れれば判定を通る。ここで許可するのは
-/// `.claude` 配下だけで、判断は一切置かない（rev 7章）。
-///
-/// **2段になっている。** `allow_directory` の `**` はドット始まりの直下要素に
-/// 一致しないため、Skill ごとの `.gitignore` はこれだけでは書けない。
-/// 同期対象のドットファイルは `allow_file` で1つずつ literal に許可する。
-/// 対象は Skill 直下の `.gitignore` のみ——ここに判断は置かない（rev 7章）。
-/// 対象ファイルが増えたら TS 側（skill-resources.ts）から渡す形を広げる
-#[tauri::command]
-fn allow_skill_dir(app: tauri::AppHandle, dir: String, skills: Vec<String>) -> Result<(), String> {
-    let scope = app.fs_scope();
-    let claude = std::path::Path::new(&dir).join(".claude");
-    scope
-        .allow_directory(&claude, true)
-        .map_err(|e| e.to_string())?;
-    for skill in &skills {
-        scope
-            .allow_file(claude.join("skills").join(skill).join(".gitignore"))
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
 /// プロジェクトフォルダを fs プラグインの実行時 scope に入れる。
 ///
 /// フォルダ選択ダイアログが入れる scope はセッション限りで、次回起動には
 /// 引き継がれない。**起動時に前回のフォルダを自動で復元する**ときはダイアログ
-/// を経由しないため、ここで明示的に取り直す。判断は一切置かない
-/// （`allow_skill_dir` と同じ姿勢。rev 7章）
+/// を経由しないため、ここで明示的に取り直す。判断は一切置かない（rev 7章）。
 ///
 /// **前提条件チェック（判断ではない）: `dir` が空文字列なら `Err` を返す。**
 /// tauri-2.11.5 の scope 実装は
@@ -62,6 +22,25 @@ fn allow_project_dir(app: tauri::AppHandle, dir: String) -> Result<(), String> {
     let scope = app.fs_scope();
     scope
         .allow_directory(std::path::Path::new(&dir), true)
+        .map_err(|e| e.to_string())
+}
+
+/// プロジェクトフォルダの `.claude` を fs の実行時 scope に入れる（読むためだけ）。
+///
+/// **実行時 scope は `require_literal_leading_dot: true`（unix の既定）で照合するので、
+/// `<dir>/**` はドット始まりの要素に一致しない。** ダイアログが入れる scope も
+/// `allow_project_dir` が入れる scope も同じ形なので、これが無いと mac では
+/// `<dir>/.claude/skills/<名前>` の存在確認が forbidden path で落ちる。
+/// `tauri.conf.json` の `requireLiteralLeadingDot: false` は静的 scope にしか効かない。
+/// 判断は一切置かない（rev 7章）
+#[tauri::command]
+fn allow_dot_claude(app: tauri::AppHandle, dir: String) -> Result<(), String> {
+    if dir.is_empty() {
+        return Err("dir must not be empty".to_string());
+    }
+    let scope = app.fs_scope();
+    scope
+        .allow_directory(std::path::Path::new(&dir).join(".claude"), true)
         .map_err(|e| e.to_string())
 }
 
@@ -116,8 +95,8 @@ pub fn run() {
         .manage(pty::PtyState::default())
         .invoke_handler(tauri::generate_handler![
             move_to_trash,
-            allow_skill_dir,
             allow_project_dir,
+            allow_dot_claude,
             read_clipboard_html,
             pty::pty_spawn,
             pty::pty_write,

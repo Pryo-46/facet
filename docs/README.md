@@ -8,7 +8,7 @@ facet は、人と AI がスキーマ定義されたデータを共通言語に�
 | --- | --- |
 | なぜこの設計なのか | [`overview-rev.md`](overview-rev.md)。全体方針の正。他の文書は `rev N章` の形で参照する |
 | デザインの規約 | [`overview-rev.md`](overview-rev.md) 9章。診断の原則と決定 D1〜D20 |
-| 欠落の規約 | [`missing-semantics.md`](missing-semantics.md)。判定源は `src/core/reading-guide.md` と一対一 |
+| 欠落の規約 | [`missing-semantics.md`](missing-semantics.md)。判定源は `plugins/facet/skills/read-project/SKILL.md` と一対一 |
 | 用語集の範囲と仕様の理由 | [`glossary/scope.md`](glossary/scope.md)、[`glossary/session-notes.md`](glossary/session-notes.md) |
 | ロジックツリーの範囲とキャンバスの技術 | [`logic-tree/logic-tree-m1-scope.md`](logic-tree/logic-tree-m1-scope.md)、[`logic-tree/logic-tree-canvas-tech-notes.md`](logic-tree/logic-tree-canvas-tech-notes.md) |
 | シーケンスの範囲と仕様の理由 | [`sequence/sequence-m1-scope.md`](sequence/sequence-m1-scope.md)、[`sequence/sequence-design-notes.md`](sequence/sequence-design-notes.md) |
@@ -37,5 +37,5 @@ facet は、人と AI がスキーマ定義されたデータを共通言語に�
 ## リポジトリ内の他の「正」
 
 - `schemas/*.schema.json`: 各ツールのデータ形式の正。型（`src/types/*.ts`）はここから生成する
-- `.claude/skills/`: AI 側の実装。ユーザーのデータを作る登録 Skill 5本（アプリと正規形が一致していなければならない）と、アプリ自身を触る `palette-retheme`
-- `src/core/reading-guide.md`: 利用者のフォルダへ配る読み方ガイド
+- `plugins/facet/skills/`: AI 側の実装。プラグインとして配る登録 Skill 5本（アプリと正規形が一致していなければならない）と、読み取り専用の `read-project`
+- `.claude/skills/palette-retheme`: アプリ自身のソースを触る Skill。利用者へは配らない

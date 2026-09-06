@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "facet": {
+      "source": {
+        "source": "directory",
+        "path": "."
+      }
+    }
+  },
+  "enabledPlugins": {
+    "facet@facet": true
+  }
+}

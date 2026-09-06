@@ -1,6 +1,6 @@
 import type { MissingTally } from '@/core/missing-tally'
 
-/** ロジックツリーの欠落＝ text が空のノード（reading-guide:「未記入」） */
+/** ロジックツリーの欠落＝ text が空のノード（read-project Skill:「未記入」） */
 export function isMissingNode(node: { text: string }): boolean {
   return node.text === ''
 }

@@ -39,7 +39,7 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../.claude/skills": "skills"
+      "../plugins/facet": "plugin"
     },
     "windows": {
       "nsis": {

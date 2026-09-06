@@ -1,0 +1,15 @@
+{
+  "name": "facet",
+  "description": "仕様整理ツール facet の Skill",
+  "owner": {
+    "name": "Pryo"
+  },
+  "plugins": [
+    {
+      "name": "facet",
+      "description": "facet のプロジェクトデータを読み書きする Skill 群",
+      "version": "0.1.0",
+      "source": "./plugins/facet"
+    }
+  ]
+}

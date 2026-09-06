@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { execFileSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 import { SKILL_SOURCES } from './gen-skills.mjs'
-import { BUNDLED_SKILLS } from '../src/core/skill-sync.ts'
+import { WRITE_SKILLS } from '../src/core/skills.ts'
 import { extractImportStatements, isValueImportStatement } from '../src/core/import-analysis.ts'
 
 /**
@@ -14,7 +15,7 @@ import { extractImportStatements, isValueImportStatement } from '../src/core/imp
  * である——生成物が実際に動き、アプリ側と同じ結果を返すこと。
  *
  * **網羅の強制はここで持つ。**
- * `SKILL_SOURCES` は手書きの表で、`BUNDLED_SKILLS` から導出していない
+ * `SKILL_SOURCES` は手書きの表で、`WRITE_SKILLS` から導出していない
  * ——導出すると恒真式になり何も縛らない。**6本目の Skill を足した人が
  * 表に足し忘れると、ここが赤くなる。**
  */
@@ -36,12 +37,12 @@ function skillOf(schema) {
 
 /** vitest の cwd はプロジェクトルート。相対のまま組み立ててよい */
 function generatedPath(skill, file) {
-  return path.join('.claude', 'skills', skill, 'scripts', 'generated', file)
+  return path.join('plugins', 'facet', 'skills', skill, 'scripts', 'generated', file)
 }
 
 describe('SKILL_SOURCES', () => {
-  it('BUNDLED_SKILLS のすべてを網羅する', () => {
-    expect(Object.keys(SKILL_SOURCES).sort()).toEqual([...BUNDLED_SKILLS].sort())
+  it('書き込み Skill のすべてを網羅する', () => {
+    expect(Object.keys(SKILL_SOURCES).sort()).toEqual([...WRITE_SKILLS].sort())
   })
 })
 
@@ -117,7 +118,7 @@ describe('生成した canonical.mjs', () => {
 describe('生成した derive.mjs', () => {
   it('お手本の集計行がアプリ側と一致する', async () => {
     const gen = await import(
-      pathToFileURL(path.resolve(generatedPath('issue-tree-register', 'derive.mjs'))).href
+      pathToFileURL(path.resolve(generatedPath('write-issue-tree', 'derive.mjs'))).href
     )
     const app = await import('../src/modules/issue-tree/derive.ts')
     const data = JSON.parse(readFileSync(path.join('sample-project', '課題ツリー.json'), 'utf8'))
@@ -132,7 +133,7 @@ describe('生成した derive.mjs', () => {
 describe('生成した flat-tree-core.mjs', () => {
   it('お手本の並べ直しがアプリ側と一致する', async () => {
     const gen = await import(
-      pathToFileURL(path.resolve(generatedPath('logic-tree-register', 'flat-tree-core.mjs'))).href
+      pathToFileURL(path.resolve(generatedPath('write-logic-tree', 'flat-tree-core.mjs'))).href
     )
     const app = await import('../src/core/canvas/flat-tree-core.ts')
     const data = JSON.parse(
@@ -147,7 +148,7 @@ describe('生成した flat-tree-core.mjs', () => {
 describe('生成した questions.mjs', () => {
   it('お手本の先頭ステップの問いがアプリ側と一致する', async () => {
     const gen = await import(
-      pathToFileURL(path.resolve(generatedPath('sequence-register', 'questions.mjs'))).href
+      pathToFileURL(path.resolve(generatedPath('write-sequence', 'questions.mjs'))).href
     )
     const app = await import('../src/modules/sequence/questions.ts')
     const data = JSON.parse(
@@ -156,5 +157,24 @@ describe('生成した questions.mjs', () => {
     const step = data.steps[0]
     expect(gen.presentAnswers(step)).toEqual(app.presentAnswers(step))
     expect(gen.questionLabels(step)).toEqual(app.questionLabels(step))
+  })
+})
+
+describe('生成物の配布', () => {
+  it('作業ツリーに未コミットの生成物が残らない', () => {
+    // marketplace は git の内容をそのまま配る。生成物が追跡外だったり
+    // 生成し直した結果をコミットし忘れたりすると、install した先の Skill が
+    // 「generated が無い」で落ちる。`pretest` で生成し直した直後に差分が
+    // 出るなら、それはコミットされていない。
+    //
+    // **見るのは生成物のディレクトリだけ。** Skill 全体を対象にすると、
+    // SKILL.md を書きかけているだけで赤くなり、編集とテストを同時に
+    // 回せなくなる
+    const status = execFileSync(
+      'git',
+      ['status', '--porcelain', '--', 'plugins/facet/skills/*/scripts/generated'],
+      { encoding: 'utf8' },
+    )
+    expect(status).toBe('')
   })
 })

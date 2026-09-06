@@ -67,16 +67,16 @@
 ID捏造・不正データの予防として、各Skillに ID採番と書き込み前検証のスクリプトを同梱する。
 
 - ID採番は英数字62文字・10文字の nanoid（5章）。**手順書に「IDは必ずこれで採番せよ」と明記する。**
-- 各登録 Skill は `<Skill>/schemas/<名前>.schema.json` に原本のバイト一致コピーを持ち、一致は `src/core/skill-schema-copy.test.ts` が強制する。**配布されるのは `.claude/skills/` だけで、リポジトリの `schemas/` は出荷先に届かないため。**
+- 各登録 Skill は `<Skill>/schemas/<名前>.schema.json` に原本のバイト一致コピーを持ち、一致は `src/core/skill-schema-copy.test.ts` が強制する。**配布されるのは `plugins/facet/skills/` だけで、リポジトリの `schemas/` は出荷先に届かないため。**
 - スキーマの差し替え経路（引数・環境変数・上向き探索）は持たない。検証は ajv の standalone 生成物に焼き付いており、差し替えても効かない。
 
 #### アプリのロジックを Skill と共有する標準
 
-同梱 Skill はコピーされて実行されるので実行時に `src/` は無く、手で複製すると追従漏れが残る。したがって**値 import を持たないファイルに限り、原本からビルド時に `.mjs` を生成して同梱する。**
+同梱 Skill は配布先で実行されるので実行時に `src/` は無く、手で複製すると追従漏れが残る。したがって**値 import を持たないファイルに限り、原本からビルド時に `.mjs` を生成して同梱する。**
 
-- 生成は `scripts/gen-skills.mjs` が型注釈を落として `.claude/skills/<skill>/scripts/generated/` へ書き出す。契機は `pretest` / `prebuild` / `predev` / `prepare` で、生成物は追跡しない。
+- 生成は `scripts/gen-skills.mjs` が型注釈を落として `plugins/facet/skills/<skill>/scripts/generated/` へ書き出す。契機は `pretest` / `prebuild` / `predev` / `prepare` で、**marketplace は git の内容をそのまま配るため生成物は追跡する**（コミット漏れは `scripts/gen-skills.test.mjs` が止める）。
 - 原本の制約は「値 import・相対 import・消去できない構文を持たない」。遵守は `scripts/gen-skills.test.mjs` が検査する（判定は `src/core/import-analysis.ts`）。
-- どの Skill がどの共有ソースを要るかは手書きの表 `SKILL_SOURCES` で宣言し、**`BUNDLED_SKILLS` から導出しない**（導出は恒真式になる）。
+- どの Skill がどの共有ソースを要るかは手書きの表 `SKILL_SOURCES` で宣言し、**`WRITE_SKILLS` から導出しない**（導出は恒真式になる）。
 - 変換の健全性は**出力の一致**で見る。生成物を import してアプリ側と同じ結果を返すこと、CJS の `require(` が残らないことを確かめる。
 - **JSON Schema だけは生成の対象ではない**（実行時にそのまま読む JSON だから）。
 - 共有している原本は `src/core/canonical.ts` と、ツール固有の導出3本（`src/modules/sequence/questions.ts`、`src/modules/issue-tree/derive.ts`、`src/core/canvas/flat-tree-core.ts`）。原本がどの層にあるかは要件ではない。
@@ -94,25 +94,21 @@ ID捏造・不正データの予防として、各Skillに ID採番と書き込�
 - 縛りは `rule` 名の集合だけでなく `message` の件数にも掛ける（同じ `rule` を2箇所で出すツールがある）。
 - 導出ロジックを共有している Skill では、集計結果の逐語一致も併せて固定する（`message` の一致は共有物が空でも通る）。
 
-#### Skillの配布と同期
+#### Skillの配布
 
-同梱 Skill はアプリの resources に入っており、**プロジェクトフォルダを開いたときに1回**（端末タブを開くたびではない）`.claude/skills/` へ置き直される。
+**Skill は Claude Code のプラグインとして配る。** リポジトリ自身が marketplace（`.claude-plugin/marketplace.json`）で、実体は `plugins/facet/`。プロジェクトフォルダには何も書かない。
 
-- 同梱物をすべて読み終えてから消す。読み出しに失敗すれば何も消さない。
-- 読み出しは `node_modules` へ降りない（`src/core/skill-sync.ts`）。非 UTF-8 な依存が1つ混じるだけで読み出しごと throw するため。
-- 消すのは同梱する名前のディレクトリの中身だけで、ユーザーが足したSkillも `node_modules` / `package-lock.json` も消さない。
-- **消せない要素が1つあっても中断しない**（1件の消し残しより Skill 全体を失うほうが重い）。
-- `.gitignore` は同期対象に含める。mac ではこれを書くために `allow_skill_dir`（`src-tauri/src/lib.rs`）が要る（7章）。
-- Skill群は正式な成果物としてバージョン管理し、**スキーマ変更時はSkillも追従させる。**
+- アプリは同じものを resources に同梱し、端末で `claude` を起動するとき**利用者がプラグインを未導入のときだけ** `--plugin-dir` で渡す。導入済みの版と同梱の版が両方読まれると、同じ名前の Skill が2つ現れるため。
+- 導入済みかは `~/.claude/settings.json` の `enabledPlugins["facet@facet"]` を読んで判定する。読めなければ「未導入」に倒す——同梱版を渡す側に倒れるので、最悪でも Skill が2つ見えるだけで済む。
+- 旧版がプロジェクトフォルダに置いた `.claude/skills/<旧名>/` や `README-for-AI.md` は、見つけたら消すよう促すだけで**アプリは消さない**。判定の根拠が名前だけなので、間違えたときに利用者のファイルを失わせてしまう。
+- Skill群は正式な成果物としてバージョン管理し、スキーマ変更時は追従させる。
 
-### 読み方ガイド：静的な README-for-AI.md を配る
+### 読み方ガイド：`facet:read-project` Skill で配る
 
-「空欄・`undecided` は未決の意思表示であり埋めてはいけない」といったJSONに書かれていない読み方の規約は、ユーザーのフォルダには無い。これを、**AIがフォルダを読みに行った瞬間に目に入る静的な配布物**として配る。
+「空欄・`undecided` は未決の意思表示であり埋めてはいけない」といったJSONに書かれていない読み方の規約は、**`facet:read-project` Skill として配る**。
 
-- プロジェクトフォルダ直下に `README-for-AI.md` を置く。原本は `src/core/reading-guide.md`。
-- 原本はTauriのresourcesではなく Vite の `?raw` importでバンドルへ取り込む（二重管理を増やさないため）。
-- フォルダを開いたときにべき等に書き出す（無ければ作る／一致していれば触らない／不一致なら上書き）。契機を Skill 同期と分けるのは、外部の Claude Code から読まれる経路があるため。
-- **アプリはこのファイルを読まない。書くだけ。**
+- description に「書き込みを伴わない読み取りでも必ず使う」と明記し、質問がプロジェクトフォルダに直接触れていなくても起動できるようにする。
+- 原本は `plugins/facet/skills/read-project/SKILL.md` の1本で、二重管理の原本を持たない。アプリはこのファイルを書かない。
 
 ### アプリ側への要件：外部変更への対応
 
@@ -301,11 +297,11 @@ ID捏造・不正データの予防として、各Skillに ID採番と書き込�
 
 1. **OSのゴミ箱への移動**（`move_to_trash`）。fsプラグインは完全削除しか持たず、6章の「削除はゴミ箱へ移動」を満たせないため。
 2. **PTYのコマンド4本**（`pty_spawn` / `pty_write` / `pty_resize` / `pty_kill`）。端末ペインが本物の端末を要件とし、`tauri-plugin-shell` では raw mode の TUI を成立させられないため。
-3. **Skill配置のための fs scope 許可**（`allow_skill_dir`）。fs の実行時 scope は unix既定の `require_literal_leading_dot: true` によりドット始まりの要素に一致しないため。
+3. **旧版の残骸を読むための fs scope 許可**（`allow_dot_claude`）。fs の実行時 scope は unix既定の `require_literal_leading_dot: true` によりドット始まりの要素に一致しないため。
 4. **プロジェクトフォルダの fs scope 再付与**（`allow_project_dir`）。ダイアログが入れる scope はセッション限りで、起動時の復元がダイアログを経由しないため。
 5. **クリップボードの HTML 読み取り**（`read_clipboard_html`）。プラグインが HTML の読み取り API を持たないため。
 
-**どの例外も判断を一切置かない。** 実行ファイル名・引数・作業ディレクトリ・対象パス・Skill名一覧はすべてTypeScript側が決めて渡し、Rustの仕事はバイト列と結果を右から左へ流すことに尽きる（Rust側のコードに `claude` という文字列は現れない）。
+**どの例外も判断を一切置かない。** 実行ファイル名・引数・作業ディレクトリ・対象パスはすべてTypeScript側が決めて渡し、Rustの仕事はバイト列と結果を右から左へ流すことに尽きる（Rust側のコードに `claude` という文字列は現れない）。
 
 - 型はJSON Schemaから自動生成する（5章）。**スタイリングはTailwind CSS＋shadcn/ui** とし、デザイントークン（9章）はTailwindの設定に定義してデザインシステムと1対1対応させる。
 - **shadcnの適用範囲は「額縁」に限定する**（モーダル、ドロップダウン、ファイル一覧、トースト等）。土台のRadixがフォーカストラップ・キーボード制御の実戦済み実装を持ち、モーダル周りの厄介な挙動をこの層ごと吸収できるため。

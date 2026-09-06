@@ -19,7 +19,7 @@ import { ISSUE_EVENT_LABELS, issueEventCount, issueEventLine, poseQuestions, tal
  * 逐語で現れる」
  */
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
-const SCRIPT = path.join(REPO_ROOT, '.claude/skills/issue-tree-register/scripts/issue-tree-write.mjs')
+const SCRIPT = path.join(REPO_ROOT, 'plugins/facet/skills/write-issue-tree/scripts/issue-tree-write.mjs')
 
 /**
  * consistency.ts が message を出す6ブロック（rule は5種類。duplicate-id は

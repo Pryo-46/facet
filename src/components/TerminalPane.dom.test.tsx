@@ -50,6 +50,7 @@ function setup(state = openSession(emptyTerminalState), insertion = null as
       paneVisible
       insertion={insertion}
       clipboardIo={{ readText: vi.fn(async () => ''), writeText: vi.fn(async () => undefined) }}
+      claudeArgs={[]}
       onError={vi.fn()}
       {...handlers}
     />,
@@ -117,6 +118,7 @@ describe('TerminalPane', () => {
         paneVisible={false}
         insertion={null}
         clipboardIo={{ readText: vi.fn(async () => ''), writeText: vi.fn(async () => undefined) }}
+        claudeArgs={[]}
         onError={vi.fn()}
         {...handlers}
       />,
@@ -130,6 +132,35 @@ describe('TerminalPane', () => {
     setup(two, { targetId: second, seq: 3, text: '@a.json ' })
     expect(screen.getByTestId('tab-body-Claude 1').dataset.insertion).toBe('')
     expect(screen.getByTestId('tab-body-Claude 2').dataset.insertion).toBe('3:@a.json ')
+  })
+
+  it('claudeArgs が null（判定前）の間は TerminalTab をマウントしない', () => {
+    // 判定前に TerminalTab をマウントすると、その瞬間の（空の）引数で
+    // spawn が確定してしまい、再起動までは Skill 無しのまま戻せない
+    // （App.tsx のコメント参照）。タブボタン自体は判定を待たず出てよい
+    const handlers = {
+      onOpen: vi.fn(),
+      onClose: vi.fn(),
+      onActivate: vi.fn(),
+      onRunning: vi.fn(),
+      onExited: vi.fn(),
+      onFailed: vi.fn(),
+    }
+    render(
+      <TerminalPane
+        state={openSession(emptyTerminalState)}
+        cwd="/proj"
+        ptyIo={ptyIo}
+        paneVisible
+        insertion={null}
+        clipboardIo={{ readText: vi.fn(async () => ''), writeText: vi.fn(async () => undefined) }}
+        claudeArgs={null}
+        onError={vi.fn()}
+        {...handlers}
+      />,
+    )
+    expect(screen.getByRole('button', { name: 'Claude 1' })).toBeTruthy()
+    expect(screen.queryByTestId('tab-body-Claude 1')).toBeNull()
   })
 
   it('ペインの中では OS の既定メニューを出さない', () => {

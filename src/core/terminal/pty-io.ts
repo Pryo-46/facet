@@ -22,4 +22,3 @@ export interface PtyIo {
 
 /** 端末で起動するもの。**ここが「Rust に判断を置かない」の実体** */
 export const CLAUDE_PROGRAM = 'claude'
-export const CLAUDE_ARGS: readonly string[] = []

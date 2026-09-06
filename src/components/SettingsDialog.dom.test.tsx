@@ -14,11 +14,17 @@ function clickTab(name: string): void {
   fireEvent.mouseDown(screen.getByRole('tab', { name }))
 }
 
-function show(settings: AppSettings = DEFAULT_SETTINGS) {
+function show(settings: AppSettings = DEFAULT_SETTINGS, pluginInstalled = false) {
   const onChange = vi.fn()
   const onClose = vi.fn()
   render(
-    <SettingsDialog open settings={settings} onChange={onChange} onClose={onClose} />,
+    <SettingsDialog
+      open
+      settings={settings}
+      pluginInstalled={pluginInstalled}
+      onChange={onChange}
+      onClose={onClose}
+    />,
   )
   return { onChange, onClose }
 }
@@ -89,5 +95,23 @@ describe('SettingsDialog', () => {
     const { onClose } = show()
     fireEvent.click(screen.getByRole('button', { name: '閉じる' }))
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('未導入なら AI タブに導入のコマンドを出す', () => {
+    show()
+    clickTab('AI')
+    expect(screen.getByText(/claude plugin marketplace add/)).toBeTruthy()
+  })
+
+  it('導入済みなら導入のコマンドを出さない', () => {
+    show(DEFAULT_SETTINGS, true)
+    clickTab('AI')
+    expect(screen.queryByText(/claude plugin marketplace add/)).toBeNull()
+  })
+
+  it('AI タブが配る Skill の名前を出す', () => {
+    show()
+    clickTab('AI')
+    expect(screen.getByText('facet:write-term')).toBeTruthy()
   })
 })

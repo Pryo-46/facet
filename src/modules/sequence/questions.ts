@@ -148,7 +148,7 @@ export function questionHints(step: StepShape): QuestionLabels {
  * 素直なプロパティアクセスにならない——その差を吸収するのがこの関数の仕事。
  *
  * **読み方の正はここ1箇所。** `npm run gen:skills` が
- * このファイルを `.mjs` へ変換して sequence-register へ同梱するため、
+ * このファイルを `.mjs` へ変換して write-sequence へ同梱するため、
  * 値 import を持たないこのファイルへ集約してある
  */
 export function readSlot(

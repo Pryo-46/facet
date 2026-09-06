@@ -3,7 +3,8 @@
   "plugins": ["react", "typescript", "oxc"],
   "ignorePatterns": [
     "src/components/ui/**",
-    "src/types/**"
+    "src/types/**",
+    "plugins/facet/skills/*/scripts/generated/**"
   ],
   "rules": {
     "react/rules-of-hooks": "error",

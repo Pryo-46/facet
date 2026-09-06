@@ -2,7 +2,7 @@
 
 > **「正」の文書。** ここに書くのは規約であって説明ではない——「〜すること」「〜しない」と読める文で書き、実装が変わったらこの文書を直す。「何をもって『未定義』とするか」の共通規約を1枚にする。中身は課題ツリー（issue-tree-m1〜m3）が先に実装した形——`missing.ts` の判定関数・ヘッダの集計・行番号での指し方——を、他の4モジュールへ言語化して広げたものである。
 >
-> **判定源は [`src/core/reading-guide.md`](../src/core/reading-guide.md) と一対一。** 画面が黄（`missing`）で塗る箇所と、AI がこのフォルダを読むときに「ここは未決」と扱うべき箇所は、同じ集合でなければならない。この文書とその双子である reading-guide.md のどちらかを直すときは、必ずもう一方も見て揃えること。
+> **判定源は [`plugins/facet/skills/read-project/SKILL.md`](../plugins/facet/skills/read-project/SKILL.md) と一対一。** 画面が黄（`missing`）で塗る箇所と、AI がこのフォルダを読むときに「ここは未決」と扱うべき箇所は、同じ集合でなければならない。この文書と `read-project` Skill のどちらかを直すときは、必ずもう一方も見て揃えること。
 
 ## 決定1: モジュール別の欠落／欠落でない
 
@@ -14,16 +14,16 @@
 | ロジックツリー | `text === ''`（未記入） | — |
 | 課題ツリー | 4つの問い（仮説なし・未決・保留・FB待ち）。`poseQuestions` が導出する | `detail` / `value` / `asks` が空、旗（見送り・解決）配下（抑制） |
 
-備考・別名・`detail`／`value`／`asks` を欠落にしない判断はこの文書でも変えない（[`docs/glossary/session-notes.md`](glossary/session-notes.md) の「`notes` は検知対象外」、reading-guide.md の「欠落は仕様の穴ではない」）。
+備考・別名・`detail`／`value`／`asks` を欠落にしない判断はこの文書でも変えない（[`docs/glossary/session-notes.md`](glossary/session-notes.md) の「`notes` は検知対象外」、`read-project` Skill の「欠落は仕様の穴ではない」）。
 
 ## 規約6条
 
 ### 1. 欠落とは「まだ決めていない」の意思表示である
 
-欠落は、データの空欄そのものを指す。捏造した表示文字列や UI 側の解釈ではなく、**空である事実**が欠落である。判定源は [`src/core/reading-guide.md`](../src/core/reading-guide.md) の「未決」の定義と一対一で、上の決定1の表がその写しである。備考・別名・`rationale` は判定源が「未決」と扱わないので、欠落として塗ってはならない。
+欠落は、データの空欄そのものを指す。捏造した表示文字列や UI 側の解釈ではなく、**空である事実**が欠落である。判定源は [`plugins/facet/skills/read-project/SKILL.md`](../plugins/facet/skills/read-project/SKILL.md) の「未決」の定義と一対一で、上の決定1の表がその写しである。備考・別名・`rationale` は判定源が「未決」と扱わないので、欠落として塗ってはならない。
 
 - 判定を持つファイル: `src/modules/glossary/missing.ts`／`src/modules/error-catalog/missing.ts`／`src/modules/logic-tree/missing.ts`／`src/modules/sequence/missing.ts`／`src/modules/issue-tree/derive.ts`（`poseQuestions`）
-- 判定源（AI 向け）: `src/core/reading-guide.md` の「最重要: 未決を埋めない」節と「ツール別の読み方」節
+- 判定源（AI 向け）: `plugins/facet/skills/read-project/SKILL.md` の「最重要: 未決を埋めない」節と「ツール別の読み方」節
 
 ### 2. 空は空のまま描く
 
@@ -64,7 +64,7 @@
 - 課題ツリーだけ別経路: `src/modules/issue-tree/derive.ts` は `tallyLine` を自前で持つ（同梱 Skill のバイト一致コピー制約で `missing-tally.ts` を値 import できないため）。`toMissingTally(t)` でコアの形へ変換し、アプリの帯はこちらを使う。コアの `tallyLine(toMissingTally(t))` と `derive.ts` の `tallyLine(t)` が逐語一致することは `src/modules/issue-tree/derive.test.ts` が機械検査する
 - FB待ちバッジ（行）: `src/modules/issue-tree/HypothesisRow.tsx`（判断バッジの隣に `pending` variant で2つ目を出す）
 
-**シーケンスの帯は補足を持つ。** 回答済・考慮不要は欠落ではないが総量の把握に要るので、`MissingTally` の右に `ink-muted` の文字で `回答済 N ／ 考慮不要 N` を添える（チップではない。押せない）。`.claude/skills/sequence-register/scripts/sequence-write.mjs` と `SKILL.md` の報告文もこの形（`⚠ 要対応 N（未回答 x ／ 未記入 y）` と `回答済 N ／ 考慮不要 N`）に揃え、`src/modules/sequence/skill-write.smoke.test.ts` がアプリの `tallyLine` との逐語一致を固定する。
+**シーケンスの帯は補足を持つ。** 回答済・考慮不要は欠落ではないが総量の把握に要るので、`MissingTally` の右に `ink-muted` の文字で `回答済 N ／ 考慮不要 N` を添える（チップではない。押せない）。`plugins/facet/skills/write-sequence/scripts/sequence-write.mjs` と `SKILL.md` の報告文もこの形（`⚠ 要対応 N（未回答 x ／ 未記入 y）` と `回答済 N ／ 考慮不要 N`）に揃え、`src/modules/sequence/skill-write.smoke.test.ts` がアプリの `tallyLine` との逐語一致を固定する。
 
 **集計は表示中のプロファイル・絞り込みに関わらず全件、ジャンプは表示中の行だけを巡る**（用語集・エラーカタログ）。フィルタで隠れている行やプロファイルで非表示の列には飛ばない——これは既知の制約であり、`docs/open-issues.md` に残してある。
 

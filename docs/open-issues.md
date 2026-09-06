@@ -10,12 +10,11 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **二重に `pty_kill` しても無害であることを踏む Rust テストが無い**（`src-tauri/src/pty.rs`）。`TerminalTab` のアンマウント時 kill がこの性質に依存している。
 - **課題ツリーの構造編集関数の一部に直接のテストがない**（`src/modules/issue-tree/commands.ts`）。ロジックツリーから移植した関数が対象。
 - **`poseQuestions` の並び契約を突くテストがない**（`src/modules/issue-tree/derive.ts`）。「戻り値は入力と同じ添字で並ぶ」という契約は ID 重複ファイルで必要になる。
-- **`issue-tree-register` に evals が無い**（`.claude/skills/issue-tree-register/`）。他4つの登録 Skill は evals ディレクトリを持つ。
-- **`reading-guide.md` の Skill 名一覧を縛るテストが無い**（`src/core/reading-guide.test.ts`）。Skill を足したとき一覧の更新を忘れても緑のまま通る。
-- **`logic-tree-register` の evals は実行ハーネスに掛けていない**（`.claude/skills/logic-tree-register/evals/`）。`evals.json` と `grade.mjs` はあるが、npm スクリプトからも CI からも呼ばれていない。
-- **`.gitattributes` 欠落の警告が「整合性の警告」の見出しの下に出る**（`.claude/skills/logic-tree-register/scripts/logic-tree-write.mjs`）。整合性の警告とは別種の警告が同じ見出しに混ざる。
+- **`write-issue-tree` に evals が無い**（`plugins/facet/skills/write-issue-tree/`）。他4つの登録 Skill は evals ディレクトリを持つ。
+- **`write-logic-tree` の evals は実行ハーネスに掛けていない**（`plugins/facet/skills/write-logic-tree/evals/`）。`evals.json` と `grade.mjs` はあるが、npm スクリプトからも CI からも呼ばれていない。
+- **`.gitattributes` 欠落の警告が「整合性の警告」の見出しの下に出る**（`plugins/facet/skills/write-logic-tree/scripts/logic-tree-write.mjs`）。整合性の警告とは別種の警告が同じ見出しに混ざる。
 - **smoke テストが子プロセスの `stdio` を捨て、落ちても原因が残らない**（`src/modules/logic-tree/skill-write.smoke.test.ts`）。意図的なエラーケースの stderr が緑の実行でも画面に出る一方、再現条件不明の失敗が観測されている。
-- **`logic-tree-write.mjs` の exit 2 の経路とスキーマの解決順が未テスト**（`.claude/skills/logic-tree-register/scripts/logic-tree-write.mjs`）。
+- **`logic-tree-write.mjs` の exit 2 の経路とスキーマの解決順が未テスト**（`plugins/facet/skills/write-logic-tree/scripts/logic-tree-write.mjs`）。
 - **`ink-faint` をアクティブな本文に使っていないことを機械検査していない**（`src/styles/conventions.test.ts`）。WCAG 1.4.3 の免除範囲に収まる前提が崩れても検知できない。
 - **schemaVersion の移行を読み込み時以外の経路で見るテストが無い**（`src/core/load.ts`）。自動保存など他の経路は未検証。
 - **`invalid` の見せ方に DOM テストが無い**（`src/modules/issue-tree/HypothesisRow.tsx`）。
@@ -64,16 +63,14 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **起動待ちの入力の待ち行列に上限が無い**（`src/components/TerminalTab.tsx` の `pendingRef`）。
 - **`describeSequenceIssueEffect` が2条件を1つの説明文に束ねる**（`src/modules/sequence/markdown.ts`）。`to-mismatch` の中身が読み手に伝わらない。
 - **一覧の並び順が漢字の `title` では画面から説明できない**（`src/core/file-grouping.ts`）。`localeCompare('ja')` 順は五十音順ではない。
-- **`README-for-AI.md` はプロジェクト固有に聞こえない質問には効かない**（`src/core/reading-guide.md`）。AI がフォルダを読みに行かない場面がある。
-- **Skill 同梱の一致保証が best-effort に落ちている**（`src/core/skill-sync.ts`）。置き直しの削除が要素ごとに try/catch で握りつぶす。
-- **`bundle.resources` が `evals/` も `node_modules` も除外できない**（`src-tauri/tauri.conf.json`）。tauri のバンドラがパターン除外に対応していない。
+- **`bundle.resources` が `plugins/facet/skills/*/evals/` も `node_modules/` も除外できない**（`src-tauri/tauri.conf.json`）。tauri のバンドラがパターン除外に対応していないため、プラグイン全体が配布物に入る。
 - **MSI が作れない**（`src-tauri/tauri.conf.json`）。WiX の `light.exe` がコードページ1252に無い文字を拒否するため対象外にしている。
 - **`sequence` スキーマに `notes` 相当が無い**（`schemas/sequence.schema.json`）。`failures` を空にした理由を残す場所が無い。
 - **課題の見送りにキーボード経路が無い**（`src/modules/issue-tree/IssueTreeEditor.tsx`）。
 - **`moveHypothesis` が課題をまたげず、どの動線からも呼ばれていない**（`src/modules/issue-tree/commands.ts`）。
 - **ID 重複ファイルで同じ仮説の行がどちらの箱にも描かれる**（`src/modules/issue-tree/layout.ts`）。
 - **「課題を追加」ボタンが配列末尾を狙う**（`src/modules/issue-tree/IssueTreeEditor.tsx`）。循環を含むファイルでは描かれない課題を作りうる。
-- **`issue-tree-write.mjs` が配列順を整えない**（`.claude/skills/issue-tree-register/scripts/issue-tree-write.mjs`）。アプリが開くだけでも順序は整わない。
+- **`issue-tree-write.mjs` が配列順を整えない**（`plugins/facet/skills/write-issue-tree/scripts/issue-tree-write.mjs`）。アプリが開くだけでも順序は整わない。
 - **`listOpenTargets` の除外が課題側と仮説側で非対称**（`src/modules/issue-tree/open-targets.ts`）。循環で到達できない課題のチップが押しても反応しない。
 - **`load.ts` が非整数・1未満の schemaVersion も旧版として移行経路に入れる**（`src/core/load.ts`）。
 - **`IssueBanner` から該当行へのジャンプが無い**（`src/components/IssueBanner.tsx`）。メッセージは行を指すが押しても飛ばない。
@@ -142,3 +139,4 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **畳まれた仮説行の文言だけ書体クラスを定数から引かず直書きしている**（`src/modules/issue-tree/HypothesisRow.tsx`）。
 - **`docs/issue-tree/仮説検証モジュール-設計ノート.md`（71KB）の圧縮**。決着済みの論点や古い検討過程が残り、参照コストが高い。
 - **`schemas/*.json` の description に日付や人の判断の経緯が残る**（`schemas/issue-tree.schema.json` の `events`）。生成物 `src/types/` にそのまま写る。
+- **`allow_dot_claude` は旧版の残骸を読むためだけに `<project>/.claude` へ recursive な実行時 scope を与えている**（`src-tauri/src/lib.rs`）。旧版の検出を畳むときに一緒に消す。

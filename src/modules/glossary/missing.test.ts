@@ -15,7 +15,7 @@ describe('isMissingCell', () => {
     expect(isMissingCell(term({ kind: 'undecided' }), 'kind')).toBe(true)
     expect(isMissingCell(term({ kind: 'other' }), 'kind')).toBe(false)
   })
-  it('別名と備考の空は欠落でない（reading-guide: 検知対象外）', () => {
+  it('別名と備考の空は欠落でない（read-project: 検知対象外）', () => {
     expect(isMissingCell(term({ aliases: [] }), 'aliases')).toBe(false)
     expect(isMissingCell(term({ notes: '' }), 'notes')).toBe(false)
   })

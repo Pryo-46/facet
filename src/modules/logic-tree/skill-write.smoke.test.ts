@@ -19,7 +19,7 @@ import { tallyMissing } from './missing'
  * canonical.ts の型ストリップ import 経路を実際に読む唯一の実行テストを兼ねる
  */
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url))
-const SCRIPT = path.join(REPO_ROOT, '.claude/skills/logic-tree-register/scripts/logic-tree-write.mjs')
+const SCRIPT = path.join(REPO_ROOT, 'plugins/facet/skills/write-logic-tree/scripts/logic-tree-write.mjs')
 
 /**
  * consistency.ts が message を出す4ブロックをすべて一度に炙り出す fixture。
