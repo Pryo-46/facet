@@ -65,4 +65,4 @@ facet の核心は「決めていないことを消せなくする」ことで�
 
 ## 書き込みたくなったら
 
-このフォルダの JSON を直接手で編集しない。`.claude/skills/` に登録用 Skill（write-term / write-error / write-sequence / write-issue-tree / write-logic-tree）があれば必ずそれを使う（ID 採番・スキーマ検証・正規形書き出しを通すため）。Skill が無い種類のファイルを編集する場合も、最低限次を守る: (1) ID は既存と同じ形式で、ランダムに振る（連番にしない） (2) 既存のキー順・インデント（半角スペース2）・末尾改行を保つ。
+このフォルダの JSON を直接手で編集しない。種類に応じて `facet:write-term` / `facet:write-error` / `facet:write-sequence` / `facet:write-issue-tree` / `facet:write-logic-tree` を必ず使う（ID 採番・スキーマ検証・正規形書き出しを通すため）。対応する Skill が無い種類のファイルを編集する場合も、最低限次を守る: (1) ID は既存と同じ形式で、ランダムに振る（連番にしない） (2) 既存のキー順・インデント（半角スペース2）・末尾改行を保つ。

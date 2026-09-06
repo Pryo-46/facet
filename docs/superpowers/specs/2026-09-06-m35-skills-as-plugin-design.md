@@ -133,7 +133,7 @@ marketplace は git の内容をそのまま配るので、`scripts/generated/*.
 | capabilities の `fs:allow-mkdir` / `fs:allow-remove` / `$RESOURCE/skills/**` | 同上 |
 | `README-for-AI.md` の書き出し | Skill へ移る |
 
-`overview-rev.md` の「Skillの配布と同期」と「読み方ガイド」の節、`project-setup.md` の capabilities 表が同時に置き換わる。
+`overview-rev.md` の「Skillの配布」と「読み方ガイド」の節、`project-setup.md` の capabilities 表が同時に置き換わる。
 
 ### 8. 設定画面の「AI」タブ
 
@@ -141,7 +141,7 @@ marketplace は git の内容をそのまま配るので、`scripts/generated/*.
 
 `SettingsDialog` の `SETTINGS_TABS` に `{ id: 'ai', label: 'AI', Panel: AiSettings }` を足す。パネルが持つのは3つ。
 
-- **いまどちらの Skill が使われているか**（同梱版／導入済みの版）。`claude plugin list --json` の結果をそのまま反映する
+- **いまどちらの Skill が使われているか**（同梱版／導入済みの版）。`claude plugin list --json` は子プロセスを起こす手段を増やすので使わず（「3. 配布の2経路」参照）、`~/.claude/settings.json` の `enabledPlugins["facet@facet"]` を読んで反映する
 - **導入の手順**。`marketplace add` と `install` の2コマンドを、コピーできる形で置く
 - **Skill の一覧**。`facet:write-term` などの名前と、何をするものかの1行
 

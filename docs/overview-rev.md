@@ -72,7 +72,7 @@ ID捏造・不正データの予防として、各Skillに ID採番と書き込�
 
 #### アプリのロジックを Skill と共有する標準
 
-同梱 Skill はコピーされて実行されるので実行時に `src/` は無く、手で複製すると追従漏れが残る。したがって**値 import を持たないファイルに限り、原本からビルド時に `.mjs` を生成して同梱する。**
+同梱 Skill は配布先で実行されるので実行時に `src/` は無く、手で複製すると追従漏れが残る。したがって**値 import を持たないファイルに限り、原本からビルド時に `.mjs` を生成して同梱する。**
 
 - 生成は `scripts/gen-skills.mjs` が型注釈を落として `plugins/facet/skills/<skill>/scripts/generated/` へ書き出す。契機は `pretest` / `prebuild` / `predev` / `prepare` で、**marketplace は git の内容をそのまま配るため生成物は追跡する**（コミット漏れは `scripts/gen-skills.test.mjs` が止める）。
 - 原本の制約は「値 import・相対 import・消去できない構文を持たない」。遵守は `scripts/gen-skills.test.mjs` が検査する（判定は `src/core/import-analysis.ts`）。
@@ -94,7 +94,7 @@ ID捏造・不正データの予防として、各Skillに ID採番と書き込�
 - 縛りは `rule` 名の集合だけでなく `message` の件数にも掛ける（同じ `rule` を2箇所で出すツールがある）。
 - 導出ロジックを共有している Skill では、集計結果の逐語一致も併せて固定する（`message` の一致は共有物が空でも通る）。
 
-#### Skillの配布と同期
+#### Skillの配布
 
 **Skill は Claude Code のプラグインとして配る。** リポジトリ自身が marketplace（`.claude-plugin/marketplace.json`）で、実体は `plugins/facet/`。プロジェクトフォルダには何も書かない。
 

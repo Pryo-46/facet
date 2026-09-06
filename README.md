@@ -154,15 +154,20 @@ facet は **AI をアプリに組み込まない。** API も呼ばないし、�
 
 ### 同梱の Skill
 
-プロジェクトフォルダを開くと、`.claude/skills/` に登録用 Skill が5本置かれる（`write-term` / `write-error` / `write-sequence` / `write-issue-tree` / `write-logic-tree`）。**会話でヒアリングしながらデータを組み立てる** ためのもので、ID の採番・スキーマ検証・正規形での書き出しは同梱スクリプトが行う。手書きの JSON が混ざらない。
+Skill は Claude Code の**プラグイン**として配る。導入は次の2つ。
 
-前準備は要らない。アプリが置き直した生成物だけで動く。
+```
+claude plugin marketplace add Pryo-46/facet --sparse .claude-plugin plugins
+claude plugin install facet@facet
+```
+
+導入すると `facet:read-project` と、`facet:write-term` / `facet:write-error` / `facet:write-sequence` / `facet:write-issue-tree` / `facet:write-logic-tree` が使えるようになる。書き込み側は**会話でヒアリングしながらデータを組み立てる** ためのもので、ID の採番・スキーマ検証・正規形での書き出しは同梱スクリプトが行う。手書きの JSON が混ざらない。
+
+アプリの中の Claude Code ペインでは、プラグインを未導入でも Skill が使える。アプリが同じ Skill を resources に同梱しており、端末を起動するとき `--plugin-dir` で渡すため。
 
 ### 読み方ガイド
 
-同じくフォルダを開くと `README-for-AI.md` が置かれる。**「空欄は欠落ではなく、まだ決めていないという意思表示なので、推測で埋めてはいけない」** という、JSON にもスキーマにも書けない読み方の規約を AI に渡すためのもの。アプリはこのファイルを**書くだけで読まない。**
-
-どちらもアプリが自動で置き直すので、手で編集しても次にフォルダを開いたとき原本で上書きされる。
+「空欄は欠落ではなく、まだ決めていないという意思表示なので、推測で埋めてはいけない」という、JSON にもスキーマにも書けない読み方の規約は `facet:read-project` Skill が持つ。
 
 ### Claude Code ペイン
 
