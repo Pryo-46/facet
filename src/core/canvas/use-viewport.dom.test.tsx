@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 import { useRef } from 'react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { cleanup, createEvent, fireEvent, render, screen } from '@testing-library/react'
 import { useViewport } from './use-viewport'
+import { DEFAULT_SETTINGS } from '../settings'
+import { appSettings } from '../settings-store'
 import { INITIAL_TRANSFORM, type Rect, type Transform } from './viewport'
 
 afterEach(cleanup)
+// モジュールスコープのストアはテスト間で漏れる
+beforeEach(() => appSettings.reset())
 
 /**
  * jsdom はレイアウトを持たないので、キャンバスの寸法だけ差し込む。
@@ -33,6 +37,8 @@ function Harness({ rect, enabled = true }: { rect?: Rect; enabled?: boolean }) {
         data-k={transform.k}
         data-space={String(spaceHeld)}
       >
+        {/* 箱に相当する子。pointer-events を持つのでヒットテストで target になる */}
+        <div data-testid="node" />
         <textarea aria-label="文言" />
         <button
           type="button"
@@ -182,11 +188,30 @@ describe('useViewport（ズーム）', () => {
     expect(read().k).toBeCloseTo(ONE_NOTCH, 5)
   })
 
-  it('修飾キーの無いホイールはズームしない', () => {
-    // 素のホイールを奪うと、キャンバスの上でページの縦スクロールが効かなくなる
+  it('修飾キーの無いホイールでズームする', () => {
+    render(<Harness />)
+    fireEvent.wheel(canvas(), { deltaY: -100 })
+    expect(read().k).toBeCloseTo(ONE_NOTCH, 5)
+  })
+
+  it('zoomWithoutModifier を切ると修飾キーの無いホイールを取らない', () => {
+    appSettings.set({
+      ...DEFAULT_SETTINGS,
+      canvas: { ...DEFAULT_SETTINGS.canvas, zoomWithoutModifier: false },
+    })
     render(<Harness />)
     fireEvent.wheel(canvas(), { deltaY: -100 })
     expect(read()).toEqual(INITIAL_TRANSFORM)
+  })
+
+  it('zoomWithoutModifier を切っても Ctrl+ホイールは効く', () => {
+    appSettings.set({
+      ...DEFAULT_SETTINGS,
+      canvas: { ...DEFAULT_SETTINGS.canvas, zoomWithoutModifier: false },
+    })
+    render(<Harness />)
+    fireEvent.wheel(canvas(), { deltaY: -100, ctrlKey: true })
+    expect(read().k).toBeCloseTo(ONE_NOTCH, 5)
   })
 
   it('外したあとはキャンバスのホイールも取らない', () => {
@@ -268,16 +293,91 @@ describe('useViewport（パン）', () => {
     expect(read().x).toBe(INITIAL_TRANSFORM.x + 30)
   })
 
-  it('素の左ドラッグではパンしない', () => {
-    // 左ドラッグはノードの中の文字選択に要る。奪うと編集できなくなる
+  it('地の上の左ドラッグでパンする', () => {
+    render(<Harness />)
+    drag(canvas(), { button: 0 })
+    expect(read().x).toBe(INITIAL_TRANSFORM.x + 30)
+  })
+
+  it('箱の上の左ドラッグではパンしない', () => {
+    // 箱の中の文字選択に要る。奪うと編集できなくなる
+    render(<Harness />)
+    drag(screen.getByTestId('node'), { button: 0 })
+    expect(read()).toEqual(INITIAL_TRANSFORM)
+  })
+
+  it('panWithEmptyDrag を切ると地の上の左ドラッグを取らない', () => {
+    appSettings.set({
+      ...DEFAULT_SETTINGS,
+      canvas: { ...DEFAULT_SETTINGS.canvas, panWithEmptyDrag: false },
+    })
     render(<Harness />)
     drag(canvas(), { button: 0 })
     expect(read()).toEqual(INITIAL_TRANSFORM)
   })
 
-  it('Space を離した後の左ドラッグはパンしない', () => {
+  it('panWithSpaceDrag を切ると Space+ドラッグを取らない', () => {
+    appSettings.set({
+      ...DEFAULT_SETTINGS,
+      canvas: { ...DEFAULT_SETTINGS.canvas, panWithSpaceDrag: false, panWithEmptyDrag: false },
+    })
+    render(<Harness />)
+    fireEvent.keyDown(window, { code: 'Space', key: ' ' })
+    // Space を奪わないので、押下の状態も立たない
+    expect(canvas().dataset.space).toBe('false')
+    drag(canvas(), { button: 0 })
+    expect(read()).toEqual(INITIAL_TRANSFORM)
+  })
+
+  it('panWithMiddleDrag を切ると中ボタンドラッグを取らない', () => {
+    appSettings.set({
+      ...DEFAULT_SETTINGS,
+      canvas: { ...DEFAULT_SETTINGS.canvas, panWithMiddleDrag: false },
+    })
+    render(<Harness />)
+    drag(canvas(), { button: 1 })
+    expect(read()).toEqual(INITIAL_TRANSFORM)
+  })
+
+  it('既定では右ドラッグでパンしない', () => {
+    render(<Harness />)
+    drag(canvas(), { button: 2 })
+    expect(read()).toEqual(INITIAL_TRANSFORM)
+  })
+
+  it('panWithRightDrag を立てると右ドラッグでパンする', () => {
+    appSettings.set({
+      ...DEFAULT_SETTINGS,
+      canvas: { ...DEFAULT_SETTINGS.canvas, panWithRightDrag: true },
+    })
+    render(<Harness />)
+    drag(canvas(), { button: 2 })
+    expect(read().x).toBe(INITIAL_TRANSFORM.x + 30)
+  })
+
+  it('既定では contextmenu を止めない', () => {
+    render(<Harness />)
+    expect(fireEvent.contextMenu(canvas())).toBe(true)
+  })
+
+  it('右ドラッグをパンに使う間は contextmenu を止める', () => {
+    // 止めないと、押した瞬間に OS のメニューが出てドラッグが続かない
+    appSettings.set({
+      ...DEFAULT_SETTINGS,
+      canvas: { ...DEFAULT_SETTINGS.canvas, panWithRightDrag: true },
+    })
+    render(<Harness />)
+    expect(fireEvent.contextMenu(canvas())).toBe(false)
+  })
+
+  it('Space を離した後の左ドラッグは Space 経由のパンとして扱わない', () => {
     // 押下の解除がハンドラに届いていること（ハンドラは張り直されないので
-    // 最新の値を ref から読めていないとここが緑にならない）
+    // 最新の値を ref から読めていないとここが緑にならない）。地の左ドラッグ
+    // 自体を切って、Space 経由の分岐だけを見る
+    appSettings.set({
+      ...DEFAULT_SETTINGS,
+      canvas: { ...DEFAULT_SETTINGS.canvas, panWithEmptyDrag: false },
+    })
     render(<Harness />)
     fireEvent.keyDown(window, { code: 'Space', key: ' ' })
     fireEvent.keyUp(window, { code: 'Space', key: ' ' })

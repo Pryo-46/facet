@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { select } from 'd3-selection'
 import { zoom, zoomIdentity, type D3ZoomEvent, type ZoomBehavior } from 'd3-zoom'
+import { appSettings } from '../settings-store'
 import { INITIAL_TRANSFORM, panIntoView, type Rect, type Transform } from './viewport'
 
 const MIN_SCALE = 0.2
@@ -35,10 +36,22 @@ function focusIsOutsideCanvas(canvas: HTMLElement | null, active: Element | null
 }
 
 /**
+ * 地（箱もチップも無い面）の上で起きたか。
+ *
+ * **容器そのものが `target` かどうかで見る。** 背景・エッジ・ノードの層はいずれも
+ * `pointer-events-none` でヒットテストを透過し、箱・行・チップだけが `auto` に
+ * 戻る構造なので、地に当たった押下の `target` は容器になる。
+ * **地の位置に `pointer-events` を持つ要素を足すと、その上のドラッグがパンから漏れる**
+ */
+function isGroundTarget(event: MouseEvent, container: HTMLElement): boolean {
+  return event.target === container
+}
+
+/**
  * ビューポート（rev 10章 キャンバスの標準操作）。
  *
- * - `Ctrl+ホイール` ＝ カーソル中心ズーム
- * - `Space+ドラッグ` または中ボタンドラッグ ＝ パン
+ * - ホイール ＝ カーソル中心ズーム（`Ctrl` の要否は設定。`Ctrl+ホイール`は常に効く）
+ * - 地の左ドラッグ・`Space+ドラッグ`・中ボタン・右ドラッグ ＝ パン（手段ごとに設定）
  *
  * **d3-zoom の既定（v3.0.0）は3点とも要求の逆を向いている。** 既定の filter は
  * `(!event.ctrlKey || event.type === 'wheel') && !event.button` なので、
@@ -63,6 +76,11 @@ export function useViewport(
   // 止まったままになる（spaceHeldRef と同じ理由）
   const enabledRef = useRef(enabled)
   enabledRef.current = enabled
+  // **effect の依存に使う値。** d3 の filter はこれを読まない——ハンドラは
+  // マウント時に1回しか張らないので、閉じ込めた値は最初の設定で凍る
+  const settings = useSyncExternalStore(appSettings.subscribe, appSettings.getSnapshot)
+  const panWithSpaceDrag = settings.canvas.panWithSpaceDrag
+  const panWithRightDrag = settings.canvas.panWithRightDrag
   const behaviorRef = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null)
   const transformRef = useRef<Transform>(INITIAL_TRANSFORM)
   transformRef.current = transform
@@ -82,14 +100,20 @@ export function useViewport(
         //（rev 10章の境界規則）。**キー監視だけでは足りない**——ホイールと
         // ドラッグは d3 が直接取るので、ここで弾かないと裏で視点が動く
         if (!enabledRef.current) return false
+        // **ここで毎回読むこと。** ハンドラは張り直されないので、閉じ込めると
+        // 設定を変えても最初の値のまま動く（enabledRef と同じ理由）
+        const canvas = appSettings.getSnapshot().canvas
         if (event.type === 'wheel') {
           const e = event as WheelEvent
-          return e.ctrlKey || e.metaKey
+          return e.ctrlKey || e.metaKey || canvas.zoomWithoutModifier
         }
         if (event.type === 'mousedown') {
           const e = event as MouseEvent
-          // 中ボタン、または Space を押しながらの左ボタン
-          return e.button === 1 || (e.button === 0 && spaceHeldRef.current)
+          if (e.button === 1) return canvas.panWithMiddleDrag
+          if (e.button === 2) return canvas.panWithRightDrag
+          if (e.button !== 0) return false
+          if (spaceHeldRef.current) return canvas.panWithSpaceDrag
+          return canvas.panWithEmptyDrag && isGroundTarget(e, el)
         }
         // ダブルクリックズームとタッチは使わない
         return false
@@ -112,13 +136,15 @@ export function useViewport(
   }, [ref])
 
   // Space の押下監視（rev 10章 境界規則）。**window に張るので、取ってよい
-  // 場面かを3つ確かめてから取る**——Space は文字であり、ボタンの活性化でもある
+  // 場面かを3つ確かめてから取る**——Space は文字であり、ボタンの活性化でもある。
+  // `panWithSpaceDrag` を切っている間も張らない。**取らないなら奪わない**
+  //——ページ既定の `Space` に返す
   useEffect(() => {
     const release = (): void => {
       spaceHeldRef.current = false
       setSpaceHeld(false)
     }
-    if (!enabled) {
+    if (!enabled || !panWithSpaceDrag) {
       // モーダルが開いている間はエディタの操作言語を止め、キーはモーダルが取る。
       // 押しっぱなしで開いたときのために、押下の状態も落とす（blur と同じ理由）
       release()
@@ -151,7 +177,17 @@ export function useViewport(
       window.removeEventListener('keyup', up)
       window.removeEventListener('blur', release)
     }
-  }, [enabled, ref])
+  }, [enabled, panWithSpaceDrag, ref])
+
+  // 右ドラッグをパンに使う間は OS のメニューを止める。**押した瞬間に開くと
+  // ドラッグが続かない。** 使わない間は張らないので、既定のメニューは出る
+  useEffect(() => {
+    const el = ref.current
+    if (el === null || !panWithRightDrag) return
+    const block = (event: MouseEvent): void => event.preventDefault()
+    el.addEventListener('contextmenu', block)
+    return () => el.removeEventListener('contextmenu', block)
+  }, [panWithRightDrag, ref])
 
   const ensureVisible = useCallback(
     (rect: Rect) => {
