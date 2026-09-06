@@ -181,9 +181,16 @@ function App() {
    * プラグインを導入していれば同梱版は渡さない（同じ名前の Skill が2つ現れる）
    */
   const [claudeArgs, setClaudeArgs] = useState<readonly string[]>([])
+  /**
+   * 利用者が facet のプラグインを導入して有効にしているか。
+   * 設定の AI タブが、導入手順を出すかどうかをこれで決める
+   */
+  const [pluginInstalled, setPluginInstalled] = useState(false)
   useEffect(() => {
     void (async () => {
-      if (await readFacetPluginEnabled()) return
+      const enabled = await readFacetPluginEnabled()
+      setPluginInstalled(enabled)
+      if (enabled) return
       try {
         setClaudeArgs(buildClaudeArgs(await bundledPluginDir()))
       } catch (err: unknown) {
@@ -1371,6 +1378,7 @@ function App() {
         open={settingsOpen}
         settings={settings}
         onChange={updateSettings}
+        pluginInstalled={pluginInstalled}
         onClose={() => setSettingsOpen(false)}
       />
       <ConfirmDialog
