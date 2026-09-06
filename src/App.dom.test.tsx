@@ -11,6 +11,8 @@ import { encodeMiroClipboard } from '@/modules/logic-tree/miro-codec'
 import { INSERTION_QUIET_MS } from '@/components/TerminalTab'
 import { tableCopyPrefs } from '@/core/table-copy-options'
 import { UNSUPPORTED_REASON } from '@/components/ToolbarButton'
+import { DEFAULT_SETTINGS, type AppSettings } from '@/core/settings'
+import { appSettings } from '@/core/settings-store'
 
 /**
  * 額縁レベルの DOM テスト。**このファイルが守っているのは1点だけ**——
@@ -60,6 +62,7 @@ const {
   disk,
   writeProjectFileMock,
   saveLastProjectDirMock,
+  saveSettingsMock,
   restoreConfig,
   allowProjectDirCalls,
   updateConfig,
@@ -89,6 +92,7 @@ const {
     disk: new Map<string, string>(),
     writeProjectFileMock: vi.fn(async (_path: string, _text: string) => undefined),
     saveLastProjectDirMock: vi.fn(async (_dir: string) => undefined),
+    saveSettingsMock: vi.fn(async () => undefined),
     // 起動時復元専用の可変状態。既定は「復元対象パス無し」——このファイルの
     // 既存テストはどれも起動時復元を前提にしていないので、既定を変えない
     restoreConfig: { lastDir: null as string | null, exists: false, allowError: null as Error | null },
@@ -148,9 +152,13 @@ vi.mock('@/fs/project-fs', () => ({
   watchFolder: async () => () => undefined,
   askSaveMarkdownPath: async () => null,
 }))
+// 起動時に読ませる設定。テストごとに差し替える
+const settingsConfig: { stored: AppSettings } = { stored: DEFAULT_SETTINGS }
 vi.mock('@/fs/settings-fs', () => ({
   readLastProjectDir: async () => restoreConfig.lastDir,
   saveLastProjectDir: saveLastProjectDirMock,
+  readSettings: async () => settingsConfig.stored,
+  saveSettings: saveSettingsMock,
 }))
 vi.mock('@/fs/app-window', () => ({
   interceptClose: async (beforeClose: () => Promise<boolean>) => {
@@ -388,6 +396,14 @@ afterEach(async () => {
   // 台帳から消えるのは同期が解決したあとの `.finally`。マクロタスクを1回
   // 挟んで、溜まっているマイクロタスクを全部流してから次のテストへ渡す
   await new Promise((resolve) => setTimeout(resolve, 0))
+})
+
+// **`appSettings` はモジュールスコープのストアで、テスト間で漏れる。**
+// 設定を起動時に読んで反映するテストが増えたので、ここで確実に初期化する
+beforeEach(() => {
+  settingsConfig.stored = DEFAULT_SETTINGS
+  saveSettingsMock.mockClear()
+  appSettings.reset()
 })
 
 /**
@@ -1477,5 +1493,49 @@ describe('表形式でコピー', () => {
     const [md] = copyTextMock.mock.calls.at(-1)!
     expect(md).toContain('与信')
     expect(md).not.toContain('受注')
+  })
+})
+
+describe('設定', () => {
+  it('保存されたテーマを起動時に当てる', async () => {
+    settingsConfig.stored = { ...DEFAULT_SETTINGS, theme: 'dark' }
+    render(<App />)
+    await waitFor(() => {
+      expect(document.documentElement.classList.contains('dark')).toBe(true)
+    })
+  })
+
+  it('テーマのトグルは明示の選択として保存される', async () => {
+    settingsConfig.stored = { ...DEFAULT_SETTINGS, theme: 'light' }
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'ダークにする' }))
+    await waitFor(() => {
+      expect(saveSettingsMock).toHaveBeenCalledWith({ ...DEFAULT_SETTINGS, theme: 'dark' })
+    })
+  })
+
+  it('歯車で設定を開き、変えると保存される', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: '設定' }))
+    // Radix の Tabs は選択を mousedown（と keydown/focus）で切り替える。
+    // click には反応しない（SettingsDialog.dom.test.tsx の clickTab と同じ理由）
+    fireEvent.mouseDown(await screen.findByRole('tab', { name: '操作' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '右ドラッグ' }))
+    await waitFor(() => {
+      expect(saveSettingsMock).toHaveBeenCalledWith({
+        ...DEFAULT_SETTINGS,
+        canvas: { ...DEFAULT_SETTINGS.canvas, panWithRightDrag: true },
+      })
+    })
+  })
+
+  it('歯車で開き、閉じるボタンで閉じる', async () => {
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: '設定' }))
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '閉じる' }))
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull()
+    })
   })
 })

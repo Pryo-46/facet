@@ -14,7 +14,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **`reading-guide.md` の Skill 名一覧を縛るテストが無い**（`src/core/reading-guide.test.ts`）。Skill を足したとき一覧の更新を忘れても緑のまま通る。
 - **`logic-tree-register` の evals は実行ハーネスに掛けていない**（`.claude/skills/logic-tree-register/evals/`）。`evals.json` と `grade.mjs` はあるが、npm スクリプトからも CI からも呼ばれていない。
 - **`.gitattributes` 欠落の警告が「整合性の警告」の見出しの下に出る**（`.claude/skills/logic-tree-register/scripts/logic-tree-write.mjs`）。整合性の警告とは別種の警告が同じ見出しに混ざる。
-- **smoke テストが子プロセスの `stdio` を指定していない**（`src/modules/logic-tree/skill-write.smoke.test.ts`）。意図的なエラーケースの stderr が緑の実行でも画面に出る。
+- **smoke テストが子プロセスの `stdio` を捨て、落ちても原因が残らない**（`src/modules/logic-tree/skill-write.smoke.test.ts`）。意図的なエラーケースの stderr が緑の実行でも画面に出る一方、再現条件不明の失敗が観測されている。
 - **`logic-tree-write.mjs` の exit 2 の経路とスキーマの解決順が未テスト**（`.claude/skills/logic-tree-register/scripts/logic-tree-write.mjs`）。
 - **`ink-faint` をアクティブな本文に使っていないことを機械検査していない**（`src/styles/conventions.test.ts`）。WCAG 1.4.3 の免除範囲に収まる前提が崩れても検知できない。
 - **schemaVersion の移行を読み込み時以外の経路で見るテストが無い**（`src/core/load.ts`）。自動保存など他の経路は未検証。
@@ -26,6 +26,8 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **`today.test.ts` の「引数省略」のテストが理論上フレークしうる**（`src/core/today.test.ts`）。`todayString()` と `todayString(new Date())` を別々の時刻で評価している。
 - **`ensureVisible` の統合を見るテストが課題ツリーに無い**（`src/modules/issue-tree/IssueTreeEditor.tsx`）。`panIntoView` 自体のテストはあるが、呼び出し側の統合は未検証。
 - **判断バッジのトリガーのキーボード経路に DOM テストが無い**（`src/modules/issue-tree/IssueTreeEditor.tsx` の `KindMenu`）。
+- **`modalOpen` が設定画面を数えることを守るテストが無い**（`src/App.tsx`）。式が `modals.length > 0` に戻る事故を検出できない。
+- **`system` 追従を App の配線ごと通したテストが無い**（`src/App.tsx`）。`watchPrefersDark` 自体のテストはあるが、`setSystemDark` → `resolveTheme` → クラス反映の経路は未検証。
 
 ## 将来の機能を作った瞬間に踏むもの
 
@@ -37,6 +39,8 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **シーケンスのゾーン機能が未着手**（`schemas/sequence.schema.json`）。
 - **フォーカスモードが未実装**（`src/modules/issue-tree/`）。選択サブツリー以外を薄くする表示は設計ノートにあるだけ。
 - **課題ツリーに Markdown 出力が無い**（`src/modules/issue-tree/module.ts` の `outputs: []`）。
+- **右ドラッグのパンを有効にしている間はキャンバス全体の `contextmenu` を止める**（`src/core/canvas/use-viewport.ts`）。抑止が容器全体に掛かるので、ノードの `<textarea>` 上のコピー・貼り付けの既定メニューも失っており、将来 rev 10章のコンテキストメニューを作れば右クリックの予約とも衝突する。
+- **左ドラッグが既定でパンに埋まり、将来の複数選択に空いているジェスチャが無い**（`src/core/canvas/use-viewport.ts`）。
 
 ## 挙動の穴
 
@@ -87,6 +91,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **仮説と FB の並び替え、および挿入位置の指定手段が無い**（`src/modules/issue-tree/commands.ts`）。
 - **別種のチップを押すときの挿入起点が問いの欄でだけ列の先頭へ落ちる**（`src/modules/issue-tree/IssueTreeEditor.tsx`）。
 - **「保留」の語が経緯の残らない列の上に乗る**（`schemas/issue-tree.schema.json` の `judgementEvent.kind`）。判断が差し替え式になり、保留にした経緯がデータに残らない。
+- **`writeMerged` の read-modify-write に直列化が無い**（`src/fs/settings-fs.ts`）。フォルダを開く保存と設定の保存が近接すると、後発が古い読み取りの上に書いて片方が落ちる。
 
 ## 性能
 

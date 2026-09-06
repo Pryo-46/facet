@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_SETTINGS } from '@/core/settings'
 
 const existsMock = vi.fn()
 const mkdirMock = vi.fn()
@@ -19,7 +20,8 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 }))
 
 // モックの登録後に読む必要があるので動的 import にする
-const { readLastProjectDir, saveLastProjectDir } = await import('./settings-fs')
+const { readLastProjectDir, saveLastProjectDir, readSettings, saveSettings } =
+  await import('./settings-fs')
 
 beforeEach(() => {
   existsMock.mockReset()
@@ -73,5 +75,63 @@ describe('saveLastProjectDir', () => {
     await saveLastProjectDir('C:\\proj')
     expect(mkdirMock).not.toHaveBeenCalled()
     expect(writeTextFileMock).toHaveBeenCalled()
+  })
+})
+
+describe('readSettings', () => {
+  it('保存済みの設定を読む', async () => {
+    readTextFileMock.mockResolvedValue(
+      '{"theme":"dark","canvas":{"panWithRightDrag":true}}',
+    )
+    const settings = await readSettings()
+    expect(settings.theme).toBe('dark')
+    expect(settings.canvas.panWithRightDrag).toBe(true)
+    // 欠けたキーは既定で埋まる
+    expect(settings.canvas.zoomWithoutModifier).toBe(true)
+  })
+
+  it('ファイルが無ければ既定（例外を投げない）', async () => {
+    readTextFileMock.mockRejectedValue(new Error('not found'))
+    await expect(readSettings()).resolves.toEqual(DEFAULT_SETTINGS)
+  })
+
+  it('JSON が壊れていても既定（例外を投げない）', async () => {
+    readTextFileMock.mockResolvedValue('{not json')
+    await expect(readSettings()).resolves.toEqual(DEFAULT_SETTINGS)
+  })
+})
+
+describe('書き込みは読んで merge する', () => {
+  it('設定を書いても lastProjectDir が残る', async () => {
+    existsMock.mockResolvedValue(true)
+    readTextFileMock.mockResolvedValue('{"lastProjectDir":"C:\\\\proj"}')
+    await saveSettings({ ...DEFAULT_SETTINGS, theme: 'dark' })
+    const written: unknown = JSON.parse(writeTextFileMock.mock.calls[0][1] as string)
+    expect(written).toEqual({
+      lastProjectDir: 'C:\\proj',
+      theme: 'dark',
+      canvas: DEFAULT_SETTINGS.canvas,
+    })
+  })
+
+  it('フォルダを開いても設定が残る', async () => {
+    existsMock.mockResolvedValue(true)
+    readTextFileMock.mockResolvedValue('{"theme":"dark","canvas":{"panWithRightDrag":true}}')
+    await saveLastProjectDir('C:\\proj')
+    const written: unknown = JSON.parse(writeTextFileMock.mock.calls[0][1] as string)
+    expect(written).toEqual({
+      theme: 'dark',
+      canvas: { panWithRightDrag: true },
+      lastProjectDir: 'C:\\proj',
+    })
+  })
+
+  it('読めないファイルの上へは新しい内容だけを書く', async () => {
+    existsMock.mockResolvedValue(true)
+    readTextFileMock.mockRejectedValue(new Error('not found'))
+    await saveLastProjectDir('C:\\proj')
+    expect(JSON.parse(writeTextFileMock.mock.calls[0][1] as string)).toEqual({
+      lastProjectDir: 'C:\\proj',
+    })
   })
 })

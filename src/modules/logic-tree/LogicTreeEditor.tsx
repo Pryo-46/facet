@@ -66,7 +66,7 @@ export function LogicTreeEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const [font, setFont] = useState<CanvasFont>(FALLBACK_CANVAS_FONT)
-  // ズーム・パン（Ctrl+ホイール／Space・中ボタンのドラッグ）と新ノードへの追従。
+  // ズーム・パン（手段は設定。既定は地の左ドラッグ・Space・中ボタンとホイール）と新ノードへの追従。
   // モーダルが開いている間は止める（キーはモーダルが取る。rev 10章 境界規則）
   const { transform, spaceHeld, ensureVisible } = useViewport(containerRef, !modalOpen)
 
