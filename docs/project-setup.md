@@ -36,7 +36,7 @@
 | `window.destroy()`（close 横取り） | `core:window:allow-destroy` | ウィンドウが閉じなくなる |
 | `watch()`（フォルダ監視） | Cargo feature `watch` ＋ `fs:allow-watch` | 監視が静かに始まらない |
 | `exists()`（新規作成の名前解決） | `fs:allow-exists` | — |
-| `mkdir()` / `remove()`（M11。同梱 Skill をプロジェクトフォルダの `.claude/skills/` へ置き直す） | `fs:allow-mkdir` / `fs:allow-remove` | Skill が置かれず、端末で Skill が見つからない |
-| `resolveResource()` ＋ `readDir()`（M11。同梱 Skill の読み出し） | `fs:allow-read-dir` / `fs:allow-read-text-file` の `$RESOURCE/skills/**` scope | 同上 |
+| `readTextFile()`（`$HOME/.claude/settings.json` を読んでプラグイン導入判定） | `fs:allow-read-text-file` の `$HOME/.claude/settings.json` scope | 導入判定が常に「未導入」に倒れ、同梱版が渡り続ける |
+| `exists()`（旧版が置いた `.claude/skills/<旧名>` の検出） | capabilities への追記ではなく自前コマンド `allow_dot_claude`（`<project>/.claude` を実行時 scope へ追加。`require_literal_leading_dot: true` に `<dir>/**` が一致しないため） | mac で forbidden path になり、旧版の残骸検出が動かない |
 
 `dialog:default` は `allow-save` を含むので保存ダイアログに追記は不要。**`save()` で選んだパスは dialog プラグインが fs の実行時 scope へ入れる**ので、プロジェクトフォルダの外へも書ける。
