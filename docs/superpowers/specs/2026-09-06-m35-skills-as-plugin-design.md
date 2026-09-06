@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | プロジェクトフォルダへの書き込み | `.claude/skills/` 5本＋`README-for-AI.md` | **無し**（利用者が編集した JSON だけ） |
 | 外の Claude Code | Skill 無し | `plugin install` で使える |
-| Skill 名 | `glossary-term-register` | `facet:glossary-term-register` |
+| Skill 名 | `glossary-term-register` | `facet:register-term` |
 | fs の削除・作成権限 | 必要 | **不要** |
 
 ## スコープ
@@ -26,7 +26,7 @@
 - `README-for-AI.md` の内容を読み取り用 Skill へ移し、書き出しを廃止する
 - 同梱 Skill の同期機構と、それが要求していた権限を撤去する
 - 生成物 `scripts/generated/*.mjs` を追跡対象にする
-- 文書とアプリ内の文言が持つ Skill 名を `facet:` 付きへ改める
+- Skill を動詞から始まる名前へ改め、文書とアプリ内の文言を追従させる
 
 **やらないこと**
 
@@ -44,12 +44,12 @@ facet/
   plugins/facet/
     .claude-plugin/plugin.json
     skills/
-      facet-project-guide/               # 読み方ガイド（読み取り専用）
-      glossary-term-register/
-      error-catalog-register/
-      sequence-register/
-      issue-tree-register/
-      logic-tree-register/
+      read-project/                      # 読み方ガイド（読み取り専用）
+      register-term/
+      register-error/
+      create-sequence/
+      create-logic-tree/
+      create-issue-tree/
   .claude/skills/palette-retheme/        # 開発用。移さない
 ```
 
@@ -57,7 +57,24 @@ facet/
 
 `scripts/gen-skills.mjs` の出力先と `src/core/skill-schema-copy.test.ts` の参照パスが移動に追従する。
 
-### 2. 配布の2経路
+### 2. Skill の名前
+
+**名前は動詞から始める。** プラグイン名が前に付いて `facet:register-term` と読まれるので、対象名だけでは何をする Skill か分からない。
+
+| いま | あと | 動詞の理由 |
+| --- | --- | --- |
+| `glossary-term-register` | `register-term` | プロジェクトに1つのマスタへ追記する |
+| `error-catalog-register` | `register-error` | 同上 |
+| `sequence-register` | `create-sequence` | ファイルを新しく作る |
+| `logic-tree-register` | `create-logic-tree` | 同上 |
+| `issue-tree-register` | `create-issue-tree` | 同上 |
+| （`README-for-AI.md`） | `read-project` | 読むだけで書かない |
+
+**名前は英数字とハイフンに限る。** 日本語を置くと非 ASCII が落ちて `facet:-----` に潰れる。日本語は `description` と本文が担う。
+
+改名はディレクトリ名・`SKILL.md` の `name`・`gen-skills.mjs` の `SKILL_SOURCES`・書き出しのスモークテスト・各ツールの `docs/<tool>/` に一斉に及ぶ。
+
+### 3. 配布の2経路
 
 | 経路 | 誰が使うか | 入手 |
 | --- | --- | --- |
@@ -70,27 +87,27 @@ facet/
 
 引数の組み立ては純関数に置き、判定結果3通り（導入済み／未導入／判定失敗）をテストで固定する。
 
-### 3. 読み方ガイドの Skill 化
+### 4. 読み方ガイドの Skill 化
 
-`src/core/reading-guide.md` の内容は「`type` での判別・ID の解決・未決の扱い・ツール別の読み方」で、そのまま Skill の中身になる。`plugins/facet/skills/facet-project-guide/SKILL.md` へ移し、description は「`type: glossary` などの JSON があるフォルダを読む・要約する・質問に答えるとき」とする。
+`src/core/reading-guide.md` の内容は「`type` での判別・ID の解決・未決の扱い・ツール別の読み方」で、そのまま Skill の中身になる。`plugins/facet/skills/read-project/SKILL.md` へ移し、description は「`type: glossary` などの JSON があるフォルダを読む・要約する・質問に答えるとき」とする。
 
 登録 Skill 5本が個別に持つ同じ前提はこのガイドへの参照に置き換える。
 
 **失うのは「フォルダを開けば必ず目に入る」ことである。** 発火は description に依存し、プラグインを導入していない Claude には届かない。プラグイン導入を前提に置く設計なので、この差は受け入れる。
 
-### 4. 生成物を追跡する
+### 5. 生成物を追跡する
 
 marketplace は git の内容をそのまま配るので、`scripts/generated/*.mjs` が追跡外だと install 先で Skill が動かない。`.gitignore` の除外を外し、生成物をコミットする。
 
 **原本は変わらず `schemas/*.schema.json` と `src/` の側にある。** ズレは `npm run gen:skills` の後に `git diff --exit-code` を置いて検出する（生成は `pretest` で既に走る）。
 
-### 5. 旧版の残骸
+### 6. 旧版の残骸
 
 旧版を使ったフォルダには `<project>/.claude/skills/` の5本が残る。プロジェクトスコープの Skill はプラグインより先に見つかるので、**放置すると古い版が発火する。**
 
 アプリはフォルダを開いたときに同梱名のディレクトリと `README-for-AI.md` の存在だけを見て、あればトーストで消すよう促す。読むだけなので `fs:allow-remove` は要らない。
 
-### 6. 撤去するもの
+### 7. 撤去するもの
 
 | 対象 | 理由 |
 | --- | --- |
@@ -102,7 +119,7 @@ marketplace は git の内容をそのまま配るので、`scripts/generated/*.
 
 `overview-rev.md` の「Skillの配布と同期」と「読み方ガイド」の節、`project-setup.md` の capabilities 表が同時に置き換わる。
 
-### 7. facet 自身の開発
+### 8. facet 自身の開発
 
 `.claude/settings.json` にリポジトリ自身を project スコープの marketplace として宣言し、このリポジトリで作業する Claude が移動後の Skill をそのまま使えるようにする。
 
@@ -126,3 +143,4 @@ marketplace は git の内容をそのまま配るので、`scripts/generated/*.
 - `claude plugin list --json` は `id`（`<plugin>@<marketplace>`）と `enabled` を返す
 - `claude plugin marketplace add` は `--sparse <paths...>` を持ち、モノレポの一部だけを取得できる
 - `plugin.json` は `name` / `description` / `version` / `author` で警告なく通る
+- Skill 名の非 ASCII は落ちる（`用語を登録` は `facet:-----` になる）
