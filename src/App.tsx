@@ -178,9 +178,15 @@ function App() {
   const [terminals, setTerminals] = useState<TerminalState>(emptyTerminalState)
   /**
    * `claude` に渡す引数。**判定は起動時に1回だけ。** 利用者が facet の
-   * プラグインを導入していれば同梱版は渡さない（同じ名前の Skill が2つ現れる）
+   * プラグインを導入していれば同梱版は渡さない（同じ名前の Skill が2つ現れる）。
+   *
+   * **初期値は `null`（＝判定がまだ済んでいない）。** `[]` を初期値にすると
+   * 「判定した結果 Skill 無しで良い」と区別が付かず、判定前に端末タブを
+   * 開いたときに Skill 無しのまま起動してしまう（`TerminalTab` の spawn は
+   * 起動時の値を1回読むだけで、あとから直せない）。`TerminalPane` は
+   * `claudeArgs === null` の間 `TerminalTab` をマウントしない
    */
-  const [claudeArgs, setClaudeArgs] = useState<readonly string[]>([])
+  const [claudeArgs, setClaudeArgs] = useState<readonly string[] | null>(null)
   /**
    * 利用者が facet のプラグインを導入して有効にしているか。
    * 設定の AI タブが、導入手順を出すかどうかをこれで決める
@@ -190,13 +196,22 @@ function App() {
     void (async () => {
       const enabled = await readFacetPluginEnabled()
       setPluginInstalled(enabled)
-      if (enabled) return
+      if (enabled) {
+        // 利用者のプラグインで足りるので、同梱版は渡さない。**それでも
+        // 判定は済んでいる**ので `null` のままにしない（`[]` のまま
+        // 止めると `TerminalPane` が `TerminalTab` を永久にマウントしない）
+        setClaudeArgs([])
+        return
+      }
       try {
         setClaudeArgs(buildClaudeArgs(await bundledPluginDir()))
       } catch (err: unknown) {
         // 同梱物の場所が引けないのは異常だが、ここで止めても端末は開ける。
-        // Skill 無しで起動して、設定の AI タブが導入手順を出す
+        // Skill 無しで起動して、設定の AI タブが導入手順を出す。
+        // **ここでも判定は済んだ扱いにする**——`null` のままだと
+        // 同じ理由でタブが永久にマウントされない
         console.error('同梱プラグインの場所を解決できませんでした', err)
+        setClaudeArgs([])
       }
     })()
   }, [])

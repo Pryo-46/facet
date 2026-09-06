@@ -31,8 +31,14 @@ export interface TerminalPaneProps {
   insertion: { targetId: number; seq: number; text: string } | null
   /** コピー／貼り付けの口。`TerminalTab` へ中継するだけ（額縁が注入する） */
   clipboardIo: ClipboardIo
-  /** `claude` に渡す引数。`TerminalTab` へ中継するだけ（額縁が判定する） */
-  claudeArgs: readonly string[]
+  /**
+   * `claude` に渡す引数。**判定が済むまで `null`。**
+   * `TerminalTab` は起動 effect の中で spawn を1回しか呼ばず、その瞬間の
+   * 引数で確定する（あとから props が変わっても再起動までは反映されない）。
+   * `null` のままタブをマウントすると Skill 無しで起動してしまうため、
+   * `null` の間は `TerminalTab` 自体をマウントしない（下の render 分岐）
+   */
+  claudeArgs: readonly string[] | null
   /** セッションを殺さない失敗の通知先。`TerminalTab` へ中継するだけ */
   onError: (message: string) => void
   onOpen: () => void
@@ -111,6 +117,12 @@ export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
             Claude Code を開く
           </button>
         </div>
+      ) : claudeArgs === null ? (
+        // 判定がまだ済んでいない。ここで `TerminalTab` をマウントすると
+        // spawn がその瞬間の（空の）引数で確定し、再起動までは Skill 無しの
+        // まま戻せない。判定は数十ミリ秒で終わるので、ここで一拍待っても
+        // 利用者から遅れて見えることはない
+        <div className="min-h-0 flex-1" />
       ) : (
         state.sessions.map((session) => (
           <TerminalTab
