@@ -9,7 +9,9 @@ import { fileURLToPath } from "node:url";
 
 const ITER = path.resolve(process.argv[2] ?? ".");
 const SKILL = path.resolve(fileURLToPath(import.meta.url), "../..");
-const SCHEMA = path.resolve(SKILL, "../../../schemas/sequence.schema.json");
+// 同梱コピーを指す（facet のチェックアウトの有無に依存しない。コピーは
+// src/core/skill-schema-copy.test.ts が原本とのバイト一致を強制している）
+const SCHEMA = path.resolve(SKILL, "schemas/sequence.schema.json");
 const ACTOR_RE = /^actor_[A-Za-z0-9]{10}$/;
 const STEP_RE = /^step_[A-Za-z0-9]{10}$/;
 
