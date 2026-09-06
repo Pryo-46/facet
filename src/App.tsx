@@ -45,6 +45,7 @@ import { scanFolder } from '@/core/scan'
 import { type AppSettings } from '@/core/settings'
 import { appSettings } from '@/core/settings-store'
 import { BUNDLED_SKILLS, syncBundledSkills } from '@/core/skill-sync'
+import { buildClaudeArgs } from '@/core/terminal/claude-args'
 import { fileReference, fileReferences } from '@/core/terminal/file-reference'
 import {
   activateSession,
@@ -77,6 +78,7 @@ import {
 } from '@/core/update-check'
 import { readAppVersion } from '@/fs/app-version'
 import { forceClose, interceptClose } from '@/fs/app-window'
+import { bundledPluginDir, readFacetPluginEnabled } from '@/fs/claude-plugin'
 import {
   copyHtmlToClipboard,
   copyToClipboard,
@@ -223,6 +225,23 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [paneOpen, setPaneOpen] = useState(false)
   const [terminals, setTerminals] = useState<TerminalState>(emptyTerminalState)
+  /**
+   * `claude` に渡す引数。**判定は起動時に1回だけ。** 利用者が facet の
+   * プラグインを導入していれば同梱版は渡さない（同じ名前の Skill が2つ現れる）
+   */
+  const [claudeArgs, setClaudeArgs] = useState<readonly string[]>([])
+  useEffect(() => {
+    void (async () => {
+      if (await readFacetPluginEnabled()) return
+      try {
+        setClaudeArgs(buildClaudeArgs(await bundledPluginDir()))
+      } catch (err: unknown) {
+        // 同梱物の場所が引けないのは異常だが、ここで止めても端末は開ける。
+        // Skill 無しで起動して、設定の AI タブが導入手順を出す
+        console.error('同梱プラグインの場所を解決できませんでした', err)
+      }
+    })()
+  }, [])
   // タブを閉じる確認ダイアログの `onConfirm` は承認まで遅延実行される。
   // `historyRef` / `modalOpenRef` と同じ「最新値の
   // 読み取り口」——確認待ちの間にタブが自然終了（`onExited`）していても、
@@ -1412,6 +1431,7 @@ function App() {
                 paneVisible={paneOpen}
                 insertion={insertion}
                 clipboardIo={tauriClipboardIo}
+                claudeArgs={claudeArgs}
                 onError={(message) => showToast({ message })}
                 onOpen={() => openTerminal()}
                 onClose={closeTerminal}

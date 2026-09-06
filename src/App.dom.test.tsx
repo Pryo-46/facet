@@ -220,6 +220,14 @@ vi.mock('@/fs/skill-resources', () => ({
     skillCalls.push(`allow:${dir}`)
   },
 }))
+// 同梱プラグインの判定。**このファイルのテストは配線しか見ない**ので、
+// 「未導入」固定で足りる。実物は @tauri-apps/api/path・@tauri-apps/plugin-fs を
+// 呼ぶが、jsdom には Tauri のグローバルが無いのでモック化する
+vi.mock('@/fs/claude-plugin', () => ({
+  FACET_PLUGIN_ID: 'facet@facet',
+  bundledPluginDir: async () => '/resource/plugin',
+  readFacetPluginEnabled: async () => false,
+}))
 vi.mock('@/core/skill-sync', async (orig) => ({
   ...(await orig<typeof import('@/core/skill-sync')>()),
   syncBundledSkills: async (dir: string) => {

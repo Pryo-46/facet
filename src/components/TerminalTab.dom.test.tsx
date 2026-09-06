@@ -146,6 +146,7 @@ function tabProps(over: Partial<TabProps> & { ptyIo: PtyIo }): TabProps {
     hidden: false,
     insertion: null,
     clipboardIo: fakeClipboard(),
+    claudeArgs: [],
     onError: vi.fn(),
     onRunning: vi.fn(),
     onExited: vi.fn(),

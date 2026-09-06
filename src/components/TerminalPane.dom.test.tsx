@@ -50,6 +50,7 @@ function setup(state = openSession(emptyTerminalState), insertion = null as
       paneVisible
       insertion={insertion}
       clipboardIo={{ readText: vi.fn(async () => ''), writeText: vi.fn(async () => undefined) }}
+      claudeArgs={[]}
       onError={vi.fn()}
       {...handlers}
     />,
@@ -117,6 +118,7 @@ describe('TerminalPane', () => {
         paneVisible={false}
         insertion={null}
         clipboardIo={{ readText: vi.fn(async () => ''), writeText: vi.fn(async () => undefined) }}
+        claudeArgs={[]}
         onError={vi.fn()}
         {...handlers}
       />,

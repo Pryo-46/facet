@@ -4,7 +4,7 @@ import '@xterm/xterm/css/xterm.css'
 import { useEffect, useRef } from 'react'
 import { buildTerminalTheme, TERMINAL_MIN_CONTRAST, type TerminalTheme } from '@/core/terminal/theme'
 import type { ClipboardIo } from '@/core/terminal/clipboard-io'
-import { CLAUDE_ARGS, CLAUDE_PROGRAM, type PtyIo } from '@/core/terminal/pty-io'
+import { CLAUDE_PROGRAM, type PtyIo } from '@/core/terminal/pty-io'
 import type { TerminalSession } from '@/core/terminal/sessions'
 
 /**
@@ -34,6 +34,11 @@ export interface TerminalTabProps {
   insertion: { seq: number; text: string } | null
   /** コピー／貼り付けの口。**額縁が注入する**（コンポーネントは `@/fs/` を知らない） */
   clipboardIo: ClipboardIo
+  /**
+   * `claude` に渡す引数。**起動時の値だけが効く**——`spawn` は起動 effect の
+   * 中で1回しか呼ばれないので、あとから変えても再起動までは反映されない
+   */
+  claudeArgs: readonly string[]
   /**
    * セッションを殺さない失敗の通知先（App のトーストへ出る）。
    * **`session.message` を使わないこと**——あれは `exited` / `failed` の欄で、
@@ -108,7 +113,7 @@ const buildDarkTerminalTheme = (): TerminalTheme | null => {
 }
 
 export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
-  const { session, cwd, ptyIo, hidden, insertion, clipboardIo } = props
+  const { session, cwd, ptyIo, hidden, insertion, clipboardIo, claudeArgs } = props
   const { onRunning, onExited, onFailed, onError } = props
   const hostRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -328,7 +333,7 @@ export function TerminalTab(props: TerminalTabProps): React.JSX.Element {
     void ptyIo
       .spawn({
         program: CLAUDE_PROGRAM,
-        args: [...CLAUDE_ARGS],
+        args: [...claudeArgs],
         cwd,
         cols: term.cols,
         rows: term.rows,

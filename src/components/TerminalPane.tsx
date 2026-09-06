@@ -31,6 +31,8 @@ export interface TerminalPaneProps {
   insertion: { targetId: number; seq: number; text: string } | null
   /** コピー／貼り付けの口。`TerminalTab` へ中継するだけ（額縁が注入する） */
   clipboardIo: ClipboardIo
+  /** `claude` に渡す引数。`TerminalTab` へ中継するだけ（額縁が判定する） */
+  claudeArgs: readonly string[]
   /** セッションを殺さない失敗の通知先。`TerminalTab` へ中継するだけ */
   onError: (message: string) => void
   onOpen: () => void
@@ -43,7 +45,7 @@ export interface TerminalPaneProps {
 
 export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
   const { state, cwd, ptyIo, paneVisible, insertion, onOpen, onClose, onActivate } = props
-  const { clipboardIo, onError, onRunning, onExited, onFailed } = props
+  const { clipboardIo, claudeArgs, onError, onRunning, onExited, onFailed } = props
 
   return (
     <div
@@ -121,6 +123,7 @@ export function TerminalPane(props: TerminalPaneProps): React.JSX.Element {
               insertion !== null && insertion.targetId === session.id ? insertion : null
             }
             clipboardIo={clipboardIo}
+            claudeArgs={claudeArgs}
             onError={onError}
             onRunning={onRunning}
             onExited={onExited}
