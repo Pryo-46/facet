@@ -86,7 +86,9 @@ facet/
 
 `--sparse` があるので、install する側はアプリのソースを clone しない。
 
-**アプリは導入済みのプラグインに譲る。** 端末セッションを開く前に `claude plugin list --json` を1回実行し、`id` が `facet@facet` の要素が `enabled` なら `--plugin-dir` を渡さない。判定が失敗したときは渡す側に倒す（Skill が無いより、同じ Skill が2つ見えるほうが軽い）。
+**アプリは導入済みのプラグインに譲る。** `~/.claude/settings.json` の `enabledPlugins["facet@facet"]` が `true` なら `--plugin-dir` を渡さない。判定が失敗したときは渡す側に倒す（Skill が無いより、同じ Skill が2つ見えるほうが軽い）。
+
+**判定にコマンドを実行しない。** `claude plugin list --json` のほうが正確だが、そのために子プロセスを起こす手段（shell プラグインか自前コマンド）を増やすことになる。有効・無効は `enabledPlugins` に現れるので、ファイルを1つ読めば足りる。
 
 引数の組み立ては純関数に置き、判定結果3通り（導入済み／未導入／判定失敗）をテストで固定する。
 
@@ -94,7 +96,7 @@ facet/
 
 `src/core/reading-guide.md` の内容は「`type` での判別・ID の解決・未決の扱い・ツール別の読み方」で、そのまま Skill の中身になる。`plugins/facet/skills/read-project/SKILL.md` へ移し、description は「`type: glossary` などの JSON があるフォルダを読む・要約する・質問に答えるとき」とする。
 
-登録 Skill 5本が個別に持つ同じ前提はこのガイドへの参照に置き換える。
+登録 Skill 5本には、このガイドを参照する1行を足す。既存の記述は消さない——どの文が重複かは Skill ごとの文脈で決まり、機械的には決まらない。
 
 **失うのは「フォルダを開けば必ず目に入る」ことである。** 発火は description に依存し、プラグインを導入していない Claude には届かない。プラグイン導入を前提に置く設計なので、この差は受け入れる。
 
