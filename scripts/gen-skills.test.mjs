@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { execFileSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
 import { SKILL_SOURCES } from './gen-skills.mjs'
 import { BUNDLED_SKILLS } from '../src/core/skill-sync.ts'
@@ -159,8 +160,6 @@ describe('生成した questions.mjs', () => {
   })
 })
 
-import { execSync } from 'node:child_process'
-
 describe('生成物の配布', () => {
   it('作業ツリーに未コミットの生成物が残らない', () => {
     // marketplace は git の内容をそのまま配る。生成物が追跡外だったり
@@ -171,9 +170,10 @@ describe('生成物の配布', () => {
     // **見るのは生成物のディレクトリだけ。** Skill 全体を対象にすると、
     // SKILL.md を書きかけているだけで赤くなり、編集とテストを同時に
     // 回せなくなる
-    const status = execSync(
-      'git status --porcelain -- plugins/facet/skills/*/scripts/generated',
-      { encoding: 'utf8', shell: 'bash' },
+    const status = execFileSync(
+      'git',
+      ['status', '--porcelain', '--', 'plugins/facet/skills/*/scripts/generated'],
+      { encoding: 'utf8' },
     )
     expect(status).toBe('')
   })
