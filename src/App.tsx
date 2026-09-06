@@ -648,8 +648,9 @@ function App() {
   //（設定を system に戻した瞬間から正しい値で始まる）
   useEffect(() => watchPrefersDark(setSystemDark), [])
 
-  // **クラスの付け外しという形を保つこと。** 端末ペインは palette.css の
-  // `.dark` セレクタに依存しているので、別の当て方にすると端末だけ追従しない
+  // **クラスの付け外しという形を保つこと。** palette.css はダーク側の値を
+  // `.dark` クラスで再定義するので、クラス以外の当て方にすると配色が
+  // 切り替わらない。端末はアプリの面に追従せず常にダーク固定（TerminalTab）
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
   }, [dark])
