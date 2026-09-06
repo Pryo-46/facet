@@ -413,8 +413,8 @@ git commit -m "refactor(m35): Skill をプラグインへ移し、動詞から�
 plugins/facet/skills/*/scripts/generated/
 ```
 
-Run: `git status --porcelain -- plugins/facet/skills | head`
-Expected: `?? plugins/facet/skills/write-term/scripts/generated/` のような未追跡の行が出る
+Run: `git status --porcelain -- 'plugins/facet/skills/*/scripts/generated' | head`
+Expected: `?? plugins/facet/skills/write-term/scripts/generated/` のような未追跡の行が出る（出ないなら `npm run gen:skills` をまだ走らせていない）
 
 - [ ] **Step 1: 未コミットの生成物を検出するテストを書く**
 
@@ -428,10 +428,14 @@ describe('生成物の配布', () => {
     // marketplace は git の内容をそのまま配る。生成物が追跡外だったり
     // 生成し直した結果をコミットし忘れたりすると、install した先の Skill が
     // 「generated が無い」で落ちる。`pretest` で生成し直した直後に差分が
-    // 出るなら、それはコミットされていない
+    // 出るなら、それはコミットされていない。
+    //
+    // **見るのは生成物のディレクトリだけ。** Skill 全体を対象にすると、
+    // SKILL.md を書きかけているだけで赤くなり、編集とテストを同時に
+    // 回せなくなる
     const status = execFileSync(
       'git',
-      ['status', '--porcelain', '--', 'plugins/facet/skills'],
+      ['status', '--porcelain', '--', 'plugins/facet/skills/*/scripts/generated'],
       { encoding: 'utf8' },
     )
     expect(status).toBe('')
