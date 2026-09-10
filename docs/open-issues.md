@@ -13,7 +13,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **`write-issue-tree` に evals が無い**（`plugins/facet/skills/write-issue-tree/`）。他4つの登録 Skill は evals ディレクトリを持つ。
 - **`write-logic-tree` の evals は実行ハーネスに掛けていない**（`plugins/facet/skills/write-logic-tree/evals/`）。`evals.json` と `grade.mjs` はあるが、npm スクリプトからも CI からも呼ばれていない。
 - **`.gitattributes` 欠落の警告が「整合性の警告」の見出しの下に出る**（`plugins/facet/skills/write-logic-tree/scripts/logic-tree-write.mjs`）。整合性の警告とは別種の警告が同じ見出しに混ざる。
-- **smoke テストが子プロセスの `stdio` を捨て、落ちても原因が残らない**（`src/modules/logic-tree/skill-write.smoke.test.ts`）。意図的なエラーケースの stderr が緑の実行でも画面に出る一方、再現条件不明の失敗が観測されている。
+- **smoke テストの5本が揃って子プロセスの `stdio` を捨て、落ちても原因が残らない**（`src/modules/*/skill-write.smoke.test.ts`）。意図的なエラーケースの stderr は緑の実行でも画面に出る一方、全体実行でまれに起きる失敗は原因が追えない。
 - **`logic-tree-write.mjs` の exit 2 の経路とスキーマの解決順が未テスト**（`plugins/facet/skills/write-logic-tree/scripts/logic-tree-write.mjs`）。
 - **`ink-faint` をアクティブな本文に使っていないことを機械検査していない**（`src/styles/conventions.test.ts`）。WCAG 1.4.3 の免除範囲に収まる前提が崩れても検知できない。
 - **schemaVersion の移行を読み込み時以外の経路で見るテストが無い**（`src/core/load.ts`）。自動保存など他の経路は未検証。
@@ -27,6 +27,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **判断バッジのトリガーのキーボード経路に DOM テストが無い**（`src/modules/issue-tree/IssueTreeEditor.tsx` の `KindMenu`）。
 - **`modalOpen` が設定画面を数えることを守るテストが無い**（`src/App.tsx`）。式が `modals.length > 0` に戻る事故を検出できない。
 - **`system` 追従を App の配線ごと通したテストが無い**（`src/App.tsx`）。`watchPrefersDark` 自体のテストはあるが、`setSystemDark` → `resolveTheme` → クラス反映の経路は未検証。
+- **各ツールが渡す `family` の値を縛るテストが無い**（`src/core/keyboard/keymap.test.ts`）。固定しているのは家族から写像への対応だけなので、`src/modules/glossary/GlossaryEditor.tsx` の `'list'` を `'tree'` に打ち間違えても型は通る。
 
 ## 将来の機能を作った瞬間に踏むもの
 
