@@ -709,9 +709,8 @@ export function SequenceEditor({
       arrowsOwnedByField: false,
       // 導出表示（検索・フィルタ）が無いので並び替えは常に有効
       reorderEnabled: true,
-      hierarchical: false,
       // ヘッダは横並びのリスト。Alt+←→ が並び替えになる（design-notes 論点9）
-      horizontal: true,
+      family: 'horizontal',
     })
   }
 
@@ -724,8 +723,7 @@ export function SequenceEditor({
       caretAtEnd: state.caretAtEnd,
       arrowsOwnedByField: false,
       reorderEnabled: true,
-      hierarchical: false,
-      horizontal: false,
+      family: 'list',
     })
   }
 
@@ -743,8 +741,7 @@ export function SequenceEditor({
       // これが true でも並び替えは通る（部品側が修飾キー付き矢印を委譲する）
       arrowsOwnedByField: true,
       reorderEnabled: true,
-      hierarchical: false,
-      horizontal: false,
+      family: 'list',
     })
   }
 
@@ -761,8 +758,7 @@ export function SequenceEditor({
       // これが true でも並び替えは通る（部品側が修飾キー付き矢印を委譲する）
       arrowsOwnedByField: true,
       reorderEnabled: true,
-      hierarchical: false,
-      horizontal: false,
+      family: 'list',
     })
   }
 
@@ -782,8 +778,7 @@ export function SequenceEditor({
       arrowsOwnedByField: false,
       // 答えを見比べている最中に図の時系列を動かさない。ガターは図と別の列
       reorderEnabled: false,
-      hierarchical: false,
-      horizontal: false,
+      family: 'list',
     })
   }
 

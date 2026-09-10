@@ -256,8 +256,7 @@ export function ErrorCatalogEditor({
       modalOpen,
       reorderEnabled,
       // エラーカタログはフラットなリストで「子」が存在しない（rev 10章の適用例）
-      hierarchical: false,
-      horizontal: false,
+      family: 'list',
       ...field,
     })
     if (cmd === null) return

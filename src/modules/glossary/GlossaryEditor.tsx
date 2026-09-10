@@ -218,8 +218,7 @@ export function GlossaryEditor({
       modalOpen,
       reorderEnabled,
       // 用語集はフラットなリストで「子」が存在しない（rev 10章の適用例）
-      hierarchical: false,
-      horizontal: false,
+      family: 'list',
       ...field,
     })
     if (cmd === null) return

@@ -161,10 +161,9 @@ function globalKeyContext(modalOpen: boolean): KeyContext {
     caretAtEnd: false,
     arrowsOwnedByField: false,
     reorderEnabled: false,
-    // 額縁のグローバル層はどのツールでも Undo/Redo だけを扱う。「子」という
-    // 概念が及ばない層なので false 固定でよい
-    hierarchical: false,
-    horizontal: false,
+    // 額縁のグローバル層はどのツールでも Undo/Redo だけを扱う。構造依存層の
+    // 意味が及ばない層なので、最も素直な 'list' でよい
+    family: 'list',
   }
 }
 
