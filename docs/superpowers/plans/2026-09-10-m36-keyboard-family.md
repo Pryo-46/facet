@@ -20,7 +20,7 @@
 - `Command` の語彙を増やさない。行移動は `focus-prev` / `focus-next`、列移動は `focus-prev-field` / `focus-next-field` に写す
 - `Shift+Enter` と `Alt+Enter` は `null` を返す。ブラウザ既定のセル内改行が生きることは不変条件である
 - 検証コマンドは `npm test && npx tsc -b && npm run lint`。worktree に `node_modules` が無ければ先に `npm install` を実行する
-- `src/modules/sequence/skill-write.smoke.test.ts` は全体実行でまれに落ちる。単体で再実行して通れば既知の不安定さであり、この計画の変更とは無関係である
+- `src/modules/*/skill-write.smoke.test.ts` の5本は全体実行でまれに落ちる。単体で再実行して通れば既知の不安定さであり、この計画の変更とは無関係である
 
 ## File Structure
 
@@ -230,7 +230,7 @@ Expected: PASS（テストは全ファイル緑、`tsc -b` と `oxlint` は終�
 続けて、旧フィールド名が1つも残っていないことを確かめる。**`horizontal` を裸で探さないこと**——`family: 'horizontal'` に一致して、検査が永久に赤いままになる。
 
 Run: `grep -rn "hierarchical\|horizontal:" src/ --include=*.ts --include=*.tsx`
-Expected: 出力なし（着手前の同じコマンドは65行を出す）
+Expected: 出力なし
 
 - [ ] **Step 7: 番人が実在することを壊して確かめる**
 
