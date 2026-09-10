@@ -41,8 +41,9 @@ export interface KeyEventLike {
  * - `'list'`: 縦に並ぶフラットなリスト。`Tab` は欄の移動で、`←→` は欄のもの
  * - `'tree'`: 子を持てる構造。`Tab` は子追加で、`←→` が親子間の移動になる
  * - `'horizontal'`: 横に並ぶリスト。`Alt+←→` が並び替えで、`↑↓` は関与しない
+ * - `'grid'`: 行を足せない表。`Enter` は下の行へ、`←→` は隣の列へ送る
  */
-export type KeyFamily = 'list' | 'tree' | 'horizontal'
+export type KeyFamily = 'list' | 'tree' | 'horizontal' | 'grid'
 
 export interface KeyContext {
   platform: Platform
@@ -95,7 +96,9 @@ export function resolveCommand(e: KeyEventLike, ctx: KeyContext): Command | null
     case 'Escape':
       return 'cancel'
     case 'Enter':
-      return e.altKey || e.shiftKey ? null : 'insert-item-after'
+      if (e.altKey || e.shiftKey) return null
+      // 表の行は条件の直積から導出するので足せない。Excel と同じく下の行へ送る
+      return ctx.family === 'grid' ? 'focus-next' : 'insert-item-after'
     case 'Tab':
       if (e.altKey) return null
       // 階層構造では Tab は子追加（rev 10章 階層・リスト系の標準）。
@@ -122,6 +125,10 @@ export function resolveCommand(e: KeyEventLike, ctx: KeyContext): Command | null
         if (e.shiftKey || ctx.arrowsOwnedByField) return null
         return !ctx.editing || ctx.caretAtStart ? 'focus-prev' : null
       }
+      if (ctx.family === 'grid') {
+        if (e.altKey || e.shiftKey || ctx.arrowsOwnedByField) return null
+        return !ctx.editing || ctx.caretAtStart ? 'focus-prev-field' : null
+      }
       if (ctx.family !== 'tree' || e.altKey || e.shiftKey) return null
       // 欄が矢印を使うなら欄のもの。端でだけ構造の移動に切り替える（↑↓ と同じ規則）
       if (ctx.arrowsOwnedByField) return null
@@ -131,6 +138,10 @@ export function resolveCommand(e: KeyEventLike, ctx: KeyContext): Command | null
         if (e.altKey) return ctx.reorderEnabled && !e.shiftKey ? 'move-item-down' : null
         if (e.shiftKey || ctx.arrowsOwnedByField) return null
         return !ctx.editing || ctx.caretAtEnd ? 'focus-next' : null
+      }
+      if (ctx.family === 'grid') {
+        if (e.altKey || e.shiftKey || ctx.arrowsOwnedByField) return null
+        return !ctx.editing || ctx.caretAtEnd ? 'focus-next-field' : null
       }
       if (ctx.family !== 'tree' || e.altKey || e.shiftKey) return null
       if (ctx.arrowsOwnedByField) return null

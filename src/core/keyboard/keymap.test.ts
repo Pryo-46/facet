@@ -459,3 +459,120 @@ describe('←→ と arrowsOwnedByField（open-issues の穴の解消）', () =>
     ).toBeNull()
   })
 })
+
+describe('表の家族（family は grid）', () => {
+  it('Enter は行を足さず下の行へ送る', () => {
+    expect(resolveCommand(key({ key: 'Enter' }), ctx({ family: 'grid' }))).toBe('focus-next')
+  })
+
+  it('Shift+Enter と Alt+Enter は関与しない（セル内改行を残す）', () => {
+    expect(resolveCommand(key({ key: 'Enter', shiftKey: true }), ctx({ family: 'grid' }))).toBeNull()
+    expect(resolveCommand(key({ key: 'Enter', altKey: true }), ctx({ family: 'grid' }))).toBeNull()
+  })
+
+  it('←→ はキャレット端で隣の列へ移る', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft' }),
+        ctx({ family: 'grid', editing: true, caretAtStart: true }),
+      ),
+    ).toBe('focus-prev-field')
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight' }),
+        ctx({ family: 'grid', editing: true, caretAtEnd: true }),
+      ),
+    ).toBe('focus-next-field')
+  })
+
+  it('←→ はキャレットが中間なら欄のもの', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft' }),
+        ctx({ family: 'grid', editing: true, caretAtStart: false }),
+      ),
+    ).toBeNull()
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight' }),
+        ctx({ family: 'grid', editing: true, caretAtEnd: false }),
+      ),
+    ).toBeNull()
+  })
+
+  it('欄が矢印を使うなら ←→ は欄のもの（キャレット端でも列移動に化けない）', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft' }),
+        ctx({ family: 'grid', arrowsOwnedByField: true, editing: true, caretAtStart: true }),
+      ),
+    ).toBeNull()
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight' }),
+        ctx({ family: 'grid', arrowsOwnedByField: true, editing: true, caretAtEnd: true }),
+      ),
+    ).toBeNull()
+  })
+
+  it('Alt+←→ は並び替えにならない（横リストの意味を借りない）', () => {
+    expect(
+      resolveCommand(key({ key: 'ArrowLeft', altKey: true }), ctx({ family: 'grid' })),
+    ).toBeNull()
+    expect(
+      resolveCommand(key({ key: 'ArrowRight', altKey: true }), ctx({ family: 'grid' })),
+    ).toBeNull()
+  })
+
+  it('Tab はリストと同じく欄の移動', () => {
+    expect(resolveCommand(key({ key: 'Tab' }), ctx({ family: 'grid' }))).toBe('focus-next-field')
+    expect(resolveCommand(key({ key: 'Tab', shiftKey: true }), ctx({ family: 'grid' }))).toBe(
+      'focus-prev-field',
+    )
+  })
+
+  it('↑↓ はリストと同じく行の移動', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowUp' }),
+        ctx({ family: 'grid', editing: true, caretAtStart: true }),
+      ),
+    ).toBe('focus-prev')
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowDown' }),
+        ctx({ family: 'grid', editing: true, caretAtEnd: true }),
+      ),
+    ).toBe('focus-next')
+  })
+
+  it('reorderEnabled が偽なら Alt+↑↓ は並び替えにならない', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowUp', altKey: true }),
+        ctx({ family: 'grid', reorderEnabled: false }),
+      ),
+    ).toBeNull()
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowDown', altKey: true }),
+        ctx({ family: 'grid', reorderEnabled: false }),
+      ),
+    ).toBeNull()
+  })
+
+  it('deletableField が偽なら空欄 Backspace で行が消えない', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'Backspace' }),
+        ctx({ family: 'grid', fieldEmpty: true, deletableField: false }),
+      ),
+    ).toBeNull()
+  })
+
+  it('主修飾キー＋Enter は toggle-item-state', () => {
+    expect(resolveCommand(key({ key: 'Enter', ctrlKey: true }), ctx({ family: 'grid' }))).toBe(
+      'toggle-item-state',
+    )
+  })
+})
