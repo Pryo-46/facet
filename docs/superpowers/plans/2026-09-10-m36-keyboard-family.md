@@ -61,9 +61,25 @@
 
 - [ ] **Step 1: テスト側を `family` に書き換える**
 
-`src/core/keyboard/keymap.test.ts` を機械的に置換する。置換は4種類だけである。
+`src/core/keyboard/keymap.test.ts` を機械的に置換する。置換は4種類で、**この順で行う**——先に項目2をファイル全体へ一括で当てると `describe` と `it` の名前文字列にも一致し、`describe('階層構造（family: 'tree'）'` という構文エラーができる。
 
-1. `ctx()` ヘルパの既定値（20〜21行目）
+1. `describe` と `it` の名前。フィールド名が消えるので、名前も家族名に合わせる。
+
+| 現在 | 置換後 |
+| --- | --- |
+| `階層構造（hierarchical: true）` | `木の家族（family は tree）` |
+| `階層でない構造（hierarchical: false）は挙動が変わらない` | `リストの家族（family は list）は挙動が変わらない` |
+| `horizontal（横リスト＝アクターヘッダ）` | `横リストの家族（family は horizontal。アクターヘッダ）` |
+| `horizontal では Alt+↑↓ は並び替えにならない（縦の意味が無い）` | `横リストでは Alt+↑↓ は並び替えにならない（縦の意味が無い）` |
+| `horizontal では素の（Alt 無し）↑↓ も関与しない（↑↓の horizontal ガードの変異耐性: キャレット端でも focus-prev/next にならない）` | `横リストでは素の（Alt 無し）↑↓ も関与しない（↑↓ の家族ガードの変異耐性: キャレット端でも focus-prev/next にならない）` |
+| `hierarchical でも欄が矢印を使うなら ←→ は欄のもの（キャレット端でも構造移動に化けない＝ガードの変異耐性）` | `木でも欄が矢印を使うなら ←→ は欄のもの（キャレット端でも構造移動に化けない＝ガードの変異耐性）` |
+| `horizontal でも同様（キャレット端でも focus-prev/next に化けない＝ガードの変異耐性）` | `横リストでも同様（キャレット端でも focus-prev/next に化けない＝ガードの変異耐性）` |
+
+区切りコメント（360行目付近）も直す。
+`// ---- horizontal / toggle-item-state / ←→ の arrowsOwnedByField ----` を
+`// ---- 横リスト / toggle-item-state / ←→ の arrowsOwnedByField ----` にする。
+
+2. `ctx()` ヘルパの既定値（20〜21行目）
 
 ```ts
     reorderEnabled: true,
@@ -80,7 +96,7 @@
     ...over,
 ```
 
-2. 呼び出しの上書き。ファイル全体で次の3つを置換する。
+3. `ctx({...})` の呼び出しの上書き。**名前の改名を終えたあとで**、次の3つを置換する。
 
 | 現在 | 置換後 |
 | --- | --- |
@@ -88,27 +104,25 @@
 | `hierarchical: false` | `family: 'list'` |
 | `horizontal: true` | `family: 'horizontal'` |
 
-3. `describe` と `it` の名前。フィールド名が消えるので、名前も家族名に合わせる。
+4. `grep -n "hierarchical\|horizontal:" src/core/keyboard/keymap.test.ts` が空になることを確認する。
 
-| 現在 | 置換後 |
-| --- | --- |
-| `階層構造（hierarchical: true）` | `木の家族（family は tree）` |
-| `階層でない構造（hierarchical: false）は挙動が変わらない` | `リストの家族（family は list）は挙動が変わらない` |
-| `horizontal（横リスト＝アクターヘッダ）` | `横リストの家族（family は horizontal。アクターヘッダ）` |
-| `horizontal では Alt+↑↓ は並び替えにならない（縦の意味が無い）` | `横リストでは Alt+↑↓ は並び替えにならない（縦の意味が無い）` |
-| `horizontal では素の（Alt 無し）↑↓ も関与しない（↑↓の horizontal ガードの変異耐性: キャレット端でも focus-prev/next にならない）` | `横リストでは素の（Alt 無し）↑↓ も関与しない（↑↓ の家族ガードの変異耐性: キャレット端でも focus-prev/next にならない）` |
-| `hierarchical でも欄が矢印を使うなら ←→ は欄のもの（キャレット端でも構造移動に化けない＝ガードの変異耐性）` | `木でも欄が矢印を使うなら ←→ は欄のもの（キャレット端でも構造移動に化けない＝ガードの変異耐性）` |
-| `horizontal でも同様（キャレット端でも focus-prev/next に化けない＝ガードの変異耐性）` | `横リストでも同様（キャレット端でも focus-prev/next に化けない＝ガードの変異耐性）` |
-
-4. 区切りコメント（360行目付近）
-
-`// ---- horizontal / toggle-item-state / ←→ の arrowsOwnedByField ----` を
-`// ---- 横リスト / toggle-item-state / ←→ の arrowsOwnedByField ----` にする。
-
-- [ ] **Step 2: テストが型エラーで落ちることを確認する**
+- [ ] **Step 2: テストが落ちることを確認する**
 
 Run: `npx vitest run src/core/keyboard/keymap.test.ts`
-Expected: FAIL。`family` は `KeyContext` に存在しないため、`ctx()` の戻り値が型を満たさない
+Expected: FAIL 8件（43件は緑）。**型エラーでは落ちない**——vitest は `vite:oxc` で型を落とすので、`KeyContext` に無いキーを渡しても実行できる。落ちるのは、`resolveCommand` が読む `ctx.hierarchical` と `ctx.horizontal` が `undefined`（偽）になり、木と横リストの写像が総崩れになるためである。
+
+失敗する8件は次のとおり。
+
+```
+× Tab で子を追加する（rev 10章 階層・リスト系の標準）
+× Shift+Tab には意味を与えない（キャンバスから抜ける経路として残す）
+× ← はキャレットが先頭にあるとき親へ移る
+× → はキャレットが末尾にあるとき子へ移る
+× Alt+← は move-item-up（前へ）、Alt+→ は move-item-down（次へ）
+× 素の ←→ はキャレット端でだけ focus-prev / focus-next
+× 横リストでは Alt+↑↓ は並び替えにならない（縦の意味が無い）
+× 横リストでは素の（Alt 無し）↑↓ も関与しない（↑↓ の家族ガードの変異耐性: キャレット端でも focus-prev/next にならない）
+```
 
 - [ ] **Step 3: `KeyContext` を書き換える**
 
@@ -122,10 +136,11 @@ Expected: FAIL。`family` は `KeyContext` に存在しないため、`ctx()` �
  * - `'list'`: 縦に並ぶフラットなリスト。`Tab` は欄の移動で、`←→` は欄のもの
  * - `'tree'`: 子を持てる構造。`Tab` は子追加で、`←→` が親子間の移動になる
  * - `'horizontal'`: 横に並ぶリスト。`Alt+←→` が並び替えで、`↑↓` は関与しない
- * - `'grid'`: 行を足せない表。`Enter` は下の行へ、`←→` は隣の列へ送る
  */
-export type KeyFamily = 'list' | 'tree' | 'horizontal' | 'grid'
+export type KeyFamily = 'list' | 'tree' | 'horizontal'
 ```
+
+**`'grid'` はここで足さない。** 挙動を実装しないまま値と説明だけを置くと、JSDoc が実在しない写像を述べる。Task 2 が値と分岐を同じコミットで足す。
 
 `KeyContext` 側は次の1行にする。
 
@@ -248,12 +263,12 @@ Claude-Session: https://claude.ai/code/session_01SSyAnv19UVzGrJFu3HcUeB
 `'grid'` を使う画面はまだ無い。写像を単体テストで固めておくと、デシジョンテーブルのモジュールはコアを触らずに済む。
 
 **Files:**
-- Modify: `src/core/keyboard/keymap.ts`（`Enter` と `ArrowLeft` と `ArrowRight` の3分岐）
+- Modify: `src/core/keyboard/keymap.ts`（`KeyFamily` のユニオンと、`Enter` と `ArrowLeft` と `ArrowRight` の3分岐）
 - Test: `src/core/keyboard/keymap.test.ts`（`describe` を1つ追加）
 
 **Interfaces:**
-- Consumes: Task 1 の `KeyFamily` と `KeyContext.family`
-- Produces: `family: 'grid'` の写像。`Enter` → `'focus-next'`、`←` → `'focus-prev-field'`、`→` → `'focus-next-field'`。`Tab` と `↑↓` と `Backspace` は `'list'` と同じ
+- Consumes: Task 1 の `KeyFamily`（`'list' | 'tree' | 'horizontal'`）と `KeyContext.family`
+- Produces: `KeyFamily` に `'grid'` を足したユニオンと、その写像。`Enter` → `'focus-next'`、`←` → `'focus-prev-field'`、`→` → `'focus-next-field'`。`Tab` と `↑↓` と `Backspace` は `'list'` と同じ
 
 - [ ] **Step 1: 失敗するテストを書く**
 
@@ -381,9 +396,21 @@ describe('表の家族（family は grid）', () => {
 - [ ] **Step 2: テストが落ちることを確認する**
 
 Run: `npx vitest run src/core/keyboard/keymap.test.ts`
-Expected: FAIL 2件。`Enter は行を足さず下の行へ送る` が `'insert-item-after'` を返し、`←→ はキャレット端で隣の列へ移る` が `null` を返す。残りの10件は `'grid'` が `'list'` と同じ経路を通るので、この時点で既に緑になる
+Expected: FAIL 2件。`Enter は行を足さず下の行へ送る` が `'insert-item-after'` を返し、`←→ はキャレット端で隣の列へ移る` が `null` を返す。残りの10件は `'grid'` がどの家族名にも一致せず `'list'` と同じ経路を通るので、この時点で既に緑になる
 
-- [ ] **Step 3: `Enter` の分岐を書く**
+`'grid'` はまだ `KeyFamily` に無いが、vitest は型を検査しないのでテストは実行できる。`tsc -b` はここでは走らせない。
+
+- [ ] **Step 3: `KeyFamily` に `'grid'` を足す**
+
+`src/core/keyboard/keymap.ts` の `KeyFamily` を次にする。JSDoc の箇条書きにも1行足す。
+
+```ts
+ * - `'grid'`: 行を足せない表。`Enter` は下の行へ、`←→` は隣の列へ送る
+ */
+export type KeyFamily = 'list' | 'tree' | 'horizontal' | 'grid'
+```
+
+- [ ] **Step 4: `Enter` の分岐を書く**
 
 `src/core/keyboard/keymap.ts` の `case 'Enter':` の1行を次に置き換える。
 
@@ -394,7 +421,7 @@ Expected: FAIL 2件。`Enter は行を足さず下の行へ送る` が `'insert-
       return ctx.family === 'grid' ? 'focus-next' : 'insert-item-after'
 ```
 
-- [ ] **Step 4: `←→` の分岐を書く**
+- [ ] **Step 5: `←→` の分岐を書く**
 
 `case 'ArrowLeft':` の `if (ctx.family === 'horizontal') { … }` ブロックの直後に足す。
 
@@ -416,16 +443,16 @@ Expected: FAIL 2件。`Enter は行を足さず下の行へ送る` が `'insert-
 
 `Tab` と `↑↓` と `Backspace` は触らない。`'grid'` はどの家族名にも一致せず、`'list'` と同じ経路を通る。
 
-- [ ] **Step 5: JSDoc が実装と一致することを確認する**
+- [ ] **Step 6: JSDoc が実装と一致することを確認する**
 
-Task 1 で書いた `KeyFamily` の `'grid'` の行（`Enter` は下の行へ、`←→` は隣の列へ送る）を読み、Step 3 と Step 4 の実装と食い違っていないことを確かめる。
+Step 3 で書いた `'grid'` の行（`Enter` は下の行へ、`←→` は隣の列へ送る）を読み、Step 4 と Step 5 の実装と食い違っていないことを確かめる。
 
-- [ ] **Step 6: 全体が緑になることを確認する**
+- [ ] **Step 7: 全体が緑になることを確認する**
 
 Run: `npm test && npx tsc -b && npm run lint`
 Expected: PASS
 
-- [ ] **Step 7: 番人が実在することを壊して確かめる**
+- [ ] **Step 8: 番人が実在することを壊して確かめる**
 
 次の3つの変異を1つずつ入れ、赤くなるテストを確認してから戻す。
 
@@ -435,9 +462,9 @@ Expected: PASS
 | `ArrowLeft` の `grid` ブロックから `ctx.arrowsOwnedByField` を外す | `欄が矢印を使うなら ←→ は欄のもの` |
 | `ArrowRight` の `grid` ブロックの `!ctx.editing \|\| ctx.caretAtEnd` を `true` にする | `←→ はキャレットが中間なら欄のもの` |
 
-戻したあと `git status --short` が Step 1〜4 の変更だけを示すこと。
+戻したあと `git status --short` が Step 1〜5 の変更だけを示すこと。
 
-- [ ] **Step 8: コミット**
+- [ ] **Step 9: コミット**
 
 `keymap.ts` と `keymap.test.ts` をステージしてコミットする。メッセージは次の形にする。
 
