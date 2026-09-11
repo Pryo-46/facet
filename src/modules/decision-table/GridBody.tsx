@@ -56,23 +56,25 @@ export function GridBody(props: GridBodyProps) {
         <colgroup>
           <col style={{ width: 56 }} />
           {/* 条件列・結果列は幅を持たない。列の本数がデータで変わってもテーブルは親幅に収まる */}
-          {conditions.map((c) => (
-            <col key={c.id} />
+          {/* 列の key に生の id を使わない。ID 重複はこのアプリが受け入れて
+              赤表示する正規の状態なので、重複した id が2本あると key が衝突する */}
+          {conditions.map((_, i) => (
+            <col key={`cond-${i}`} />
           ))}
-          {outcomes.map((o) => (
-            <col key={o.id} />
+          {outcomes.map((_, j) => (
+            <col key={`out-${j}`} />
           ))}
         </colgroup>
         <thead>
           <tr className="text-left">
             <th className={`${headCell} text-right`}>No</th>
-            {conditions.map((c) => (
-              <th key={c.id} className={headCell}>
+            {conditions.map((c, i) => (
+              <th key={`cond-${i}`} className={headCell}>
                 {c.name}
               </th>
             ))}
-            {outcomes.map((o) => (
-              <th key={o.id} className={`${headCell} ${headColBorder}`}>
+            {outcomes.map((o, j) => (
+              <th key={`out-${j}`} className={`${headCell} ${headColBorder}`}>
                 {o.name}
               </th>
             ))}
@@ -88,8 +90,8 @@ export function GridBody(props: GridBodyProps) {
                 <td className={`px-2 py-1 text-right text-ink-muted ${face(index, 'no', false, true)}`}>
                   {rowNo}
                 </td>
-                {conditions.map((c, i) => (
-                  <td key={c.id} className="px-2 py-1 text-ink-muted">
+                {conditions.map((_, i) => (
+                  <td key={`cond-${i}`} className="px-2 py-1 text-ink-muted">
                     {row.values[i]}
                   </td>
                 ))}
@@ -98,7 +100,7 @@ export function GridBody(props: GridBodyProps) {
                   const cellClass = `${colBorder} ${face(index, field, isMissingResult(row, j))}`
                   if (row.impossible) {
                     return (
-                      <td key={outcome.id} className={cellClass}>
+                      <td key={`out-${j}`} className={cellClass}>
                         {/* impossible の行のセル。押すと起こりえないを解除する */}
                         <button
                           type="button"
@@ -114,7 +116,7 @@ export function GridBody(props: GridBodyProps) {
                     )
                   }
                   return (
-                    <td key={outcome.id} className={`relative ${cellClass}`}>
+                    <td key={`out-${j}`} className={`relative ${cellClass}`}>
                       <CellSelect
                         className={`${cellInput} appearance-none pr-6`}
                         aria-label={`${outcome.name}（${rowNo}行目）`}

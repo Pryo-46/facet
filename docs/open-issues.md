@@ -99,6 +99,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **textarea の高さ計算が強制リフローを起こす**（`src/components/CellInput.tsx`）。`rows=1` に戻して `scrollHeight` を読む。
 - **ノードの測定結果キャッシュが上限で全消しになる**（`src/modules/logic-tree/LogicTreeEditor.tsx`）。LRU ではなく `cache.clear()`。
 - **`lastCell` が state のためセルにフォーカスが移るたびエディタ全体が再描画される**（`src/modules/issue-tree/IssueTreeEditor.tsx`）。
+- **表本体が上限を超える行数のファイルにも歯止めを掛けない**（`src/modules/decision-table/GridBody.tsx`）。`MAX_ROWS` が止めるのは定義部の追加ボタンだけなので、条件を多く持つファイルを外から置かれると開いた瞬間に全行を描く。
 
 ## アクセシビリティ
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { JsonSchema } from '@/core/canonical'
+import { serialize, type JsonSchema } from '@/core/canonical'
 import { createSchemaValidator } from '@/core/schema-validation'
 import decisionTableSchema from '../../../schemas/decision-table.schema.json'
 
@@ -137,5 +137,38 @@ describe('decisionTable スキーマ（レベル1）', () => {
     const d = valid()
     ;(d.rows[0] as Record<string, unknown>).reason = '在庫切れ'
     expect(validate(d).ok).toBe(false)
+  })
+})
+
+describe('正規形', () => {
+  it('キー順はスキーマの properties 記載順になる', () => {
+    const shuffled = {
+      rows: [],
+      outcomes: [],
+      conditions: [],
+      title: 'T',
+      type: 'decisionTable',
+      schemaVersion: 1,
+    }
+    expect(serialize(shuffled, decisionTableSchema as JsonSchema)).toBe(
+      '{\n  "schemaVersion": 1,\n  "type": "decisionTable",\n  "title": "T",\n  "conditions": [],\n  "outcomes": [],\n  "rows": []\n}\n',
+    )
+  })
+
+  it('行のキー順は values・impossible・results になる', () => {
+    // 保存ファイルのバイト列はこの並びで決まる。$defs.row の properties を
+    // 並べ替えると、中身を1文字も変えていない全ファイルに差分が出る
+    const shuffled = {
+      schemaVersion: 1,
+      type: 'decisionTable',
+      title: 'T',
+      conditions: [{ values: ['はい'], name: '会員か', id: 'cond_Aaaaaaaaa1' }],
+      outcomes: [{ choices: ['無料'], name: '送料', id: 'out_Aaaaaaaaa1' }],
+      rows: [{ results: ['無料'], impossible: false, values: ['はい'] }],
+    }
+    const text = serialize(shuffled, decisionTableSchema as JsonSchema)
+    expect(text).toContain('"id": "cond_Aaaaaaaaa1",\n      "name": "会員か",\n      "values"')
+    expect(text).toContain('"id": "out_Aaaaaaaaa1",\n      "name": "送料",\n      "choices"')
+    expect(text).toContain('"impossible": false,\n      "results"')
   })
 })

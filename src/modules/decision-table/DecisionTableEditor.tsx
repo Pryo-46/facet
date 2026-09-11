@@ -410,10 +410,15 @@ export function DecisionTableEditor({
     target.rows.focusCell(target.key, target.field)
   }
 
+  /**
+   * 失われるものの説明。**2つの数は分母が違う**ので「うち」で繋がない——
+   * `lostCells` は旧の表で記入済みだったセル、`clearedCells` は新しい表で
+   * 空欄になったセルを数える
+   */
   const describeLoss = (applied: Applied): string =>
     `記入済みの結果 ${applied.lostCells} 件が失われます。` +
     (applied.clearedCells > 0
-      ? `うち ${applied.clearedCells} 件は、まとまった行で値が食い違うため空欄になります。`
+      ? `まとまった行で値が食い違う ${applied.clearedCells} 件は、空欄になります。`
       : '') +
     'Undo で戻せます。'
 
@@ -425,7 +430,7 @@ export function DecisionTableEditor({
       </div>
       {!canAddCondition && (
         <p className="mb-3 text-base text-ink-muted">
-          {`行数の上限（${MAX_ROWS}行）に達しているので、条件と値をこれ以上足せません。`}
+          {`行数の上限（${MAX_ROWS}行）に達しているので、条件をこれ以上足せません。`}
         </p>
       )}
       {/* useListRows の focusCell は containerRef の中を querySelector で引く。

@@ -151,7 +151,7 @@ describe('行の再構築', () => {
     expect(built.lostCells).toBe(4)
   })
 
-  it('直積になっていない行は位置で引き直され、置き場の無い行が落ちる', () => {
+  it('直積より行が少ないファイルでも、位置で引けた行の結果だけが残る', () => {
     const broken: Row[] = [row(['はい', 'はい'], ['無料'])]
     const built = rebuildRows(TWO, broken, TWO, identityAxes(TWO), [0])
     expect(built.rows).toHaveLength(4)
