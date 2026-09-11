@@ -522,7 +522,8 @@ describe('行の再構築', () => {
     expect(built.rows[0]).toEqual(row(['はい'], ['無料']))
     expect(built.rows[1]).toEqual(row(['いいえ'], ['']))
     expect(built.clearedCells).toBe(1)
-    expect(built.lostCells).toBe(3)
+    // 4件のうち、会員＝はい の2件が「無料」として1つの行へ残る
+    expect(built.lostCells).toBe(2)
   })
 
   it('条件を消して結果が食い違うと空欄に落ちる', () => {
