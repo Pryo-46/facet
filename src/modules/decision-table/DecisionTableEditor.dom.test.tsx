@@ -182,18 +182,15 @@ const noChoiceOutcome = table({
  * 直積がちょうど上限（1024）の表。これ以上値を足すと上限を超える。
  *
  * **条件10本×2値にする**——1本×1024値だと `DefinitionList` が1024個の
- * `CellInput` を描くことになり重い。10本に分ければラベルは20個で済み、
- * 表本体の1024行は値を読まない素の文字セルなので軽い
+ * `CellInput` を描くことになり重い。10本に分ければラベルは20個で済む。
+ * **`rows` は空でよい。** 上限の判定（`canAddValue`）は `conditions` の直積だけを
+ * 見て、`rows` を読まない。`rows.length` が直積と一致することをアプリは不変条件に
+ * していない——一致しない行は整合性検証が赤で示すだけで、画面はそのまま描く
  */
 const atMaxRows = table({
   conditions: Array.from({ length: 10 }, (_, i) =>
     condition({ id: `cond_${i}`, name: `条件${i}`, values: ['a', 'b'] }),
   ),
-  rows: Array.from({ length: 1024 }, () => ({
-    values: Array<string>(10).fill('a'),
-    impossible: false,
-    results: [] as string[],
-  })),
 })
 
 describe('DecisionTableEditor: 定義部のキー操作（木の家族）', () => {
@@ -215,16 +212,11 @@ describe('DecisionTableEditor: 定義部のキー操作（木の家族）', () =
     expect(latest()?.conditions[0].values).toHaveLength(3)
   })
 
-  it(
-    '行数の上限に達していると、Tab を押しても値が増えない',
-    () => {
-      const { onChange } = renderEditor(atMaxRows)
-      fireEvent.keyDown(screen.getByLabelText('条件名（1行目）'), { key: 'Tab' })
-      expect(onChange).not.toHaveBeenCalled()
-    },
-    // 1024行の表本体に列を1本足した分、描画が既定の5秒を越えることがある
-    20000,
-  )
+  it('行数の上限に達していると、Tab を押しても値が増えない', () => {
+    const { onChange } = renderEditor(atMaxRows)
+    fireEvent.keyDown(screen.getByLabelText('条件名（1行目）'), { key: 'Tab' })
+    expect(onChange).not.toHaveBeenCalled()
+  })
 
   it('値の欄で空欄 Backspace を押すと、一つ手前の値の欄へフォーカスが移る', () => {
     renderEditor(threeValues)
@@ -572,6 +564,14 @@ describe('DecisionTableEditor: 起こりえないの表右端ボタン', () => {
     })
   })
 
+  it('起こりえないのボタンにフォーカスすると、その行のセルに面が付く', () => {
+    renderEditor(twoConditions)
+    const rows = gridRows()
+    expect(rows[1].cells[0].className).not.toContain('bg-surface-muted')
+    fireEvent.focus(screen.getByRole('button', { name: `#2 を${IMPOSSIBLE_LABEL}にする` }))
+    expect(rows[1].cells[0].className).toContain('bg-surface-muted')
+  })
+
   it('ボタンを押すと impossible が真になり、aria-pressed が真になる', () => {
     const { latest } = renderEditor(twoConditions)
     const button = screen.getByRole('button', { name: `#1 を${IMPOSSIBLE_LABEL}にする` })
@@ -602,6 +602,16 @@ describe('DecisionTableEditor: 起こりえないの表右端ボタン', () => {
     renderEditor(oneCondition)
     const rows = gridRows()
     fireEvent.click(rows[0].cells[0])
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: `#1 を${IMPOSSIBLE_LABEL}にする` }),
+    )
+  })
+
+  it('結果が0本の表で条件セルをクリックしても、同じことが起きる', () => {
+    renderEditor(oneCondition)
+    const rows = gridRows()
+    // No・条件A の順。条件A は添字1
+    fireEvent.click(rows[0].cells[1])
     expect(document.activeElement).toBe(
       screen.getByRole('button', { name: `#1 を${IMPOSSIBLE_LABEL}にする` }),
     )

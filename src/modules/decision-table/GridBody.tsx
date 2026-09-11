@@ -233,9 +233,13 @@ export function GridBody(props: GridBodyProps) {
                     </td>
                   )
                 })}
-                <td className={`${headColBorder} px-1 py-1 text-center ${rowSurface}`}>
+                <td
+                  className={`${headColBorder} px-1 py-1 text-center ${rowSurface}`}
+                  onFocus={() => onFocusRow(index)}
+                >
                   {/* 起こりえないの入り切り。キーの入口（主修飾キー＋Enter）は結果セルにしか
-                      無いので、結果が0本の表ではこのボタンだけが入口になる */}
+                      無いので、結果が0本の表ではこのボタンだけが入口になる。onFocus は td に
+                      置く——結果セルの他の td と同じで、子のボタンから bubble する */}
                   <button
                     type="button"
                     aria-pressed={row.impossible}
