@@ -23,11 +23,12 @@ export interface Applied {
 }
 
 /**
- * 新しい条件。**値は はい／いいえ から始める。** 条件は真偽で分けるものが
- * 大半で、名前だけが人にしか決められない。名前は空のままにして欠落として見せる
+ * 新しい条件。**値は2つとも空から始める。** 人が決めていない値を既定で入れると、
+ * 決めた値と見分けが付かない。2つ置くのは、条件が1つの値しか持たないと
+ * 直積が枝分かれしないためである
  */
 export function newCondition(): Condition {
-  return { id: newId('cond'), name: '', values: ['はい', 'いいえ'] }
+  return { id: newId('cond'), name: '', values: ['', ''] }
 }
 
 /**

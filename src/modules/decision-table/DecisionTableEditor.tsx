@@ -74,25 +74,34 @@ const gridRowKey = (index: number): string => `row-${index}`
 
 /**
  * 条件を1本足したあとの行数。**`newCondition()` を呼ばないこと**——
- * 描画のたびに ID を採番することになる。数えるのに要るのは値の本数だけである
+ * 描画のたびに ID を採番することになる。数えるのに要るのは値の本数だけで、
+ * ラベルの中身は読まない
  */
-const PROBE_CONDITION = { id: '', name: '', values: ['はい', 'いいえ'] }
+const PROBE_CONDITION = { id: '', name: '', values: ['', ''] }
 
-/** 一覧1つ分の、コマンドの行き先。条件と結果で同じ写像を使うためにまとめる */
 /**
- * 確認を挟んだ削除の、確定後のフォーカスの行き先。
- * `'row'` は行そのものを消したとき、`'label'` は行の中のラベルを消したとき
+ * 削除や追加のあと、フォーカスを移す先。
+ *
+ * **行を消したときは位置が繰り上がる**ので、残った本数で丸める必要がある。
+ * ラベルを消したときは行が残るので、丸めずにそのまま使う
  */
 interface ConfirmFocus {
   key: 'condition' | 'outcome'
-  kind: 'row' | 'label'
   index: number
+  /** 行が残っているときに移る欄。`'name'` か `` `label:N` `` */
+  field: string
+  /** 行ごと消したか。真なら `index` を残りの本数で丸める */
+  rowRemoved: boolean
 }
 
 interface Section {
   key: ConfirmFocus['key']
   rows: ListRows
   canAddRow: boolean
+  /** ラベルを1つ足せるか。条件は行数の上限に掛かる */
+  canAddLabel: (index: number) => boolean
+  /** ラベルを1つ足し、足した欄へフォーカスを予約する */
+  onAddLabel: (index: number) => void
   onRemoveLabel: (index: number, labelIndex: number) => void
 }
 
@@ -140,6 +149,9 @@ export function DecisionTableEditor({
       return false
     }
     onChange(applied.data, mergeKey)
+    // 行ごと消したときはフックが予約済みなので、ここではラベルの行き先だけを積む。
+    // 二重に積むと、フックの予約を上書きして移動先が入れ替わる
+    if (focus !== null && !focus.rowRemoved) reserveFocusAt(focus, applied.data)
     return true
   }
 
@@ -174,51 +186,67 @@ export function DecisionTableEditor({
       data.conditions.map((c, i) => (i === index ? { ...c, values: [...c.values, ''] } : c)),
     ) <= MAX_ROWS
 
+  /** ラベルを1つ足し、足した欄へ移る。足す位置は行の末尾 */
+  const addValueAt = (index: number): void =>
+    void applyDefinition(addValue(data, index), null, false, {
+      key: 'condition',
+      index,
+      field: `${LABEL_FIELD}${data.conditions[index].values.length}`,
+      rowRemoved: false,
+    })
+  const addChoiceAt = (index: number): void =>
+    void applyDefinition(addChoice(data, index), null, false, {
+      key: 'outcome',
+      index,
+      field: `${LABEL_FIELD}${data.outcomes[index].choices.length}`,
+      rowRemoved: false,
+    })
+
+  /** ラベルを1つ消し、一つ手前の欄へ移る。先頭を消したら名前セルへ戻る */
   const removeValueAt = (index: number, labelIndex: number) =>
     applyDefinition(removeValue(data, index, labelIndex), null, true, {
       key: 'condition',
-      kind: 'label',
       index,
+      field: labelIndex === 0 ? 'name' : `${LABEL_FIELD}${labelIndex - 1}`,
+      rowRemoved: false,
     })
   const removeChoiceAt = (index: number, labelIndex: number) =>
     applyDefinition(removeChoice(data, index, labelIndex), null, true, {
       key: 'outcome',
-      kind: 'label',
       index,
+      field: labelIndex === 0 ? 'name' : `${LABEL_FIELD}${labelIndex - 1}`,
+      rowRemoved: false,
     })
 
   /** 行の削除。確認を挟んだときの行き先を残してから消す */
   const removeRowAt = (key: ConfirmFocus['key'], rows: ListRows, index: number): void => {
-    removingRef.current = { key, kind: 'row', index }
+    removingRef.current = { key, index, field: 'name', rowRemoved: true }
     rows.deleteAt(index)
     removingRef.current = null
   }
 
   /**
-   * 確認を挟んだ削除の、確定後のフォーカスの行き先を予約する。
+   * 削除・追加のあとの行き先を予約する。
    *
-   * **確定の経路はフックの予約を通らない。** 保留した時点で `deleteAt` は
-   * 早期に返っているので、ここで積み直さないとフォーカスが body へ落ちる
+   * **`focusCell` では代われない。** 構造を変えた直後は移動先がまだ描かれていない
    */
-  const reserveConfirmFocus = (
-    focus: ConfirmFocus,
-    next: DecisionTableSchemaVersion1,
-  ): void => {
+  const reserveFocusAt = (focus: ConfirmFocus, next: DecisionTableSchemaVersion1): void => {
     const rows = focus.key === 'condition' ? conditionRows : outcomeRows
     const items = focus.key === 'condition' ? next.conditions : next.outcomes
     if (items.length === 0) {
       rows.reserveFocus('add-button')
       return
     }
-    // 行を消したときは、消えた位置に繰り上がった行へ移る（末尾を消したら新しい末尾）
-    const at = focus.kind === 'row' ? Math.min(focus.index, items.length - 1) : focus.index
-    rows.reserveFocus({ rowKey: computeRowKeys(items)[at], field: 'name' })
+    const at = focus.rowRemoved ? Math.min(focus.index, items.length - 1) : focus.index
+    rows.reserveFocus({ rowKey: computeRowKeys(items)[at], field: focus.field })
   }
 
   const conditionSection: Section = {
     key: 'condition',
     rows: conditionRows,
     canAddRow: canAddCondition,
+    canAddLabel: canAddValue,
+    onAddLabel: addValueAt,
     onRemoveLabel: removeValueAt,
   }
   // 結果は行数に効かないので、上限に関わらず足せる
@@ -226,6 +254,8 @@ export function DecisionTableEditor({
     key: 'outcome',
     rows: outcomeRows,
     canAddRow: true,
+    canAddLabel: () => true,
+    onAddLabel: addChoiceAt,
     onRemoveLabel: removeChoiceAt,
   }
 
@@ -246,6 +276,26 @@ export function DecisionTableEditor({
         if (labelIndex === null) removeRowAt(section.key, section.rows, at.index)
         else section.onRemoveLabel(at.index, labelIndex)
         return true
+      case 'insert-child': {
+        // 木の `Tab`＝子を足す。条件の子は値なので、その行に値を1つ足して移る。
+        // ラベルセルから打っても同じ——値に子は無いので、行に足す意味へ畳む
+        if (!section.canAddLabel(at.index)) return true
+        section.onAddLabel(at.index)
+        return true
+      }
+      case 'focus-parent': {
+        // ← は値から名前へ。名前セルには親が無いので既定に落とす
+        if (labelIndex === null) return false
+        return section.rows.focusCell(section.rows.rowKeys[at.index], 'name')
+      }
+      case 'focus-child': {
+        // → は名前から1つ目の値へ。値には子が無いので既定に落とす
+        if (labelIndex !== null) return false
+        return section.rows.focusCell(
+          section.rows.rowKeys[at.index],
+          `${LABEL_FIELD}0`,
+        )
+      }
       case 'move-item-up':
       case 'move-item-down':
         // ラベルセルは reorderEnabled: false なので、ここへは名前セルしか来ない
@@ -264,9 +314,8 @@ export function DecisionTableEditor({
         ;(document.activeElement as HTMLElement | null)?.blur()
         return true
       default:
-        // focus-next-field / focus-prev-field は消費しない——ラベルの本数が行ごとに
-        // 違うので写せる列の並びが無い。ブラウザの Tab 順がそのまま生きる。
-        // undo / redo は額縁（App）のグローバル層が取る
+        // 木の家族なので Tab は insert-child に変わり、focus-next-field /
+        // focus-prev-field はここへ届かない。undo / redo は額縁（App）のグローバル層が取る
         return false
     }
   }
@@ -288,7 +337,9 @@ export function DecisionTableEditor({
         modalOpen: anyModalOpen,
         // 値と選択肢の並び替えは持たないので、ラベルセルでは Alt+↑↓ を消費させない
         reorderEnabled: labelIndexOf(at.field) === null,
-        family: 'list',
+        // 条件と値は親子なので木の家族を使う。`Tab` が値を足し、`←→` が
+        // 名前と値の間を行き来する（ロジックツリーと同じ打ち方）
+        family: 'tree',
         editing: true,
         fieldEmpty: state.empty,
         deletableField,
@@ -464,7 +515,7 @@ export function DecisionTableEditor({
           }
           onAddRow={() => conditionRows.insertAfter(data.conditions.length - 1)}
           onRemoveRow={(index) => removeRowAt('condition', conditionRows, index)}
-          onAddLabel={(index) => applyDefinition(addValue(data, index), null, false)}
+          onAddLabel={addValueAt}
           onRemoveLabel={removeValueAt}
           onCellKeyDown={cellKeyDown(conditionSection)}
           addButtonRef={conditionRows.addButtonRef}
@@ -499,7 +550,7 @@ export function DecisionTableEditor({
           }
           onAddRow={() => outcomeRows.insertAfter(data.outcomes.length - 1)}
           onRemoveRow={(index) => removeRowAt('outcome', outcomeRows, index)}
-          onAddLabel={(index) => applyDefinition(addChoice(data, index), null, false)}
+          onAddLabel={addChoiceAt}
           onRemoveLabel={removeChoiceAt}
           onCellKeyDown={cellKeyDown(outcomeSection)}
           addButtonRef={outcomeRows.addButtonRef}
@@ -541,7 +592,7 @@ export function DecisionTableEditor({
         onConfirm={() => {
           if (pending !== null) {
             onChange(pending.applied.data, pending.mergeKey)
-            if (pending.focus !== null) reserveConfirmFocus(pending.focus, pending.applied.data)
+            if (pending.focus !== null) reserveFocusAt(pending.focus, pending.applied.data)
           }
           setPending(null)
         }}

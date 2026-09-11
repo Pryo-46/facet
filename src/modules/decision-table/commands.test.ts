@@ -36,11 +36,11 @@ function table(): DecisionTableSchemaVersion1 {
 }
 
 describe('採番', () => {
-  it('新しい条件は名前が空で、はい／いいえ の2値から始まる', () => {
+  it('新しい条件は名前も値も空の2値から始まる', () => {
     const c = newCondition()
     expect(c.id).toMatch(/^cond_[A-Za-z0-9]{10}$/)
     expect(c.name).toBe('')
-    expect(c.values).toEqual(['はい', 'いいえ'])
+    expect(c.values).toEqual(['', ''])
   })
 
   it('新しい結果は名前も選択肢も空から始まる', () => {

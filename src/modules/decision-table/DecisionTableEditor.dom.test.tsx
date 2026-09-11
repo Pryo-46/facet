@@ -146,6 +146,124 @@ describe('DecisionTableEditor: 値の追加・削除', () => {
   })
 })
 
+/** 値を3つ持つ条件。1つ目・真ん中・末尾で移動先が変わることを見分けるのに使う */
+const threeValues = table({
+  conditions: [condition({ id: 'cond_a', name: '条件A', values: ['A', 'B', 'C'] })],
+  rows: [
+    { values: ['A'], impossible: false, results: [] },
+    { values: ['B'], impossible: false, results: [] },
+    { values: ['C'], impossible: false, results: [] },
+  ],
+})
+
+/** 選択肢を2つ持つ結果だけの表。結果の一覧は条件の本数と関係なく描けるので条件は0本でよい */
+const oneOutcome = table({
+  outcomes: [outcome({ id: 'out_a', name: '結果A', choices: ['X', 'Y'] })],
+})
+
+/**
+ * 直積がちょうど上限（1024）の表。これ以上値を足すと上限を超える。
+ *
+ * **条件10本×2値にする**——1本×1024値だと `DefinitionList` が1024個の
+ * `CellInput` を描くことになり重い。10本に分ければラベルは20個で済み、
+ * 表本体の1024行は値を読まない素の文字セルなので軽い
+ */
+const atMaxRows = table({
+  conditions: Array.from({ length: 10 }, (_, i) =>
+    condition({ id: `cond_${i}`, name: `条件${i}`, values: ['a', 'b'] }),
+  ),
+  rows: Array.from({ length: 1024 }, () => ({
+    values: Array<string>(10).fill('a'),
+    impossible: false,
+    results: [] as string[],
+  })),
+})
+
+describe('DecisionTableEditor: 定義部のキー操作（木の家族）', () => {
+  it('条件名セルで Tab を押すと、その条件の値が1つ増える', () => {
+    const { latest } = renderEditor(oneCondition)
+    fireEvent.keyDown(screen.getByLabelText('条件名（1行目）'), { key: 'Tab' })
+    expect(latest()?.conditions[0].values).toHaveLength(3)
+  })
+
+  it('条件名セルで Tab を押すと、増えた値の欄へフォーカスが移る', () => {
+    renderEditor(oneCondition)
+    fireEvent.keyDown(screen.getByLabelText('条件名（1行目）'), { key: 'Tab' })
+    expect(document.activeElement).toBe(screen.getByLabelText('値（1行目の3つ目）'))
+  })
+
+  it('値の欄で Tab を押しても、その行に値が増える（値に子は無いので行へ畳む）', () => {
+    const { latest } = renderEditor(oneCondition)
+    fireEvent.keyDown(screen.getByLabelText('値（1行目の1つ目）'), { key: 'Tab' })
+    expect(latest()?.conditions[0].values).toHaveLength(3)
+  })
+
+  it('行数の上限に達していると、Tab を押しても値が増えない', () => {
+    const { onChange } = renderEditor(atMaxRows)
+    fireEvent.keyDown(screen.getByLabelText('条件名（1行目）'), { key: 'Tab' })
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('値の欄で空欄 Backspace を押すと、一つ手前の値の欄へフォーカスが移る', () => {
+    renderEditor(threeValues)
+    const cell = screen.getByLabelText('値（1行目の2つ目）')
+    fireEvent.change(cell, { target: { value: '' } })
+    fireEvent.keyDown(cell, { key: 'Backspace' })
+    expect(document.activeElement).toBe(screen.getByLabelText('値（1行目の1つ目）'))
+  })
+
+  it('1つ目の値の欄で空欄 Backspace を押すと、名前セルへフォーカスが移る', () => {
+    renderEditor(threeValues)
+    const cell = screen.getByLabelText('値（1行目の1つ目）')
+    fireEvent.change(cell, { target: { value: '' } })
+    fireEvent.keyDown(cell, { key: 'Backspace' })
+    expect(document.activeElement).toBe(screen.getByLabelText('条件名（1行目）'))
+  })
+
+  it('値の欄で ←（キャレット先頭）を押すと、その行の名前セルへ移る', () => {
+    renderEditor(threeValues)
+    const cell = screen.getByLabelText('値（1行目の2つ目）') as HTMLInputElement
+    cell.focus()
+    cell.setSelectionRange(0, 0)
+    fireEvent.keyDown(cell, { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(screen.getByLabelText('条件名（1行目）'))
+  })
+
+  it('名前セルで →（キャレット末尾）を押すと、1つ目の値の欄へ移る', () => {
+    renderEditor(threeValues)
+    const cell = screen.getByLabelText('条件名（1行目）') as HTMLInputElement
+    cell.focus()
+    cell.setSelectionRange(cell.value.length, cell.value.length)
+    fireEvent.keyDown(cell, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(screen.getByLabelText('値（1行目の1つ目）'))
+  })
+
+  it('結果の一覧でも、結果名セルの Tab で選択肢が増え、増えた欄へフォーカスが移る', () => {
+    const { latest } = renderEditor(oneOutcome)
+    fireEvent.keyDown(screen.getByLabelText('結果名（1行目）'), { key: 'Tab' })
+    expect(latest()?.outcomes[0].choices).toHaveLength(3)
+    expect(document.activeElement).toBe(screen.getByLabelText('選択肢（1行目の3つ目）'))
+  })
+
+  it('結果の一覧でも、選択肢の欄の Tab がその行に選択肢を足す', () => {
+    const { latest } = renderEditor(oneOutcome)
+    fireEvent.keyDown(screen.getByLabelText('選択肢（1行目の1つ目）'), { key: 'Tab' })
+    expect(latest()?.outcomes[0].choices).toHaveLength(3)
+  })
+
+  it('値の ✕ ボタンが Tab の順に入っていない', () => {
+    renderEditor(oneCondition)
+    const button = screen.getByRole('button', { name: '値を消す（1行目の1つ目）' })
+    expect((button as HTMLButtonElement).tabIndex).toBe(-1)
+  })
+
+  it('条件名セルで Enter を押すと、条件が1本増える（木にしても兄弟の追加は変わらない）', () => {
+    const { latest } = renderEditor(oneCondition)
+    fireEvent.keyDown(screen.getByLabelText('条件名（1行目）'), { key: 'Enter' })
+    expect(latest()?.conditions).toHaveLength(2)
+  })
+})
+
 describe('DecisionTableEditor: 名前とラベルの編集', () => {
   it('条件名の変更は rows を変えない', () => {
     const { onChange, latest } = renderEditor(oneCondition)
@@ -212,11 +330,19 @@ describe('DecisionTableEditor: 要素を減らす操作の確認ダイアログ'
     expect(focusSpy).toHaveBeenCalled()
   })
 
-  it('ラベルを消す確認を確定しても、その行の名前セルへフォーカスが移る', () => {
+  it('ラベルを消す確認を確定すると、一つ手前の値の欄へフォーカスが移る', () => {
     const { latest } = renderEditor(filledResults)
     fireEvent.click(screen.getByRole('button', { name: '値を消す（1行目の2つ目）' }))
     fireEvent.click(screen.getByRole('button', { name: '続ける' }))
     expect(latest()?.conditions[0].values).toEqual(['はい'])
+    expect(document.activeElement).toBe(screen.getByLabelText('値（1行目の1つ目）'))
+  })
+
+  it('先頭の値を消す確認を確定すると、名前セルへフォーカスが移る', () => {
+    const { latest } = renderEditor(filledResults)
+    fireEvent.click(screen.getByRole('button', { name: '値を消す（1行目の1つ目）' }))
+    fireEvent.click(screen.getByRole('button', { name: '続ける' }))
+    expect(latest()?.conditions[0].values).toEqual(['いいえ'])
     expect(document.activeElement).toBe(screen.getByLabelText('条件名（1行目）'))
   })
 

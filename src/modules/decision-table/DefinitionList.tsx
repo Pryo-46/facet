@@ -175,6 +175,9 @@ export function DefinitionList(props: DefinitionListProps) {
                             />
                             <button
                               type="button"
+                              // キーボードからは空欄 `Backspace` で消せるので、`Tab` の
+                              // 順に入れない。入れると値を打つたびに ✕ を1回踏む
+                              tabIndex={-1}
                               aria-label={`${itemLabel}を消す（${no}行目の${labelIndex + 1}つ目）`}
                               disabled={row.labels.length <= minLabels}
                               className={iconButton}
