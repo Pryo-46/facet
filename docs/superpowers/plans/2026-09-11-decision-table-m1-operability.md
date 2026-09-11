@@ -525,11 +525,41 @@ No セルと条件セルの `<td>` に `onClick` を足し、その行の1つ目
 
 移動先は `GridBody` が知っている。結果が1本以上あれば `result:0`、無ければ `起こりえない` のボタン（Task 4 で足す）。Task 4 の前は結果が0本のとき移動先が無いので、そのときは何もしない。
 
-- [ ] **Step 5: DOM テストを足す**
+- [ ] **Step 5: 画面のヒントを実物に合わせる**
+
+`DecisionTableEditor.tsx` の `KeyHints` の宣言2本が、どちらも実物とずれている。**rev 10章は写像を足したツールに画面のヒントも求める**ので、ここで揃える。
+
+定義部は木の家族になり、`Tab` と `←→` に意味が付いた。
+
+```ts
+const DEFINITION_HINTS: KeyHint[] = [
+  { keys: 'Enter', label: '下に追加' },
+  { keys: 'Tab', label: '値を追加' },
+  { keys: '←→', label: '名前と値を行き来' },
+  { keys: '$alt+↑↓', label: '並び替え' },
+  { keys: '空欄で Backspace', label: '削除' },
+]
+```
+
+表本体は `Enter` が選択肢を開くようになった。
+
+```ts
+const GRID_HINTS: KeyHint[] = [
+  { keys: 'Enter / Space', label: '選択肢を開く' },
+  { keys: '↑↓←→', label: 'セルの移動' },
+  { keys: 'Tab', label: '次の列へ' },
+  { keys: '$mod+Enter', label: IMPOSSIBLE_LABEL },
+]
+```
+
+**`keys` は一覧の中で重ならないこと。** `KeyHints` は `key={hint.keys}` で描くので、同じ文字列が2件あると React の key が衝突する。
+
+- [ ] **Step 6: DOM テストを足す**
 
 見る性質は次のとおり。
 
-1. 結果セルにフォーカスすると、その行のセルに面が付く
+1. 表本体のヒントに `Enter` を「下の行へ」と説明する文字が出ない
+2. 結果セルにフォーカスすると、その行のセルに面が付く
 2. 別の行のセルへ移ると、面も移る
 3. 表の外へフォーカスが出ると、面が消える
 4. 条件セルをクリックすると、その行の結果セルへフォーカスが移る
@@ -537,20 +567,21 @@ No セルと条件セルの `<td>` に `onClick` を足し、その行の1つ目
 6. 条件セルをクリックしても、条件セルは入力欄にならない
 7. 空の結果セルでは、欠落の面が行の面より強い（行にフォーカスがあっても黄のまま）
 
-- [ ] **Step 6: 全体が緑になることを確認する**
+- [ ] **Step 7: 全体が緑になることを確認する**
 
 Run: `npm test && npx tsc -b && npm run lint`
 Expected: PASS
 
-- [ ] **Step 7: 番人が実在することを壊して確かめる**
+- [ ] **Step 8: 番人が実在することを壊して確かめる**
 
 | 変異 | 赤くなるテスト |
 | --- | --- |
 | `surfaceOf` の `if (face !== 'none') return …` を消し、地の面を先に返す | 欠落の面が行の面より強い |
 | `onBlur` の `contains` の判定を消して常に `null` にする | 別の行のセルへ移ると面も移る |
 | No セルの `onClick` を消す | No セルをクリックすると結果セルへ移る |
+| `GRID_HINTS` の `Enter / Space` を `Enter` に戻し、説明を `下の行へ` にする | 表本体のヒントに `Enter` を「下の行へ」と説明する文字が出ない |
 
-- [ ] **Step 8: コミット**
+- [ ] **Step 9: コミット**
 
 ```bash
 git add src/modules/decision-table
