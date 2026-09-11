@@ -67,18 +67,26 @@ export function DecisionTableEditor({
   const [pending, setPending] = useState<{ applied: Applied; mergeKey: string | null } | null>(null)
 
   /**
-   * 定義部の編集の唯一の出口。
+   * 定義部の編集の唯一の出口。**戻り値は `useListRows` の `onItemsChange` へ
+   * そのまま渡す**——保留（確認ダイアログ待ち）のときは `false` を返し、行は
+   * まだ画面に残っているとフックへ伝える。ここで `false` を返し忘れると、
+   * ダイアログの裏でまだ消えていない行へフォーカスの予約が積まれる。
    *
    * **確認を挟むのは要素を減らすときだけ。** 名前の打鍵ごとに再構築が走るので、
    * 直積になっていないファイルを整え直す分の損失で確認が出ると、文字を打つたびに
    * ダイアログが開く
    */
-  const applyDefinition = (applied: Applied, mergeKey: string | null, shrinking: boolean): void => {
+  const applyDefinition = (
+    applied: Applied,
+    mergeKey: string | null,
+    shrinking: boolean,
+  ): boolean => {
     if (shrinking && applied.lostCells > 0) {
       setPending({ applied, mergeKey })
-      return
+      return false
     }
     onChange(applied.data, mergeKey)
+    return true
   }
 
   const conditionRows = useListRows<Condition>({
@@ -102,9 +110,9 @@ export function DecisionTableEditor({
       data.conditions.map((c, i) => (i === index ? { ...c, values: [...c.values, ''] } : c)),
     ) <= MAX_ROWS
 
-  const removeValueAt = (index: number, labelIndex: number): void =>
+  const removeValueAt = (index: number, labelIndex: number) =>
     applyDefinition(removeValue(data, index, labelIndex), null, true)
-  const removeChoiceAt = (index: number, labelIndex: number): void =>
+  const removeChoiceAt = (index: number, labelIndex: number) =>
     applyDefinition(removeChoice(data, index, labelIndex), null, true)
 
   const conditionSection: Section = {

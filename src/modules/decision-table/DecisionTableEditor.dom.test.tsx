@@ -169,6 +169,19 @@ describe('DecisionTableEditor: 要素を減らす操作の確認ダイアログ'
     expect(latest()?.conditions).toHaveLength(0)
     expect(screen.queryByText('記入済みの結果が失われます')).toBeNull()
   })
+
+  it('確認ダイアログが開いている間、フォーカスは背景の表へ移らない', () => {
+    renderEditor(filledResults)
+    // 保留せず適用していたら、条件が0本になった経路で「条件を追加」ボタンへ
+    // フォーカスの予約が積まれる（useListRows の 0件用フォールバック）。
+    // Radix のフォーカストラップが背景への漏れを引き戻しうるので、
+    // document.activeElement ではなく focus() の呼び出し自体を見張る
+    const addButton = screen.getByRole('button', { name: '条件を追加' })
+    const focusSpy = vi.spyOn(addButton, 'focus')
+    fireEvent.click(screen.getByRole('button', { name: '条件を消す（1行目）' }))
+    expect(screen.getByText('記入済みの結果が失われます')).toBeDefined()
+    expect(focusSpy).not.toHaveBeenCalled()
+  })
 })
 
 describe('DecisionTableEditor: 欠落の帯', () => {

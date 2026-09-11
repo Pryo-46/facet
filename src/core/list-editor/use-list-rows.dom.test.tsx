@@ -14,11 +14,15 @@ interface Row {
 let seq = 0
 
 /** フックだけを載せた最小の表。列は name の1本 */
-function Harness(props: { initial: Row[]; onEmptied?: () => void }) {
+function Harness(props: { initial: Row[]; onEmptied?: () => void; hold?: boolean }) {
   const [items, setItems] = useState<Row[]>(props.initial)
   const rows = useListRows<Row>({
     items,
-    onItemsChange: (next) => setItems(next),
+    onItemsChange: (next) => {
+      // hold＝確認ダイアログ待ちの呼び出し側の模擬。適用しないまま false を返す
+      if (props.hold) return false
+      setItems(next)
+    },
     makeItem: () => ({ id: `row_${++seq}`, name: '新しい行' }),
     firstField: 'name',
     onEmptied: props.onEmptied,
@@ -115,6 +119,18 @@ describe('deleteAt', () => {
     render(<Harness initial={two()} onEmptied={onEmptied} />)
     fireEvent.click(screen.getByLabelText('delete-0'))
     expect(onEmptied).not.toHaveBeenCalled()
+  })
+
+  it('onItemsChange が false を返すと、まだ画面に残っている行へフォーカスを移さない', () => {
+    render(<Harness initial={two()} hold />)
+    const nameZero = screen.getByLabelText('name-0') as HTMLInputElement
+    nameZero.focus()
+    fireEvent.click(screen.getByLabelText('delete-0'))
+    // hold（保留）なので items は変わらず、行は両方とも残る
+    expect(names()).toEqual(['A', 'B'])
+    // 削除が適用されていれば name-0（B の行）か追加ボタンへ移るはずの予約が、
+    // 保留のときは積まれない
+    expect(document.activeElement).toBe(nameZero)
   })
 })
 

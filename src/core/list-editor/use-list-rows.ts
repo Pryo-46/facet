@@ -17,8 +17,15 @@ import { computeRowKeys } from '../row-keys'
 
 export interface ListRowsOptions<T extends { id: string }> {
   items: readonly T[]
-  /** mergeKey は Undo 履歴のまとめ単位。構造操作は常に null を渡す */
-  onItemsChange: (next: T[], mergeKey: string | null) => void
+  /**
+   * mergeKey は Undo 履歴のまとめ単位。構造操作は常に null を渡す。
+   *
+   * **`false` を返すと、フックはフォーカスの予約を積まない。** 確認ダイアログを
+   * 挟んで適用を保留する呼び出し側のための口——`false` を返さないと、適用を
+   * 保留した呼び出し側でも予約が積まれ、まだ画面に出ている行へフォーカスが飛ぶ。
+   * 判定は `=== false` の厳密比較（`void` を返す呼び出し側は常に適用したものとして扱う）
+   */
+  onItemsChange: (next: T[], mergeKey: string | null) => void | boolean
   makeItem: () => T
   /** 挿入・削除の後にフォーカスするフィールド */
   firstField: string
@@ -88,14 +95,19 @@ export function useListRows<T extends { id: string }>(
 
   const insertAfter = (index: number): void => {
     const item = makeItem()
-    onItemsChange(insertAt(items, index + 1, item), null)
+    const applied = onItemsChange(insertAt(items, index + 1, item), null)
+    // 保留（false）した呼び出し側では新しい行がまだ画面に無いので、予約を積まない
+    if (applied === false) return
     // 採番したての ID は重複しないので出現順は 0
     setPendingFocus({ rowKey: `${item.id}#0`, field: firstField, select: true })
   }
 
   const deleteAt = (index: number): void => {
     const next = removeAt(items, index)
-    onItemsChange(next, null)
+    const applied = onItemsChange(next, null)
+    // 保留した呼び出し側では消したはずの行がまだ画面に残っている。
+    // 予約を積むと、確認ダイアログの裏の行やボタンへフォーカスが飛ぶ
+    if (applied === false) return
     if (next.length === 0) {
       onEmptied?.()
       setFocusAddButton(true)
@@ -113,7 +125,8 @@ export function useListRows<T extends { id: string }>(
     const to = index + delta
     if (to < 0 || to >= items.length) return
     const next = moveItem(items, index, to)
-    onItemsChange(next, null)
+    const applied = onItemsChange(next, null)
+    if (applied === false) return
     // 移動後の配列から鍵を引く。ID が重複していると入れ替えで出現順が変わり、
     // 移動前の rowKeys[index] は別の行を指しうる
     setPendingFocus({ rowKey: computeRowKeys(next)[to], field })
