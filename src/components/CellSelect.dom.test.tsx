@@ -79,4 +79,26 @@ describe('CellSelect', () => {
     fireEvent.keyDown(trigger, { key: 'ArrowDown' })
     expect(onKeyDown).toHaveBeenCalledTimes(2)
   })
+
+  it('itemLabelOf を渡すと開いた項目の文字だけ変わり、閉じたセルの文字は labelOf のまま', () => {
+    const onPick = vi.fn()
+    render(
+      <CellSelect
+        value="screen"
+        options={OPTIONS}
+        labelOf={(v) => LABELS[v] ?? v}
+        itemLabelOf={(v) => (v === 'screen' ? '空にする' : (LABELS[v] ?? v))}
+        onPick={onPick}
+        aria-label="種別（1行目）"
+        data-cell="row1:kind"
+        className="w-full"
+      />,
+    )
+    const trigger = screen.getByRole('button', { name: '種別（1行目）' })
+    expect(trigger.textContent).toBe('画面')
+    fireEvent.keyDown(trigger, { key: ' ' })
+    expect(screen.getByRole('menuitemradio', { name: '空にする' })).toBeDefined()
+    expect(screen.queryByRole('menuitemradio', { name: '画面' })).toBeNull()
+    expect(trigger.textContent).toBe('画面')
+  })
 })

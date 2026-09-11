@@ -12,6 +12,14 @@ export interface CellSelectProps {
   options: readonly string[]
   /** 値 → 表示ラベル（用語集の kindLabel / エラーカタログの resolutionLabel をそのまま渡す） */
   labelOf: (value: string) => string
+  /**
+   * 開いたメニューの項目の文字。既定は `labelOf`。
+   *
+   * **閉じたセルの文字と分けるための口である。** 空を選べるセルでは
+   * 項目に `空にする` のような操作の名前を出す一方、閉じたセルには空を
+   * そのまま描く必要がある（データに無い語をセルに書かない）
+   */
+  itemLabelOf?: (value: string) => string
   onPick: (value: string) => void
   'aria-label': string
   'data-cell': string
@@ -91,7 +99,7 @@ export function CellSelect(props: CellSelectProps) {
         >
           {props.options.map((option) => (
             <DropdownMenuRadioItem key={option} value={option}>
-              {props.labelOf(option)}
+              {(props.itemLabelOf ?? props.labelOf)(option)}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

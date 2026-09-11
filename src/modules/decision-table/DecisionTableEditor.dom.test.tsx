@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { Condition, DecisionTableSchemaVersion1, Outcome } from '@/types/decision-table'
 import { DecisionTableEditor } from './DecisionTableEditor'
+import { IMPOSSIBLE_LABEL } from './labels'
 import { tallyMissing } from './missing'
 
 afterEach(cleanup)
@@ -201,5 +202,136 @@ describe('DecisionTableEditor: 欠落の帯', () => {
     for (const part of tally.parts) {
       expect(screen.getByText(`${part.label} ${part.count}`)).toBeDefined()
     }
+  })
+})
+
+/** 条件2本（2値ずつ）・結果1本の表。4行（2×2）を描く土台にする */
+const twoConditions = table({
+  conditions: [condition({ id: 'cond_a', name: '天気' }), condition({ id: 'cond_b', name: '気温' })],
+  outcomes: [outcome({ id: 'out_a', name: '結果A', choices: ['X', 'Y'] })],
+  rows: [
+    { values: ['はい', 'はい'], impossible: false, results: [''] },
+    { values: ['はい', 'いいえ'], impossible: false, results: ['X'] },
+    { values: ['いいえ', 'はい'], impossible: true, results: [''] },
+    { values: ['いいえ', 'いいえ'], impossible: false, results: [''] },
+  ],
+})
+
+/**
+ * 条件1本・結果2本の表。起こりえない行でも結果セルの本数が変わらないことと、
+ * 隣の結果列への移動を見る土台にする
+ */
+const twoOutcomes = table({
+  conditions: [condition({ id: 'cond_a', name: '条件A' })],
+  outcomes: [
+    outcome({ id: 'out_a', name: '結果A', choices: ['X', 'Y'] }),
+    outcome({ id: 'out_b', name: '結果B', choices: ['P', 'Q'] }),
+  ],
+  rows: [
+    { values: ['はい'], impossible: true, results: ['', ''] },
+    { values: ['いいえ'], impossible: false, results: ['', ''] },
+  ],
+})
+
+/**
+ * 表本体（`GridBody`）のデータ行。**見出し「表」の section に絞る**——条件・結果の
+ * `DefinitionList` も同じ page に「No」列を持つ table を出すので、絞らずに
+ * `getAllByRole('row')` を呼ぶと3つの table の行が混ざる
+ */
+function gridRows(): HTMLTableRowElement[] {
+  const heading = screen.getByRole('heading', { name: '表' })
+  const section = heading.closest('section')
+  if (section === null) throw new Error('表本体の section が見つからない')
+  return within(section).getAllByRole('row').slice(1) as HTMLTableRowElement[]
+}
+
+describe('DecisionTableEditor: 表本体', () => {
+  it('条件2本・結果1本の表で、行が4本（#1〜#4）描かれる', () => {
+    renderEditor(twoConditions)
+    const rows = gridRows()
+    expect(rows).toHaveLength(4)
+    expect(rows.map((r) => r.cells[0].textContent)).toEqual(['1', '2', '3', '4'])
+  })
+
+  it('条件セルが読み取り専用で、入力欄になっていない', () => {
+    renderEditor(twoConditions)
+    const cell = gridRows()[0].cells[1]
+    expect(cell.tagName).toBe('TD')
+    expect(cell.textContent).toBe('はい')
+    expect(cell.querySelector('input, textarea, button, select')).toBeNull()
+  })
+
+  it('結果セルを選ぶと onChange が渡す rows[i].results[j] が変わる', () => {
+    const { latest } = renderEditor(twoConditions)
+    fireEvent.keyDown(screen.getByLabelText('結果A（1行目）'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Y' }))
+    expect(latest()?.rows[0].results[0]).toBe('Y')
+  })
+
+  it('結果セルを開くと、選択肢に加えて「空にする」が並ぶ', () => {
+    renderEditor(twoConditions)
+    fireEvent.keyDown(screen.getByLabelText('結果A（2行目）'), { key: ' ' })
+    expect(screen.getByRole('menuitemradio', { name: 'X' })).toBeDefined()
+    expect(screen.getByRole('menuitemradio', { name: 'Y' })).toBeDefined()
+    expect(screen.getByRole('menuitemradio', { name: '空にする' })).toBeDefined()
+  })
+
+  it('結果セルで主修飾キー＋Enter を押すと impossible が真になり、セルの文字が「起こりえない」になる', () => {
+    const { latest } = renderEditor(twoConditions)
+    fireEvent.keyDown(screen.getByLabelText('結果A（2行目）'), { key: 'Enter', ctrlKey: true })
+    expect(latest()?.rows[1].impossible).toBe(true)
+    const cell = screen.getByLabelText(`結果A（2行目）: ${IMPOSSIBLE_LABEL}`)
+    expect(cell.textContent).toBe(IMPOSSIBLE_LABEL)
+  })
+
+  it('起こりえない行のセルを押すと impossible が偽に戻る', () => {
+    const { latest } = renderEditor(twoConditions)
+    fireEvent.click(screen.getByLabelText(`結果A（3行目）: ${IMPOSSIBLE_LABEL}`))
+    expect(latest()?.rows[2].impossible).toBe(false)
+  })
+
+  it('起こりえない行の結果セルの本数が、普通の行と同じである', () => {
+    renderEditor(twoOutcomes)
+    const rows = gridRows()
+    // No・条件A・結果A・結果B の4セル。起こりえない行（1行目）も同じ本数
+    expect(rows[0].cells).toHaveLength(4)
+    expect(rows[1].cells).toHaveLength(4)
+  })
+
+  it('結果セルで Enter を押すと下の行の同じ列へフォーカスが移り、行は増えない', () => {
+    renderEditor(twoConditions)
+    const first = screen.getByLabelText('結果A（1行目）')
+    first.focus()
+    fireEvent.keyDown(first, { key: 'Enter' })
+    expect(document.activeElement).toBe(screen.getByLabelText('結果A（2行目）'))
+    // 行が増えていれば #5 の行が出る
+    expect(gridRows()).toHaveLength(4)
+  })
+
+  it('結果セルで → を押すと隣の結果列へフォーカスが移る', () => {
+    renderEditor(twoOutcomes)
+    const first = screen.getByLabelText('結果A（2行目）')
+    first.focus()
+    fireEvent.keyDown(first, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(screen.getByLabelText('結果B（2行目）'))
+  })
+
+  it('空の結果セルに欠落の面が付き、起こりえない行のセルには付かない', () => {
+    renderEditor(twoOutcomes)
+    const rows = gridRows()
+    const impossibleRowCells = within(rows[0]).getAllByRole('cell')
+    const normalRowCells = within(rows[1]).getAllByRole('cell')
+    // No・条件A・結果A・結果B の順。結果A は添字2
+    expect(normalRowCells[2]?.className).toContain('bg-missing-face')
+    expect(impossibleRowCells[2]?.className).not.toContain('bg-missing-face')
+  })
+
+  it('条件が0本のとき、表本体の代わりに案内の一文が出る', () => {
+    renderEditor(table({}))
+    expect(
+      screen.getByText('条件を1つ以上足すと、値の組み合わせの行が出ます。'),
+    ).toBeDefined()
+    // DefinitionList（条件・結果）の2本だけで、表本体の3本目は出ない
+    expect(screen.getAllByRole('table')).toHaveLength(2)
   })
 })

@@ -6,6 +6,7 @@ import { MissingTally } from '@/components/MissingTally'
 import type { KeyHint } from '@/core/keyboard/hint-text'
 import { resolveCommand, toKeyEventLike, type Command } from '@/core/keyboard/keymap'
 import { currentPlatform } from '@/core/keyboard/platform'
+import { stepField } from '@/core/list-editor/field-step'
 import { cellId, useListRows, type ListRows } from '@/core/list-editor/use-list-rows'
 import type { EditorProps } from '@/core/registry'
 import type { Condition, DecisionTableSchemaVersion1, Outcome } from '@/types/decision-table'
@@ -22,11 +23,15 @@ import {
   renameValue,
   setConditions,
   setOutcomes,
+  setResult,
+  toggleImpossible,
   type Applied,
 } from './commands'
 import { sectionMarks } from './consistency'
 import { DefinitionList, type DefinitionRow } from './DefinitionList'
-import { isMissingLabel, LABEL_KIND, tallyMissing } from './missing'
+import { GridBody } from './GridBody'
+import { IMPOSSIBLE_LABEL } from './labels'
+import { isMissingLabel, isMissingResult, LABEL_KIND, RESULT_KIND, tallyMissing } from './missing'
 import { MAX_ROWS, productSize } from './rows'
 
 const PLATFORM = currentPlatform()
@@ -39,6 +44,32 @@ const DEFINITION_HINTS: KeyHint[] = [
   { keys: '$alt+↑↓', label: '並び替え' },
   { keys: '空欄で Backspace', label: '削除' },
 ]
+
+const GRID_HINTS: KeyHint[] = [
+  { keys: 'Enter', label: '下の行へ' },
+  { keys: 'Tab', label: '次の列へ' },
+  { keys: '←→', label: '隣の列へ' },
+  { keys: '$mod+Enter', label: IMPOSSIBLE_LABEL },
+]
+
+/**
+ * 表本体のセルの文脈。
+ *
+ * **`arrowsOwnedByField` を真にしないこと。** `CellSelect` は素の ↑↓ を
+ * 自分で消費して `onKeyDown` を呼ばないので、ここで真にすると届いた ←→ まで
+ * 止まり、列移動が消える
+ */
+const gridContext = {
+  editing: false,
+  fieldEmpty: false,
+  deletableField: false,
+  caretAtStart: true,
+  caretAtEnd: true,
+  arrowsOwnedByField: false,
+}
+
+/** 行の鍵。行は導出物で ID を持たないので、位置がそのまま鍵になる */
+const gridRowKey = (index: number): string => `row-${index}`
 
 /**
  * 条件を1本足したあとの行数。**`newCondition()` を呼ばないこと**——
@@ -198,6 +229,63 @@ export function DecisionTableEditor({
       if (runCommand(cmd, at, section)) e.preventDefault()
     }
 
+  /** 表本体のセルを含む領域。行の増減をキーで起こさないので useListRows の予約は要らない */
+  const gridRef = useRef<HTMLDivElement>(null)
+
+  /** 表本体のセルへフォーカスする。無ければ何もせず false を返す（既定動作を止めない） */
+  const focusGridCell = (rowIndex: number, field: string): boolean => {
+    const el = gridRef.current?.querySelector<HTMLElement>(
+      `[data-cell="${cellId(gridRowKey(rowIndex), field)}"]`,
+    )
+    if (!el) return false
+    el.focus()
+    return true
+  }
+
+  /** 結果列の並び。`stepField` に渡して隣の列・行端の折り返しを引く */
+  const resultFieldOrder = data.outcomes.map((_, j) => `result:${j}`)
+
+  /** コマンドを表本体の構造へ写像する。戻り値 true＝消費した（既定動作を止める） */
+  const runGridCommand = (cmd: Command, at: { index: number; field: string }): boolean => {
+    switch (cmd) {
+      case 'focus-prev':
+        return focusGridCell(at.index - 1, at.field)
+      case 'focus-next':
+        return focusGridCell(at.index + 1, at.field)
+      case 'focus-prev-field': {
+        const step = stepField(resultFieldOrder, at.field, -1)
+        return focusGridCell(at.index + step.rowDelta, step.field)
+      }
+      case 'focus-next-field': {
+        const step = stepField(resultFieldOrder, at.field, 1)
+        return focusGridCell(at.index + step.rowDelta, step.field)
+      }
+      case 'toggle-item-state':
+        onChange(toggleImpossible(data, at.index), null)
+        return true
+      case 'cancel':
+        ;(document.activeElement as HTMLElement | null)?.blur()
+        return true
+      default:
+        // move-item-up/down・insert-item-after・delete-item は表本体に意味を
+        // 持たない（行は導出物）。undo/redo は額縁のグローバル層が取る
+        return false
+    }
+  }
+
+  /** 表本体のセルのキー入力。キーの判定はコアの resolveCommand に委ねる（rev 10章） */
+  const onGridCellKeyDown = (e: React.KeyboardEvent, at: { index: number; field: string }): void => {
+    const cmd = resolveCommand(toKeyEventLike(e), {
+      platform: PLATFORM,
+      modalOpen: anyModalOpen,
+      reorderEnabled: false,
+      family: 'grid',
+      ...gridContext,
+    })
+    if (cmd === null) return
+    if (runGridCommand(cmd, at)) e.preventDefault()
+  }
+
   const conditionDefinitionRows: DefinitionRow[] = data.conditions.map((c) => ({
     id: c.id,
     name: c.name,
@@ -217,6 +305,20 @@ export function DecisionTableEditor({
    * 追跡を持たないので、どこまで飛んだかを別に覚えておく必要がある
    */
   const jumpToMissing = (kind: string): void => {
+    if (kind === RESULT_KIND) {
+      const targets: { index: number; field: string }[] = []
+      data.rows.forEach((row, index) => {
+        data.outcomes.forEach((_, j) => {
+          if (isMissingResult(row, j)) targets.push({ index, field: `result:${j}` })
+        })
+      })
+      if (targets.length === 0) return
+      const next = ((jumpAt.current[kind] ?? -1) + 1) % targets.length
+      jumpAt.current[kind] = next
+      const target = targets[next]
+      focusGridCell(target.index, target.field)
+      return
+    }
     if (kind !== LABEL_KIND) return
     const targets: { rows: ListRows; key: string; field: string }[] = []
     const collect = (rows: ListRows, items: readonly { name: string; labels: string[] }[]): void => {
@@ -325,6 +427,34 @@ export function DecisionTableEditor({
           addButtonRef={outcomeRows.addButtonRef}
         />
       </div>
+      <section className="mt-6">
+        <h2 className="mb-2 text-base font-medium text-ink">表</h2>
+        {data.conditions.length === 0 ? (
+          <p className="text-base text-ink-muted">
+            条件を1つ以上足すと、値の組み合わせの行が出ます。
+          </p>
+        ) : (
+          <>
+            <div className="mb-2">
+              <KeyHints hints={GRID_HINTS} />
+            </div>
+            <div ref={gridRef}>
+              <GridBody
+                conditions={data.conditions}
+                outcomes={data.outcomes}
+                rows={data.rows}
+                marks={sectionMarks(issues, 'row')}
+                gridRowKey={gridRowKey}
+                onPickResult={(rowIndex, outIndex, value) =>
+                  onChange(setResult(data, rowIndex, outIndex, value), null)
+                }
+                onToggleImpossible={(rowIndex) => onChange(toggleImpossible(data, rowIndex), null)}
+                onCellKeyDown={onGridCellKeyDown}
+              />
+            </div>
+          </>
+        )}
+      </section>
       <ConfirmDialog
         open={pending !== null}
         title="記入済みの結果が失われます"
