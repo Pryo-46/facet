@@ -8,6 +8,7 @@ import { resolveCommand, toKeyEventLike, type Command } from '@/core/keyboard/ke
 import { currentPlatform } from '@/core/keyboard/platform'
 import { stepField } from '@/core/list-editor/field-step'
 import { cellId, useListRows, type ListRows } from '@/core/list-editor/use-list-rows'
+import { computeRowKeys } from '@/core/row-keys'
 import type { EditorProps } from '@/core/registry'
 import type { Condition, DecisionTableSchemaVersion1, Outcome } from '@/types/decision-table'
 import {
@@ -78,7 +79,18 @@ const gridRowKey = (index: number): string => `row-${index}`
 const PROBE_CONDITION = { id: '', name: '', values: ['はい', 'いいえ'] }
 
 /** 一覧1つ分の、コマンドの行き先。条件と結果で同じ写像を使うためにまとめる */
+/**
+ * 確認を挟んだ削除の、確定後のフォーカスの行き先。
+ * `'row'` は行そのものを消したとき、`'label'` は行の中のラベルを消したとき
+ */
+interface ConfirmFocus {
+  key: 'condition' | 'outcome'
+  kind: 'row' | 'label'
+  index: number
+}
+
 interface Section {
+  key: ConfirmFocus['key']
   rows: ListRows
   canAddRow: boolean
   onRemoveLabel: (index: number, labelIndex: number) => void
@@ -95,7 +107,17 @@ export function DecisionTableEditor({
   issues,
   modalOpen,
 }: EditorProps<DecisionTableSchemaVersion1>) {
-  const [pending, setPending] = useState<{ applied: Applied; mergeKey: string | null } | null>(null)
+  const [pending, setPending] = useState<{
+    applied: Applied
+    mergeKey: string | null
+    focus: ConfirmFocus | null
+  } | null>(null)
+
+  /**
+   * 確認を挟む削除を始めた位置。`deleteAt` は `onItemsChange` を同期で呼ぶので、
+   * 呼ぶ直前に置けば `applyDefinition` から読める
+   */
+  const removingRef = useRef<ConfirmFocus | null>(null)
 
   /**
    * 定義部の編集の唯一の出口。**戻り値は `useListRows` の `onItemsChange` へ
@@ -111,9 +133,10 @@ export function DecisionTableEditor({
     applied: Applied,
     mergeKey: string | null,
     shrinking: boolean,
+    focus: ConfirmFocus | null = null,
   ): boolean => {
     if (shrinking && applied.lostCells > 0) {
-      setPending({ applied, mergeKey })
+      setPending({ applied, mergeKey, focus })
       return false
     }
     onChange(applied.data, mergeKey)
@@ -123,14 +146,24 @@ export function DecisionTableEditor({
   const conditionRows = useListRows<Condition>({
     items: data.conditions,
     onItemsChange: (next) =>
-      applyDefinition(setConditions(data, next), null, next.length < data.conditions.length),
+      applyDefinition(
+        setConditions(data, next),
+        null,
+        next.length < data.conditions.length,
+        removingRef.current,
+      ),
     makeItem: newCondition,
     firstField: 'name',
   })
   const outcomeRows = useListRows<Outcome>({
     items: data.outcomes,
     onItemsChange: (next) =>
-      applyDefinition(setOutcomes(data, next), null, next.length < data.outcomes.length),
+      applyDefinition(
+        setOutcomes(data, next),
+        null,
+        next.length < data.outcomes.length,
+        removingRef.current,
+      ),
     makeItem: newOutcome,
     firstField: 'name',
   })
@@ -142,17 +175,55 @@ export function DecisionTableEditor({
     ) <= MAX_ROWS
 
   const removeValueAt = (index: number, labelIndex: number) =>
-    applyDefinition(removeValue(data, index, labelIndex), null, true)
+    applyDefinition(removeValue(data, index, labelIndex), null, true, {
+      key: 'condition',
+      kind: 'label',
+      index,
+    })
   const removeChoiceAt = (index: number, labelIndex: number) =>
-    applyDefinition(removeChoice(data, index, labelIndex), null, true)
+    applyDefinition(removeChoice(data, index, labelIndex), null, true, {
+      key: 'outcome',
+      kind: 'label',
+      index,
+    })
+
+  /** 行の削除。確認を挟んだときの行き先を残してから消す */
+  const removeRowAt = (key: ConfirmFocus['key'], rows: ListRows, index: number): void => {
+    removingRef.current = { key, kind: 'row', index }
+    rows.deleteAt(index)
+    removingRef.current = null
+  }
+
+  /**
+   * 確認を挟んだ削除の、確定後のフォーカスの行き先を予約する。
+   *
+   * **確定の経路はフックの予約を通らない。** 保留した時点で `deleteAt` は
+   * 早期に返っているので、ここで積み直さないとフォーカスが body へ落ちる
+   */
+  const reserveConfirmFocus = (
+    focus: ConfirmFocus,
+    next: DecisionTableSchemaVersion1,
+  ): void => {
+    const rows = focus.key === 'condition' ? conditionRows : outcomeRows
+    const items = focus.key === 'condition' ? next.conditions : next.outcomes
+    if (items.length === 0) {
+      rows.reserveFocus('add-button')
+      return
+    }
+    // 行を消したときは、消えた位置に繰り上がった行へ移る（末尾を消したら新しい末尾）
+    const at = focus.kind === 'row' ? Math.min(focus.index, items.length - 1) : focus.index
+    rows.reserveFocus({ rowKey: computeRowKeys(items)[at], field: 'name' })
+  }
 
   const conditionSection: Section = {
+    key: 'condition',
     rows: conditionRows,
     canAddRow: canAddCondition,
     onRemoveLabel: removeValueAt,
   }
   // 結果は行数に効かないので、上限に関わらず足せる
   const outcomeSection: Section = {
+    key: 'outcome',
     rows: outcomeRows,
     canAddRow: true,
     onRemoveLabel: removeChoiceAt,
@@ -172,7 +243,7 @@ export function DecisionTableEditor({
         if (section.canAddRow) section.rows.insertAfter(at.index)
         return true
       case 'delete-item':
-        if (labelIndex === null) section.rows.deleteAt(at.index)
+        if (labelIndex === null) removeRowAt(section.key, section.rows, at.index)
         else section.onRemoveLabel(at.index, labelIndex)
         return true
       case 'move-item-up':
@@ -387,7 +458,7 @@ export function DecisionTableEditor({
             )
           }
           onAddRow={() => conditionRows.insertAfter(data.conditions.length - 1)}
-          onRemoveRow={(index) => conditionRows.deleteAt(index)}
+          onRemoveRow={(index) => removeRowAt('condition', conditionRows, index)}
           onAddLabel={(index) => applyDefinition(addValue(data, index), null, false)}
           onRemoveLabel={removeValueAt}
           onCellKeyDown={cellKeyDown(conditionSection)}
@@ -422,7 +493,7 @@ export function DecisionTableEditor({
             )
           }
           onAddRow={() => outcomeRows.insertAfter(data.outcomes.length - 1)}
-          onRemoveRow={(index) => outcomeRows.deleteAt(index)}
+          onRemoveRow={(index) => removeRowAt('outcome', outcomeRows, index)}
           onAddLabel={(index) => applyDefinition(addChoice(data, index), null, false)}
           onRemoveLabel={removeChoiceAt}
           onCellKeyDown={cellKeyDown(outcomeSection)}
@@ -463,7 +534,10 @@ export function DecisionTableEditor({
         description={pending === null ? '' : describeLoss(pending.applied)}
         confirmLabel="続ける"
         onConfirm={() => {
-          if (pending !== null) onChange(pending.applied.data, pending.mergeKey)
+          if (pending !== null) {
+            onChange(pending.applied.data, pending.mergeKey)
+            if (pending.focus !== null) reserveConfirmFocus(pending.focus, pending.applied.data)
+          }
           setPending(null)
         }}
         onCancel={() => setPending(null)}

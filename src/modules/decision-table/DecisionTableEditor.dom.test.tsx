@@ -82,6 +82,24 @@ const filledResults = table({
   ],
 })
 
+/**
+ * 条件2本・結果1本で、結果が全行埋まっている。2本目を消すと4行が2行へまとまり、
+ * 値が食い違うので確認が出る。確定後に残る行が1本あるので、行き先を見られる
+ */
+const twoFilledConditions = table({
+  conditions: [
+    condition({ id: 'cond_a', name: '条件A' }),
+    condition({ id: 'cond_b', name: '条件B' }),
+  ],
+  outcomes: [outcome({ id: 'out_a', name: '結果A', choices: ['X', 'Y'] })],
+  rows: [
+    { values: ['はい', 'はい'], impossible: false, results: ['X'] },
+    { values: ['はい', 'いいえ'], impossible: false, results: ['Y'] },
+    { values: ['いいえ', 'はい'], impossible: false, results: ['X'] },
+    { values: ['いいえ', 'いいえ'], impossible: false, results: ['Y'] },
+  ],
+})
+
 /** 条件1本・結果1本だが、結果セルはどちらも未記入。条件を消しても失うものが無い */
 const emptyResults = table({
   conditions: [condition({ id: 'cond_a', name: '条件A' })],
@@ -183,6 +201,23 @@ describe('DecisionTableEditor: 要素を減らす操作の確認ダイアログ'
     fireEvent.click(screen.getByRole('button', { name: '条件を消す（1行目）' }))
     expect(screen.getByText('記入済みの結果が失われます')).toBeDefined()
     expect(focusSpy).not.toHaveBeenCalled()
+  })
+
+  it('確定すると、0件になった一覧の追加ボタンへフォーカスが移る', () => {
+    renderEditor(filledResults)
+    const addButton = screen.getByRole('button', { name: '条件を追加' })
+    const focusSpy = vi.spyOn(addButton, 'focus')
+    fireEvent.click(screen.getByRole('button', { name: '条件を消す（1行目）' }))
+    fireEvent.click(screen.getByRole('button', { name: '続ける' }))
+    expect(focusSpy).toHaveBeenCalled()
+  })
+
+  it('確定すると、行が残っていれば繰り上がった行の名前セルへフォーカスが移る', () => {
+    const { latest } = renderEditor(twoFilledConditions)
+    fireEvent.click(screen.getByRole('button', { name: '条件を消す（2行目）' }))
+    fireEvent.click(screen.getByRole('button', { name: '続ける' }))
+    expect(latest()?.conditions).toHaveLength(1)
+    expect(document.activeElement).toBe(screen.getByLabelText('条件名（1行目）'))
   })
 })
 

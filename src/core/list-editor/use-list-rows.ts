@@ -38,6 +38,14 @@ export interface ListRows {
   addButtonRef: React.RefObject<HTMLButtonElement | null>
   rowKeys: string[]
   focusCell: (rowKey: string, field: string, select?: boolean) => boolean
+  /**
+   * 新しい DOM が出てからフォーカスを移す予約を、フックの外から積む。
+   * `'add-button'` は追加ボタンへ移す（行が0件になったときの行き先）。
+   *
+   * **`focusCell` では代われない。** あちらは呼んだ瞬間に `querySelector` で
+   * 引くので、構造を変えた直後は移動先がまだ描かれていない
+   */
+  reserveFocus: (target: { rowKey: string; field: string } | 'add-button') => void
   insertAfter: (index: number) => void
   deleteAt: (index: number) => void
   moveBy: (index: number, delta: -1 | 1, field: string) => void
@@ -138,6 +146,10 @@ export function useListRows<T extends { id: string }>(
     rowKeys,
     focusCell: (rowKey, field, select = false) =>
       focusIn(containerRef.current, rowKey, field, select),
+    reserveFocus: (target) => {
+      if (target === 'add-button') setFocusAddButton(true)
+      else setPendingFocus(target)
+    },
     insertAfter,
     deleteAt,
     moveBy,
