@@ -139,6 +139,18 @@ describe('DecisionTableEditor: 値の追加・削除', () => {
     expect(latest()?.conditions[0].values).toHaveLength(3)
   })
 
+  it('「値を追加」ボタンをクリックすると、増えた値の欄へフォーカスが移る', () => {
+    renderEditor(oneCondition)
+    fireEvent.click(screen.getByRole('button', { name: '値を追加（1行目）' }))
+    expect(document.activeElement).toBe(screen.getByLabelText('値（1行目の3つ目）'))
+  })
+
+  it('「選択肢を追加」ボタンをクリックすると、増えた選択肢の欄へフォーカスが移る', () => {
+    renderEditor(oneOutcome)
+    fireEvent.click(screen.getByRole('button', { name: '選択肢を追加（1行目）' }))
+    expect(document.activeElement).toBe(screen.getByLabelText('選択肢（1行目の3つ目）'))
+  })
+
   it('値が1つしかない条件では「値を消す」ボタンが押せない', () => {
     renderEditor(singleValueCondition)
     const button = screen.getByRole('button', { name: '値を消す（1行目の1つ目）' })
@@ -159,6 +171,11 @@ const threeValues = table({
 /** 選択肢を2つ持つ結果だけの表。結果の一覧は条件の本数と関係なく描けるので条件は0本でよい */
 const oneOutcome = table({
   outcomes: [outcome({ id: 'out_a', name: '結果A', choices: ['X', 'Y'] })],
+})
+
+/** 選択肢を1つも持たない結果。`newOutcome()` の既定と同じ形で、`label:0` が存在しない */
+const noChoiceOutcome = table({
+  outcomes: [outcome({ id: 'out_a', name: '結果A' })],
 })
 
 /**
@@ -261,6 +278,17 @@ describe('DecisionTableEditor: 定義部のキー操作（木の家族）', () =
     const { latest } = renderEditor(oneCondition)
     fireEvent.keyDown(screen.getByLabelText('条件名（1行目）'), { key: 'Enter' })
     expect(latest()?.conditions).toHaveLength(2)
+  })
+
+  it('選択肢を1つも持たない結果の名前セルで →（キャレット末尾）を押しても落ちない', () => {
+    renderEditor(noChoiceOutcome)
+    const cell = screen.getByLabelText('結果名（1行目）') as HTMLInputElement
+    cell.focus()
+    cell.setSelectionRange(cell.value.length, cell.value.length)
+    // label:0 が無いので focusCell は false を返し、既定に落ちる
+    // （フォーカスはこの名前セルに留まる）
+    expect(() => fireEvent.keyDown(cell, { key: 'ArrowRight' })).not.toThrow()
+    expect(document.activeElement).toBe(cell)
   })
 })
 
