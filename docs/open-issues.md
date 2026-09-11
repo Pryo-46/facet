@@ -90,6 +90,8 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **別種のチップを押すときの挿入起点が問いの欄でだけ列の先頭へ落ちる**（`src/modules/issue-tree/IssueTreeEditor.tsx`）。
 - **「保留」の語が経緯の残らない列の上に乗る**（`schemas/issue-tree.schema.json` の `judgementEvent.kind`）。判断が差し替え式になり、保留にした経緯がデータに残らない。
 - **`writeMerged` の read-modify-write に直列化が無い**（`src/fs/settings-fs.ts`）。フォルダを開く保存と設定の保存が近接すると、後発が古い読み取りの上に書いて片方が落ちる。
+- **`impossible` の入り切りにマウスの入口が無い**（`src/modules/decision-table/GridBody.tsx`）。起こりえない行を戻すのはセルのクリックでできるが、立てるのは主修飾キー＋`Enter` だけ。シーケンスの「考慮不要」と同じ穴で、同時に塞ぐべきもの。
+- **デシジョンテーブルの定義部の欄の移動がブラウザの `Tab` 順に依存する**（`src/modules/decision-table/DecisionTableEditor.tsx`）。ラベルの本数が行ごとに違うので、`focus-next-field` に写せる列の並びが無い。
 
 ## 性能
 
@@ -110,6 +112,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **方眼背景がキャンバスのズームに追従しない**（`src/modules/logic-tree/LogicTreeEditor.tsx`）。
 - **`Tab` を骨格ゾーンと答えゾーンの2つに分ける提案が未実装**（`src/modules/sequence/SequenceEditor.tsx`）。答えへのキーボード到達は崩さないことが条件。
 - **展開中の仮説が課題の列全体を押し広げ、深い木で横スクロールが増える**（`src/modules/issue-tree/layout.ts`）。
+- **デシジョンテーブルの列幅を変えられない**（`src/modules/decision-table/GridBody.tsx`）。列の本数がデータで変わるので、`useColumnResize` が要求する幅の配列を持てない。
 
 ## 小さな負債
 

@@ -18,6 +18,7 @@
 4. **用語集エディタ** — 用語の型定義と表記ゆれ検知を担う、他ツールが参照するマスタデータ。（エディタ・登録 Skill・Markdown 出力まで実装済み。詳細は [`glossary/session-notes.md`](glossary/session-notes.md)）
 5. **エラーカタログエディタ** — エラーの一覧と対応方法を整理する。読み手も出力先も他ツールと異なるので独立モジュールとする。（エディタ・登録 Skill・Markdown 出力まで実装済み。詳細は [`error-catalog/error-catalog-session-notes.md`](error-catalog/error-catalog-session-notes.md)）
 6. **課題ツリーエディタ** — PoC で「試さないと分からないこと」を分解し、仮説と検証の結果を記録する。仮説の判断は未決・支持・棄却・保留・見送りの5語で、未決は判断イベントが0件であることから導出するため保存しない。（エディタ・登録 Skill・俯瞰の表現まで実装済み。出力は未実装。詳細は [`issue-tree/仮説検証モジュール-設計ノート.md`](issue-tree/仮説検証モジュール-設計ノート.md)）
+7. **デシジョンテーブルエディタ** — 条件の組み合わせで結果が決まる仕様を、全組み合わせを展開した表で扱う。行は条件の値の直積であり、人は行を足しも消しもしない。（エディタと整合性検証まで実装済み。出力・まとめて入力・畳み・登録 Skill は未実装。詳細は [`decision-table/decision-table-design-notes.md`](decision-table/decision-table-design-notes.md)）
 
 ツールを増やすときの採用基準は3つである。参照グラフに参加すること、未定義を利用者が自分で解決できること、データが人と AI の共通言語になることで、3つ目は発散・収束・現状確認・相談のどの場面でも双方が同じ単位（ID の付いた構造）を指して話せることを求める。
 
@@ -141,7 +142,7 @@ ID捏造・不正データの予防として、各Skillに ID採番と書き込�
 - プロトタイプの state 構造は叩き台にせずゼロから設計する（構造は信用しない）。
 - 全ファイル共通のエンベロープ（必須フィールド）：
   - `schemaVersion`：スキーマの版。**版は type ごとに独立して進める**ので、移行判定とSkillの追従管理（4章）は `type` × `schemaVersion` の組で行う。共通エンベロープの改訂は全ツールスキーマの改訂を含意する。
-  - `type`：ツール種別の enum（`logicTree` / `sequence` / `stateMachine` / `glossary` / `errorCatalog` / `issueTree`。ツール追加で増える）。旧アプリにとって未知の値になり得るが、受け皿は6章の前方互換の規定。
+  - `type`：ツール種別の enum（`logicTree` / `sequence` / `stateMachine` / `glossary` / `errorCatalog` / `issueTree` / `decisionTable`。ツール追加で増える）。旧アプリにとって未知の値になり得るが、受け皿は6章の前方互換の規定。
   - `title`：表示名。プロジェクトを開いたときの一覧表示に使う。
 
 ### バージョン互換とマイグレーション
