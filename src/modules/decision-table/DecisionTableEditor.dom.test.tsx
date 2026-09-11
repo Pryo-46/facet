@@ -556,6 +556,100 @@ describe('DecisionTableEditor: 表本体', () => {
   })
 })
 
+/**
+ * 条件1本・結果2本で、1行目だけ結果Aが記入済み・結果Bが未記入の表。
+ * 記入済みの結果セルへフォーカスしても、未記入の結果セルの欠落の面が
+ * 行の面に塗り潰されないことを見る土台にする
+ */
+const mixedResults = table({
+  conditions: [condition({ id: 'cond_a', name: '条件A' })],
+  outcomes: [
+    outcome({ id: 'out_a', name: '結果A', choices: ['X', 'Y'] }),
+    outcome({ id: 'out_b', name: '結果B', choices: ['P', 'Q'] }),
+  ],
+  rows: [
+    { values: ['はい'], impossible: false, results: ['X', ''] },
+    { values: ['いいえ'], impossible: false, results: ['X', ''] },
+  ],
+})
+
+describe('DecisionTableEditor: 表本体のフォーカスと面', () => {
+  it('表本体のヒントに Enter を「下の行へ」と説明する文字が出ない', () => {
+    renderEditor(twoConditions)
+    expect(screen.queryByText(/下の行へ/)).toBeNull()
+  })
+
+  it('結果セルにフォーカスすると、その行のセルに面が付く', () => {
+    renderEditor(twoConditions)
+    const rows = gridRows()
+    // フォーカス前は No セルに面が付いていない
+    expect(rows[1].cells[0].className).not.toContain('bg-surface-muted')
+    fireEvent.focus(screen.getByLabelText('結果A（2行目）'))
+    expect(rows[1].cells[0].className).toContain('bg-surface-muted')
+  })
+
+  it('別の行のセルへ移ると、面も移る', () => {
+    renderEditor(twoConditions)
+    const rows = gridRows()
+    const first = screen.getByLabelText('結果A（2行目）')
+    const second = screen.getByLabelText('結果A（4行目）')
+    fireEvent.focus(first)
+    expect(rows[1].cells[0].className).toContain('bg-surface-muted')
+    // 表の中で別のセルへ移る blur。relatedTarget が表の中にあるので、
+    // まだ次のセルの focus が届いていないこの時点でも面は消えない
+    fireEvent.blur(first, { relatedTarget: second })
+    expect(rows[1].cells[0].className).toContain('bg-surface-muted')
+    fireEvent.focus(second)
+    expect(rows[1].cells[0].className).not.toContain('bg-surface-muted')
+    expect(rows[3].cells[0].className).toContain('bg-surface-muted')
+  })
+
+  it('表の外へフォーカスが出ると、面が消える', () => {
+    renderEditor(twoConditions)
+    const rows = gridRows()
+    const cell = screen.getByLabelText('結果A（2行目）')
+    fireEvent.focus(cell)
+    expect(rows[1].cells[0].className).toContain('bg-surface-muted')
+    const outside = screen.getByRole('button', { name: '条件を追加' })
+    fireEvent.blur(cell, { relatedTarget: outside })
+    expect(rows[1].cells[0].className).not.toContain('bg-surface-muted')
+  })
+
+  it('条件セルをクリックすると、その行の結果セルへフォーカスが移る', () => {
+    renderEditor(twoConditions)
+    const rows = gridRows()
+    // No・条件A・条件B・結果A の順。条件A は添字1
+    fireEvent.click(rows[1].cells[1])
+    expect(document.activeElement).toBe(screen.getByLabelText('結果A（2行目）'))
+  })
+
+  it('No セルをクリックしても同じことが起きる', () => {
+    renderEditor(twoConditions)
+    const rows = gridRows()
+    fireEvent.click(rows[1].cells[0])
+    expect(document.activeElement).toBe(screen.getByLabelText('結果A（2行目）'))
+  })
+
+  it('条件セルをクリックしても、条件セルは入力欄にならない', () => {
+    renderEditor(twoConditions)
+    const rows = gridRows()
+    const cell = rows[1].cells[1]
+    fireEvent.click(cell)
+    expect(cell.tagName).toBe('TD')
+    expect(cell.querySelector('input, textarea, button, select')).toBeNull()
+    expect(document.activeElement).not.toBe(cell)
+  })
+
+  it('空の結果セルでは、欠落の面が行の面より強い（行にフォーカスがあっても黄のまま）', () => {
+    renderEditor(mixedResults)
+    const emptyCell = screen.getByLabelText('結果B（1行目）').closest('td')
+    expect(emptyCell?.className).toContain('bg-missing-face')
+    fireEvent.focus(screen.getByLabelText('結果A（1行目）'))
+    expect(emptyCell?.className).toContain('bg-missing-face')
+    expect(emptyCell?.className).not.toContain('bg-surface-muted')
+  })
+})
+
 describe('整合性の赤', () => {
   /** 指摘を実物から作って渡す。Harness は issues を空で渡すので、ここは直接描く */
   function renderWithIssues(data: DecisionTableSchemaVersion1) {

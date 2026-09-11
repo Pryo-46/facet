@@ -42,14 +42,16 @@ const LABEL_FIELD = 'label:'
 
 const DEFINITION_HINTS: KeyHint[] = [
   { keys: 'Enter', label: '下に追加' },
+  { keys: 'Tab', label: '値を追加' },
+  { keys: '←→', label: '名前と値を行き来' },
   { keys: '$alt+↑↓', label: '並び替え' },
   { keys: '空欄で Backspace', label: '削除' },
 ]
 
 const GRID_HINTS: KeyHint[] = [
-  { keys: 'Enter', label: '下の行へ' },
+  { keys: 'Enter / Space', label: '選択肢を開く' },
+  { keys: '↑↓←→', label: 'セルの移動' },
   { keys: 'Tab', label: '次の列へ' },
-  { keys: '←→', label: '隣の列へ' },
   { keys: '$mod+Enter', label: IMPOSSIBLE_LABEL },
 ]
 
@@ -354,6 +356,12 @@ export function DecisionTableEditor({
   /** 表本体のセルを含む領域。行の増減をキーで起こさないので useListRows の予約は要らない */
   const gridRef = useRef<HTMLDivElement>(null)
 
+  /**
+   * 表本体でフォーカスのあるセルの行。**会議で「この行の場合は」と指すための面**を
+   * この行に敷く。表からフォーカスが外れたら null に戻す
+   */
+  const [focusedRow, setFocusedRow] = useState<number | null>(null)
+
   /** 表本体のセルへフォーカスする。無ければ何もせず false を返す（既定動作を止めない） */
   const focusGridCell = (rowIndex: number, field: string): boolean => {
     const el = gridRef.current?.querySelector<HTMLElement>(
@@ -574,6 +582,8 @@ export function DecisionTableEditor({
                 rows={data.rows}
                 marks={sectionMarks(issues, 'row')}
                 gridRowKey={gridRowKey}
+                focusedRow={focusedRow}
+                onFocusRow={setFocusedRow}
                 onPickResult={(rowIndex, outIndex, value) =>
                   onChange(setResult(data, rowIndex, outIndex, value), null)
                 }

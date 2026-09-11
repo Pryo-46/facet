@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { CellSelect } from '@/components/CellSelect'
 import { cellFace, CELL_FACE_CLASS, type ErrorMarks } from '@/core/list-editor/cell-face'
 import { cellId } from '@/core/list-editor/use-list-rows'
@@ -19,6 +20,16 @@ const cellInput =
 const colBorder = 'border-l border-l-rule-muted'
 const headColBorder = 'border-l border-l-rule'
 
+/**
+ * 条件列どうしの境界の縦罫。結果列の境界（`headColBorder` の `rule`）より薄い
+ * `rule-muted` を使う——条件名が長い表では、この薄い罫線が無いと列の境界が
+ * 読み取れない
+ */
+const condColBorder = 'border-l border-l-rule-muted'
+
+/** 条件列の地を引くための鍵。条件列は編集対象ではないので、指摘の `field` にはならない */
+const CONDITION_FIELD = 'condition-column'
+
 const headCell =
   'sticky top-0 z-10 border-b border-b-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted'
 
@@ -29,6 +40,10 @@ export interface GridBodyProps {
   marks: ErrorMarks
   /** 行の鍵。行は ID を持たないので、呼び出し側が位置から作る */
   gridRowKey: (index: number) => string
+  /** 表本体でいまフォーカスのある行。無ければ null */
+  focusedRow: number | null
+  /** 行のフォーカスが変わったときに呼ぶ。表の外へ出たときは null を渡す */
+  onFocusRow: (index: number | null) => void
   onPickResult: (rowIndex: number, outIndex: number, value: string) => void
   onToggleImpossible: (rowIndex: number) => void
   onCellKeyDown: (e: React.KeyboardEvent, at: { index: number; field: string }) => void
@@ -45,13 +60,54 @@ export interface GridBodyProps {
  * マウスに無く、主修飾キー＋Enter だけが持つ）
  */
 export function GridBody(props: GridBodyProps) {
-  const { conditions, outcomes, rows, marks, gridRowKey, onPickResult, onToggleImpossible, onCellKeyDown } = props
+  const {
+    conditions,
+    outcomes,
+    rows,
+    marks,
+    gridRowKey,
+    focusedRow,
+    onFocusRow,
+    onPickResult,
+    onToggleImpossible,
+    onCellKeyDown,
+  } = props
 
-  const face = (index: number, field: string, warn: boolean, rowAnchor = false): string =>
-    CELL_FACE_CLASS[cellFace(marks, index, field, warn, rowAnchor)]
+  /**
+   * セルの面。**無効と欠落が地の面より強い。** 弱いほうを先に当てると、
+   * 赤や黄が行の面に塗り潰される
+   */
+  const surfaceOf = (index: number, field: string, warn: boolean, rowAnchor = false): string => {
+    const face = cellFace(marks, index, field, warn, rowAnchor)
+    if (face !== 'none') return CELL_FACE_CLASS[face]
+    return index === focusedRow || field === CONDITION_FIELD ? 'bg-surface-muted' : ''
+  }
+
+  /**
+   * 表を包む要素。フォーカスの追跡（`onBlur`）とクリック移動先の検索
+   * （`querySelector`）の両方がこの要素を基準にする
+   */
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  /**
+   * No・条件セルをクリックしたときの移動先。**結果が0本の表では移動先が無い**——
+   * このときは何もしない
+   */
+  const focusFirstResultCell = (rowKey: string): void => {
+    if (outcomes.length === 0) return
+    containerRef.current
+      ?.querySelector<HTMLElement>(`[data-cell="${cellId(rowKey, 'result:0')}"]`)
+      ?.focus()
+  }
+
+  /** 行の中の移動でも `onBlur` は飛ぶ。表の外へ出たときだけフォーカスの行を外す */
+  const onGridBlur = (e: React.FocusEvent<HTMLDivElement>): void => {
+    if (e.currentTarget.contains(e.relatedTarget)) return
+    onFocusRow(null)
+  }
 
   return (
-    <div className="border border-rule bg-surface">
+    <div ref={containerRef} className="border border-rule bg-surface" onBlur={onGridBlur}>
       <table className="w-full table-fixed border-collapse text-sm">
         <colgroup>
           <col style={{ width: 56 }} />
@@ -69,7 +125,7 @@ export function GridBody(props: GridBodyProps) {
           <tr className="text-left">
             <th className={`${headCell} text-right`}>No</th>
             {conditions.map((c, i) => (
-              <th key={`cond-${i}`} className={headCell}>
+              <th key={`cond-${i}`} className={`${headCell} ${condColBorder}`}>
                 {c.name}
               </th>
             ))}
@@ -86,21 +142,31 @@ export function GridBody(props: GridBodyProps) {
             const rowKey = gridRowKey(index)
             return (
               <tr key={rowKey} className="border-b border-rule-muted align-middle">
-                {/* 行全体の指摘（行の列数不一致など欄を特定できないもの）は No セルの面で示す */}
-                <td className={`px-2 py-1 text-right text-ink-muted ${face(index, 'no', false, true)}`}>
+                {/* 行全体の指摘（行の列数不一致など欄を特定できないもの）は No セルの面で示す。
+                    クリックでも行へ移れる——編集はできないので onClick は移動のみ */}
+                <td
+                  className={`px-2 py-1 text-right text-ink-muted ${surfaceOf(index, 'no', false, true)}`}
+                  onClick={() => focusFirstResultCell(rowKey)}
+                >
                   {rowNo}
                 </td>
                 {conditions.map((_, i) => (
-                  <td key={`cond-${i}`} className="px-2 py-1 text-ink-muted">
+                  <td
+                    key={`cond-${i}`}
+                    className={`px-2 py-1 text-ink-muted ${condColBorder} ${surfaceOf(index, CONDITION_FIELD, false)}`}
+                    onClick={() => focusFirstResultCell(rowKey)}
+                  >
                     {row.values[i]}
                   </td>
                 ))}
                 {outcomes.map((outcome, j) => {
                   const field = `result:${j}`
-                  const cellClass = `${colBorder} ${face(index, field, isMissingResult(row, j))}`
+                  const cellClass = `${colBorder} ${surfaceOf(index, field, isMissingResult(row, j))}`
                   if (row.impossible) {
                     return (
-                      <td key={`out-${j}`} className={cellClass}>
+                      // onFocus は td に置く。子のボタンから bubble するので、
+                      // ボタンとトリガーの両方に同じ配線を重複させずに済む
+                      <td key={`out-${j}`} className={cellClass} onFocus={() => onFocusRow(index)}>
                         {/* impossible の行のセル。押すと起こりえないを解除する */}
                         <button
                           type="button"
@@ -116,7 +182,11 @@ export function GridBody(props: GridBodyProps) {
                     )
                   }
                   return (
-                    <td key={`out-${j}`} className={`relative ${cellClass}`}>
+                    <td
+                      key={`out-${j}`}
+                      className={`relative ${cellClass}`}
+                      onFocus={() => onFocusRow(index)}
+                    >
                       <CellSelect
                         className={`${cellInput} appearance-none pr-6`}
                         aria-label={`${outcome.name}（${rowNo}行目）`}
