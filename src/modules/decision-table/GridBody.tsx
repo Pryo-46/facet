@@ -127,6 +127,8 @@ export function GridBody(props: GridBodyProps) {
                         itemLabelOf={(v) => (v === '' ? CLEAR_RESULT_LABEL : v)}
                         onPick={(v) => onPickResult(index, j, v)}
                         onKeyDown={(e) => onCellKeyDown(e, { index, field })}
+                        changeOnArrows={false}
+                        openOnEnter
                       />
                       {/* appearance-none で消えた矢印を描き直す。背景画像の data URI は
                           使わない——色値を書くことになり conventions.test.ts が弾く */}

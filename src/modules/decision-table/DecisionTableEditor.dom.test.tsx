@@ -496,14 +496,36 @@ describe('DecisionTableEditor: 表本体', () => {
     expect(rows[1].cells).toHaveLength(4)
   })
 
-  it('結果セルで Enter を押すと下の行の同じ列へフォーカスが移り、行は増えない', () => {
+  it('結果セルで ↓ を押すと下の行の同じ列へフォーカスが移り、値は変わらない', () => {
+    const { latest } = renderEditor(twoConditions)
+    const first = screen.getByLabelText('結果A（1行目）')
+    first.focus()
+    fireEvent.keyDown(first, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByLabelText('結果A（2行目）'))
+    // 値が書き換わっていれば onChange が呼ばれる。カーソル移動だけなら呼ばれない
+    expect(latest()).toBeUndefined()
+  })
+
+  it('結果セルで ↑ を押すと上の行の同じ列へフォーカスが移り、値は変わらない', () => {
+    const { latest } = renderEditor(twoConditions)
+    const second = screen.getByLabelText('結果A（2行目）')
+    second.focus()
+    fireEvent.keyDown(second, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(screen.getByLabelText('結果A（1行目）'))
+    expect(latest()).toBeUndefined()
+  })
+
+  it('結果セルで Enter を押すとメニューが開き、行は移らない（値の変更は開いたときだけ）', () => {
     renderEditor(twoConditions)
     const first = screen.getByLabelText('結果A（1行目）')
     first.focus()
     fireEvent.keyDown(first, { key: 'Enter' })
-    expect(document.activeElement).toBe(screen.getByLabelText('結果A（2行目）'))
-    // 行が増えていれば #5 の行が出る
-    expect(gridRows()).toHaveLength(4)
+    expect(screen.getByRole('menuitemradio', { name: 'X' })).toBeDefined()
+    expect(screen.getByRole('menuitemradio', { name: 'Y' })).toBeDefined()
+    // 行が移っていれば下の行の結果セルへフォーカスが移る
+    // （メニューが開いている間は Radix が背景を aria-hidden にするので
+    // gridRows() の getByRole は使わず、labelText で直接引く）
+    expect(document.activeElement).not.toBe(screen.getByLabelText('結果A（2行目）'))
   })
 
   it('結果セルで → を押すと隣の結果列へフォーカスが移る', () => {
