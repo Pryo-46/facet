@@ -212,6 +212,14 @@ describe('DecisionTableEditor: 要素を減らす操作の確認ダイアログ'
     expect(focusSpy).toHaveBeenCalled()
   })
 
+  it('ラベルを消す確認を確定しても、その行の名前セルへフォーカスが移る', () => {
+    const { latest } = renderEditor(filledResults)
+    fireEvent.click(screen.getByRole('button', { name: '値を消す（1行目の2つ目）' }))
+    fireEvent.click(screen.getByRole('button', { name: '続ける' }))
+    expect(latest()?.conditions[0].values).toEqual(['はい'])
+    expect(document.activeElement).toBe(screen.getByLabelText('条件名（1行目）'))
+  })
+
   it('確定すると、行が残っていれば繰り上がった行の名前セルへフォーカスが移る', () => {
     const { latest } = renderEditor(twoFilledConditions)
     fireEvent.click(screen.getByRole('button', { name: '条件を消す（2行目）' }))
