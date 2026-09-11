@@ -58,6 +58,7 @@
 | 10 | 条件列にも薄い罫線を引く | Task 3 |
 | 11 | フォーカスのある行に面を敷き、No と条件セルのクリックでその行へ移る | Task 3 |
 | 12 | `起こりえない` を表の右端のボタンでも入り切りできるようにする | Task 4 |
+| — | 値を選んでいる間、行の面が消える（Task 3 の副作用として見つかったもの） | Task 5 |
 
 ## File Structure
 
@@ -70,6 +71,7 @@
 | `src/components/CellSelect.tsx` | セルのドロップダウン。用語集とエラーカタログも使う | 変更（任意の口を2つ） |
 | `docs/decision-table/decision-table-design-notes.md` | このツールの設計の正 | 変更 |
 | `docs/open-issues.md` | 残件 | 変更（2行消す） |
+| `src/components/CellSelect.dom.test.tsx` | 共有部品のテスト | 変更 |
 
 ---
 
@@ -688,7 +690,104 @@ EOF
 
 ---
 
-## Task 5: 文書を実装に合わせる
+## Task 5: ドロップダウンを開いている間も行の面を保つ
+
+Radix はメニューを `document.body` 直下のポータルへ描く。結果セルを開くとフォーカスがそのポータルへ移り、表を包む `onBlur` の `contains` 判定から外れて行の面が消える。**会議で行を指しながら値を選ぶ動作が、まさにその瞬間に崩れる。**
+
+**Files:**
+- Modify: `src/components/CellSelect.tsx`
+- Modify: `src/components/CellSelect.dom.test.tsx`
+- Modify: `src/modules/decision-table/GridBody.tsx`
+- Test: `src/modules/decision-table/DecisionTableEditor.dom.test.tsx`
+
+**Interfaces:**
+- Produces: `CellSelectProps` の任意 prop `onOpenChange?: (open: boolean) => void`
+
+- [ ] **Step 1: `CellSelect` に開閉を知らせる口を足す**
+
+既定は無しで、**用語集とエラーカタログの呼び出しは1文字も変えない**（`itemLabelOf` / `changeOnArrows` / `openOnEnter` と同じ流儀）。
+
+```ts
+  /**
+   * メニューの開閉が変わったときに呼ぶ。
+   *
+   * **開いている間は、呼び出し側のフォーカス追跡が外れる。** Radix はメニューを
+   * `document.body` 直下のポータルへ描くので、表の `onBlur` はセルが外れたと見る。
+   * 開いていることを知らせないと、値を選んでいる間だけ行の面が消える
+   */
+  onOpenChange?: (open: boolean) => void
+```
+
+部品が持つ `open` の state を更新するところすべてで呼ぶこと。`DropdownMenu` の `onOpenChange` に通せば1箇所で済む。
+
+- [ ] **Step 2: 開いている間は行の面を保つ**
+
+`GridBody` が「メニューを開いているセルの行」を持ち、`onBlur` の判定より優先する。
+
+```ts
+  /**
+   * メニューを開いているセルの行。**`onBlur` より優先する。**
+   * ポータルへ移ったフォーカスは表の外に見えるので、これが無いと
+   * 値を選んでいる間だけ面が消える
+   */
+  const [menuRow, setMenuRow] = useState<number | null>(null)
+```
+
+面を引くときは `menuRow ?? focusedRow` を使う。`CellSelect` の `onOpenChange` で、開いたら `setMenuRow(index)`、閉じたら `setMenuRow(null)` にする。
+
+**閉じたあとにフォーカスがトリガーへ戻ることに依存しない。** Radix は戻すが、戻らない経路（外側のクリックで閉じる）でも `focusedRow` が正しければ面は残り、外れていれば消える——どちらも正しい。
+
+- [ ] **Step 3: 条件と結果の境界を強い罫線にする**
+
+いま本体の行では、条件どうしの境界も条件と結果の境界も同じ弱さの線（`border-l-rule-muted`）になっている。**結果列の先頭の `<td>` だけ `border-l-rule` にする。** 見出しは既にそうなっているので、本体を見出しに揃える形になる。
+
+- [ ] **Step 4: クリックできることを見た目で示す**
+
+No セルと条件セルに `cursor-pointer` を足す。**編集はできないがクリックで行が動く**ので、手がかりが無いと気づけない。
+
+- [ ] **Step 5: テストを足す**
+
+`CellSelect.dom.test.tsx` に1本。性質は「メニューを開くと `onOpenChange` が `true` で呼ばれ、閉じると `false` で呼ばれる」。
+
+`DecisionTableEditor.dom.test.tsx` に2本。見る性質は次のとおり。
+
+1. 結果セルのメニューを開いている間も、その行に面が付いたままである
+2. メニューを閉じると、面は `focusedRow` の行に戻る
+
+- [ ] **Step 6: 既存2モジュールが緑であることを確認する**
+
+Run: `npx vitest run src/components src/core/list-editor src/modules/glossary src/modules/error-catalog`
+Expected: PASS。**この緑がコアの共有部品を触る条件である**
+
+- [ ] **Step 7: 全体が緑になることを確認する**
+
+Run: `npm test && npx tsc -b && npm run lint`
+Expected: PASS
+
+- [ ] **Step 8: 番人が実在することを壊して確かめる**
+
+| 変異 | 赤くなるテスト |
+| --- | --- |
+| `GridBody` の面を `menuRow ?? focusedRow` から `focusedRow` に戻す | メニューを開いている間も行に面が付いたまま |
+| `CellSelect` の `onOpenChange` の呼び出しを消す | メニューを開くと `onOpenChange` が呼ばれる |
+| 結果列の先頭の `<td>` を `border-l-rule-muted` に戻す | 条件と結果の境界が強い罫線である |
+
+- [ ] **Step 9: コミット**
+
+```bash
+git add src/components src/modules/decision-table
+git commit -m "$(cat <<'EOF'
+fix(decision-table): 値を選んでいる間も行の面を保つ
+
+メニューは body 直下のポータルに描かれるので、表の onBlur はセルが
+外れたと見る。開いていることを知らせないと、選んでいる間だけ面が消える。
+EOF
+)"
+```
+
+---
+
+## Task 6: 文書を実装に合わせる
 
 **Files:**
 - Modify: `docs/decision-table/decision-table-design-notes.md`
