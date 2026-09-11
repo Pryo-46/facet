@@ -364,6 +364,7 @@ export function DecisionTableEditor({
           heading="条件"
           nameLabel="条件名"
           itemLabel="値"
+          labelsField="values"
           rows={conditionDefinitionRows}
           marks={sectionMarks(issues, 'condition')}
           minLabels={1}
@@ -398,6 +399,7 @@ export function DecisionTableEditor({
           heading="結果"
           nameLabel="結果名"
           itemLabel="選択肢"
+          labelsField="choices"
           rows={outcomeDefinitionRows}
           marks={sectionMarks(issues, 'outcome')}
           minLabels={0}

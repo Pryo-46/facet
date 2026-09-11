@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { Condition, DecisionTableSchemaVersion1, Outcome } from '@/types/decision-table'
+import { checkDecisionTableConsistency } from './consistency'
 import { DecisionTableEditor } from './DecisionTableEditor'
 import { IMPOSSIBLE_LABEL } from './labels'
 import { tallyMissing } from './missing'
@@ -333,5 +334,48 @@ describe('DecisionTableEditor: 表本体', () => {
     ).toBeDefined()
     // DefinitionList（条件・結果）の2本だけで、表本体の3本目は出ない
     expect(screen.getAllByRole('table')).toHaveLength(2)
+  })
+})
+
+describe('整合性の赤', () => {
+  /** 指摘を実物から作って渡す。Harness は issues を空で渡すので、ここは直接描く */
+  function renderWithIssues(data: DecisionTableSchemaVersion1) {
+    render(
+      <DecisionTableEditor
+        data={data}
+        issues={checkDecisionTableConsistency(data)}
+        modalOpen={false}
+        onChange={() => {}}
+      />,
+    )
+  }
+
+  it('値ラベルが重なるとラベル列のセルに無効の面が付く', () => {
+    renderWithIssues(
+      table({
+        conditions: [condition({ id: 'cond_Aaaaaaaaa1', name: '会員か', values: ['はい', 'はい'] })],
+        outcomes: [],
+        rows: [
+          { values: ['はい'], impossible: false, results: [] },
+          { values: ['はい'], impossible: false, results: [] },
+        ],
+      }),
+    )
+    // 条件の一覧は1本目の表。No・条件名・値・削除の順で、値は添字2
+    const cells = within(within(screen.getAllByRole('table')[0]).getAllByRole('row')[1]).getAllByRole('cell')
+    expect(cells[2]?.className).toContain('bg-invalid-face')
+  })
+
+  it('選択肢ラベルが重なると選択肢列のセルに無効の面が付く', () => {
+    renderWithIssues(
+      table({
+        conditions: [],
+        outcomes: [outcome({ id: 'out_Aaaaaaaaa1', name: '送料', choices: ['無料', '無料'] })],
+        rows: [],
+      }),
+    )
+    // 結果の一覧は2本目の表
+    const cells = within(within(screen.getAllByRole('table')[1]).getAllByRole('row')[1]).getAllByRole('cell')
+    expect(cells[2]?.className).toContain('bg-invalid-face')
   })
 })

@@ -108,6 +108,13 @@ describe('ラベルの重複', () => {
     data.rows = data.rows.map((r) => ({ ...r, results: [''] }))
     expect(rules(data)).not.toContain('duplicate-choice')
   })
+
+  it('空の値どうしも重複にしない', () => {
+    const data = table()
+    data.conditions[0].values = ['', '']
+    data.rows = data.rows.map((r) => ({ ...r, values: ['', r.values[1]] }))
+    expect(rules(data)).not.toContain('duplicate-value')
+  })
 })
 
 describe('長さの不一致', () => {
@@ -175,6 +182,23 @@ describe('指摘の引き直し', () => {
     const issues = checkDecisionTableConsistency(data)
     expect(sectionMarks(issues, 'condition').get(1)?.has('name')).toBe(true)
     expect(sectionMarks(issues, 'row').get(1)).toBeUndefined()
+  })
+
+  it('値ラベルの重複はラベル列そのものを指す', () => {
+    // 画面はこの field でラベル列のセルの面を引く。ラベル1つずつの
+    // `label:N` を指すと、どのラベルが重なっているかを決められない
+    const data = table()
+    data.conditions[0].values = ['はい', 'はい']
+    data.rows = data.rows.map((r) => ({ ...r, values: ['はい', r.values[1]] }))
+    const issues = checkDecisionTableConsistency(data)
+    expect(sectionMarks(issues, 'condition').get(0)?.has('values')).toBe(true)
+  })
+
+  it('選択肢ラベルの重複は選択肢列そのものを指す', () => {
+    const data = table()
+    data.outcomes[0].choices = ['無料', '無料']
+    const issues = checkDecisionTableConsistency(data)
+    expect(sectionMarks(issues, 'outcome').get(0)?.has('choices')).toBe(true)
   })
 
   it('区画の接頭辞を付けた文字列を返す', () => {

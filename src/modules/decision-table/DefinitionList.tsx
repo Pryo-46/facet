@@ -53,6 +53,14 @@ export interface DefinitionListProps {
   addRowLabel: string
   /** 行の鍵。`useListRows` の rowKeys をそのまま渡す。条件と結果で別々の配列なので衝突しない */
   rowKeys: readonly string[]
+  /**
+   * ラベル列を指す指摘の `field`。条件は `'values'`、結果は `'choices'`。
+   *
+   * **ラベル1つずつの `label:N` とは別に要る。** ラベルの重複の指摘は
+   * 「どのラベルか」ではなく「この条件の中で重なっている」を指すので、
+   * 列そのものを指す名前を持たないと、どのセルにも当たらないまま赤が消える
+   */
+  labelsField: string
   onRenameRow: (index: number, name: string) => void
   onRenameLabel: (index: number, labelIndex: number, label: string) => void
   onAddRow: () => void
@@ -87,6 +95,7 @@ export function DefinitionList(props: DefinitionListProps) {
     canAddLabel,
     addRowLabel,
     rowKeys,
+    labelsField,
     onRenameRow,
     onRenameLabel,
     onAddRow,
@@ -141,7 +150,9 @@ export function DefinitionList(props: DefinitionListProps) {
                       onFieldKeyDown={(e, s) => onCellKeyDown(e, { index, field: 'name' }, s, true)}
                     />
                   </td>
-                  <td className={colBorder}>
+                  {/* ラベル列そのものの指摘（重複）はこの面が運ぶ。ラベル1つずつの
+                      面は下の span が別に持つ */}
+                  <td className={`${colBorder} ${face(index, labelsField, false)}`}>
                     <div className="flex flex-wrap gap-1 px-2 py-1">
                       {row.labels.map((label, labelIndex) => {
                         const field = `label:${labelIndex}`
