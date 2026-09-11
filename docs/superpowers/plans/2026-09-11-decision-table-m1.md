@@ -1466,7 +1466,7 @@ Expected: FAIL。`Error: Cannot find module './missing' imported from ...` が�
 /**
  * 画面に出す語の定数。**`起こりえない` は画面と出力のどちらも同じ語を使う**
  *（シーケンスの `考慮不要` と同じ扱い。docs/missing-semantics.md 規約2）。
- * 出力は m3 で足すが、語の置き場をここに決めておくと2箇所に生えない
+ * 出力側も同じ語を参照するので、置き場を1箇所にまとめる
  */
 export const IMPOSSIBLE_LABEL = '起こりえない'
 
