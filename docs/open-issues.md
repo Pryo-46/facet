@@ -90,8 +90,6 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **別種のチップを押すときの挿入起点が問いの欄でだけ列の先頭へ落ちる**（`src/modules/issue-tree/IssueTreeEditor.tsx`）。
 - **「保留」の語が経緯の残らない列の上に乗る**（`schemas/issue-tree.schema.json` の `judgementEvent.kind`）。判断が差し替え式になり、保留にした経緯がデータに残らない。
 - **`writeMerged` の read-modify-write に直列化が無い**（`src/fs/settings-fs.ts`）。フォルダを開く保存と設定の保存が近接すると、後発が古い読み取りの上に書いて片方が落ちる。
-- **`impossible` の入り切りにマウスの入口が無い**（`src/modules/decision-table/GridBody.tsx`）。起こりえない行を戻すのはセルのクリックでできるが、立てるのは主修飾キー＋`Enter` だけ。
-- **デシジョンテーブルの定義部の欄の移動がブラウザの `Tab` 順に依存する**（`src/modules/decision-table/DecisionTableEditor.tsx`）。ラベルの本数が行ごとに違うので、`focus-next-field` に写せる列の並びが無い。
 
 ## 性能
 

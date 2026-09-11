@@ -1,7 +1,10 @@
+import { Ban } from 'lucide-react'
 import { useRef } from 'react'
+import { buttonBase } from '@/components/button-styles'
 import { CellSelect } from '@/components/CellSelect'
 import { cellFace, CELL_FACE_CLASS, type ErrorMarks } from '@/core/list-editor/cell-face'
 import { cellId } from '@/core/list-editor/use-list-rows'
+import { rowRef } from '@/core/row-ref'
 import type { Condition, Outcome, Row } from '@/types/decision-table'
 import { CLEAR_RESULT_LABEL, IMPOSSIBLE_LABEL } from './labels'
 import { isMissingResult } from './missing'
@@ -30,6 +33,9 @@ const condColBorder = 'border-l border-l-rule-muted'
 /** 条件列の地を引くための鍵。条件列は編集対象ではないので、指摘の `field` にはならない */
 const CONDITION_FIELD = 'condition-column'
 
+/** 起こりえないのトグル列の地を引くための鍵。この列も検証の対象ではないので、指摘の `field` にはならない */
+const IMPOSSIBLE_FIELD = 'impossible-column'
+
 const headCell =
   'sticky top-0 z-10 border-b border-b-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted'
 
@@ -56,8 +62,10 @@ export interface GridBodyProps {
  *
  * **`impossible` の行でも結果セルの本数を変えない。** `colSpan` でまとめると、
  * `Tab` の送り先が行によって消える。`impossible` の行は各結果セルを
- * 「起こりえない」を表示するボタンにする——押すと解除する（立てる入口は
- * マウスに無く、主修飾キー＋Enter だけが持つ）
+ * 「起こりえない」を表示するボタンにする——押すと解除する。
+ *
+ * 表の右端に行ごとの `起こりえない` トグルボタンを置く。主修飾キー＋`Enter` は
+ * 結果セルにしか届かないので、結果が0本の表ではこのボタンだけが入り切りの入口になる
  */
 export function GridBody(props: GridBodyProps) {
   const {
@@ -90,11 +98,19 @@ export function GridBody(props: GridBodyProps) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   /**
-   * No・条件セルをクリックしたときの移動先。**結果が0本の表では移動先が無い**——
-   * このときは何もしない
+   * No・条件セルをクリックしたときの移動先。**結果が0本の表では、起こりえないの
+   * トグルボタンへ移す**——結果セルが無い表では、このボタンだけがフォーカスできる
+   * セルとして残る。トグルボタンは `data-cell` を持たないので、行の `<tr>` を
+   * 位置で数えて中の `aria-pressed` 属性で引く
    */
-  const focusFirstResultCell = (rowKey: string): void => {
-    if (outcomes.length === 0) return
+  const focusFirstResultCell = (index: number, rowKey: string): void => {
+    if (outcomes.length === 0) {
+      containerRef.current
+        ?.querySelectorAll<HTMLElement>('tbody tr')[index]
+        ?.querySelector<HTMLElement>('button[aria-pressed]')
+        ?.focus()
+      return
+    }
     containerRef.current
       ?.querySelector<HTMLElement>(`[data-cell="${cellId(rowKey, 'result:0')}"]`)
       ?.focus()
@@ -120,6 +136,8 @@ export function GridBody(props: GridBodyProps) {
           {outcomes.map((_, j) => (
             <col key={`out-${j}`} />
           ))}
+          {/* 起こりえないのボタン列。幅は定義部の削除列と同じ40px */}
+          <col style={{ width: 40 }} />
         </colgroup>
         <thead>
           <tr className="text-left">
@@ -134,19 +152,22 @@ export function GridBody(props: GridBodyProps) {
                 {o.name}
               </th>
             ))}
+            {/* 見出しは空。列の意味は行のボタンのアクセシブル名が運ぶ */}
+            <th className={`${headCell} ${headColBorder}`} />
           </tr>
         </thead>
         <tbody>
           {rows.map((row, index) => {
             const rowNo = index + 1
             const rowKey = gridRowKey(index)
+            const rowSurface = surfaceOf(index, IMPOSSIBLE_FIELD, false)
             return (
               <tr key={rowKey} className="border-b border-rule-muted align-middle">
                 {/* 行全体の指摘（行の列数不一致など欄を特定できないもの）は No セルの面で示す。
                     クリックでも行へ移れる——編集はできないので onClick は移動のみ */}
                 <td
                   className={`px-2 py-1 text-right text-ink-muted ${surfaceOf(index, 'no', false, true)}`}
-                  onClick={() => focusFirstResultCell(rowKey)}
+                  onClick={() => focusFirstResultCell(index, rowKey)}
                 >
                   {rowNo}
                 </td>
@@ -154,7 +175,7 @@ export function GridBody(props: GridBodyProps) {
                   <td
                     key={`cond-${i}`}
                     className={`px-2 py-1 text-ink-muted ${condColBorder} ${surfaceOf(index, CONDITION_FIELD, false)}`}
-                    onClick={() => focusFirstResultCell(rowKey)}
+                    onClick={() => focusFirstResultCell(index, rowKey)}
                   >
                     {row.values[i]}
                   </td>
@@ -212,6 +233,20 @@ export function GridBody(props: GridBodyProps) {
                     </td>
                   )
                 })}
+                <td className={`${headColBorder} px-1 py-1 text-center ${rowSurface}`}>
+                  {/* 起こりえないの入り切り。キーの入口（主修飾キー＋Enter）は結果セルにしか
+                      無いので、結果が0本の表ではこのボタンだけが入口になる */}
+                  <button
+                    type="button"
+                    aria-pressed={row.impossible}
+                    aria-label={`${rowRef(index)} を${IMPOSSIBLE_LABEL}にする`}
+                    title={IMPOSSIBLE_LABEL}
+                    className={`${buttonBase} size-6 ${row.impossible ? 'text-ink' : 'text-ink-faint hover:text-ink'}`}
+                    onClick={() => onToggleImpossible(index)}
+                  >
+                    <Ban aria-hidden className="size-4" />
+                  </button>
+                </td>
               </tr>
             )
           })}

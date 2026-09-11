@@ -215,11 +215,16 @@ describe('DecisionTableEditor: 定義部のキー操作（木の家族）', () =
     expect(latest()?.conditions[0].values).toHaveLength(3)
   })
 
-  it('行数の上限に達していると、Tab を押しても値が増えない', () => {
-    const { onChange } = renderEditor(atMaxRows)
-    fireEvent.keyDown(screen.getByLabelText('条件名（1行目）'), { key: 'Tab' })
-    expect(onChange).not.toHaveBeenCalled()
-  })
+  it(
+    '行数の上限に達していると、Tab を押しても値が増えない',
+    () => {
+      const { onChange } = renderEditor(atMaxRows)
+      fireEvent.keyDown(screen.getByLabelText('条件名（1行目）'), { key: 'Tab' })
+      expect(onChange).not.toHaveBeenCalled()
+    },
+    // 1024行の表本体に列を1本足した分、描画が既定の5秒を越えることがある
+    20000,
+  )
 
   it('値の欄で空欄 Backspace を押すと、一つ手前の値の欄へフォーカスが移る', () => {
     renderEditor(threeValues)
@@ -491,9 +496,9 @@ describe('DecisionTableEditor: 表本体', () => {
   it('起こりえない行の結果セルの本数が、普通の行と同じである', () => {
     renderEditor(twoOutcomes)
     const rows = gridRows()
-    // No・条件A・結果A・結果B の4セル。起こりえない行（1行目）も同じ本数
-    expect(rows[0].cells).toHaveLength(4)
-    expect(rows[1].cells).toHaveLength(4)
+    // No・条件A・結果A・結果B・起こりえないボタンの5セル。起こりえない行（1行目）も同じ本数
+    expect(rows[0].cells).toHaveLength(5)
+    expect(rows[1].cells).toHaveLength(5)
   })
 
   it('結果セルで ↓ を押すと下の行の同じ列へフォーカスが移り、値は変わらない', () => {
@@ -553,6 +558,61 @@ describe('DecisionTableEditor: 表本体', () => {
     ).toBeDefined()
     // DefinitionList（条件・結果）の2本だけで、表本体の3本目は出ない
     expect(screen.getAllByRole('table')).toHaveLength(2)
+  })
+})
+
+describe('DecisionTableEditor: 起こりえないの表右端ボタン', () => {
+  it('各行に起こりえないのボタンが1つ出る', () => {
+    renderEditor(twoConditions)
+    const rows = gridRows()
+    rows.forEach((row, i) => {
+      expect(
+        within(row).getByRole('button', { name: `#${i + 1} を${IMPOSSIBLE_LABEL}にする` }),
+      ).toBeDefined()
+    })
+  })
+
+  it('ボタンを押すと impossible が真になり、aria-pressed が真になる', () => {
+    const { latest } = renderEditor(twoConditions)
+    const button = screen.getByRole('button', { name: `#1 を${IMPOSSIBLE_LABEL}にする` })
+    expect(button.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(button)
+    expect(latest()?.rows[0].impossible).toBe(true)
+    expect(
+      screen.getByRole('button', { name: `#1 を${IMPOSSIBLE_LABEL}にする` }).getAttribute('aria-pressed'),
+    ).toBe('true')
+  })
+
+  it('もう一度押すと impossible が偽に戻る', () => {
+    const { latest } = renderEditor(twoConditions)
+    const button = screen.getByRole('button', { name: `#1 を${IMPOSSIBLE_LABEL}にする` })
+    fireEvent.click(button)
+    fireEvent.click(screen.getByRole('button', { name: `#1 を${IMPOSSIBLE_LABEL}にする` }))
+    expect(latest()?.rows[0].impossible).toBe(false)
+  })
+
+  it('結果が0本の表でもボタンが出て、押すと impossible が入る', () => {
+    const { latest } = renderEditor(oneCondition)
+    const button = screen.getByRole('button', { name: `#1 を${IMPOSSIBLE_LABEL}にする` })
+    fireEvent.click(button)
+    expect(latest()?.rows[0].impossible).toBe(true)
+  })
+
+  it('結果が0本の表で No セルをクリックすると、起こりえないボタンへフォーカスが移る', () => {
+    renderEditor(oneCondition)
+    const rows = gridRows()
+    fireEvent.click(rows[0].cells[0])
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: `#1 を${IMPOSSIBLE_LABEL}にする` }),
+    )
+  })
+
+  it('主修飾キー＋Enter の入口も引き続き効く', () => {
+    const { latest } = renderEditor(twoConditions)
+    fireEvent.keyDown(screen.getByLabelText('結果A（2行目）'), { key: 'Enter', ctrlKey: true })
+    expect(latest()?.rows[1].impossible).toBe(true)
+    const cell = screen.getByLabelText(`結果A（2行目）: ${IMPOSSIBLE_LABEL}`)
+    expect(cell.textContent).toBe(IMPOSSIBLE_LABEL)
   })
 })
 
