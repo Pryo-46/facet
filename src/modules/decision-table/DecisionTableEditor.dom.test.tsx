@@ -974,3 +974,81 @@ describe('DecisionTableEditor: 選択肢セルの <td>', () => {
     expect(td?.className).toContain('h-px')
   })
 })
+
+/** 条件2本・結果1本。絞り込みの組み合わせを見るための土台 */
+const filterable = table({
+  conditions: [
+    condition({ id: 'cond_a', name: '会員か' }),
+    condition({ id: 'cond_b', name: '5000円以上か' }),
+  ],
+  outcomes: [outcome({ id: 'out_a', name: '送料', choices: ['無料', '500円'] })],
+  rows: [
+    { values: ['はい', 'はい'], impossible: false, results: ['無料'] },
+    { values: ['はい', 'いいえ'], impossible: false, results: [''] },
+    { values: ['いいえ', 'はい'], impossible: true, results: ['無料'] },
+    { values: ['いいえ', 'いいえ'], impossible: false, results: ['500円'] },
+  ],
+})
+
+/**
+ * 表本体の行（見出しを除く）の No セルの文字を並べる。
+ *
+ * **表は3つある**（条件の定義部・結果の定義部・表本体）ので、`getByRole('table')` では
+ * 引けない。表本体は最後に描かれる
+ */
+function gridRowNumbers(): string[] {
+  const grid = screen.getAllByRole('table').at(-1)
+  return [...(grid?.querySelectorAll('tbody tr') ?? [])].map(
+    (tr) => tr.querySelector('td')?.textContent ?? '',
+  )
+}
+
+describe('絞り込み', () => {
+  it('列の値を外すと、その値の行が表から消える', () => {
+    renderEditor(filterable)
+    fireEvent.keyDown(screen.getByLabelText('会員か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'いいえ' }))
+    expect(gridRowNumbers()).toEqual(['1', '2'])
+  })
+
+  it('列をまたいだ絞り込みは重なって効く', () => {
+    renderEditor(filterable)
+    fireEvent.keyDown(screen.getByLabelText('会員か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'いいえ' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    fireEvent.keyDown(screen.getByLabelText('5000円以上か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'いいえ' }))
+    expect(gridRowNumbers()).toEqual(['1'])
+  })
+
+  it('絞り込んでも No は振り直さない', () => {
+    // No は行の呼び名（#N）であり、絞り込みで変わると会話の中で行を指せない
+    renderEditor(filterable)
+    fireEvent.keyDown(screen.getByLabelText('会員か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'はい' }))
+    expect(gridRowNumbers()).toEqual(['3', '4'])
+  })
+
+  it('起こりえない行の表示を切ると、その行だけが消える', () => {
+    renderEditor(filterable)
+    fireEvent.click(screen.getByLabelText('起こりえない行を表示'))
+    expect(gridRowNumbers()).toEqual(['1', '2', '4'])
+  })
+
+  it('隠れている行を飛ばして上下に移る', () => {
+    // 添字で隣を引くと、隠れた行の data-cell が見つからず移動が止まる
+    renderEditor(filterable)
+    fireEvent.click(screen.getByLabelText('起こりえない行を表示'))
+    const cell = screen.getByLabelText('送料（2行目）')
+    cell.focus()
+    fireEvent.keyDown(cell, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByLabelText('送料（4行目）'))
+  })
+
+  it('表示中と全体の行数を出す', () => {
+    renderEditor(filterable)
+    fireEvent.keyDown(screen.getByLabelText('会員か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'いいえ' }))
+    expect(screen.getByText('2 / 4 行')).toBeTruthy()
+  })
+})

@@ -30,6 +30,7 @@ import {
 } from './commands'
 import { sectionMarks } from './consistency'
 import { DefinitionList, type DefinitionRow } from './DefinitionList'
+import { EMPTY_FILTER, filterRowIndices, type GridFilter } from './filter'
 import { GridBody } from './GridBody'
 import { IMPOSSIBLE_LABEL } from './labels'
 import { isMissingLabel, isMissingResult, LABEL_KIND, RESULT_KIND, tallyMissing } from './missing'
@@ -369,6 +370,15 @@ export function DecisionTableEditor({
    */
   const [focusedRow, setFocusedRow] = useState<number | null>(null)
 
+  /**
+   * 表本体の絞り込み。**データには持たない**——見ている範囲は人ごと・その場ごとに
+   * 変わるもので、ファイルに残すと他の人の表示まで動かす
+   */
+  const [filter, setFilter] = useState<GridFilter>(EMPTY_FILTER)
+
+  /** 表に出す行の「元配列での index」 */
+  const visible = filterRowIndices(data.conditions, data.outcomes, data.rows, filter)
+
   /** 表本体のセルへフォーカスする。無ければ何もせず false を返す（既定動作を止めない） */
   const focusGridCell = (rowIndex: number, field: string): boolean => {
     const el = gridRef.current?.querySelector<HTMLElement>(
@@ -379,23 +389,36 @@ export function DecisionTableEditor({
     return true
   }
 
+  /**
+   * 表の中の位置で数えたセルへ移る。**上下の移動はこちらを使う**——
+   * 元配列の添字で隣を引くと、絞り込みで隠れた行の `data-cell` が見つからず
+   * 移動がそこで止まる
+   */
+  const focusVisible = (visiblePos: number, field: string): boolean => {
+    const index = visible[visiblePos]
+    return index === undefined ? false : focusGridCell(index, field)
+  }
+
   /** 結果列の並び。`stepField` に渡して隣の列・行端の折り返しを引く */
   const resultFieldOrder = data.outcomes.map((_, j) => `result:${j}`)
 
   /** コマンドを表本体の構造へ写像する。戻り値 true＝消費した（既定動作を止める） */
-  const runGridCommand = (cmd: Command, at: { index: number; field: string }): boolean => {
+  const runGridCommand = (
+    cmd: Command,
+    at: { index: number; visiblePos: number; field: string },
+  ): boolean => {
     switch (cmd) {
       case 'focus-prev':
-        return focusGridCell(at.index - 1, at.field)
+        return focusVisible(at.visiblePos - 1, at.field)
       case 'focus-next':
-        return focusGridCell(at.index + 1, at.field)
+        return focusVisible(at.visiblePos + 1, at.field)
       case 'focus-prev-field': {
         const step = stepField(resultFieldOrder, at.field, -1)
-        return focusGridCell(at.index + step.rowDelta, step.field)
+        return focusVisible(at.visiblePos + step.rowDelta, step.field)
       }
       case 'focus-next-field': {
         const step = stepField(resultFieldOrder, at.field, 1)
-        return focusGridCell(at.index + step.rowDelta, step.field)
+        return focusVisible(at.visiblePos + step.rowDelta, step.field)
       }
       case 'toggle-item-state':
         onChange(toggleImpossible(data, at.index), null)
@@ -411,7 +434,10 @@ export function DecisionTableEditor({
   }
 
   /** 表本体のセルのキー入力。キーの判定はコアの resolveCommand に委ねる（rev 10章） */
-  const onGridCellKeyDown = (e: React.KeyboardEvent, at: { index: number; field: string }): void => {
+  const onGridCellKeyDown = (
+    e: React.KeyboardEvent,
+    at: { index: number; visiblePos: number; field: string },
+  ): void => {
     const cmd = resolveCommand(toKeyEventLike(e), {
       platform: PLATFORM,
       modalOpen: anyModalOpen,
@@ -579,14 +605,33 @@ export function DecisionTableEditor({
           </p>
         ) : (
           <>
-            <div className="mb-2">
+            <div className="mb-2 flex flex-wrap items-center gap-3">
               <KeyHints hints={GRID_HINTS} />
+              <label className="flex items-center gap-2 text-base text-ink">
+                <input
+                  type="checkbox"
+                  aria-label="起こりえない行を表示"
+                  checked={filter.showImpossible}
+                  onChange={() =>
+                    setFilter((f) => ({ ...f, showImpossible: !f.showImpossible }))
+                  }
+                />
+                {`${IMPOSSIBLE_LABEL}行を表示`}
+              </label>
+              {/* 絞り込んでいない間も出す。数が出たり消えたりすると、
+                  絞り込みが効いているかを数の有無で読む癖が付く */}
+              <span className="text-base text-ink-muted">
+                {`${visible.length} / ${data.rows.length} 行`}
+              </span>
             </div>
             <div ref={gridRef}>
               <GridBody
                 conditions={data.conditions}
                 outcomes={data.outcomes}
                 rows={data.rows}
+                visible={visible}
+                filter={filter}
+                onFilterChange={setFilter}
                 marks={sectionMarks(issues, 'row')}
                 gridRowKey={gridRowKey}
                 focusedRow={focusedRow}

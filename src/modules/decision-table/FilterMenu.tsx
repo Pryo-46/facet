@@ -35,7 +35,10 @@ export function FilterMenu({ name, all, picked, onToggle, onClear }: FilterMenuP
   const filtered = picked !== undefined
   const Icon = filtered ? FunnelX : Funnel
   return (
-    <DropdownMenu>
+    // modal={false}: Radix の既定（モーダル）は開いている間、表本体を
+    // aria-hidden で覆う。この列は開いたまま複数の値を入り切りする作りなので、
+    // 開いている間も表の行数の変化が見える必要がある
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
