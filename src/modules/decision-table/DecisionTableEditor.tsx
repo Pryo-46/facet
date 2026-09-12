@@ -8,6 +8,7 @@ import { resolveCommand, toKeyEventLike, type Command } from '@/core/keyboard/ke
 import { currentPlatform } from '@/core/keyboard/platform'
 import { stepField } from '@/core/list-editor/field-step'
 import { cellId, useListRows, type ListRows } from '@/core/list-editor/use-list-rows'
+import { useVisibleIdsReport } from '@/core/list-editor/use-visible-ids'
 import { computeRowKeys } from '@/core/row-keys'
 import type { EditorProps } from '@/core/registry'
 import type { Condition, DecisionTableSchemaVersion1, Outcome } from '@/types/decision-table'
@@ -32,11 +33,11 @@ import { applyBulk, type BulkTarget } from './bulk'
 import { BulkFillBar } from './BulkFillBar'
 import { sectionMarks } from './consistency'
 import { DefinitionList, type DefinitionRow } from './DefinitionList'
-import { EMPTY_FILTER, filterRowIndices, type GridFilter } from './filter'
+import { EMPTY_FILTER, filterRowIndices, isFiltered, type GridFilter } from './filter'
 import { GridBody } from './GridBody'
 import { CLEAR_RESULT_LABEL, IMPOSSIBLE_LABEL } from './labels'
 import { isMissingLabel, isMissingResult, LABEL_KIND, RESULT_KIND, tallyMissing } from './missing'
-import { MAX_ROWS, productSize } from './rows'
+import { MAX_ROWS, productSize, rowKeyOf } from './rows'
 
 const PLATFORM = currentPlatform()
 
@@ -121,6 +122,7 @@ export function DecisionTableEditor({
   issues,
   modalOpen,
   onToast,
+  onVisibleIds,
 }: EditorProps<DecisionTableSchemaVersion1>) {
   const [pending, setPending] = useState<{
     applied: Applied
@@ -381,6 +383,17 @@ export function DecisionTableEditor({
 
   /** 表に出す行の「元配列での index」 */
   const visible = filterRowIndices(data.conditions, data.outcomes, data.rows, filter)
+
+  /**
+   * 絞り込みを額縁へ知らせる。**鍵は値の組み合わせで、添字ではない**——
+   * この報告は `useEffect` を通るので1フレーム古くなりうる。条件の値を1つ消すと
+   * 直積が縮み、同じ添字が別の組み合わせを指す
+   */
+  useVisibleIdsReport(
+    isFiltered(filter) ? visible.map((i) => rowKeyOf(data.rows[i])) : null,
+    data.rows.length,
+    onVisibleIds,
+  )
 
   /**
    * まとめて入力。**変更した行数を知らせる**——上書きは確認を挟まないので、

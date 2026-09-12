@@ -1177,3 +1177,37 @@ describe('欠落へのジャンプ', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('送料（2行目）'))
   })
 })
+
+describe('絞り込みの報告', () => {
+  it('絞り込んでいない間は全件として知らせる', () => {
+    const onVisibleIds = vi.fn()
+    render(
+      <DecisionTableEditor
+        data={filterable}
+        issues={[]}
+        modalOpen={false}
+        onChange={vi.fn()}
+        onVisibleIds={onVisibleIds}
+      />,
+    )
+    expect(onVisibleIds).toHaveBeenLastCalledWith(null, 4)
+  })
+
+  it('絞り込むと、出ている行の鍵だけを知らせる', () => {
+    const onVisibleIds = vi.fn()
+    render(
+      <DecisionTableEditor
+        data={filterable}
+        issues={[]}
+        modalOpen={false}
+        onChange={vi.fn()}
+        onVisibleIds={onVisibleIds}
+      />,
+    )
+    fireEvent.keyDown(screen.getByLabelText('会員か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'いいえ' }))
+    const [ids, total] = onVisibleIds.mock.calls.at(-1)!
+    expect(total).toBe(4)
+    expect(ids).toEqual(new Set([JSON.stringify(['はい', 'はい']), JSON.stringify(['はい', 'いいえ'])]))
+  })
+})
