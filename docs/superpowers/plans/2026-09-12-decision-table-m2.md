@@ -949,10 +949,17 @@ const filterable = table({
   ],
 })
 
-/** 表本体の行（見出しを除く）の No セルの文字を並べる */
+/**
+ * 表本体の行（見出しを除く）の No セルの文字を並べる。
+ *
+ * **表は3つある**（条件の定義部・結果の定義部・表本体）ので、`getByRole('table')` では
+ * 引けない。表本体は最後に描かれる
+ */
 function gridRowNumbers(): string[] {
-  const body = screen.getByRole('table').querySelectorAll('tbody tr')
-  return [...body].map((tr) => tr.querySelector('td')?.textContent ?? '')
+  const grid = screen.getAllByRole('table').at(-1)
+  return [...(grid?.querySelectorAll('tbody tr') ?? [])].map(
+    (tr) => tr.querySelector('td')?.textContent ?? '',
+  )
 }
 
 describe('絞り込み', () => {
@@ -1110,8 +1117,9 @@ import { FilterMenu } from './FilterMenu'
 そのうえで、行の中の2箇所を直す。
 
 1. `focusFirstResultCell(index, rowKey)` の呼び出しを `focusFirstResultCell(visiblePos, rowKey)` に変える（2箇所。No セルと条件セルの `onClick`）
-2. 結果セルの `onKeyDown={(e) => onCellKeyDown(e, { index, field })}` を
-   `onKeyDown={(e) => onCellKeyDown(e, { index, visiblePos, field })}` に変える
+2. `onKeyDown={(e) => onCellKeyDown(e, { index, field })}` を
+   `onKeyDown={(e) => onCellKeyDown(e, { index, visiblePos, field })}` に変える。
+   **2箇所ある**——起こりえない行のボタンと、`CellSelect` である
 
 `focusFirstResultCell` の引数の意味が変わるので、関数と JSDoc を次に置き換える。
 
@@ -1395,7 +1403,8 @@ describe('エディタからの通知', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
     fireEvent.click(await screen.findByRole('button', { name: '送料（送料.json） を開く' }))
-    await screen.findByRole('table')
+    // 表は3つある（条件の定義部・結果の定義部・表本体）ので findByRole では引けない
+    await screen.findAllByRole('table')
     fireEvent.click(screen.getByRole('button', { name: '表示中の 2 行に適用' }))
     expect(await screen.findByText('送料を「無料」にしました（2 行）')).toBeTruthy()
   })
