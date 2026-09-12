@@ -298,6 +298,13 @@ describe('DecisionTableEditor: 定義部のキー操作（木の家族）', () =
     expect(onChange).not.toHaveBeenCalled()
   })
 
+  it('末尾の選択肢の欄で Tab を押すと、選択肢が1つ増えてその欄へ移る', () => {
+    const { latest } = renderEditor(oneOutcome)
+    fireEvent.keyDown(screen.getByLabelText('選択肢（1行目の2つ目）'), { key: 'Tab' })
+    expect(latest()?.outcomes[0].choices).toHaveLength(3)
+    expect(document.activeElement).toBe(screen.getByLabelText('選択肢（1行目の3つ目）'))
+  })
+
   it('値の ✕ ボタンが Tab の順に入っていない', () => {
     renderEditor(oneCondition)
     const button = screen.getByRole('button', { name: '値を消す（1行目の1つ目）' })
