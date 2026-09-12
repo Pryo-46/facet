@@ -75,8 +75,10 @@ const gridContext = {
 const gridRowKey = (index: number): string => `row-${index}`
 
 /**
- * 条件を1本足したあとの行数を測るための値。**`newCondition()` を呼ばない**
- *——描画のたびに ID を採番することになる。数えるのに要るのは値の本数だけである
+ * 条件を1本足せるかを判定するための値。**`newCondition()` を呼ばない**
+ *——描画のたびに ID を採番することになる。値を1つだけにしているのは新しい
+ * 条件が直積を増やさないためで、この式が測るのは「いまの直積が上限内か」
+ * である（「条件を1本足したあとの行数」ではない）
  */
 const PROBE_CONDITION = { id: '', name: '', values: [''] }
 
