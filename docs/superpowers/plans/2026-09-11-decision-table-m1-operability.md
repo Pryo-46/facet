@@ -59,6 +59,7 @@
 | 11 | フォーカスのある行に面を敷き、No と条件セルのクリックでその行へ移る | Task 3 |
 | 12 | `起こりえない` を表の右端のボタンでも入り切りできるようにする | Task 4 |
 | — | 値を選んでいる間、行の面が消える（Task 3 の副作用として見つかったもの） | Task 5 |
+| — | 新しい条件に値が2つ付いてくる。名前セルの `Tab` が1つ目の値へ移らない | Task 6 |
 
 ## File Structure
 
@@ -787,7 +788,134 @@ EOF
 
 ---
 
-## Task 6: 文書を実装に合わせる
+## Task 6: 新しい条件の値を1つにし、`Tab` を移動優先にする
+
+実機で2点が挙がった。**新しい条件に値が2つ付いてくる**のと、**名前セルで `Tab` を押すと1つ目の値へ移らずに新しい値が足される**である。
+
+**Files:**
+- Modify: `src/modules/decision-table/commands.ts`
+- Modify: `src/modules/decision-table/DecisionTableEditor.tsx`
+- Test: `src/modules/decision-table/commands.test.ts`
+- Test: `src/modules/decision-table/DecisionTableEditor.dom.test.tsx`
+
+- [ ] **Step 1: 新しい条件の値を1つにする**
+
+`commands.ts` の `newCondition` を次にする。
+
+```ts
+/**
+ * 新しい条件。**値は空1つから始める。** 人が決めていない値を既定で入れると、
+ * 決めた値と見分けが付かない。本数も同じで、2つ置くと「2つに分かれる条件」を
+ * 決めたように見える
+ */
+export function newCondition(): Condition {
+  return { id: newId('cond'), name: '', values: [''] }
+}
+```
+
+`commands.test.ts` の `新しい条件は名前も値も空の2値から始まる` を次に書き換える。
+
+```ts
+  it('新しい条件は名前も値も空の1値から始まる', () => {
+    const c = newCondition()
+    expect(c.id).toMatch(/^cond_[A-Za-z0-9]{10}$/)
+    expect(c.name).toBe('')
+    expect(c.values).toEqual([''])
+  })
+```
+
+- [ ] **Step 2: 上限の歯止めを値の側だけに寄せる**
+
+`PROBE_CONDITION` を1値にする。**値1つの条件を足しても行は増えない**ので、条件の追加は上限で止める理由が無い。
+
+```ts
+/**
+ * 条件を1本足したあとの行数を測るための値。**`newCondition()` を呼ばない**
+ *——描画のたびに ID を採番することになる。数えるのに要るのは値の本数だけである
+ */
+const PROBE_CONDITION = { id: '', name: '', values: [''] }
+```
+
+この結果 `canAddCondition` は常に真になる。上限の案内は、**どの条件にも値を足せなくなったとき**に出す形へ変える。
+
+```ts
+  /** どの条件にも値を足せない。上限に達していることの画面での知らせに使う */
+  const atRowLimit =
+    data.conditions.length > 0 && data.conditions.every((_, i) => !canAddValue(i))
+```
+
+案内の文言を次にする。
+
+```
+行数の上限（1024行）に達しているので、値をこれ以上足せません。
+```
+
+- [ ] **Step 3: `Tab` を移動優先にする**
+
+`runCommand` の `insert-child` を次にする。**移動先があれば移り、無ければ生やす**（rev 10章が認める拡張の形）。
+
+```ts
+      case 'insert-child': {
+        // 名前セルからは1つ目の値へ、値セルからは次の値へ移る。移動先が
+        // 無ければ生やす——`Tab` を続けて打つだけで値が並んでいく
+        const next = labelIndex === null ? 0 : labelIndex + 1
+        if (section.rows.focusCell(section.rows.rowKeys[at.index], `${LABEL_FIELD}${next}`)) {
+          return true
+        }
+        if (!section.canAddLabel(at.index)) return true
+        section.onAddLabel(at.index)
+        return true
+      }
+```
+
+- [ ] **Step 4: 既存のテストを実物に合わせる**
+
+`Tab` の意味が変わるので、`Tab` を押して値が増えることを見ていたテストが落ちる。**落ちたテストを消さず、いまの写像が守る性質に書き直すこと。**
+
+- 値が1つある行の名前セルで `Tab` → 1つ目の値へ移る（増えない）
+- 末尾の値の欄で `Tab` → 値が1つ増えて、その欄へ移る
+- 上限に達していると、末尾の値の欄で `Tab` を押しても増えない
+
+- [ ] **Step 5: DOM テストを足す**
+
+見る性質は次のとおり。
+
+1. 名前セルで `Tab` を押すと、1つ目の値の欄へ移り、値は増えない
+2. 値が0本の結果の名前セルで `Tab` を押すと、選択肢が1つ増えてその欄へ移る
+3. 末尾の値の欄で `Tab` を押すと、値が1つ増えてその欄へ移る
+4. 途中の値の欄で `Tab` を押すと、次の値の欄へ移り、値は増えない
+5. 上限に達していると、案内の一文が出る
+
+- [ ] **Step 6: 全体が緑になることを確認する**
+
+Run: `npm test && npx tsc -b && npm run lint`
+Expected: PASS
+
+- [ ] **Step 7: 番人が実在することを壊して確かめる**
+
+| 変異 | 赤くなるテスト |
+| --- | --- |
+| `insert-child` の `focusCell` の分岐を消し、常に `onAddLabel` を呼ぶ | 名前セルで `Tab` を押すと1つ目の値の欄へ移り、値は増えない |
+| `newCondition` の値を `['', '']` に戻す | 新しい条件は名前も値も空の1値から始まる |
+| `atRowLimit` の `every` を `some` にする | 上限に達していると案内の一文が出る |
+
+- [ ] **Step 8: コミット**
+
+```bash
+git add src/modules/decision-table
+git commit -m "$(cat <<'EOF'
+feat(decision-table): 新しい条件を1値にし、Tab を移動優先にする
+
+値の本数も決めごとなので、2つ置くと決めていない形を決めたように見える。
+Tab は移動先があれば移り、無ければ生やす。
+
+EOF
+)"
+```
+
+---
+
+## Task 7: 文書を実装に合わせる
 
 **Files:**
 - Modify: `docs/decision-table/decision-table-design-notes.md`
