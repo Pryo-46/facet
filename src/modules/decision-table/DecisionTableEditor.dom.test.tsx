@@ -1165,4 +1165,15 @@ describe('欠落へのジャンプ', () => {
     expect(gridRowNumbers()).toEqual(['1', '2', '3', '4'])
     expect(document.activeElement).toBe(screen.getByLabelText('送料（2行目）'))
   })
+
+  it('見えているセルへ飛ぶときは絞り込みを保つ', () => {
+    renderEditor(filterable)
+    fireEvent.keyDown(screen.getByLabelText('会員か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'いいえ' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(gridRowNumbers()).toEqual(['1', '2'])
+    fireEvent.click(screen.getByLabelText('次の未記入へ'))
+    expect(gridRowNumbers()).toEqual(['1', '2'])
+    expect(document.activeElement).toBe(screen.getByLabelText('送料（2行目）'))
+  })
 })

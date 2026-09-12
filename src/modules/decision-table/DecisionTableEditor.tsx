@@ -435,7 +435,7 @@ export function DecisionTableEditor({
     if (pendingJump === null) return
     focusGridCell(pendingJump.index, pendingJump.field)
     setPendingJump(null)
-  })
+  }, [pendingJump])
 
   /**
    * 欠落のセルへ移る。**隠れていたら絞り込みを外す**——帯は全行を数えるので、

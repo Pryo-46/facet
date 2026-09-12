@@ -1696,7 +1696,7 @@ import { useEffect, useRef, useState } from 'react'
     if (pendingJump === null) return
     focusGridCell(pendingJump.index, pendingJump.field)
     setPendingJump(null)
-  })
+  }, [pendingJump])
 
   /**
    * 欠落のセルへ移る。**隠れていたら絞り込みを外す**——帯は全行を数えるので、
@@ -1719,7 +1719,7 @@ import { useEffect, useRef, useState } from 'react'
 Run: `npx vitest run src/modules/decision-table/DecisionTableEditor.dom.test.tsx`
 Expected: PASS
 
-**`useEffect` に依存配列を付けていないことを確かめる。** `pendingJump` だけを依存にすると、絞り込みを外した描画より先に走って移動先を見つけられない。
+**`useEffect` の依存配列は `[pendingJump]` にする。** 絞り込みを外した直後は移動先のセルがまだ描かれていないので、移る先を一旦予約し、描画の後の効果で移る。
 
 - [ ] **Step 5: コミット**
 
