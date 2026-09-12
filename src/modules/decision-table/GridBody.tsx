@@ -15,7 +15,7 @@ import {
   type GridFilter,
 } from './filter'
 import { FilterMenu } from './FilterMenu'
-import { CLEAR_RESULT_LABEL, IMPOSSIBLE_LABEL } from './labels'
+import { IMPOSSIBLE_LABEL, UNFILLED_LABEL } from './labels'
 import { isMissingResult } from './missing'
 
 /**
@@ -322,7 +322,7 @@ export function GridBody(props: GridBodyProps) {
                         value={row.results[j] ?? ''}
                         options={outcomeFilterLabels(outcome)}
                         labelOf={(v) => v}
-                        itemLabelOf={(v) => (v === '' ? CLEAR_RESULT_LABEL : v)}
+                        itemLabelOf={(v) => (v === '' ? UNFILLED_LABEL : v)}
                         onPick={(v) => onPickResult(index, j, v)}
                         onKeyDown={(e) => onCellKeyDown(e, { index, visiblePos, field })}
                         changeOnArrows={false}

@@ -41,7 +41,7 @@ import {
   type GridFilter,
 } from './filter'
 import { GridBody } from './GridBody'
-import { CLEAR_RESULT_LABEL, IMPOSSIBLE_LABEL } from './labels'
+import { IMPOSSIBLE_LABEL, UNFILLED_LABEL } from './labels'
 import { isMissingLabel, isMissingResult, LABEL_KIND, RESULT_KIND, tallyMissing } from './missing'
 import { MAX_ROWS, productSize, rowKeyOf } from './rows'
 
@@ -448,7 +448,7 @@ export function DecisionTableEditor({
       target.kind === 'impossible'
         ? `${IMPOSSIBLE_LABEL}を${target.on ? '付け' : '外し'}ました`
         : `${data.outcomes[target.outcomeIndex].name}を「${
-            target.value === '' ? CLEAR_RESULT_LABEL : target.value
+            target.value === '' ? UNFILLED_LABEL : target.value
           }」にしました`
     onToast?.(`${what}（${out.changed} 行）`)
   }

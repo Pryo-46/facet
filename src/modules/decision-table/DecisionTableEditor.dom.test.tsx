@@ -529,12 +529,12 @@ describe('DecisionTableEditor: 表本体', () => {
     expect(latest()?.rows[0].results[0]).toBe('Y')
   })
 
-  it('結果セルを開くと、選択肢に加えて「空にする」が並ぶ', () => {
+  it('結果セルを開くと、選択肢に加えて「未記入」が並ぶ', () => {
     renderEditor(twoConditions)
     fireEvent.keyDown(screen.getByLabelText('結果A（2行目）'), { key: ' ' })
     expect(screen.getByRole('menuitemradio', { name: 'X' })).toBeDefined()
     expect(screen.getByRole('menuitemradio', { name: 'Y' })).toBeDefined()
-    expect(screen.getByRole('menuitemradio', { name: '空にする' })).toBeDefined()
+    expect(screen.getByRole('menuitemradio', { name: '未記入' })).toBeDefined()
   })
 
   it('結果セルで主修飾キー＋Enter を押すと impossible が真になり、セルの文字が「起こりえない」になる', () => {

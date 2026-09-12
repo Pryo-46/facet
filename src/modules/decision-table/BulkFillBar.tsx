@@ -10,7 +10,7 @@ import {
 import type { Outcome } from '@/types/decision-table'
 import type { BulkTarget } from './bulk'
 import { outcomeFilterLabels } from './filter'
-import { CLEAR_RESULT_LABEL, IMPOSSIBLE_LABEL } from './labels'
+import { IMPOSSIBLE_LABEL, UNFILLED_LABEL } from './labels'
 
 export interface BulkFillBarProps {
   outcomes: readonly Outcome[]
@@ -27,8 +27,8 @@ const IMPOSSIBLE_VALUES = ['on', 'off'] as const
 
 /**
  * 適用先を選んだときの値の既定。**結果列は1つ目の選択肢にする**——
- * 空にするを既定にすると、選択肢を選ばずに押した人が値を消すことになる。
- * 選択肢を持たない結果列では空にするしか無いので、そのまま空を返す
+ * 空を既定にすると、選択肢を選ばずに押した人が値を消すことになる。
+ * 選択肢を持たない結果列では空しか無いので、そのまま空を返す
  */
 function defaultValue(outcome: Outcome | undefined): string {
   if (outcome === undefined) return IMPOSSIBLE_VALUES[0]
@@ -63,7 +63,7 @@ export function BulkFillBar({ outcomes, targetCount, onApply }: BulkFillBarProps
   })()
   const outcome = resolvedOutcomeIndex === null ? undefined : outcomes[resolvedOutcomeIndex]
   const resolvedWhere = resolvedOutcomeIndex === null ? IMPOSSIBLE_KEY : `${resolvedOutcomeIndex}`
-  /** 値の選択肢。結果列は空にするを先頭に置く */
+  /** 値の選択肢。結果列は空文字を先頭に置く */
   const options =
     outcome === undefined ? [...IMPOSSIBLE_VALUES] : outcomeFilterLabels(outcome)
   // 選んでいた値がいまの選択肢から外れていたら既定へ落とす。落とさずに残すと、
@@ -78,7 +78,7 @@ export function BulkFillBar({ outcomes, targetCount, onApply }: BulkFillBarProps
 
   const valueLabel = (v: string): string => {
     if (outcome === undefined) return v === 'on' ? 'する' : 'しない'
-    return v === '' ? CLEAR_RESULT_LABEL : v
+    return v === '' ? UNFILLED_LABEL : v
   }
 
   const apply = (): void => {
