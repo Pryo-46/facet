@@ -1441,7 +1441,7 @@ describe('エディタからの通知', () => {
     fireEvent.click(await screen.findByRole('button', { name: '送料（送料.json） を開く' }))
     // 表は3つある（条件の定義部・結果の定義部・表本体）ので findByRole では引けない
     await screen.findAllByRole('table')
-    fireEvent.click(screen.getByRole('button', { name: '表示中の 2 行に適用' }))
+    fireEvent.click(screen.getByRole('button', { name: '適用' }))
     expect(await screen.findByText('送料を「無料」にしました（2 行）')).toBeTruthy()
   })
 })

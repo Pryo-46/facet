@@ -1,3 +1,4 @@
+import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
@@ -10,109 +11,92 @@ import {
 import type { Outcome } from '@/types/decision-table'
 import type { BulkTarget } from './bulk'
 import { outcomeFilterLabels } from './filter'
-import { IMPOSSIBLE_LABEL, UNFILLED_LABEL } from './labels'
+import { UNFILLED_LABEL } from './labels'
 
 export interface BulkFillBarProps {
   outcomes: readonly Outcome[]
-  /** 表に出ている行数。ボタンの文言に出す */
+  /** 適用を押したときに実際に書き込む行数。文の中に出す */
   targetCount: number
   onApply: (target: BulkTarget) => void
 }
 
-/** 適用先の鍵。結果は位置、起こりえないは専用の値で指す */
-const IMPOSSIBLE_KEY = 'impossible'
-
-/** 起こりえないを適用先に選んだときの値の選択肢 */
-const IMPOSSIBLE_VALUES = ['on', 'off'] as const
-
 /**
- * 適用先を選んだときの値の既定。**結果列は1つ目の選択肢にする**——
- * 空を既定にすると、選択肢を選ばずに押した人が値を消すことになる。
- * 選択肢を持たない結果列では空しか無いので、そのまま空を返す
+ * 適用先を選んだときの値の既定。**1つ目の選択肢にする**——空を既定にすると、
+ * 選択肢を選ばずに押した人が値を消すことになる。選択肢を持たない結果列では
+ * 空しか無いので、そのまま空を返す
  */
 function defaultValue(outcome: Outcome | undefined): string {
-  if (outcome === undefined) return IMPOSSIBLE_VALUES[0]
-  return outcome.choices[0] ?? ''
+  return outcome?.choices[0] ?? ''
 }
 
 /**
  * まとめて入力。**対象は絞り込みが決める**ので、このバーは適用先と値だけを持つ。
  * 対象を指す操作を2つ持つと、絞り込んだ表を見ながら別の条件へ書き込む事故が起きる。
  *
+ * **書き込む先は結果列だけ。** 起こりえないは行ごとの入り切りが受け持つ。
+ * 結果列が1本も無い表では書き込む先が無いので、何も描かない。
+ *
  * **通常のフォームであり、表の操作言語（`family: 'grid'`）を掛けない。**
  * 掛けると、値を選ぶだけの `↑↓` が表の行移動として消費される
  */
 export function BulkFillBar({ outcomes, targetCount, onApply }: BulkFillBarProps) {
-  const [where, setWhere] = useState<string>(() =>
-    outcomes.length > 0 ? '0' : IMPOSSIBLE_KEY,
-  )
+  const [where, setWhere] = useState<string>('0')
   const [value, setValue] = useState<string>(() => defaultValue(outcomes[0]))
 
   /**
    * 適用先を毎描画ごとに `outcomes` から解決し直す。**state をそのまま信じない**
    *——`where` は結果の位置を指す持ち方なので、選んでいた結果が定義部の操作で
-   * 消えると同じ添字が別の結果や「無い」を指すことになる。放置すると、適用先の
-   * 表示が黙って「起こりえない」へ落ち、選んでいた値をそのまま `on`/`off` として
-   * 読んでしまう（人が触っていない起こりえないを一括で入り切りする事故になる）
+   * 消えると同じ添字が別の結果や「無い」を指すことになる。放置すると、押した
+   * 瞬間に書き込まれる列が画面の表示と食い違う
    */
-  const resolvedOutcomeIndex = ((): number | null => {
-    if (where === IMPOSSIBLE_KEY) return null
-    const idx = Number(where)
-    if (outcomes[idx] !== undefined) return idx
-    return outcomes.length > 0 ? 0 : null
-  })()
-  const outcome = resolvedOutcomeIndex === null ? undefined : outcomes[resolvedOutcomeIndex]
-  const resolvedWhere = resolvedOutcomeIndex === null ? IMPOSSIBLE_KEY : `${resolvedOutcomeIndex}`
-  /** 値の選択肢。結果列は空文字を先頭に置く */
-  const options =
-    outcome === undefined ? [...IMPOSSIBLE_VALUES] : outcomeFilterLabels(outcome)
-  // 選んでいた値がいまの選択肢から外れていたら既定へ落とす。落とさずに残すと、
-  // 例えば結果列の選択肢の値が「500円」から「on」の枠へそのまま居座ってしまう
+  const resolvedIndex = outcomes[Number(where)] !== undefined ? Number(where) : 0
+  const outcome = outcomes[resolvedIndex]
+  /** 値の選択肢。空文字（未記入）を先頭に置く */
+  const options = outcome === undefined ? [] : outcomeFilterLabels(outcome)
+  // 選んでいた値がいまの選択肢から外れていたら既定へ落とす。選択肢に無い値を
+  // 残すと、画面に出ている語がどの行にも書けない値になる
   const resolvedValue = options.includes(value) ? value : defaultValue(outcome)
 
   /** 適用先を変えたら値も既定へ戻す。前の列の値がそのまま残ると、押した瞬間に別の語が入る */
   const changeWhere = (next: string): void => {
     setWhere(next)
-    setValue(defaultValue(next === IMPOSSIBLE_KEY ? undefined : outcomes[Number(next)]))
+    setValue(defaultValue(outcomes[Number(next)]))
   }
 
-  const valueLabel = (v: string): string => {
-    if (outcome === undefined) return v === 'on' ? 'する' : 'しない'
-    return v === '' ? UNFILLED_LABEL : v
-  }
+  const valueLabel = (v: string): string => (v === '' ? UNFILLED_LABEL : v)
 
-  const apply = (): void => {
-    if (outcome === undefined || resolvedOutcomeIndex === null) {
-      onApply({ kind: IMPOSSIBLE_KEY, on: resolvedValue === 'on' })
-      return
-    }
-    onApply({ kind: 'result', outcomeIndex: resolvedOutcomeIndex, value: resolvedValue })
-  }
+  // 結果列が1本も無ければ書き込む先が無い
+  if (outcome === undefined) return null
 
   return (
-    <div className="mb-2 flex flex-wrap items-center gap-2">
+    <div className="mb-2 flex flex-wrap items-center justify-end gap-2 text-base text-ink">
+      {/* 数は適用を押したときに書き込む行数であり、表示中の行数ではない */}
+      <span>{`表示中の ${targetCount} 行に`}</span>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
+          {/* 山形を中に置く。置かないと、選ぶための入口が適用のボタンと見分けられない */}
           <Button variant="outline" aria-label="適用先">
-            {outcome === undefined ? IMPOSSIBLE_LABEL : outcome.name}
+            {outcome.name}
+            <ChevronDown aria-hidden className="size-4 text-ink-muted" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          <DropdownMenuRadioGroup value={resolvedWhere} onValueChange={changeWhere}>
+          <DropdownMenuRadioGroup value={`${resolvedIndex}`} onValueChange={changeWhere}>
             {outcomes.map((o, j) => (
               // 値に位置を使う。ID 重複は赤表示する正規の状態なので、id では一意に指せない
               <DropdownMenuRadioItem key={`out-${j}`} value={`${j}`}>
                 {o.name}
               </DropdownMenuRadioItem>
             ))}
-            <DropdownMenuRadioItem value={IMPOSSIBLE_KEY}>{IMPOSSIBLE_LABEL}</DropdownMenuRadioItem>
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
+      <span>の</span>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" aria-label="書き込む値">
             {valueLabel(resolvedValue)}
+            <ChevronDown aria-hidden className="size-4 text-ink-muted" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
@@ -127,10 +111,16 @@ export function BulkFillBar({ outcomes, targetCount, onApply }: BulkFillBarProps
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
+      <span>を</span>
       {/* 対象が0行でも押せる状態を保つ。押せなくすると、なぜ押せないのかが
           行数の表示からしか読めない */}
-      <Button variant="outline" onClick={apply}>
-        {`表示中の ${targetCount} 行に適用`}
+      <Button
+        variant="outline"
+        onClick={() =>
+          onApply({ kind: 'result', outcomeIndex: resolvedIndex, value: resolvedValue })
+        }
+      >
+        適用
       </Button>
     </div>
   )

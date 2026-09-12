@@ -1094,19 +1094,44 @@ describe('まとめて入力', () => {
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
     fireEvent.keyDown(screen.getByLabelText('書き込む値'), { key: ' ' })
     fireEvent.click(screen.getByRole('menuitemradio', { name: '500円' }))
-    fireEvent.click(screen.getByRole('button', { name: '表示中の 2 行に適用' }))
+    fireEvent.click(screen.getByRole('button', { name: '適用' }))
     expect(latest()?.rows.map((r) => r.results[0])).toEqual(['500円', '500円', '無料', '500円'])
   })
 
-  it('対象の行数をボタンに出す', () => {
+  it('対象の行数を文に出す', () => {
+    renderEditor(filterableEmptyResults)
+    expect(screen.getByText('表示中の 4 行に')).toBeTruthy()
+  })
+
+  it('起こりえない行を表示していても、その行は文の行数に入らない', () => {
+    // 文は適用を押すと何が起きるかの約束なので、数は書き込む行の数と一致させる
     renderEditor(filterable)
-    expect(screen.getByRole('button', { name: '表示中の 4 行に適用' })).toBeTruthy()
+    expect(screen.getByText('表示中の 3 行に')).toBeTruthy()
+    // 起こりえない行を隠すと、表示中の行数と書き込む行数は一致する
+    fireEvent.click(screen.getByLabelText('起こりえない行を表示'))
+    expect(screen.getByText('表示中の 3 行に')).toBeTruthy()
+  })
+
+  it('結果列が1本も無い表ではバーを出さない', () => {
+    // 書き込む先が無いので、選びようのない適用先と値だけが残る
+    renderEditor(oneCondition)
+    expect(screen.queryByLabelText('適用先')).toBeNull()
+    expect(screen.queryByRole('button', { name: '適用' })).toBeNull()
+  })
+
+  it('起こりえない行には結果を書かない', () => {
+    const { latest } = renderEditor(filterable)
+    fireEvent.keyDown(screen.getByLabelText('書き込む値'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '500円' }))
+    fireEvent.click(screen.getByRole('button', { name: '適用' }))
+    // #3 は起こりえないなので、元の「無料」のまま残る
+    expect(latest()?.rows.map((r) => r.results[0])).toEqual(['500円', '500円', '無料', '500円'])
   })
 
   it('1手で戻せるよう、まとめ鍵を渡さない', () => {
     // 構造操作と同じ履歴の粒度にする。まとめ鍵を渡すと直前の打鍵と1手にまとまる
     const { onChange } = renderEditor(filterable)
-    fireEvent.click(screen.getByRole('button', { name: '表示中の 4 行に適用' }))
+    fireEvent.click(screen.getByRole('button', { name: '適用' }))
     expect(onChange.mock.calls.at(-1)?.[1]).toBeNull()
   })
 
@@ -1115,16 +1140,15 @@ describe('まとめて入力', () => {
     // （#2 が空欄、#4 が 500円。#1 と #3 は既に無料なので数えない）
     const onToast = vi.fn()
     render(<Harness initial={filterable} onChange={vi.fn()} onToast={onToast} />)
-    fireEvent.click(screen.getByRole('button', { name: '表示中の 4 行に適用' }))
+    fireEvent.click(screen.getByRole('button', { name: '適用' }))
     expect(onToast).toHaveBeenCalledWith('送料を「無料」にしました（2 行）')
   })
 
-  it('起こりえないの入り切りも適用先に並ぶ', () => {
-    const { latest } = renderEditor(filterable)
+  it('適用先に並ぶのは結果列だけ', () => {
+    // バーが書くのは結果だけ。起こりえないは行ごとの入り切りが受け持つ
+    renderEditor(bulkFillTwoOutcomes)
     fireEvent.keyDown(screen.getByLabelText('適用先'), { key: ' ' })
-    fireEvent.click(screen.getByRole('menuitemradio', { name: IMPOSSIBLE_LABEL }))
-    fireEvent.click(screen.getByRole('button', { name: '表示中の 4 行に適用' }))
-    expect(latest()?.rows.map((r) => r.impossible)).toEqual([true, true, true, true])
+    expect(screen.getAllByRole('menuitemradio').map((e) => e.textContent)).toEqual(['旧', '送料'])
   })
 
   it('変更が無いときは onChange を呼ばず、通知だけ出す', () => {
@@ -1133,16 +1157,15 @@ describe('まとめて入力', () => {
     render(<Harness initial={allAlreadyMuryo} onChange={onChange} onToast={onToast} />)
     // 既定の適用先は1本目の結果、既定の値は1つ目の選択肢（無料）。
     // 2行とも既に無料なので、押しても値は動かない
-    fireEvent.click(screen.getByRole('button', { name: '表示中の 2 行に適用' }))
+    fireEvent.click(screen.getByRole('button', { name: '適用' }))
     expect(onChange).not.toHaveBeenCalled()
     expect(onToast).toHaveBeenCalledWith('値の変わる行はありません')
   })
 
-  it('適用先の結果列が消えても、起こりえないへ黙って切り替わらない', () => {
-    // 再現: 2本目の結果を適用先に選び値も選んだ状態で、1本目の結果を消す。
+  it('適用先の結果列が消えたら、残っている結果へ落ちる', () => {
+    // 2本目の結果を適用先に選び値も選んだ状態で、1本目の結果を消す。
     // 位置で結果を指しているので、消した直後は選んでいた添字（1）が指す先が無くなる。
-    // このとき適用先が黙って「起こりえない」へ落ちて、選んでいた値（500円）が
-    // on/off の枠に居座ると、意図しない起こりえないの一括解除が起きる
+    // 落とし先を決めないと、押した瞬間にどの列へ何が入るかが読めない
     const { latest } = renderEditor(bulkFillTwoOutcomes)
     fireEvent.keyDown(screen.getByLabelText('適用先'), { key: ' ' })
     fireEvent.click(screen.getByRole('menuitemradio', { name: '送料' }))
@@ -1151,7 +1174,10 @@ describe('まとめて入力', () => {
     fireEvent.click(screen.getByRole('menuitemradio', { name: '500円' }))
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
     fireEvent.click(screen.getByRole('button', { name: '結果を消す（1行目）' }))
-    fireEvent.click(screen.getByRole('button', { name: '表示中の 2 行に適用' }))
+    expect(screen.getByLabelText('適用先').textContent).toBe('送料')
+    expect(screen.getByLabelText('書き込む値').textContent).toBe('500円')
+    fireEvent.click(screen.getByRole('button', { name: '適用' }))
+    expect(latest()?.rows.map((r) => r.results[0])).toEqual(['500円', '500円'])
     expect(latest()?.rows.map((r) => r.impossible)).toEqual([false, true])
   })
 })
@@ -1357,7 +1383,7 @@ describe('絞り込みで0行になったとき', () => {
     // 0行でも絞り込みを外す入口が残る。消すと、戻す手立てがファイルの開き直ししかない
     expect(screen.getByLabelText('会員か の絞り込み')).toBeTruthy()
     expect(screen.getByLabelText('送料 の絞り込み')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '表示中の 0 行に適用' }))
+    fireEvent.click(screen.getByRole('button', { name: '適用' }))
     expect(onChange).not.toHaveBeenCalled()
     expect(onToast).toHaveBeenCalledWith('値の変わる行はありません')
   })

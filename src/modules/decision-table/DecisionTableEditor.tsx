@@ -431,11 +431,18 @@ export function DecisionTableEditor({
   )
 
   /**
+   * まとめて入力が書き込む行数。**起こりえない行は数えない**——バーの文は
+   * 適用を押すと何が起きるかの約束なので、数は `applyBulk` が書く行の数と
+   * 一致させる。起こりえない行を隠しているときは表示中の行数と同じになる
+   */
+  const bulkTargetCount = visible.filter((i) => !data.rows[i].impossible).length
+
+  /**
    * まとめて入力。**変更した行数を知らせる**——上書きは確認を挟まないので、
    * 何行が動いたかを後から読める場所が要る。
    *
-   * **文言の数はボタンの対象行数と分母が違う。** ボタンは絞り込みが出している
-   * 行を数え、こちらはそのうち値が変わった行を数える
+   * **通知の数はバーの文の行数と分母が違う。** 文は書き込む先の行を数え、
+   * こちらはそのうち値が変わった行を数える
    */
   const applyBulkFill = (target: BulkTarget): void => {
     const out = applyBulk(data, visible, target)
@@ -727,7 +734,7 @@ export function DecisionTableEditor({
             </div>
             <BulkFillBar
               outcomes={data.outcomes}
-              targetCount={visible.length}
+              targetCount={bulkTargetCount}
               onApply={applyBulkFill}
             />
             <div ref={gridRef}>
