@@ -49,6 +49,14 @@ export interface CellSelectProps {
    * 明示的に開いたときだけに限る
    */
   openOnEnter?: boolean
+  /**
+   * メニューの開閉が変わったときに呼ぶ。
+   *
+   * **開いている間は、呼び出し側のフォーカス追跡が外れる。** Radix はメニューを
+   * `document.body` 直下のポータルへ描くので、表の `onBlur` はセルが外れたと見る。
+   * 開いていることを知らせないと、値を選んでいる間だけ行の面が消える
+   */
+  onOpenChange?: (open: boolean) => void
 }
 
 /**
@@ -89,6 +97,12 @@ export interface CellSelectProps {
  */
 export function CellSelect(props: CellSelectProps) {
   const [open, setOpen] = useState(false)
+
+  /** 開閉の唯一の更新口。呼び出し側への通知をここに集め、更新箇所ごとに呼び忘れる余地を無くす */
+  const changeOpen = (next: boolean): void => {
+    setOpen(next)
+    props.onOpenChange?.(next)
+  }
 
   const onTriggerKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>): void => {
     if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.altKey) {
@@ -134,7 +148,7 @@ export function CellSelect(props: CellSelectProps) {
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={changeOpen}>
       <DropdownMenuTrigger
         type="button"
         aria-label={props['aria-label']}
@@ -148,7 +162,7 @@ export function CellSelect(props: CellSelectProps) {
         <DropdownMenuRadioGroup
           value={props.value}
           onValueChange={(value) => {
-            setOpen(false)
+            changeOpen(false)
             props.onPick(value)
           }}
         >

@@ -1,5 +1,5 @@
 import { Ban } from 'lucide-react'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { buttonBase } from '@/components/button-styles'
 import { CellSelect } from '@/components/CellSelect'
 import { cellFace, CELL_FACE_CLASS, type ErrorMarks } from '@/core/list-editor/cell-face'
@@ -17,8 +17,9 @@ const cellInput =
   'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
 
 /**
- * 結果列の境界の縦罫。**条件列には引かない**——条件は読み取り専用、結果は
- * 操作対象なので、罫線で2つの区画を分ける
+ * 結果どうしの境界の縦罫（弱い）。条件と結果の境界（先頭の結果列）は
+ * `headColBorder` を使う——条件は読み取り専用、結果は操作対象なので、
+ * 2つの区画の境目だけ見出しと同じ強さの線で分ける
  */
 const colBorder = 'border-l border-l-rule-muted'
 const headColBorder = 'border-l border-l-rule'
@@ -82,13 +83,28 @@ export function GridBody(props: GridBodyProps) {
   } = props
 
   /**
+   * メニューを開いているセルの行。**`onBlur` より優先する。**
+   * ポータルへ移ったフォーカスは表の外に見えるので、これが無いと
+   * 値を選んでいる間だけ面が消える。
+   *
+   * **開いている間の面は jsdom では決められない。** メニューを開くと
+   * トリガーにフォーカスが当たり、`focusedRow` が同じ面を付けるので、
+   * どちらが付けたのかをテストから区別できない。閉じたときに戻すことと、
+   * `CellSelect` が開閉を知らせることの2点だけがテストで縛れる
+   */
+  const [menuRow, setMenuRow] = useState<number | null>(null)
+
+  /** 面を敷く行。開いているメニューがあればその行を優先し、無ければフォーカスの行に従う */
+  const surfaceRow = menuRow ?? focusedRow
+
+  /**
    * セルの面。**無効と欠落が地の面より強い。** 弱いほうを先に当てると、
    * 赤や黄が行の面に塗り潰される
    */
   const surfaceOf = (index: number, field: string, warn: boolean, rowAnchor = false): string => {
     const face = cellFace(marks, index, field, warn, rowAnchor)
     if (face !== 'none') return CELL_FACE_CLASS[face]
-    return index === focusedRow || field === CONDITION_FIELD ? 'bg-surface-muted' : ''
+    return index === surfaceRow || field === CONDITION_FIELD ? 'bg-surface-muted' : ''
   }
 
   /**
@@ -166,7 +182,7 @@ export function GridBody(props: GridBodyProps) {
                 {/* 行全体の指摘（行の列数不一致など欄を特定できないもの）は No セルの面で示す。
                     クリックでも行へ移れる——編集はできないので onClick は移動のみ */}
                 <td
-                  className={`px-2 py-1 text-right text-ink-muted ${surfaceOf(index, 'no', false, true)}`}
+                  className={`cursor-pointer px-2 py-1 text-right text-ink-muted ${surfaceOf(index, 'no', false, true)}`}
                   onClick={() => focusFirstResultCell(index, rowKey)}
                 >
                   {rowNo}
@@ -174,7 +190,7 @@ export function GridBody(props: GridBodyProps) {
                 {conditions.map((_, i) => (
                   <td
                     key={`cond-${i}`}
-                    className={`px-2 py-1 text-ink-muted ${condColBorder} ${surfaceOf(index, CONDITION_FIELD, false)}`}
+                    className={`cursor-pointer px-2 py-1 text-ink-muted ${condColBorder} ${surfaceOf(index, CONDITION_FIELD, false)}`}
                     onClick={() => focusFirstResultCell(index, rowKey)}
                   >
                     {row.values[i]}
@@ -182,7 +198,10 @@ export function GridBody(props: GridBodyProps) {
                 ))}
                 {outcomes.map((outcome, j) => {
                   const field = `result:${j}`
-                  const cellClass = `${colBorder} ${surfaceOf(index, field, isMissingResult(row, j))}`
+                  // 条件と結果の境界（先頭列）だけ見出しと同じ強い罫線にする。
+                  // 結果どうしの境界は colBorder（弱い）のまま
+                  const border = j === 0 ? headColBorder : colBorder
+                  const cellClass = `${border} ${surfaceOf(index, field, isMissingResult(row, j))}`
                   if (row.impossible) {
                     return (
                       // onFocus は td に置く。子のボタンから bubble するので、
@@ -220,6 +239,7 @@ export function GridBody(props: GridBodyProps) {
                         onKeyDown={(e) => onCellKeyDown(e, { index, field })}
                         changeOnArrows={false}
                         openOnEnter
+                        onOpenChange={(nowOpen) => setMenuRow(nowOpen ? index : null)}
                       />
                       {/* appearance-none で消えた矢印を描き直す。背景画像の data URI は
                           使わない——色値を書くことになり conventions.test.ts が弾く */}

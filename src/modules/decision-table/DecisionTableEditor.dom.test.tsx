@@ -493,6 +493,16 @@ describe('DecisionTableEditor: 表本体', () => {
     expect(rows[1].cells).toHaveLength(5)
   })
 
+  it('条件と結果の境界が強い罫線である（結果どうしの境界は弱いまま）', () => {
+    renderEditor(twoOutcomes)
+    const rows = gridRows()
+    const cells = within(rows[1]).getAllByRole('cell')
+    // No・条件A・結果A・結果B の順。結果A が条件との境界、結果B が結果どうしの境界
+    expect(cells[2]?.className).toContain('border-l-rule')
+    expect(cells[2]?.className).not.toContain('border-l-rule-muted')
+    expect(cells[3]?.className).toContain('border-l-rule-muted')
+  })
+
   it('結果セルで ↓ を押すと下の行の同じ列へフォーカスが移り、値は変わらない', () => {
     const { latest } = renderEditor(twoConditions)
     const first = screen.getByLabelText('結果A（1行目）')
@@ -717,6 +727,18 @@ describe('DecisionTableEditor: 表本体のフォーカスと面', () => {
     fireEvent.focus(screen.getByLabelText('結果A（1行目）'))
     expect(emptyCell?.className).toContain('bg-missing-face')
     expect(emptyCell?.className).not.toContain('bg-surface-muted')
+  })
+
+  it('メニューを閉じたあとは、面がフォーカスの行に従う', () => {
+    renderEditor(twoConditions)
+    const rows = gridRows()
+    fireEvent.keyDown(screen.getByLabelText('結果A（2行目）'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'X' }))
+    // 閉じたときに menuRow を null へ戻さないと、開いた行の面が張り付いたままになり、
+    // 別の行へ移っても2行に面が付く
+    fireEvent.focus(screen.getByLabelText('結果A（4行目）'))
+    expect(rows[3].cells[0].className).toContain('bg-surface-muted')
+    expect(rows[1].cells[0].className).not.toContain('bg-surface-muted')
   })
 })
 

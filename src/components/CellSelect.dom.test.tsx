@@ -109,6 +109,28 @@ describe('CellSelect', () => {
     expect(screen.queryByRole('menuitemradio')).toBeNull()
   })
 
+  it('onOpenChange はメニューを開くと true、閉じると false で呼ばれる', () => {
+    const onOpenChange = vi.fn()
+    const onPick = vi.fn()
+    render(
+      <CellSelect
+        value="screen"
+        options={OPTIONS}
+        labelOf={(v) => LABELS[v] ?? v}
+        onPick={onPick}
+        aria-label="種別（1行目）"
+        data-cell="row1:kind"
+        className="w-full"
+        onOpenChange={onOpenChange}
+      />,
+    )
+    const trigger = screen.getByRole('button', { name: '種別（1行目）' })
+    fireEvent.keyDown(trigger, { key: ' ' })
+    expect(onOpenChange).toHaveBeenLastCalledWith(true)
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'データ' }))
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
+  })
+
   it('itemLabelOf を渡すと開いた項目の文字だけ変わり、閉じたセルの文字は labelOf のまま', () => {
     const onPick = vi.fn()
     render(
