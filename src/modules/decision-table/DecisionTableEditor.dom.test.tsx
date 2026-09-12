@@ -327,6 +327,11 @@ describe('DecisionTableEditor: 定義部のキー操作（木の家族）', () =
     expect(() => fireEvent.keyDown(cell, { key: 'ArrowRight' })).not.toThrow()
     expect(document.activeElement).toBe(cell)
   })
+
+  it('定義部のヒントが Tab の振る舞いを「値へ移動・末尾で追加」と説明する', () => {
+    renderEditor(oneCondition)
+    expect(screen.getByText(/値へ移動・末尾で追加/)).toBeDefined()
+  })
 })
 
 describe('DecisionTableEditor: 行数の上限の案内', () => {

@@ -42,7 +42,7 @@ const LABEL_FIELD = 'label:'
 
 const DEFINITION_HINTS: KeyHint[] = [
   { keys: 'Enter', label: '下に追加' },
-  { keys: 'Tab', label: '値を追加' },
+  { keys: 'Tab', label: '値へ移動・末尾で追加' },
   { keys: '←→', label: '名前と値を行き来' },
   { keys: '$alt+↑↓', label: '並び替え' },
   { keys: '空欄で Backspace', label: '削除' },
@@ -58,9 +58,9 @@ const GRID_HINTS: KeyHint[] = [
 /**
  * 表本体のセルの文脈。
  *
- * **`arrowsOwnedByField` を真にしないこと。** `CellSelect` は素の ↑↓ を
- * 自分で消費して `onKeyDown` を呼ばないので、ここで真にすると届いた ←→ まで
- * 止まり、列移動が消える
+ * **`arrowsOwnedByField` を真にしないこと。** `resolveCommand`（keymap.ts）は
+ * `family: 'grid'` の ↑↓←→ のどの分岐でも `arrowsOwnedByField` が真なら null を
+ * 返す。真にすると行移動（↑↓）と列移動（←→）が一度に消える
  */
 const gridContext = {
   editing: false,
