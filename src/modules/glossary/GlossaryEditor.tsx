@@ -5,6 +5,7 @@ import { CellSelect } from '@/components/CellSelect'
 import { buttonBase } from '@/components/button-styles'
 import { Chip } from '@/components/Chip'
 import { MissingTally } from '@/components/MissingTally'
+import { headCell } from '@/components/table-styles'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -324,7 +325,7 @@ export function GlossaryEditor({
                 return (
                   <th
                     key={col.field}
-                    className={`sticky top-0 z-10 relative border-b border-b-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${headColBorder}`}`}
+                    className={`${headCell} relative${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${headColBorder}`}`}
                   >
                     {label}
                     {/* No 列は導出（データ配列の index+1）なのでハンドルを出さない。

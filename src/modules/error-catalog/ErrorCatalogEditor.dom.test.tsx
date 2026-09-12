@@ -180,16 +180,18 @@ describe('ErrorCatalogEditor: No 列', () => {
 })
 
 /**
- * 無方向の `border-<色>` は border-color を4辺へ流す。列の境界の縦罫
- * （colBorder）と同じ th に載ると、生成 CSS の後勝ちでヘッダー下罫の色まで
- * 縦罫の色に変わり、縦罫を持たない No 列だけが濃いまま残る（実機で
- * 「No の下だけ濃い」段差になった）。だから th の罫線の色は辺指定で書く
+ * ヘッダーの下罫は `border` ではなく影で描く（`headCell`）——`border-collapse`
+ * の表では罫線が表の格子に属するので、`sticky` で浮いた見出しは罫線を
+ * 置き去りにし、スクロール中だけ線が消える。
+ *
+ * 縦罫の色は辺指定で書く。無方向の `border-<色>` は border-color を4辺へ
+ * 流すので、縦罫を持たない No 列だけが他の列と違う見た目になる
  */
 describe('ErrorCatalogEditor: ヘッダーの罫線', () => {
-  it('下罫の色を全列そろえる（No 列だけ濃くならない）', () => {
+  it('下罫を全列そろえ、スクロールで消えない描き方で持つ', () => {
     renderEditor(twoErrors)
     for (const th of screen.getAllByRole('columnheader')) {
-      expect(th.className).toMatch(/(^|\s)border-b-rule(\s|$)/)
+      expect(th.className).toContain('shadow-[inset_0_-1px_0_var(--rule)]')
       expect(th.className).not.toMatch(/(^|\s)border-rule(-muted)?(\s|$)/)
     }
   })

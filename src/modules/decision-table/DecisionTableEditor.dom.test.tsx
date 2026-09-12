@@ -729,12 +729,56 @@ describe('DecisionTableEditor: 表本体のフォーカスと面', () => {
     expect(screen.queryByText(/下の行へ/)).toBeNull()
   })
 
-  it('フォーカスの無い行でも、条件セルに面が付く', () => {
+  it('読み取り専用の列（No・条件）の面が、行の面と別の弱い面である', () => {
     renderEditor(twoConditions)
     const rows = gridRows()
-    // フォーカスも開いたメニューも無い状態。No セルには行の面（フォーカス由来）が付かない
-    expect(rows[0].cells[0].className).not.toContain('bg-surface-muted')
-    expect(rows[0].cells[1].className).toContain('bg-surface-muted')
+    // フォーカスも開いたメニューも無い状態
+    for (const cell of [rows[0].cells[0], rows[0].cells[1]]) {
+      expect(cell.className).toContain('bg-surface-subtle')
+      // 行の面と同じ面を敷くと、選択中の行がこれらの列の上で見分けられなくなる
+      expect(cell.className).not.toContain('bg-surface-muted')
+    }
+    // 結果セルは地のまま
+    expect(screen.getByLabelText('結果A（1行目）').closest('td')?.className).not.toContain(
+      'bg-surface-subtle',
+    )
+  })
+
+  it('フォーカスのある行では、読み取り専用の列も行の面で塗られる', () => {
+    renderEditor(twoConditions)
+    const rows = gridRows()
+    fireEvent.focus(screen.getByLabelText('結果A（2行目）'))
+    // 行の面が読み取り専用の列の面より強い。弱いほうが勝つと行の帯が途切れる
+    for (const cell of [rows[1].cells[0], rows[1].cells[1]]) {
+      expect(cell.className).toContain('bg-surface-muted')
+      expect(cell.className).not.toContain('bg-surface-subtle')
+    }
+  })
+
+  it('起こりえないのセルのフォーカスリングが、濃い面の上で見える色である', () => {
+    renderEditor(twoOutcomes)
+    const button = screen.getByLabelText(`結果A（1行目）: ${IMPOSSIBLE_LABEL}`)
+    // 既定のリングは ink。ライトでは judge-no の上で 1.66:1 しか出ず、
+    // キーボードでセルを移ったときに行き先が見えない
+    expect(button.className).toContain('focus:ring-judge-no-fg')
+    expect(button.className).not.toContain('focus:ring-ring')
+  })
+
+  it('起こりえない行の結果セルは、行にフォーカスがあっても濃い面のままである', () => {
+    renderEditor(twoOutcomes)
+    const button = screen.getByLabelText(`結果A（1行目）: ${IMPOSSIBLE_LABEL}`)
+    fireEvent.focus(button)
+    // 1セルに面のクラスを2つ載せると、どちらが出るかは生成 CSS の順で決まる
+    expect(button.closest('td')?.className).toContain('bg-judge-no')
+    expect(button.closest('td')?.className).not.toContain('bg-surface-muted')
+  })
+
+  it('起こりえない行の結果セルが、無効を表す濃い面になる', () => {
+    renderEditor(twoOutcomes)
+    const impossible = screen.getByLabelText(`結果A（1行目）: ${IMPOSSIBLE_LABEL}`).closest('td')
+    expect(impossible?.className).toContain('bg-judge-no')
+    const normal = screen.getByLabelText('結果A（2行目）').closest('td')
+    expect(normal?.className).not.toContain('bg-judge-no')
   })
 
   it('結果セルにフォーカスすると、その行のセルに面が付く', () => {

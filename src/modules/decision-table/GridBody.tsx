@@ -2,6 +2,7 @@ import { Ban } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { buttonBase } from '@/components/button-styles'
 import { CellSelect } from '@/components/CellSelect'
+import { headCell } from '@/components/table-styles'
 import { cellFace, CELL_FACE_CLASS, type ErrorMarks } from '@/core/list-editor/cell-face'
 import { cellId } from '@/core/list-editor/use-list-rows'
 import { rowRef } from '@/core/row-ref'
@@ -10,11 +11,25 @@ import { CLEAR_RESULT_LABEL, IMPOSSIBLE_LABEL } from './labels'
 import { isMissingResult } from './missing'
 
 /**
- * セルの入力欄。**全ツール共通の見た目だが、コアに定数の置き場が無い**ので
- * モジュールごとに同じ文字列を持つ（`DefinitionList.tsx` の同名定数と同じ）
+ * セルの入力欄の土台。**文字とリングの色を持たない**——起こりえないのセルは
+ * 濃い面の上に載るので、そこだけ別の色が要る。同じ要素にリングの色を2つ
+ * 載せて上書きすることはできない（どちらが出るかは生成 CSS の並び順で決まる）
  */
-const cellInput =
-  'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
+const cellInputBase =
+  'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset'
+
+/**
+ * セルの入力欄。全ツール共通の見た目だが、モジュールごとに同じ文字列を持つ
+ * （`DefinitionList.tsx` の同名定数と同じ）
+ */
+const cellInput = `${cellInputBase} text-ink focus:ring-ring`
+
+/**
+ * 起こりえないのセルの入力欄。濃い面（`judge-no`）の上に載るので、文字も
+ * リングも `judge-no-fg` で置く——既定のリングの `ink` はライトで 1.66:1 しか
+ * 出ず、キーボードでセルを移ったときに行き先が見えない
+ */
+const impossibleCellInput = `${cellInputBase} text-left text-judge-no-fg focus:ring-judge-no-fg`
 
 /**
  * 結果どうしの境界の縦罫（弱い）。条件と結果の境界（先頭の結果列）は
@@ -34,11 +49,14 @@ const condColBorder = 'border-l border-l-rule-muted'
 /** 条件列の地を引くための鍵。条件列は編集対象ではないので、指摘の `field` にはならない */
 const CONDITION_FIELD = 'condition-column'
 
+/**
+ * 読み取り専用の列の鍵。No 列と条件列がこれに当たり、地を一段弱く敷く。
+ * 起こりえないのトグル列は入れない——押せる列なので、結果列と同じ地に置く
+ */
+const READONLY_FIELDS: ReadonlySet<string> = new Set([CONDITION_FIELD, 'no'])
+
 /** 起こりえないのトグル列の地を引くための鍵。この列も検証の対象ではないので、指摘の `field` にはならない */
 const IMPOSSIBLE_FIELD = 'impossible-column'
-
-const headCell =
-  'sticky top-0 z-10 border-b border-b-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted'
 
 export interface GridBodyProps {
   conditions: readonly Condition[]
@@ -98,13 +116,28 @@ export function GridBody(props: GridBodyProps) {
   const surfaceRow = menuRow ?? focusedRow
 
   /**
-   * セルの面。**無効と欠落が地の面より強い。** 弱いほうを先に当てると、
-   * 赤や黄が行の面に塗り潰される
+   * セルの面。**1セルにつき1つだけ返す**——面のクラスを2つ載せると、
+   * どちらが出るかは生成 CSS の並び順で決まり、クラスを書いた順では決まらない。
+   * 強い順に
+   * 指摘（赤・黄）＞ 起こりえない ＞ 行の面 ＞ 条件列の面 で当てる。
+   *
+   * **読み取り専用の列（No・条件）の面は行の面より弱い `bg-surface-subtle` である。**
+   * 同じ面を敷くと、選択中の行がこれらの列の上で見分けられなくなる。明度の序列
+   * （地 ＞ 読み取り専用の列 ＞ 行）はライトとダークのどちらでも単調なので、
+   * 暗い側でも関係が反転しない
    */
-  const surfaceOf = (index: number, field: string, warn: boolean, rowAnchor = false): string => {
+  const surfaceOf = (
+    index: number,
+    field: string,
+    warn: boolean,
+    rowAnchor = false,
+    impossible = false,
+  ): string => {
     const face = cellFace(marks, index, field, warn, rowAnchor)
     if (face !== 'none') return CELL_FACE_CLASS[face]
-    return index === surfaceRow || field === CONDITION_FIELD ? 'bg-surface-muted' : ''
+    if (impossible) return 'bg-judge-no'
+    if (index === surfaceRow) return 'bg-surface-muted'
+    return READONLY_FIELDS.has(field) ? 'bg-surface-subtle' : ''
   }
 
   /**
@@ -201,7 +234,9 @@ export function GridBody(props: GridBodyProps) {
                   // 条件と結果の境界（先頭列）だけ見出しと同じ強い罫線にする。
                   // 結果どうしの境界は colBorder（弱い）のまま
                   const border = j === 0 ? headColBorder : colBorder
-                  const cellClass = `${border} ${surfaceOf(index, field, isMissingResult(row, j))}`
+                  // 起こりえないの結果セルは決着した否定の濃い面（judge-no）で塗る。
+                  // 面に載せてよい文字色は judge-no-fg だけ（palette-requirements の契約）
+                  const cellClass = `${border} ${surfaceOf(index, field, isMissingResult(row, j), false, row.impossible)}`
                   if (row.impossible) {
                     return (
                       // onFocus は td に置く。子のボタンから bubble するので、
@@ -212,7 +247,7 @@ export function GridBody(props: GridBodyProps) {
                           type="button"
                           data-cell={cellId(rowKey, field)}
                           aria-label={`${outcome.name}（${rowNo}行目）: ${IMPOSSIBLE_LABEL}`}
-                          className={`${cellInput} text-left text-ink-muted`}
+                          className={impossibleCellInput}
                           onClick={() => onToggleImpossible(index)}
                           onKeyDown={(e) => onCellKeyDown(e, { index, field })}
                         >

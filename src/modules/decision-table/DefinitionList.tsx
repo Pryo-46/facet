@@ -1,13 +1,13 @@
 import { Plus, X } from 'lucide-react'
 import { buttonBase } from '@/components/button-styles'
 import { CellInput, type FieldState } from '@/components/CellInput'
+import { headCell } from '@/components/table-styles'
 import { cellFace, CELL_FACE_CLASS, type ErrorMarks } from '@/core/list-editor/cell-face'
 import { cellId } from '@/core/list-editor/use-list-rows'
 import { isMissingLabel } from './missing'
 
 /**
- * 表のセルの入力欄。**全ツール共通の見た目だが、コアに定数の置き場が無い**ので
- * モジュールごとに同じ文字列を持つ（`GlossaryEditor.tsx` の同名定数と同じ）。
+ * 表のセルの入力欄。全ツール共通の見た目だが、モジュールごとに同じ文字列を持つ（`GlossaryEditor.tsx` の同名定数と同じ）。
  * フォーカスは面の塗り替えではなくリングで示す——セルの面（欠落・無効）を
  * 塗り替えずに重ねられる
  */
@@ -26,9 +26,6 @@ const colBorder = 'border-l border-l-rule-muted'
 
 /** ヘッダーの列の境界の縦罫。データ行より一段濃い `--rule` を使う（薄い面の上では薄い罫が消える） */
 const headColBorder = 'border-l border-l-rule'
-
-const headCell =
-  'sticky top-0 z-10 border-b border-b-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted'
 
 /** アイコンだけの小さなボタン。`<Button>` を使うほどでないので土台だけ敷く */
 const iconButton = `${buttonBase} size-6 shrink-0 text-ink-muted hover:bg-canvas hover:text-ink`
