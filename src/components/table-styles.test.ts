@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cellButton, cellField, cellFocus, cellInput, headCell } from './table-styles'
+import { buttonCell, cellButton, cellField, cellFocus, cellInput, headCell } from './table-styles'
 
 describe('表の見出しセル', () => {
   it('下罫線を border ではなく影で描く', () => {
@@ -55,5 +55,14 @@ describe('選択肢・ボタンのセル', () => {
     // 測定値がセルの高さになり、1行のセルが行いっぱいの行数を返す
     expect(cellInput).not.toContain('h-full')
     expect(cellField).not.toContain('h-full')
+  })
+})
+
+describe('選択肢・ボタンのセルの <td>', () => {
+  it('高さを指定する', () => {
+    // td の高さが auto だと、中の h-full が auto に解決されて欄が伸びない
+    // （Chrome 実測: セル 99.4px に対して欄 26.2px）。1px は下限であり、
+    // セルは中身と行の高さまで伸びる
+    expect(buttonCell).toContain('h-px')
   })
 })

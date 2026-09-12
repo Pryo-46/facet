@@ -2,7 +2,7 @@ import { Ban } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { buttonBase } from '@/components/button-styles'
 import { CellSelect } from '@/components/CellSelect'
-import { cellButton, cellField, cellFocus, headCell } from '@/components/table-styles'
+import { buttonCell, cellButton, cellField, cellFocus, headCell } from '@/components/table-styles'
 import { cellFace, CELL_FACE_CLASS, type ErrorMarks } from '@/core/list-editor/cell-face'
 import { focusCellField } from '@/core/list-editor/cell-hit'
 import { cellId } from '@/core/list-editor/use-list-rows'
@@ -226,7 +226,7 @@ export function GridBody(props: GridBodyProps) {
                   // 起こりえないの結果セルは、見送りの箱と同じ一段沈んだ面で塗る。
                   // 濃い面（judge-no）は決着をバッジの点で示すための色で、行いっぱいに
                   // 敷くと表の中でいちばん強い要素になる
-                  const cellClass = `${border} ${cellFocus} ${surfaceOf(index, field, isMissingResult(row, j), false, row.impossible)}`
+                  const cellClass = `${border} ${buttonCell} ${cellFocus} ${surfaceOf(index, field, isMissingResult(row, j), false, row.impossible)}`
                   if (row.impossible) {
                     return (
                       // onFocus は td に置く。子のボタンから bubble するので、

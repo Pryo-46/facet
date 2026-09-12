@@ -41,6 +41,17 @@ export const cellInput = `w-full ${cellField} text-ink`
 export const cellButton = `block h-full ${cellInput}`
 
 /**
+ * `cellButton` を入れる `<td>`。**高さを指定する**——`<td>` の高さが `auto` の
+ * ままだと、中の `h-full` は解決できず `auto` に落ちる（Chrome 実測: 高さ
+ * 99.4px のセルの中でボタンは 26.2px のまま）。
+ *
+ * 1px は下限であって固定ではない。表のセルは中身と行の高さまで伸びるので、
+ * 選択肢セルしか無い行でも潰れない。**`absolute inset-0` で埋めないこと**
+ * ——欄が行の高さを決める側から抜けるので、そういう行はセルごと潰れる
+ */
+export const buttonCell = 'h-px'
+
+/**
  * フォーカス中のセルの枠。**`<td>` に載せる**ので、枠の矩形がセルの矩形と
  * 一致する。角丸を足さないこと——`<td>` は角丸を持たず、罫線とずれた
  * 「浮いた箱」に戻る。

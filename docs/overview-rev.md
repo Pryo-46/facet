@@ -485,6 +485,7 @@ Primary（塗り）／Secondary（枠線のみ）／Tertiary（枠なしアイ�
   - **1つのセルに欄が複数並ぶ列では、セルではなく欄の側が描く**（デシジョンテーブルの値、用語集の別名）。セルが描くと、どの欄にいるかが分からない。
   - **当たり判定もセルの矩形に合わせる**（`src/core/list-editor/cell-hit.ts` の `focusCellField` を `<td>` の `onMouseDown` に置く）。欄はセルより背が低いので、置かないと押しても何も起きない面が上下に残る。
   - **選択肢・ボタンのセルは欄自身をセルの高さいっぱいに広げる**（`cellButton`）。フォーカスを渡すだけではメニューが開かず、欄の帯を狙うことになる。
+    - **`<td>` の側にも高さを指定する**（`buttonCell`）。`<td>` の高さが `auto` のままだと、中の `h-full` は解決できず `auto` に落ちる。
     - **`<textarea>` には広げない。** `CellInput` は `scrollHeight` から折り返しの行数を測るので、高さを固定すると1行のセルが行いっぱいの行数を返す。
 - **操作ヒントは共通部品 `KeyHints`（`src/components/KeyHints.tsx`）が描く。** 修飾キーは文中に `$mod` / `$alt` というプレースホルダで書き、`src/core/keyboard/hint-text.ts` の解決関数が実行時のプラットフォームに応じて置き換える。
   - **主修飾キーは Windows では `Ctrl`、macOS では `Cmd` であり、`$mod` がこれを描く。** 画面に `Ctrl` と直接書くと macOS で誤った操作説明になる。

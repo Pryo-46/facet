@@ -456,3 +456,18 @@ describe('ErrorCatalogEditor: 選択肢セルの高さ', () => {
     expect(screen.getByLabelText('解決レベル（No.1）').className).toContain('h-full')
   })
 })
+
+describe('ErrorCatalogEditor: 選択肢セルの <td>', () => {
+  it('高さを指定する（指定しないと中の h-full が解決しない）', () => {
+    renderEditor(twoErrors)
+    const td = screen.getByLabelText('解決レベル（No.1）').closest('td')
+    expect(td?.className).toContain('h-px')
+  })
+
+  it('文字を打つセルには指定しない', () => {
+    // 高さを持たない欄しか入らないので、指定しても効かない
+    renderEditor(twoErrors)
+    const td = screen.getByLabelText('エラー名（No.1）').closest('td')
+    expect(td?.className).not.toContain('h-px')
+  })
+})

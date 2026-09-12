@@ -5,7 +5,7 @@ import { CellSelect } from '@/components/CellSelect'
 import { buttonBase } from '@/components/button-styles'
 import { Chip } from '@/components/Chip'
 import { MissingTally } from '@/components/MissingTally'
-import { cellButton, cellFocus, cellInput, headCell } from '@/components/table-styles'
+import { buttonCell, cellButton, cellFocus, cellInput, headCell } from '@/components/table-styles'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -479,7 +479,7 @@ export function ErrorCatalogEditor({
                     <td
                       key={field}
                       // 解決レベルだけが選択肢の欄。カーソルは打てる／選ぶで分ける
-                      className={`${colBorder}${field === 'resolutionLevel' ? ' relative cursor-pointer' : ' cursor-text'} ${cellClass(index, field, isMissingCell(entry, field))}`}
+                      className={`${colBorder}${field === 'resolutionLevel' ? ` relative ${buttonCell} cursor-pointer` : ' cursor-text'} ${cellClass(index, field, isMissingCell(entry, field))}`}
                       onMouseDown={focusCellField}
                     >
                       {cellNode({ index, visiblePos, field }, entry, rowKey)}

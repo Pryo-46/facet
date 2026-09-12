@@ -648,3 +648,11 @@ describe('GlossaryEditor: 選択肢セルの高さ', () => {
     expect(screen.getByLabelText('名称（1行目）').className).not.toContain('h-full')
   })
 })
+
+describe('GlossaryEditor: 選択肢セルの <td>', () => {
+  it('高さを指定する（指定しないと中の h-full が解決しない）', () => {
+    renderEditor(twoTerms)
+    const td = screen.getByLabelText('種別（1行目）').closest('td')
+    expect(td?.className).toContain('h-px')
+  })
+})

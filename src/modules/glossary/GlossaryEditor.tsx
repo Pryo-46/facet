@@ -5,7 +5,7 @@ import { CellSelect } from '@/components/CellSelect'
 import { buttonBase } from '@/components/button-styles'
 import { Chip } from '@/components/Chip'
 import { MissingTally } from '@/components/MissingTally'
-import { cellButton, cellFocus, cellInput, headCell } from '@/components/table-styles'
+import { buttonCell, cellButton, cellFocus, cellInput, headCell } from '@/components/table-styles'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -388,7 +388,7 @@ export function GlossaryEditor({
                     />
                   </td>
                   <td
-                    className={`relative ${colBorder} cursor-pointer ${cellClass(index, 'kind', isMissingCell(term, 'kind'))}`}
+                    className={`relative ${colBorder} ${buttonCell} cursor-pointer ${cellClass(index, 'kind', isMissingCell(term, 'kind'))}`}
                     onMouseDown={focusCellField}
                   >
                     <CellSelect

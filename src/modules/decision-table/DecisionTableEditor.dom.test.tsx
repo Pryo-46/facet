@@ -966,3 +966,11 @@ describe('DecisionTableEditor: 選択肢セルの高さ', () => {
     expect(cell.className).toContain('h-full')
   })
 })
+
+describe('DecisionTableEditor: 選択肢セルの <td>', () => {
+  it('結果セルは高さを指定する（指定しないと中の h-full が解決しない）', () => {
+    renderEditor(emptyResults)
+    const td = screen.getByLabelText('結果A（1行目）').closest('td')
+    expect(td?.className).toContain('h-px')
+  })
+})
