@@ -21,8 +21,10 @@ export interface BulkResult {
  * 絞り込んだ行へまとめて書き込む。**上書きは常に行い、確認を挟まない**
  *——Undo で1手として戻せるので、確認は打鍵を増やすだけになる。
  *
- * **起こりえない行にも結果を書く。** 起こりえないは結果の値を消さない状態なので、
- * 書いた値は解除したときに見える。
+ * **結果は起こりえない行へ書かない。** 起こりえないはその組み合わせが
+ * 起こらないことを表すので、結果を持たない。対象を表示中の行だけで決めると、
+ * 人が目印として付けた起こりえないを一括で塗り潰す。
+ * 起こりえないの入り切りは対象の全行に効く。
  *
  * **1行も変わらないときは元のデータをそのまま返す。** 新しい参照を返すと、
  * 何も起きていない1手が Undo 履歴に積まれる
@@ -45,6 +47,7 @@ export function applyBulk(
       changed += 1
       return { ...row, impossible: target.on }
     }
+    if (row.impossible) return row
     if ((row.results[target.outcomeIndex] ?? '') === target.value) return row
     changed += 1
     return {

@@ -42,6 +42,29 @@ describe('applyBulk', () => {
     expect(out.changed).toBe(1)
   })
 
+  it('結果の書き込みは起こりえない行を飛ばす', () => {
+    const withImpossible: DecisionTableSchemaVersion1 = {
+      ...base,
+      rows: [base.rows[0], { ...base.rows[1], impossible: true }],
+    }
+    const out = applyBulk(withImpossible, [0, 1], {
+      kind: 'result',
+      outcomeIndex: 0,
+      value: '500円',
+    })
+    expect(out.data.rows.map((r) => r.results[0])).toEqual(['500円', ''])
+    expect(out.changed).toBe(1)
+  })
+
+  it('起こりえないの入り切りは起こりえない行にも効く', () => {
+    const withImpossible: DecisionTableSchemaVersion1 = {
+      ...base,
+      rows: [base.rows[0], { ...base.rows[1], impossible: true }],
+    }
+    const out = applyBulk(withImpossible, [0, 1], { kind: 'impossible', on: false })
+    expect(out.data.rows.map((r) => r.impossible)).toEqual([false, false])
+  })
+
   it('起こりえないを入れても結果の値を消さない', () => {
     // 戻せば元の値が見える（シーケンスの考慮不要と同じ扱い）
     const out = applyBulk(base, [0], { kind: 'impossible', on: true })
