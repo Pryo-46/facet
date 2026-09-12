@@ -1005,6 +1005,34 @@ function gridRowNumbers(): string[] {
   )
 }
 
+/** 条件1本・結果1本で、2行とも既に「無料」。まとめて入力を押しても値が動かない土台にする */
+const allAlreadyMuryo = table({
+  conditions: [condition({ id: 'cond_a', name: '条件A' })],
+  outcomes: [outcome({ id: 'out_a', name: '送料', choices: ['無料', '500円'] })],
+  rows: [
+    { values: ['はい'], impossible: false, results: ['無料'] },
+    { values: ['いいえ'], impossible: false, results: ['無料'] },
+  ],
+})
+
+/**
+ * 条件1本・結果2本。2本目（送料）を適用先に選んだ状態で1本目（旧）を消し、
+ * 「選んでいた添字が指す先が無くなる」筋を作る土台にする。
+ * **1本目（旧）の結果は空にしておく**——記入済みのまま消すと確認ダイアログが
+ * 挟まり、この土台が見たい筋（添字がずれた直後にボタンを押す）から逸れる
+ */
+const bulkFillTwoOutcomes = table({
+  conditions: [condition({ id: 'cond_a', name: '条件A' })],
+  outcomes: [
+    outcome({ id: 'out_old', name: '旧', choices: ['A', 'B'] }),
+    outcome({ id: 'out_a', name: '送料', choices: ['無料', '500円'] }),
+  ],
+  rows: [
+    { values: ['はい'], impossible: false, results: ['', '無料'] },
+    { values: ['いいえ'], impossible: true, results: ['', '500円'] },
+  ],
+})
+
 describe('絞り込み', () => {
   it('列の値を外すと、その値の行が表から消える', () => {
     renderEditor(filterable)
@@ -1094,5 +1122,33 @@ describe('まとめて入力', () => {
     fireEvent.click(screen.getByRole('menuitemradio', { name: IMPOSSIBLE_LABEL }))
     fireEvent.click(screen.getByRole('button', { name: '表示中の 4 行に適用' }))
     expect(latest()?.rows.map((r) => r.impossible)).toEqual([true, true, true, true])
+  })
+
+  it('変更が無いときは onChange を呼ばず、通知だけ出す', () => {
+    const onChange = vi.fn()
+    const onToast = vi.fn()
+    render(<Harness initial={allAlreadyMuryo} onChange={onChange} onToast={onToast} />)
+    // 既定の適用先は1本目の結果、既定の値は1つ目の選択肢（無料）。
+    // 2行とも既に無料なので、押しても値は動かない
+    fireEvent.click(screen.getByRole('button', { name: '表示中の 2 行に適用' }))
+    expect(onChange).not.toHaveBeenCalled()
+    expect(onToast).toHaveBeenCalledWith('値の変わる行はありません')
+  })
+
+  it('適用先の結果列が消えても、起こりえないへ黙って切り替わらない', () => {
+    // 再現: 2本目の結果を適用先に選び値も選んだ状態で、1本目の結果を消す。
+    // 位置で結果を指しているので、消した直後は選んでいた添字（1）が指す先が無くなる。
+    // このとき適用先が黙って「起こりえない」へ落ちて、選んでいた値（500円）が
+    // on/off の枠に居座ると、意図しない起こりえないの一括解除が起きる
+    const { latest } = renderEditor(bulkFillTwoOutcomes)
+    fireEvent.keyDown(screen.getByLabelText('適用先'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '送料' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    fireEvent.keyDown(screen.getByLabelText('書き込む値'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '500円' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    fireEvent.click(screen.getByRole('button', { name: '結果を消す（1行目）' }))
+    fireEvent.click(screen.getByRole('button', { name: '表示中の 2 行に適用' }))
+    expect(latest()?.rows.map((r) => r.impossible)).toEqual([false, true])
   })
 })

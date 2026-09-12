@@ -45,11 +45,28 @@ export function BulkFillBar({ outcomes, targetCount, onApply }: BulkFillBarProps
   const [where, setWhere] = useState<string>(() =>
     outcomes.length > 0 ? '0' : IMPOSSIBLE_KEY,
   )
-  const outcomeIndex = where === IMPOSSIBLE_KEY ? null : Number(where)
-  const outcome = outcomeIndex === null ? undefined : outcomes[outcomeIndex]
+  const [value, setValue] = useState<string>(() => defaultValue(outcomes[0]))
+
+  /**
+   * 適用先を毎描画ごとに `outcomes` から解決し直す。**state をそのまま信じない**
+   *——`where` は結果の位置を指す持ち方なので、選んでいた結果が定義部の操作で
+   * 消えると同じ添字が別の結果や「無い」を指すことになる。放置すると、適用先の
+   * 表示が黙って「起こりえない」へ落ち、選んでいた値をそのまま `on`/`off` として
+   * 読んでしまう（人が触っていない起こりえないを一括で入り切りする事故になる）
+   */
+  const resolvedOutcomeIndex = ((): number | null => {
+    if (where === IMPOSSIBLE_KEY) return null
+    const idx = Number(where)
+    if (outcomes[idx] !== undefined) return idx
+    return outcomes.length > 0 ? 0 : null
+  })()
+  const outcome = resolvedOutcomeIndex === null ? undefined : outcomes[resolvedOutcomeIndex]
+  const resolvedWhere = resolvedOutcomeIndex === null ? IMPOSSIBLE_KEY : `${resolvedOutcomeIndex}`
   /** 値の選択肢。結果列は空にするを先頭に置く */
   const options = outcome === undefined ? [...IMPOSSIBLE_VALUES] : ['', ...outcome.choices]
-  const [value, setValue] = useState<string>(() => defaultValue(outcomes[0]))
+  // 選んでいた値がいまの選択肢から外れていたら既定へ落とす。落とさずに残すと、
+  // 例えば結果列の選択肢の値が「500円」から「on」の枠へそのまま居座ってしまう
+  const resolvedValue = options.includes(value) ? value : defaultValue(outcome)
 
   /** 適用先を変えたら値も既定へ戻す。前の列の値がそのまま残ると、押した瞬間に別の語が入る */
   const changeWhere = (next: string): void => {
@@ -63,11 +80,11 @@ export function BulkFillBar({ outcomes, targetCount, onApply }: BulkFillBarProps
   }
 
   const apply = (): void => {
-    if (outcome === undefined || outcomeIndex === null) {
-      onApply({ kind: IMPOSSIBLE_KEY, on: value === 'on' })
+    if (outcome === undefined || resolvedOutcomeIndex === null) {
+      onApply({ kind: IMPOSSIBLE_KEY, on: resolvedValue === 'on' })
       return
     }
-    onApply({ kind: 'result', outcomeIndex, value })
+    onApply({ kind: 'result', outcomeIndex: resolvedOutcomeIndex, value: resolvedValue })
   }
 
   return (
@@ -79,7 +96,7 @@ export function BulkFillBar({ outcomes, targetCount, onApply }: BulkFillBarProps
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          <DropdownMenuRadioGroup value={where} onValueChange={changeWhere}>
+          <DropdownMenuRadioGroup value={resolvedWhere} onValueChange={changeWhere}>
             {outcomes.map((o, j) => (
               // 値に位置を使う。ID 重複は赤表示する正規の状態なので、id では一意に指せない
               <DropdownMenuRadioItem key={`out-${j}`} value={`${j}`}>
@@ -93,11 +110,11 @@ export function BulkFillBar({ outcomes, targetCount, onApply }: BulkFillBarProps
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" aria-label="書き込む値">
-            {valueLabel(value)}
+            {valueLabel(resolvedValue)}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          <DropdownMenuRadioGroup value={value} onValueChange={setValue}>
+          <DropdownMenuRadioGroup value={resolvedValue} onValueChange={setValue}>
             {options.map((v, at) => (
               // key に生のラベルを使わない。同じラベルの選択肢が2件あるファイルは
               // duplicate-choice が赤で出す正規の状態で、key が衝突する
