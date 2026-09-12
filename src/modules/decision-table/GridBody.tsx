@@ -119,7 +119,10 @@ export function GridBody(props: GridBodyProps) {
    * **開いている間の面は jsdom では決められない。** メニューを開くと
    * トリガーにフォーカスが当たり、`focusedRow` が同じ面を付けるので、
    * どちらが付けたのかをテストから区別できない。閉じたときに戻すことと、
-   * `CellSelect` が開閉を知らせることの2点だけがテストで縛れる
+   * `CellSelect` が開閉を知らせることの2点だけがテストで縛れる。
+   *
+   * **隠れた行の面を捨てる分岐にもテストが無いのは同じ理由である。**
+   * 開いたまま行を隠す操作が jsdom では組めず、面の出所も区別できない
    */
   const [menuRow, setMenuRow] = useState<number | null>(null)
 

@@ -125,9 +125,17 @@ describe('reconcileFilter', () => {
     expect(reconcileFilter(conditions, outcomes, filter).values.cond_a).toEqual(['はい'])
   })
 
-  it('選択が1つも残らない鍵を落とす', () => {
+  it('指す値が無くなって空になった鍵を落とす', () => {
     const filter = { values: { cond_a: ['未知'] }, showImpossible: true }
     expect(reconcileFilter(conditions, outcomes, filter).values.cond_a).toBeUndefined()
+  })
+
+  it('人が空にした鍵はそのまま残す', () => {
+    // 空集合は「1行も出さない」指定であり、指す値が無くなった状態とは別である
+    const filter = { values: { cond_a: [] }, showImpossible: true }
+    const next = reconcileFilter(conditions, outcomes, filter)
+    expect(next.values.cond_a).toEqual([])
+    expect(filterRowIndices(conditions, outcomes, rows, next)).toEqual([])
   })
 
   it('列の全ラベルを覆う鍵を落とす', () => {

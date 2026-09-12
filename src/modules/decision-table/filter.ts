@@ -15,7 +15,7 @@ import type { Condition, Outcome, Row } from '@/types/decision-table'
 export interface GridFilter {
   /**
    * ID → 出すラベル。**鍵の無い列は絞り込まない。** 空の配列は「1つも出さない」
-   * という別の状態だが、画面は `reconcileFilter` を通すので絞り込みなしへ戻る
+   * 指定であり、鍵が無いのとは違う
    */
   values: Readonly<Record<string, readonly string[]>>
   /** 起こりえない行を出すか */
@@ -48,9 +48,12 @@ export function outcomeFilterLabels(outcome: Outcome): string[] {
  * データより長く残る状態である**——列を消してもラベルを書き換えても、鍵と
  * ラベルは触られないまま残る。
  *
- * 落とすのは3つ。消えた列の鍵、その列に無くなったラベル、そして残りが
- * 「絞り込んでいない」と同じ意味になった鍵（空になった鍵と、列の全ラベルを
- * 覆う鍵）である。**覆う鍵を残すと `isFiltered` が嘘をつく。**
+ * 落とすのは3つ。消えた列の鍵、その列に無くなったラベル、そして列の全ラベルを
+ * 覆う鍵である。**覆う鍵を残すと `isFiltered` が嘘をつく。**
+ *
+ * **空の選択は2通りあり、扱いが違う。** 人が全部のチェックを外した空集合は
+ * 「1行も出さない」指定なのでそのまま残す。刈り込みでラベルが消えた結果の
+ * 空集合は指す値を失っているので、鍵ごと落とす
  *
  * **ラベルの書き換えはここでは追えない。** 旧ラベルと新ラベルの対応を知るのは
  * 書き換えた側だけで、ここから見ると旧ラベルが消えて新ラベルが増えたようにしか
@@ -83,6 +86,10 @@ export function reconcileFilter(
       continue
     }
     const next = picked.filter((label) => labels.includes(label))
+    if (picked.length === 0) {
+      values[id] = picked
+      continue
+    }
     const nextSet = new Set(next)
     if (next.length === 0 || labels.every((label) => nextSet.has(label))) {
       changed = true

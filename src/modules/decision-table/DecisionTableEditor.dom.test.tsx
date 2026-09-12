@@ -1331,6 +1331,17 @@ describe('絞り込みで隠れた行の面', () => {
 })
 
 describe('絞り込みで0行になったとき', () => {
+  it('1つの列のチェックを全部外すと、表が0行になる', () => {
+    // 空の選択は「1行も出さない」指定である。絞り込みなしへ戻すと、
+    // 人が求めた状態と正反対の全行が出る
+    renderEditor(filterable)
+    fireEvent.keyDown(screen.getByLabelText('会員か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'いいえ' }))
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'はい' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(gridRowNumbers()).toEqual([])
+  })
+
   it('見出しの絞り込みは残り、まとめて入力は何も変えない', () => {
     const onChange = vi.fn()
     const onToast = vi.fn()
