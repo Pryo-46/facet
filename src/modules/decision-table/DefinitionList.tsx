@@ -1,25 +1,16 @@
 import { Plus, X } from 'lucide-react'
 import { buttonBase } from '@/components/button-styles'
 import { CellInput, type FieldState } from '@/components/CellInput'
-import { headCell } from '@/components/table-styles'
+import { cellField, cellFocus, cellInput, headCell } from '@/components/table-styles'
 import { cellFace, CELL_FACE_CLASS, type ErrorMarks } from '@/core/list-editor/cell-face'
 import { cellId } from '@/core/list-editor/use-list-rows'
 import { isMissingLabel } from './missing'
 
 /**
- * 表のセルの入力欄。全ツール共通の見た目だが、モジュールごとに同じ文字列を持つ（`GlossaryEditor.tsx` の同名定数と同じ）。
- * フォーカスは面の塗り替えではなくリングで示す——セルの面（欠落・無効）を
- * 塗り替えずに重ねられる
- */
-const cellInput =
-  'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
-
-/**
  * ラベルの入力欄。**幅は固定**で、`cellInput` の `w-full` だけが違う。
  * ラベルは行ごとに本数が違うので、内容に追随させると列の見た目が揃わない
  */
-const labelInput =
-  'w-32 resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
+const labelInput = `w-32 ${cellField} text-ink`
 
 /** 列の境界の縦罫。先頭列（No）には引かない。色は辺指定で書く（無方向だと下罫まで薄くなる） */
 const colBorder = 'border-l border-l-rule-muted'
@@ -137,7 +128,7 @@ export function DefinitionList(props: DefinitionListProps) {
                   <td className={`px-2 py-1 text-right text-ink-muted ${face(index, 'no', false, true)}`}>
                     {no}
                   </td>
-                  <td className={`${colBorder} ${face(index, 'name', isMissingLabel(row.name))}`}>
+                  <td className={`${colBorder} ${cellFocus} ${face(index, 'name', isMissingLabel(row.name))}`}>
                     <CellInput
                       className={cellInput}
                       aria-label={`${nameLabel}（${no}行目）`}
@@ -148,7 +139,9 @@ export function DefinitionList(props: DefinitionListProps) {
                     />
                   </td>
                   {/* ラベル列そのものの指摘（重複）はこの面が運ぶ。ラベル1つずつの
-                      面は下の span が別に持つ */}
+                      面は下の span が別に持つ。**フォーカス枠もこのセルには載せない**
+                      ——1つのセルにラベルが複数並ぶので、セルを囲むとどのラベルに
+                      いるか分からない。枠は下の span が `cellFocus` で描く */}
                   <td className={`${colBorder} ${face(index, labelsField, false)}`}>
                     <div className="flex flex-wrap gap-1 px-2 py-1">
                       {row.labels.map((label, labelIndex) => {
@@ -156,7 +149,7 @@ export function DefinitionList(props: DefinitionListProps) {
                         return (
                           <span
                             key={field}
-                            className={`inline-flex items-center rounded-sm ${face(index, field, isMissingLabel(label))}`}
+                            className={`inline-flex items-center rounded-sm ${cellFocus} ${face(index, field, isMissingLabel(label))}`}
                           >
                             <CellInput
                               className={labelInput}

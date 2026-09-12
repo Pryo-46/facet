@@ -594,3 +594,20 @@ describe('GlossaryEditor: 表示中の行の報告', () => {
     expect(ids.size).toBe(0)
   })
 })
+
+describe('GlossaryEditor: セルのフォーカス枠', () => {
+  it('入力欄ではなくセルが描く', () => {
+    // 入力欄はセルより小さいので、入力欄が枠を描くとセルの中に箱が浮く
+    renderEditor(twoTerms)
+    const cell = screen.getByLabelText('名称（1行目）')
+    expect(cell.className).not.toMatch(/ring/)
+    expect(cell.closest('td')?.className).toContain('focus-within:ring-2')
+  })
+
+  it('閉じた別名セルも入力欄と同じ扱いにする', () => {
+    renderEditor(twoTerms)
+    const cell = screen.getByLabelText('別名（1行目）')
+    expect(cell.className).not.toMatch(/ring/)
+    expect(cell.closest('td')?.className).toContain('focus-within:ring-2')
+  })
+})

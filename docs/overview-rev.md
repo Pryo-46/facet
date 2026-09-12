@@ -481,6 +481,8 @@ Primary（塗り）／Secondary（枠線のみ）／Tertiary（枠なしアイ�
 - **キャンバス系ツールでは、測定層と描画層が同一のフォントトークンを参照する。** 折り返し位置はオフスクリーン `<canvas>` の `measureText` が描画前に確定させるので、指定がずれると全ノードのサイズが一斉に狂う（`src/core/canvas/canvas-font.ts`）。
   - **測り直しの契機は `document.fonts.ready` だけでは足りず、`loadingdone` も要る。** 和文フォントは `unicode-range` で分割され、珍しい漢字が初めて出た瞬間に該当スライスが後から届く（`src/core/canvas/use-font-generation.ts`）。追従するのは高さだけで幅は動かない。
 - **フォーカスは面の塗り替え（`focus:bg-*`）ではなくリング（`focus:ring-2 focus:ring-inset focus:ring-ring`）で示す。** 面を塗り替えると警告の淡い面ごと表示が消えるが、リングは枠の内側に重なるだけなので面も輪郭も消えない。
+  - **リングは入力欄ではなく、その欄の矩形と一致する要素に載せる**（表では `<td>`。`src/components/table-styles.ts` の `cellFocus`）。入力欄は中身の分しか高さを持たないので、入力欄に載せると角丸の箱がセルの中に浮き、空欄では細い線に潰れる。
+  - **1つのセルに欄が複数並ぶ列では、セルではなく欄の側が描く**（デシジョンテーブルの値、用語集の別名）。セルが描くと、どの欄にいるかが分からない。
 - **操作ヒントは共通部品 `KeyHints`（`src/components/KeyHints.tsx`）が描く。** 修飾キーは文中に `$mod` / `$alt` というプレースホルダで書き、`src/core/keyboard/hint-text.ts` の解決関数が実行時のプラットフォームに応じて置き換える。
   - **主修飾キーは Windows では `Ctrl`、macOS では `Cmd` であり、`$mod` がこれを描く。** 画面に `Ctrl` と直接書くと macOS で誤った操作説明になる。
   - `KeyHints` は小さいまま、薄さを外す。14px のまま `text-ink` を使い、二重減衰を作らない。

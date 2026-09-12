@@ -13,3 +13,28 @@
  */
 export const headCell =
   'sticky top-0 z-10 shadow-[inset_0_-1px_0_var(--rule)] bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted'
+
+/**
+ * 表のセルの入力欄の土台。**幅と文字色を持たない。** 幅はラベル欄のように
+ * 固定で並べる欄があり、文字色は起こりえないのセルだけ非アクティブになる
+ * ——同じ要素に文字色を2つ載せると、どちらが出るかは生成 CSS の並び順で決まる。
+ *
+ * **枠を自分で描かない。** 入力欄は中身の分しか高さを持たないので、
+ * 入力欄がフォーカス枠を描くとセルの中に小さい箱が浮き、空のセルでは
+ * その箱が細い線に潰れる。枠はセルの側（`cellFocus`）が描く
+ */
+export const cellField =
+  'resize-none overflow-y-auto bg-transparent px-2 py-1 outline-none align-middle'
+
+/** 表のセルの入力欄。セルの幅いっぱいに広がる */
+export const cellInput = `w-full ${cellField} text-ink`
+
+/**
+ * フォーカス中のセルの枠。**`<td>` に載せる**ので、枠の矩形がセルの矩形と
+ * 一致する。角丸を足さないこと——`<td>` は角丸を持たず、罫線とずれた
+ * 「浮いた箱」に戻る。
+ *
+ * リングを選ぶ理由は面（`focus:bg-*`）と競合しないため。欠落・無効のセルは
+ * 淡い面（`CELL_FACE_CLASS`）で警告を出しており、面を塗り替えるとそれが消える
+ */
+export const cellFocus = 'focus-within:ring-2 focus-within:ring-inset focus-within:ring-ring'

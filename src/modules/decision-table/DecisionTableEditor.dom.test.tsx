@@ -901,3 +901,30 @@ describe('整合性の赤', () => {
     expect(cells[2]?.className).toContain('bg-invalid-face')
   })
 })
+
+describe('DecisionTableEditor: セルのフォーカス枠', () => {
+  it('条件の定義欄では入力欄ではなくセルが描く', () => {
+    // 入力欄はセルより小さいので、入力欄が枠を描くとセルの中に箱が浮く
+    renderEditor(oneCondition)
+    const cell = screen.getByLabelText('条件名（1行目）')
+    expect(cell.className).not.toMatch(/ring/)
+    expect(cell.closest('td')?.className).toContain('focus-within:ring-2')
+  })
+
+  it('値の欄では欄を囲む span が描く', () => {
+    // 1つのセルに値が複数並ぶので、セルが描くとどの値にいるか分からない
+    renderEditor(oneCondition)
+    const cell = screen.getByLabelText('値（1行目の1つ目）')
+    expect(cell.className).not.toMatch(/ring/)
+    expect(cell.closest('td')?.className).not.toContain('focus-within:ring-2')
+    expect(cell.parentElement?.className).toContain('focus-within:ring-2')
+  })
+
+  it('結果セルでは入力欄ではなくセルが描く', () => {
+    // 未記入の結果セルは中身の高さが 0 なので、トリガーが枠を描くと細い線に潰れる
+    renderEditor(emptyResults)
+    const cell = screen.getByLabelText('結果A（1行目）')
+    expect(cell.className).not.toMatch(/ring/)
+    expect(cell.closest('td')?.className).toContain('focus-within:ring-2')
+  })
+})

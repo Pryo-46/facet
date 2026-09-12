@@ -5,7 +5,7 @@ import { CellSelect } from '@/components/CellSelect'
 import { buttonBase } from '@/components/button-styles'
 import { Chip } from '@/components/Chip'
 import { MissingTally } from '@/components/MissingTally'
-import { headCell } from '@/components/table-styles'
+import { cellFocus, cellInput, headCell } from '@/components/table-styles'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -37,12 +37,6 @@ import { EMPTY_FILTER, filterErrorIndices, isDerivedView, type ErrorFilter } fro
 
 // 解決レベルの選択肢はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂時に静かにずれる）
 const LEVEL_OPTIONS = errorCatalogSchema.$defs.errorEntry.properties.resolutionLevel.enum
-
-// フォーカスは面の塗り替えではなくリングで示す。エラー・未記入セルは
-// 輪郭（CELL_FACE_CLASS）で示す。フォーカスで背景を塗り替えても消えないが、
-// リングで示す方針は変えない
-const cellInput =
-  'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
 
 /**
  * 列の境界の縦罫。先頭列（No）には引かない。
@@ -277,10 +271,10 @@ export function ErrorCatalogEditor({
   // locations を「配列位置 → 赤表示するフィールド集合」に引き直す（コアの純関数）
   const marks = buildErrorMarks(issues)
 
-  /** セルの輪郭のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ。
+  /** セルの面とフォーカス枠のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ。
       No 列は profile.fields に含まれないので rowAnchor はここでは常に false */
   const cellClass = (index: number, field: ErrorField, warn: boolean): string =>
-    CELL_FACE_CLASS[cellFace(marks, index, field, warn)]
+    `${cellFocus} ${CELL_FACE_CLASS[cellFace(marks, index, field, warn)]}`
 
   /** セルの中身。列ごとの違いはここ1箇所に閉じる */
   const cellNode = (

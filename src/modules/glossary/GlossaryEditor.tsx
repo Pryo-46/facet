@@ -5,7 +5,7 @@ import { CellSelect } from '@/components/CellSelect'
 import { buttonBase } from '@/components/button-styles'
 import { Chip } from '@/components/Chip'
 import { MissingTally } from '@/components/MissingTally'
-import { headCell } from '@/components/table-styles'
+import { cellFocus, cellInput, headCell } from '@/components/table-styles'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -36,15 +36,6 @@ import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } f
 
 // 種別の選択肢はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂時に静かにずれる）
 const KIND_OPTIONS = glossarySchema.$defs.term.properties.kind.enum
-
-// フォーカスは面の塗り替えではなくリングで示す。テーブルの面は
-// bg-surface なので、focus:bg-surface はコントラスト比 1.00:1 で見えない。
-// エラー・未定義セルは輪郭（CELL_FACE_CLASS）で警告を示しているので、
-// フォーカスで背景を塗り替えても輪郭は消えない——リングは輪郭とは別の見た目
-// なので、どちらも潰さずに重ねられる。色は役割トークンの --ring から取る
-// （既に --ink に紐づいている。palette.css は変更していない）
-const cellInput =
-  'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
 
 /**
  * 列の境界の縦罫。先頭列（No）には引かない。
@@ -242,12 +233,12 @@ export function GlossaryEditor({
   // この振る舞いを固定する場所が別に要る
   const marks = buildErrorMarks(issues)
 
-  /** セルの輪郭のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ。
-      行全体の指摘は No セルの輪郭で示す（rev 9章 D5）。No は GlossaryField
+  /** セルの面とフォーカス枠のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ。
+      行全体の指摘は No セルの面で示す（rev 9章 D5）。No は GlossaryField
       ではないので、ここでは rowAnchor は常に false——No セル自身は tbody の中で
       cellFace を直接呼んで別に組み立てる */
   const cellClass = (index: number, field: GlossaryField, warn = false): string =>
-    CELL_FACE_CLASS[cellFace(marks, index, field, warn, false)]
+    `${cellFocus} ${CELL_FACE_CLASS[cellFace(marks, index, field, warn, false)]}`
 
   return (
     <div ref={rows.containerRef} className="p-4">

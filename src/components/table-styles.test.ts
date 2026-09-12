@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { headCell } from './table-styles'
+import { cellField, cellFocus, cellInput, headCell } from './table-styles'
 
 describe('表の見出しセル', () => {
   it('下罫線を border ではなく影で描く', () => {
@@ -8,5 +8,35 @@ describe('表の見出しセル', () => {
     expect(headCell).toContain('sticky')
     expect(headCell).not.toMatch(/border-b/)
     expect(headCell).toContain('shadow-[inset_0_-1px_0_var(--rule)]')
+  })
+})
+
+describe('表のセルの入力欄', () => {
+  it('枠を自分で描かない', () => {
+    // 入力欄はセルより小さいので、入力欄が枠を描くと枠がセルの中に浮く。
+    // 空のセルでは中身の高さが 0 になり、その枠が細い線に潰れる
+    expect(cellInput).not.toMatch(/ring/)
+    expect(cellInput).not.toMatch(/rounded/)
+  })
+
+  it('幅と文字色は土台から分けてあり、呼び出し側が決められる', () => {
+    // ラベル欄は固定幅で並べ、起こりえないのセルは非アクティブの文字色で置く。
+    // 同じ要素に文字色を2つ載せると、どちらが出るかは生成 CSS の並び順で決まる
+    expect(cellField).not.toMatch(/\bw-/)
+    expect(cellField).not.toMatch(/\btext-/)
+    expect(cellInput).toContain('w-full')
+    expect(cellInput).toContain('text-ink')
+    expect(cellInput).toContain(cellField)
+  })
+})
+
+describe('表のセルのフォーカス枠', () => {
+  it('セルが描き、角丸を持たない', () => {
+    // 枠の矩形をセルの矩形に一致させる。td は角丸を持たないので、
+    // 角丸を足すと罫線と枠がずれて「浮いた箱」に戻る
+    expect(cellFocus).toContain('focus-within:ring-2')
+    expect(cellFocus).toContain('focus-within:ring-inset')
+    expect(cellFocus).toContain('focus-within:ring-ring')
+    expect(cellFocus).not.toMatch(/rounded/)
   })
 })

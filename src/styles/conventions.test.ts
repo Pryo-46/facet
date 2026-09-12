@@ -225,3 +225,11 @@ describe('角丸の段', () => {
     ).toEqual([])
   })
 })
+
+describe('表のセルの入力欄', () => {
+  it('モジュールごとに複製しない', () => {
+    // 同じ文字列を各モジュールが持つと、見た目を1つ直したときに残りが揃わない。
+    // 定義は components/table-styles.ts の export だけにする
+    expect(offendingLines(/^const cell(Input|Field|Focus)\s*=/)).toEqual([])
+  })
+})

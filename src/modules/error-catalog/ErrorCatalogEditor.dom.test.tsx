@@ -428,3 +428,13 @@ describe('ErrorCatalogEditor: 表示中の行の報告', () => {
     expect(ids).not.toBeNull()
   })
 })
+
+describe('ErrorCatalogEditor: セルのフォーカス枠', () => {
+  it('入力欄ではなくセルが描く', () => {
+    // 入力欄はセルより小さいので、入力欄が枠を描くとセルの中に箱が浮く
+    renderEditor(twoErrors)
+    const cell = screen.getByLabelText('エラー名（No.1）')
+    expect(cell.className).not.toMatch(/ring/)
+    expect(cell.closest('td')?.className).toContain('focus-within:ring-2')
+  })
+})
