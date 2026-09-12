@@ -8,8 +8,9 @@
  *
  * 値は `oklch(L C H)` の形で書く。L は 0..1 の小数（% 不可）、アルファ不可。
  *
- * 役割（rev 9章。20個）:
- *   面（無彩色）   canvas / surface / surface-muted（一段沈んだ面）
+ * 役割（rev 9章。21個）:
+ *   面（無彩色）   canvas / surface / surface-subtle（わずかに沈んだ面）/
+ *                  surface-muted（一段沈んだ面）
  *   文字（無彩色） ink / ink-muted / ink-faint（3:1。本文に使わない）
  *   線（無彩色）   rule（3:1）/ rule-muted（表の罫線・弱い境界。装飾）/ grid（方眼。装飾）
  *   欠落軸（黄）   missing / missing-face   線・文字／淡い面
@@ -49,6 +50,7 @@
     /* ライト。無彩色は C 0 */
     --canvas: oklch(0.95 0 0);
     --surface: oklch(0.985 0 0);
+    --surface-subtle: oklch(0.97 0 0);      /* 読み取り専用の列の地。**選択中の行の面（surface-muted）と別の段に置く**——同じ面を敷くと、選択行がその列の上で見分けられない */
     --surface-muted: oklch(0.91 0 0);
     --ink: oklch(0.18 0 0);
     --ink-muted: oklch(0.42 0 0);
@@ -94,6 +96,7 @@
     --surface: oklch(0.24 0 0);             /* canvas 比 1.16:1。M21 の 0.205（1.07:1）はノードが地に沈んで見えた（実機）。
                                                ライトの序列 muted < canvas < surface をダークでも輝度順で保つ。
                                                0.28 まで上げると ink-faint が 3:1×MARGIN を割る */
+    --surface-subtle: oklch(0.21 0 0);      /* 地（surface 0.24）から半段。ライトの 0.015 より差を取ってある——暗い側では同じ L 差が見分けにくい */
     --surface-muted: oklch(0.13 0 0);       /* 「一段沈んだ面」は地より暗く——ライトと同じ向き。M21 の 0.27 は3面で
                                                最も明るく、見送りの箱が最も浮いて見えた（実機。序列の反転） */
     --ink: oklch(0.88 0 0);                 /* surface 上 11.5:1。GitHub Dark（≈14:1）と VSCode Dark+（≈11.5:1）と同水準 */

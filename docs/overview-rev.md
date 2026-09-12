@@ -356,7 +356,7 @@ ID捏造・不正データの予防として、各Skillに ID採番と書き込�
 - **二層構造にする。** 参照するのは役割トークン（意味の名前）だけで、色値は差し替え可能な下敷きである。色値の直書きと役割トークンへの透過は `src/styles/conventions.test.ts` が弾く。
 - **配色は `src/styles/palette.css` 1ファイルの書き換えで差し替えられる。** 差し替え後も `src/styles/palette.test.ts` がコントラスト要件（本文 4.5:1、罫線 3:1 等）を検証する。要件の表は `src/styles/palette-requirements.ts`、計算式は `src/styles/contrast.ts` が1本だけ持つ。
 - 差し替えの手順は `.claude/skills/palette-retheme/` が持つ。外部テーマから機械的に拾えるのは7つで、残りは候補から人が選ぶ。
-- **役割トークンは 20個で、色を持つのは意味だけである。** 面・文字・線は無彩色（C ≤ 0.01）に保つ。
+- **役割トークンは 21個で、色を持つのは意味だけである。** 面・文字・線は無彩色（C ≤ 0.01）に保つ。
   - 面：`canvas`（地。方眼を敷く）／`surface`（作業する面）／`surface-muted`（一段沈んだ面。選択中タブ・カラム名・旗を掲げた枝）
   - 文字：`ink`／`ink-muted`／`ink-faint`（非アクティブ。3:1。本文に使わず `opacity-*` の代わりに使う）
   - 線：`rule`（セル境界・入力枠。3:1）／`rule-muted`（表の罫線・弱い境界）／`grid`（方眼専任）
@@ -464,7 +464,7 @@ Primary（塗り）／Secondary（枠線のみ）／Tertiary（枠なしアイ�
 
 #### D20. ダークパレット
 
-同じ役割トークンにモードごとの値を割り当て、ライトの値を機械的に裏返して作らない。**ダークもライトと同じ輝度順にする**（`surface-muted` < `canvas` < `surface`）。ダークでは `canvas` と `surface` が線を挟むため方眼と罫線を1値で兼ねられず、`grid` を方眼専任、`rule-muted` を罫線に割り当てる（`src/styles/palette.css`）。
+同じ役割トークンにモードごとの値を割り当て、ライトの値を機械的に裏返して作らない。**ダークもライトと同じ輝度順にする**（`surface-muted` < `canvas` < `surface-subtle` < `surface`）。ダークでは `canvas` と `surface` が線を挟むため方眼と罫線を1値で兼ねられず、`grid` を方眼専任、`rule-muted` を罫線に割り当てる（`src/styles/palette.css`）。
 
 ### その他の規約
 

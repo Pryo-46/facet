@@ -1,6 +1,6 @@
 ---
 name: palette-retheme
-description: facet 自身の配色（src/styles/palette.css）を、渡されたテーマに差し替える。「配色を変えて」「テーマを差し替えて」「この theme.css を入れて」「palette.css を書き換えて」「もっと暗い配色にして」と言われたときに使う。外部テーマの31変数のうち facet が使うのは7つだけで、対応物がない役割（missing / pending / judge-yes / judge-yes-fg / judge-no / judge-no-fg / grid / rule-muted / ink-faint / missing-face / invalid-face / pending-face / judge-yes-face）は候補を出してユーザーに選ばせる。コントラストの実測と明度の調整は同梱スクリプトが行うため、色を手で見繕わない。
+description: facet 自身の配色（src/styles/palette.css）を、渡されたテーマに差し替える。「配色を変えて」「テーマを差し替えて」「この theme.css を入れて」「palette.css を書き換えて」「もっと暗い配色にして」と言われたときに使う。外部テーマの31変数のうち facet が使うのは7つだけで、対応物がない役割（missing / pending / judge-yes / judge-yes-fg / judge-no / judge-no-fg / grid / rule-muted / ink-faint / surface-subtle / missing-face / invalid-face / pending-face / judge-yes-face）は候補を出してユーザーに選ばせる。コントラストの実測と明度の調整は同梱スクリプトが行うため、色を手で見繕わない。
 ---
 
 # 配色差し替え
@@ -23,7 +23,7 @@ description: facet 自身の配色（src/styles/palette.css）を、渡された
 2. 渡されたテーマを読む
 3. facet の役割へ対応づける（**拾うのは7色だけ**）
 4. `destructive` が本当に赤（`invalid`）か疑う
-5. 対応物がない13個（`missing` / `pending` / `judge-yes` / `judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `rule-muted` / `ink-faint` / `missing-face` / `invalid-face` / `pending-face` / `judge-yes-face`）をユーザーと決める
+5. 対応物がない14個（`missing` / `pending` / `judge-yes` / `judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `rule-muted` / `ink-faint` / `surface-subtle` / `missing-face` / `invalid-face` / `pending-face` / `judge-yes-face`）をユーザーと決める
 6. 下書き JSON を作り、同梱スクリプトで検算する（**終了コード 0 になるまで**）
 7. `palette.css` を `Edit` で書き換える（**由来コメントも同じ編集で書き直す**）
 8. `npm test` を走らせる
@@ -129,7 +129,7 @@ Amber Minimal から拾うのは背景・面・文字・境界・destructive の
 
 判定の道具は手順6の出力にある。トークン一覧の `oklch(L C H)` 列で `invalid` と `judge-yes` の H が近ければ怪しく、末尾の ΔE 行の `normal` が小さければ**両者はほぼ同じ色である**（現行配色でライト `invalid / judge-yes` の `normal=0.535`）。
 
-## 5. 対応物がない13個を決める
+## 5. 対応物がない14個を決める
 
 | 役割 | 扱い | 導出の規則（候補の作り方） |
 | --- | --- | --- |
@@ -141,7 +141,8 @@ Amber Minimal から拾うのは背景・面・文字・境界・destructive の
 | `judge-no-fg` | 既定値を示して確認 | `judge-no` の面に 4.5:1 で載る明るい無彩色（`surface` 相当） |
 | `grid` | 既定値を示して確認 | 方眼専任。`canvas` に寄せた薄い無彩色。**ライトは `canvas` 上 1.2:1、ダークは 1.06:1 を目安にする**（M27 の実機） |
 | `rule-muted` | 既定値を示して確認 | 表の罫線・弱い境界（M27 で `grid` から分離）。**ライトは `grid` と同値でよい**。ダークは `surface` の上で見える明るさに置く（M27 の実機は `surface` 上 1.8:1）——ダークでは `canvas` と `surface` が線を挟むため、方眼と罫線は1値で両立しない |
-| `ink-faint` | 既定値を示して確認 | `ink-muted` からさらに一段動かす——ライトはより明るく、ダークはより暗く。3面（`canvas` / `surface` / `surface-muted`）で 3:1 |
+| `surface-subtle` | 既定値を示して確認 | 読み取り専用の列の地。`surface` と `canvas` の間に置く無彩色（ライトは `surface` から L 0.015、ダークは 0.03 ほど）。**`surface-muted` と別の段に保つ**——表では選択中の行がこの面の上を通るので、同値にすると選択行が見分けられない |
+| `ink-faint` | 既定値を示して確認 | `ink-muted` からさらに一段動かす——ライトはより明るく、ダークはより暗く。4面（`canvas` / `surface` / `surface-subtle` / `surface-muted`）で 3:1 |
 | `missing-face` / `invalid-face` / `pending-face` | 既定値を示して確認 | **同じ軸の線色と同じ色相**で、L 0.93〜0.96（ダーク 0.28〜0.32）、C 0.035〜0.06 の淡い面。`ink` / `ink-muted` / その軸の線色の3つが 4.5:1 で載ること（`FACE_REQUIREMENTS`）。色相を線色から動かさない——面と線が別の色になると「同じ軸の2段」に見えなくなる |
 | `judge-yes-face` | 既定値を示して確認 | **`judge-yes` と同じ色相**で、L 0.93〜0.96（**ダーク 0.26〜0.27**）、C 0.04〜0.06 の淡い緑。課題ツリーの「解決した課題の箱」の地（issue-tree-m5）。**上の3面と載る色が違う**——4色が載る: `ink` / `ink-muted`（4.5:1）と、**`rule`**（箱の枠。判断軸には線色のトークンが無い）／**`ink-faint`**（抑制された仮説行の点と文言。**この面だけが「箱の地」で、抑制された内容がその上に乗る**）の2つが 3:1（`FACE_REQUIREMENTS`。どちらも文字ではなく枠・非アクティブなので 3:1）。**ダークの拘束条件は `rule` ではなく `ink-faint` である**——`ink-faint`（L 0.55）は `rule`（L 0.56）よりわずかに暗いので先に割れる。実測: **L 0.28 では `rule` 3.072 で通るが `ink-faint` 2.946 で落ちる**（境目は L 0.275 ＝ 2.996）。**`rule` だけを見て L を選ばないこと**——通ってしまう値でも `ink-faint` を割る |
 
@@ -152,9 +153,9 @@ Amber Minimal から拾うのは背景・面・文字・境界・destructive の
 
 `missing` / `pending` / `judge-yes` / `judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `rule-muted` / `ink-faint` / `missing-face` / `invalid-face` / `pending-face` / `judge-yes-face` には、shadcn 系テーマに対応物が無い。**AI が黙って決めない。**
 
-ただし13個を一律に聞くと会議が止まる。**判断の重さで分ける。**
+ただし14個を一律に聞くと会議が止まる。**判断の重さで分ける。**
 
-**`missing` / `pending` / `judge-yes` を必ず聞くのは、これらが意味を持つ色だからである。** facet は「欠落・無効・着信」の3系統と「支持・棄却」の判断軸で状態を区別する（rev 9章）。`invalid` は手順3で `destructive` から拾える。残る `missing` / `pending` / `judge-yes` には対応物が無く、色を選ぶこと自体が意味の割り当てになるため、AI が黙って決めてはならない。残り10個（`judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `rule-muted` / `ink-faint` / `missing-face` / `invalid-face` / `pending-face` / `judge-yes-face`）は装飾か派生であり、上の規則から導出できる——**淡い面4つは意味色ではなく、聞いて決めた色からの派生である**（同じ色相のまま白／黒へ寄せるだけ。3つは線色から、`judge-yes-face` は `judge-yes` の面から）。
+**`missing` / `pending` / `judge-yes` を必ず聞くのは、これらが意味を持つ色だからである。** facet は「欠落・無効・着信」の3系統と「支持・棄却」の判断軸で状態を区別する（rev 9章）。`invalid` は手順3で `destructive` から拾える。残る `missing` / `pending` / `judge-yes` には対応物が無く、色を選ぶこと自体が意味の割り当てになるため、AI が黙って決めてはならない。残り11個（`judge-yes-fg` / `judge-no` / `judge-no-fg` / `grid` / `rule-muted` / `ink-faint` / `surface-subtle` / `missing-face` / `invalid-face` / `pending-face` / `judge-yes-face`）は装飾か派生であり、上の規則から導出できる——**淡い面4つは意味色ではなく、聞いて決めた色からの派生である**（同じ色相のまま白／黒へ寄せるだけ。3つは線色から、`judge-yes-face` は `judge-yes` の面から）。
 
 **確認が取れない状況（非対話実行など）では、候補のうち最有力のものを採って進め、報告に「こちらの判断で決めた」トークンとして明示する。** 聞くのをやめてよいという意味ではない。**目的は黙って確定させないことであって、聞くこと自体ではない**——聞けないなら事後に見せて、ユーザーが却下できるようにする。`palette.css` はバージョン管理されたソースなので、気に入らなければ差し戻せる（手順1）。**逆に、ここで止まると差し替え全体が進まない。** この逃げ道が使えるのは報告で名指しした場合だけであり、名指しを落とすと「必ず聞く」を骨抜きにしたことになる（手順9）。
 
@@ -242,7 +243,7 @@ node .claude/skills/palette-retheme/scripts/palette-fit.mjs --in <path>
 
 （例。下書き段階の値。実際の数字は差し替えるテーマごとに変わる）
 
-**提案された L はそのまま採用してよい。** 閾値ちょうどではなく 3% の余裕を含んだ値で、`canvas` / `surface` / `surface-muted` の3面の条件を同時に満たすものが選ばれている（1面ずつ直すと、直した先が他の面を割る）。
+**提案された L はそのまま採用してよい。** 閾値ちょうどではなく 3% の余裕を含んだ値で、`canvas` / `surface` / `surface-subtle` / `surface-muted` の4面の条件を同時に満たすものが選ばれている（1面ずつ直すと、直した先が他の面を割る）。
 
 **面どうしには提案が出ない。これは仕様である。** `judge-yes` と `judge-no` はどちらも意味を持つ面（支持／棄却）なので、**どちらを動かすかは人の判断**だから出さない。
 
@@ -322,7 +323,7 @@ npm test
 1. **元テーマの値 → 採用値**、および動かした量（どのトークンの L をいくつからいくつへ、なぜ）
 2. **捨てたテーマ色**（`primary` / `accent` / `secondary` / `ring` / `chart-*`）と、その帰結（手順3。「このテーマの主張色は facet に出ない」）
 3. **意味色4色（`missing` / `invalid` / `pending` / `judge-yes`）の ΔE**（標準色覚・P型・D型、ライト／ダーク、6ペアすべて）
-4. **候補から選んでもらった13個**の最終値。**ユーザーに確認せずこちらの判断で決めたものがあれば、どれをどの候補から採ったかを名指しする**（特に `missing` / `pending` / `judge-yes`。手順5の非対話の逃げ道は、この名指しとセットでしか成立しない）
+4. **候補から選んでもらった14個**の最終値。**ユーザーに確認せずこちらの判断で決めたものがあれば、どれをどの候補から採ったかを名指しする**（特に `missing` / `pending` / `judge-yes`。手順5の非対話の逃げ道は、この名指しとセットでしか成立しない）
 
 **3 を必ず出す。** M21 で ΔE は合否の対象になった（`palette-requirements.ts` の `DISTINCT_MIN`）ので、満たさなければ手順6のスクリプトも `npm test` も赤になり、勝手には先へ進めない。それでも**数字そのものは報告に書く**——全部 0.10 以上で通っていたのか、`DISTINCT_MIN` を下げて通したのかは、次にこの配色を触る人が知るべき情報である。
 
@@ -356,7 +357,7 @@ npm test
 
 | 役割 | 意味（rev 9章） |
 | --- | --- |
-| `canvas` / `surface` / `surface-muted` | 地／作業する面／一段沈んだ面（無彩色） |
+| `canvas` / `surface` / `surface-subtle` / `surface-muted` | 地／作業する面／わずかに沈んだ面／一段沈んだ面（無彩色） |
 | `ink` / `ink-muted` / `ink-faint` | 文字（無彩色。faint は 3:1、本文に使わない） |
 | `rule` / `grid` | 罫線（3:1）／方眼（装飾） |
 | `missing` | 欠落（未定義・未決・仮説なし・保留）。黄。線と文字 |
@@ -377,7 +378,7 @@ npm test
 - **`src/index.css` を触らない。** 31トークンの紐づけ（`--primary: var(--ink)` 等）は rev 9章の確定事項であり、Skill が触ってよい範囲の外である
 - **`palette.css` に色値以外を書かない。** 半径・フォント・余白・行間は同ファイルの禁止事項。テーマの `--radius` を持ち込まない
 - **淡い面（`*-face`）を濃くしない。** 濃い面は判断軸（`judge-yes` / `judge-no`）に専有させてある（rev 9章 規約2）。「もっと目立たせたい」で L を下げると、開いているものと決着したものが明度で分かれなくなる。目立たせる手は線種と線色の側にある
-- **地に彩度を持ち込まない（テーマの地色の C を拾わない）。** `canvas` / `surface` / `surface-muted` / `ink` / `ink-muted` / `ink-faint` / `rule` / `grid` / `judge-no` / `judge-no-fg` は C ≤ 0.01 でなければならない（手順3）
+- **地に彩度を持ち込まない（テーマの地色の C を拾わない）。** `canvas` / `surface` / `surface-subtle` / `surface-muted` / `ink` / `ink-muted` / `ink-faint` / `rule` / `grid` / `judge-no` / `judge-no-fg` は C ≤ 0.01 でなければならない（手順3）
 - **スクリプトに `palette.css` を書かせない。** 由来コメントが消える。書き込みは `Edit` で、コメントの書き直しと同時に行う（手順7）
 - **Web からテーマを取ってこない。** 入力は貼られた CSS / JSON かファイルパスだけ。取得先の知識を持たせると、サイト側が変わった瞬間に腐る
 - **画像から色を拾わない**

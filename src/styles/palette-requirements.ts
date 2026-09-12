@@ -58,6 +58,7 @@ export function readTokenBlock(
 export const TOKENS = [
   'canvas',
   'surface',
+  'surface-subtle',
   'surface-muted',
   'ink',
   'ink-muted',
@@ -121,7 +122,7 @@ export const REQUIREMENTS = [
  * `surface-accent` を集合に入れなかった判断（淡い緑を選べなくなる）は、
  * 面が無彩色になった今は効かない——無彩色の面なら 3:1 / 4.5:1 は明度だけで作れる
  */
-export const BACKGROUNDS = ['canvas', 'surface', 'surface-muted'] as const
+export const BACKGROUNDS = ['canvas', 'surface', 'surface-subtle', 'surface-muted'] as const
 
 /**
  * 面に載せる色の要件。judge-yes-fg / judge-no-fg は自分の面にしか
@@ -253,6 +254,7 @@ export const DISTINCT_MIN = 0.1
 export const ACHROMATIC = [
   'canvas',
   'surface',
+  'surface-subtle',
   'surface-muted',
   'ink',
   'ink-muted',
