@@ -89,7 +89,9 @@ export interface GridBodyProps {
  *
  * **`impossible` の行でも結果セルの本数を変えない。** `colSpan` でまとめると、
  * `Tab` の送り先が行によって消える。`impossible` の行は各結果セルを
- * 「起こりえない」を表示するボタンにする——押すと解除する。
+ * 「起こりえない」を表示するボタンにする。**このボタンは押しても値を変えない**
+ *——キー移動の行き先と主修飾キー＋`Enter` の入口を持つだけで、解除は行末の
+ * ボタンとそのキーが受け持つ。
  *
  * 表の右端に行ごとの `起こりえない` トグルボタンを置く。主修飾キー＋`Enter` は
  * 結果セルにしか届かないので、結果が0本の表ではこのボタンだけが入り切りの入口になる
@@ -290,17 +292,19 @@ export function GridBody(props: GridBodyProps) {
                       // ボタンとトリガーの両方に同じ配線を重複させずに済む
                       <td
                         key={`out-${j}`}
-                        className={`cursor-pointer ${cellClass}`}
+                        className={cellClass}
                         onFocus={() => onFocusRow(index)}
                         onMouseDown={focusCellField}
                       >
-                        {/* impossible の行のセル。押すと起こりえないを解除する */}
+                        {/* impossible の行のセル。押しても何も変えない——結果を選ぶつもりの
+                            クリックで起こりえないが外れると、人は外したことに気づかない。
+                            ボタンのまま置くのは、キー移動の行き先（data-cell）と
+                            主修飾キー＋Enter の入口をこのセルに残すため */}
                         <button
                           type="button"
                           data-cell={cellId(rowKey, field)}
                           aria-label={`${outcome.name}（${rowNo}行目）: ${IMPOSSIBLE_LABEL}`}
                           className={impossibleCellInput}
-                          onClick={() => onToggleImpossible(index)}
                           onKeyDown={(e) => onCellKeyDown(e, { index, visiblePos, field })}
                         >
                           {IMPOSSIBLE_LABEL}

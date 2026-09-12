@@ -545,9 +545,19 @@ describe('DecisionTableEditor: 表本体', () => {
     expect(cell.textContent).toBe(IMPOSSIBLE_LABEL)
   })
 
-  it('起こりえない行のセルを押すと impossible が偽に戻る', () => {
+  it('起こりえない行のセルを押しても impossible は変わらない', () => {
+    // 結果を選ぶつもりのクリックで起こりえないが外れると、人は外したことに気づかない
     const { latest } = renderEditor(twoConditions)
     fireEvent.click(screen.getByLabelText(`結果A（3行目）: ${IMPOSSIBLE_LABEL}`))
+    expect(latest()).toBeUndefined()
+  })
+
+  it('起こりえない行のセルでも主修飾キー＋Enter で解除できる', () => {
+    const { latest } = renderEditor(twoConditions)
+    fireEvent.keyDown(screen.getByLabelText(`結果A（3行目）: ${IMPOSSIBLE_LABEL}`), {
+      key: 'Enter',
+      ctrlKey: true,
+    })
     expect(latest()?.rows[2].impossible).toBe(false)
   })
 
