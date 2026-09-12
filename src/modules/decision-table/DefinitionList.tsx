@@ -3,6 +3,7 @@ import { buttonBase } from '@/components/button-styles'
 import { CellInput, type FieldState } from '@/components/CellInput'
 import { cellField, cellFocus, cellInput, headCell } from '@/components/table-styles'
 import { cellFace, CELL_FACE_CLASS, type ErrorMarks } from '@/core/list-editor/cell-face'
+import { focusCellField } from '@/core/list-editor/cell-hit'
 import { cellId } from '@/core/list-editor/use-list-rows'
 import { isMissingLabel } from './missing'
 
@@ -128,7 +129,10 @@ export function DefinitionList(props: DefinitionListProps) {
                   <td className={`px-2 py-1 text-right text-ink-muted ${face(index, 'no', false, true)}`}>
                     {no}
                   </td>
-                  <td className={`${colBorder} ${cellFocus} ${face(index, 'name', isMissingLabel(row.name))}`}>
+                  <td
+                    className={`${colBorder} cursor-text ${cellFocus} ${face(index, 'name', isMissingLabel(row.name))}`}
+                    onMouseDown={focusCellField}
+                  >
                     <CellInput
                       className={cellInput}
                       aria-label={`${nameLabel}（${no}行目）`}

@@ -928,3 +928,23 @@ describe('DecisionTableEditor: セルのフォーカス枠', () => {
     expect(cell.closest('td')?.className).toContain('focus-within:ring-2')
   })
 })
+
+describe('DecisionTableEditor: セルの当たり判定', () => {
+  it('条件の定義欄では余白を押しても欄へフォーカスが移る', () => {
+    renderEditor(oneCondition)
+    const cell = screen.getByLabelText('条件名（1行目）')
+    const td = cell.closest('td')
+    if (td === null) throw new Error('セルが見つからない')
+    fireEvent.mouseDown(td)
+    expect(document.activeElement).toBe(cell)
+  })
+
+  it('結果セルでは余白を押してもトリガーへフォーカスが移る', () => {
+    renderEditor(emptyResults)
+    const cell = screen.getByLabelText('結果A（1行目）')
+    const td = cell.closest('td')
+    if (td === null) throw new Error('セルが見つからない')
+    fireEvent.mouseDown(td)
+    expect(document.activeElement).toBe(cell)
+  })
+})

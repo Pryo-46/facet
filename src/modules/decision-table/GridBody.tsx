@@ -4,6 +4,7 @@ import { buttonBase } from '@/components/button-styles'
 import { CellSelect } from '@/components/CellSelect'
 import { cellField, cellFocus, cellInput, headCell } from '@/components/table-styles'
 import { cellFace, CELL_FACE_CLASS, type ErrorMarks } from '@/core/list-editor/cell-face'
+import { focusCellField } from '@/core/list-editor/cell-hit'
 import { cellId } from '@/core/list-editor/use-list-rows'
 import { rowRef } from '@/core/row-ref'
 import type { Condition, Outcome, Row } from '@/types/decision-table'
@@ -229,7 +230,12 @@ export function GridBody(props: GridBodyProps) {
                     return (
                       // onFocus は td に置く。子のボタンから bubble するので、
                       // ボタンとトリガーの両方に同じ配線を重複させずに済む
-                      <td key={`out-${j}`} className={cellClass} onFocus={() => onFocusRow(index)}>
+                      <td
+                        key={`out-${j}`}
+                        className={`cursor-pointer ${cellClass}`}
+                        onFocus={() => onFocusRow(index)}
+                        onMouseDown={focusCellField}
+                      >
                         {/* impossible の行のセル。押すと起こりえないを解除する */}
                         <button
                           type="button"
@@ -247,8 +253,9 @@ export function GridBody(props: GridBodyProps) {
                   return (
                     <td
                       key={`out-${j}`}
-                      className={`relative ${cellClass}`}
+                      className={`relative cursor-pointer ${cellClass}`}
                       onFocus={() => onFocusRow(index)}
+                      onMouseDown={focusCellField}
                     >
                       <CellSelect
                         className={`${cellInput} appearance-none pr-6`}

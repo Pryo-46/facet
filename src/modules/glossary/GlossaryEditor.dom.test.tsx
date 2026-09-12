@@ -611,3 +611,26 @@ describe('GlossaryEditor: セルのフォーカス枠', () => {
     expect(cell.closest('td')?.className).toContain('focus-within:ring-2')
   })
 })
+
+describe('GlossaryEditor: セルの当たり判定', () => {
+  it('欄の外の余白を押しても欄へフォーカスが移る', () => {
+    // 欄は中身の分しか高さを持たないので、背の高い行ではセルの上下に
+    // 押しても何も起きない面が残る
+    renderEditor(twoTerms)
+    const cell = screen.getByLabelText('名称（1行目）')
+    const td = cell.closest('td')
+    if (td === null) throw new Error('セルが見つからない')
+    fireEvent.mouseDown(td)
+    expect(document.activeElement).toBe(cell)
+  })
+
+  it('欄そのものを押したときは横取りしない', () => {
+    // 横取りすると、押した位置のキャレットが文末へ飛ぶ
+    renderEditor(twoTerms)
+    const cell = screen.getByLabelText('名称（1行目）')
+    const other = screen.getByLabelText('名称（2行目）')
+    other.focus()
+    fireEvent.mouseDown(cell)
+    expect(document.activeElement).toBe(other)
+  })
+})

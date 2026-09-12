@@ -15,6 +15,7 @@ import {
 } from '@/core/keyboard/keymap'
 import { altModifierLabel, currentPlatform } from '@/core/keyboard/platform'
 import { buildErrorMarks, cellFace, CELL_FACE_CLASS } from '@/core/list-editor/cell-face'
+import { focusCellField } from '@/core/list-editor/cell-hit'
 import { cellId, useListRows } from '@/core/list-editor/use-list-rows'
 import { useVisibleIdsReport } from '@/core/list-editor/use-visible-ids'
 import { newId } from '@/core/new-id'
@@ -362,7 +363,10 @@ export function GlossaryEditor({
                   >
                     {index + 1}
                   </td>
-                  <td className={`${colBorder} ${cellClass(index, 'name')}`}>
+                  <td
+                    className={`${colBorder} cursor-text ${cellClass(index, 'name')}`}
+                    onMouseDown={focusCellField}
+                  >
                     <CellInput
                       className={cellInput}
                       aria-label={`${FIELD_LABELS.name}（${row}行目）`}
@@ -383,7 +387,10 @@ export function GlossaryEditor({
                       }
                     />
                   </td>
-                  <td className={`relative ${colBorder} ${cellClass(index, 'kind', isMissingCell(term, 'kind'))}`}>
+                  <td
+                    className={`relative ${colBorder} cursor-pointer ${cellClass(index, 'kind', isMissingCell(term, 'kind'))}`}
+                    onMouseDown={focusCellField}
+                  >
                     <CellSelect
                       className={`${cellInput} appearance-none pr-6`}
                       aria-label={`${FIELD_LABELS.kind}（${row}行目）`}
@@ -419,7 +426,10 @@ export function GlossaryEditor({
                       <path d="M3 4.5 L6 7.5 L9 4.5" />
                     </svg>
                   </td>
-                  <td className={`${colBorder} ${cellClass(index, 'definition', isMissingCell(term, 'definition'))}`}>
+                  <td
+                    className={`${colBorder} cursor-text ${cellClass(index, 'definition', isMissingCell(term, 'definition'))}`}
+                    onMouseDown={focusCellField}
+                  >
                     <CellInput
                       multiline
                       className={`${cellInput} leading-normal`}
@@ -436,7 +446,10 @@ export function GlossaryEditor({
                       }
                     />
                   </td>
-                  <td className={`${colBorder} ${cellClass(index, 'aliases')}`}>
+                  <td
+                    className={`${colBorder} cursor-pointer ${cellClass(index, 'aliases')}`}
+                    onMouseDown={focusCellField}
+                  >
                     <AliasCell
                       aliases={term.aliases}
                       onAliasesChange={(next, mergeKey) =>
@@ -467,7 +480,10 @@ export function GlossaryEditor({
                       onLeaveVertical={(direction) => focusVisible(visiblePos + direction, 'aliases')}
                     />
                   </td>
-                  <td className={`${colBorder} ${cellClass(index, 'notes')}`}>
+                  <td
+                    className={`${colBorder} cursor-text ${cellClass(index, 'notes')}`}
+                    onMouseDown={focusCellField}
+                  >
                     <CellInput
                       multiline
                       className={`${cellInput} leading-normal`}

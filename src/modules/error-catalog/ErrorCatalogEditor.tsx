@@ -15,6 +15,7 @@ import {
 } from '@/core/keyboard/keymap'
 import { altModifierLabel, currentPlatform } from '@/core/keyboard/platform'
 import { buildErrorMarks, cellFace, CELL_FACE_CLASS } from '@/core/list-editor/cell-face'
+import { focusCellField } from '@/core/list-editor/cell-hit'
 import { stepField } from '@/core/list-editor/field-step'
 import { cellId, useListRows } from '@/core/list-editor/use-list-rows'
 import { useVisibleIdsReport } from '@/core/list-editor/use-visible-ids'
@@ -477,7 +478,9 @@ export function ErrorCatalogEditor({
                   {profile.fields.map((field) => (
                     <td
                       key={field}
-                      className={`${colBorder}${field === 'resolutionLevel' ? ' relative' : ''} ${cellClass(index, field, isMissingCell(entry, field))}`}
+                      // 解決レベルだけが選択肢の欄。カーソルは打てる／選ぶで分ける
+                      className={`${colBorder}${field === 'resolutionLevel' ? ' relative cursor-pointer' : ' cursor-text'} ${cellClass(index, field, isMissingCell(entry, field))}`}
+                      onMouseDown={focusCellField}
                     >
                       {cellNode({ index, visiblePos, field }, entry, rowKey)}
                     </td>

@@ -438,3 +438,14 @@ describe('ErrorCatalogEditor: セルのフォーカス枠', () => {
     expect(cell.closest('td')?.className).toContain('focus-within:ring-2')
   })
 })
+
+describe('ErrorCatalogEditor: セルの当たり判定', () => {
+  it('欄の外の余白を押しても欄へフォーカスが移る', () => {
+    renderEditor(twoErrors)
+    const cell = screen.getByLabelText('エラー名（No.1）')
+    const td = cell.closest('td')
+    if (td === null) throw new Error('セルが見つからない')
+    fireEvent.mouseDown(td)
+    expect(document.activeElement).toBe(cell)
+  })
+})
