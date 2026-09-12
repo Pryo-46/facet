@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { KeyHints } from '@/components/KeyHints'
@@ -425,6 +425,31 @@ export function DecisionTableEditor({
     return index === undefined ? false : focusGridCell(index, field)
   }
 
+  /**
+   * 絞り込みを外してから移る先。**`focusGridCell` では代われない**——
+   * 絞り込みを外した直後は、移動先のセルがまだ描かれていない
+   */
+  const [pendingJump, setPendingJump] = useState<{ index: number; field: string } | null>(null)
+
+  useEffect(() => {
+    if (pendingJump === null) return
+    focusGridCell(pendingJump.index, pendingJump.field)
+    setPendingJump(null)
+  })
+
+  /**
+   * 欠落のセルへ移る。**隠れていたら絞り込みを外す**——帯は全行を数えるので、
+   * 表示中の行だけを巡ると、数とジャンプ先が食い違う
+   */
+  const jumpToGridCell = (index: number, field: string): void => {
+    if (visible.includes(index)) {
+      focusGridCell(index, field)
+      return
+    }
+    setFilter(EMPTY_FILTER)
+    setPendingJump({ index, field })
+  }
+
   /** 結果列の並び。`stepField` に渡して隣の列・行端の折り返しを引く */
   const resultFieldOrder = data.outcomes.map((_, j) => `result:${j}`)
 
@@ -505,7 +530,7 @@ export function DecisionTableEditor({
       const next = ((jumpAt.current[kind] ?? -1) + 1) % targets.length
       jumpAt.current[kind] = next
       const target = targets[next]
-      focusGridCell(target.index, target.field)
+      jumpToGridCell(target.index, target.field)
       return
     }
     if (kind !== LABEL_KIND) return

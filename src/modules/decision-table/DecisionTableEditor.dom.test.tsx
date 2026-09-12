@@ -1152,3 +1152,17 @@ describe('まとめて入力', () => {
     expect(latest()?.rows.map((r) => r.impossible)).toEqual([false, true])
   })
 })
+
+describe('欠落へのジャンプ', () => {
+  it('隠れているセルへ飛ぶときは絞り込みを外す', () => {
+    // 帯は全行を数えるので、飛び先が隠れていると数とジャンプ先が食い違う
+    renderEditor(filterable)
+    fireEvent.keyDown(screen.getByLabelText('会員か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'はい' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(gridRowNumbers()).toEqual(['3', '4'])
+    fireEvent.click(screen.getByLabelText('次の未記入へ'))
+    expect(gridRowNumbers()).toEqual(['1', '2', '3', '4'])
+    expect(document.activeElement).toBe(screen.getByLabelText('送料（2行目）'))
+  })
+})
