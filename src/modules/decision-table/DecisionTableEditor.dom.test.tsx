@@ -1230,6 +1230,23 @@ const filterableEmptyResults = table({
   ],
 })
 
+/**
+ * 条件1本（値3つ）・結果2本。**先頭の行を隠せる**ので、元配列の位置と表の中の位置が
+ * 食い違った状態で行をまたぐ移動を見られる
+ */
+const threeRowsTwoOutcomes = table({
+  conditions: [condition({ id: 'cond_a', name: '会員種別', values: ['一般', '有料', '法人'] })],
+  outcomes: [
+    outcome({ id: 'out_a', name: '送料', choices: ['無料', '500円'] }),
+    outcome({ id: 'out_b', name: '通知', choices: ['出す'] }),
+  ],
+  rows: [
+    { values: ['一般'], impossible: false, results: ['', ''] },
+    { values: ['有料'], impossible: false, results: ['', ''] },
+    { values: ['法人'], impossible: false, results: ['', ''] },
+  ],
+})
+
 describe('絞り込みと定義部の編集', () => {
   it('絞り込んでいる値のラベルを打ち直しても行が残る', () => {
     // 絞り込みはラベルで選択を持つ。打鍵ごとに行のラベルだけが変わると、
@@ -1267,5 +1284,56 @@ describe('絞り込みと定義部の編集', () => {
     fireEvent.click(screen.getByRole('button', { name: '条件を消す（2行目）' }))
     expect(gridRowNumbers()).toEqual(['1', '2'])
     expect(onVisibleIds).toHaveBeenLastCalledWith(null, 2)
+  })
+})
+
+describe('絞り込み中のフォーカス移動', () => {
+  it('結果が0本の表で、No セルから同じ行の起こりえないボタンへ移る', () => {
+    // トグルボタンは data-cell を持たないので <tr> を位置で数えて引く。
+    // 元配列の位置で数えると、隠れた行のぶんだけ別の行のボタンを掴む
+    renderEditor(oneCondition)
+    fireEvent.keyDown(screen.getByLabelText('条件A の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'はい' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(gridRowNumbers()).toEqual(['2'])
+    fireEvent.click(gridRows()[0].cells[0])
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: `#2 を${IMPOSSIBLE_LABEL}にする` }),
+    )
+  })
+
+  it('行末の Tab は、次に出ている行の先頭の結果列へ折り返す', () => {
+    // 折り返し先も表の中の位置で引く。元配列の位置で引くと、隠れた行のぶんだけ
+    // 行き過ぎて移動が止まる
+    renderEditor(threeRowsTwoOutcomes)
+    fireEvent.keyDown(screen.getByLabelText('会員種別 の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: '一般' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    const cell = screen.getByLabelText('通知（2行目）')
+    cell.focus()
+    fireEvent.keyDown(cell, { key: 'Tab' })
+    expect(document.activeElement).toBe(screen.getByLabelText('送料（3行目）'))
+  })
+})
+
+describe('絞り込みで0行になったとき', () => {
+  it('見出しの絞り込みは残り、まとめて入力は何も変えない', () => {
+    const onChange = vi.fn()
+    const onToast = vi.fn()
+    render(<Harness initial={filterable} onChange={onChange} onToast={onToast} />)
+    fireEvent.keyDown(screen.getByLabelText('会員か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'いいえ' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    fireEvent.keyDown(screen.getByLabelText('送料 の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: '未記入' }))
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: '無料' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(gridRowNumbers()).toEqual([])
+    // 0行でも絞り込みを外す入口が残る。消すと、戻す手立てがファイルの開き直ししかない
+    expect(screen.getByLabelText('会員か の絞り込み')).toBeTruthy()
+    expect(screen.getByLabelText('送料 の絞り込み')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '表示中の 0 行に適用' }))
+    expect(onChange).not.toHaveBeenCalled()
+    expect(onToast).toHaveBeenCalledWith('値の変わる行はありません')
   })
 })
