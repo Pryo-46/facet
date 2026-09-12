@@ -753,6 +753,7 @@ export function DecisionTableEditor({
                   onChange(setResult(data, rowIndex, outIndex, value), null)
                 }
                 onToggleImpossible={(rowIndex) => onChange(toggleImpossible(data, rowIndex), null)}
+                onBulkImpossible={(on) => applyBulkFill({ kind: 'impossible', on })}
                 onCellKeyDown={onGridCellKeyDown}
               />
             </div>

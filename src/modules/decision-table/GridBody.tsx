@@ -1,4 +1,4 @@
-import { Ban } from 'lucide-react'
+import { Circle, CircleOff } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { buttonBase } from '@/components/button-styles'
 import { CellSelect } from '@/components/CellSelect'
@@ -73,6 +73,11 @@ export interface GridBodyProps {
   onPickResult: (rowIndex: number, outIndex: number, value: string) => void
   onToggleImpossible: (rowIndex: number) => void
   /**
+   * 表示中の行の起こりえないをまとめて入り切りする。**呼び出し側が対象行を決める**
+   *——`GridBody` は描く行しか知らないので、書き込みと通知の分母を1箇所に保つ
+   */
+  onBulkImpossible: (on: boolean) => void
+  /**
    * セルのキー入力。**`index`（元配列の位置）と `visiblePos`（表の中の位置）の
    * 両方を渡す**——書き込みは `index` で、上下の移動は `visiblePos` で引く
    */
@@ -94,7 +99,8 @@ export interface GridBodyProps {
  * ボタンとそのキーが受け持つ。
  *
  * 表の右端に行ごとの `起こりえない` トグルボタンを置く。主修飾キー＋`Enter` は
- * 結果セルにしか届かないので、結果が0本の表ではこのボタンだけが入り切りの入口になる
+ * 結果セルにしか届かないので、結果が0本の表ではこのボタンだけが入り切りの入口になる。
+ * 同じ列の見出しには、表示中の行をまとめて入り切りする2つのボタンを置く
  */
 export function GridBody(props: GridBodyProps) {
   const {
@@ -110,6 +116,7 @@ export function GridBody(props: GridBodyProps) {
     onFocusRow,
     onPickResult,
     onToggleImpossible,
+    onBulkImpossible,
     onCellKeyDown,
   } = props
 
@@ -208,8 +215,9 @@ export function GridBody(props: GridBodyProps) {
           {outcomes.map((_, j) => (
             <col key={`out-${j}`} />
           ))}
-          {/* 起こりえないのボタン列。幅は定義部の削除列と同じ40px */}
-          <col style={{ width: 40 }} />
+          {/* 起こりえないのボタン列。見出しに `size-6` のボタンを2つ並べるので、
+              48px＋見出しセルの左右の余白（`headCell` の `px-2`）で72px 要る */}
+          <col style={{ width: 72 }} />
         </colgroup>
         <thead>
           <tr className="text-left">
@@ -248,8 +256,32 @@ export function GridBody(props: GridBodyProps) {
                 </span>
               </th>
             ))}
-            {/* 見出しは空。列の意味は行のボタンのアクセシブル名が運ぶ */}
-            <th className={`${headCell} ${headColBorder}`} />
+            {/* 表示中の行の起こりえないをまとめて入り切りする。**入り切りを2つの
+                ボタンに分ける**——1つのトグルにすると、押した結果が行それぞれの
+                いまの状態で決まり、押す前に何が起きるかを読めない。
+                結果のまとめて入力と違い、既に起こりえないの行も対象に含む */}
+            <th className={`${headCell} ${headColBorder}`}>
+              <span className="flex items-center justify-center">
+                <button
+                  type="button"
+                  aria-label={`表示中の行を${IMPOSSIBLE_LABEL}にする`}
+                  title={`表示中の行を${IMPOSSIBLE_LABEL}にする`}
+                  className={`${buttonBase} size-6 text-ink-faint hover:text-ink`}
+                  onClick={() => onBulkImpossible(true)}
+                >
+                  <CircleOff aria-hidden className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`表示中の行の${IMPOSSIBLE_LABEL}を外す`}
+                  title={`表示中の行の${IMPOSSIBLE_LABEL}を外す`}
+                  className={`${buttonBase} size-6 text-ink-faint hover:text-ink`}
+                  onClick={() => onBulkImpossible(false)}
+                >
+                  <Circle aria-hidden className="size-4" />
+                </button>
+              </span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -360,7 +392,7 @@ export function GridBody(props: GridBodyProps) {
                     className={`${buttonBase} size-6 ${row.impossible ? 'text-ink' : 'text-ink-faint hover:text-ink'}`}
                     onClick={() => onToggleImpossible(index)}
                   >
-                    <Ban aria-hidden className="size-4" />
+                    <CircleOff aria-hidden className="size-4" />
                   </button>
                 </td>
               </tr>

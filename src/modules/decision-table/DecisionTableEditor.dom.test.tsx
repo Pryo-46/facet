@@ -1046,6 +1046,45 @@ const bulkFillTwoOutcomes = table({
   ],
 })
 
+describe('起こりえないの列見出しのボタン', () => {
+  it('見出しのボタンで表示中の行をまとめて起こりえないにする', () => {
+    const { latest } = renderEditor(filterable)
+    fireEvent.click(
+      screen.getByRole('button', { name: `表示中の行を${IMPOSSIBLE_LABEL}にする` }),
+    )
+    expect(latest()?.rows.map((r) => r.impossible)).toEqual([true, true, true, true])
+  })
+
+  it('見出しのボタンは絞り込みで隠れている行に効かない', () => {
+    const { latest } = renderEditor(filterable)
+    fireEvent.keyDown(screen.getByLabelText('会員か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'いいえ' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    fireEvent.click(
+      screen.getByRole('button', { name: `表示中の行を${IMPOSSIBLE_LABEL}にする` }),
+    )
+    expect(latest()?.rows.map((r) => r.impossible)).toEqual([true, true, true, false])
+  })
+
+  it('見出しのボタンは既に起こりえないの行も外す対象にする', () => {
+    // 結果の書き込みと違い、入り切りは表示中の行すべてに効く
+    const { latest } = renderEditor(filterable)
+    fireEvent.click(
+      screen.getByRole('button', { name: `表示中の行の${IMPOSSIBLE_LABEL}を外す` }),
+    )
+    expect(latest()?.rows.map((r) => r.impossible)).toEqual([false, false, false, false])
+  })
+
+  it('見出しのボタンも変更した行数を通知する', () => {
+    const onToast = vi.fn()
+    render(<Harness initial={filterable} onChange={vi.fn()} onToast={onToast} />)
+    fireEvent.click(
+      screen.getByRole('button', { name: `表示中の行を${IMPOSSIBLE_LABEL}にする` }),
+    )
+    expect(onToast).toHaveBeenCalledWith(`${IMPOSSIBLE_LABEL}を付けました（3 行）`)
+  })
+})
+
 describe('絞り込み', () => {
   it('列の値を外すと、その値の行が表から消える', () => {
     renderEditor(filterable)
