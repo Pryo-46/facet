@@ -12,3 +12,9 @@ export const IMPOSSIBLE_LABEL = '起こりえない'
  * 空をそのまま描く（欠落の面が空であることを運ぶ）
  */
 export const CLEAR_RESULT_LABEL = '空にする'
+
+/**
+ * 絞り込みの一覧で空文字を指す語。**結果列は空文字も絞り込みの対象に並べる**
+ *——空欄は欠落であり、一覧から外すと抜けだけを取り出せなくなる
+ */
+export const UNFILLED_LABEL = '未記入'
