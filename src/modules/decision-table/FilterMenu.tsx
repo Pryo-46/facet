@@ -48,7 +48,11 @@ export function FilterMenu({ name, all, picked, onToggle, onClear }: FilterMenuP
           <Icon aria-hidden className="size-4" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
+      {/* トリガー幅への固定（`w-(--radix-dropdown-menu-trigger-width)`）を外す。
+          トリガーは `size-5` のアイコンなので、固定したままだと長いラベルが
+          最小幅の中で何行にも折り返す。`cn` は tailwind-merge を通すので、
+          後から渡す `w-auto` が既定の `w-(--…)` を置き換える */}
+      <DropdownMenuContent align="start" className="w-auto min-w-48 max-w-80">
         {all.map((label, at) => (
           // key に生のラベルを使わない。同じラベルが2件あるファイルは
           // duplicate-value / duplicate-choice が赤で出す正規の状態で、key が衝突する
