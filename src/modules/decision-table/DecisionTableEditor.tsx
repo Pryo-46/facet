@@ -28,11 +28,13 @@ import {
   toggleImpossible,
   type Applied,
 } from './commands'
+import { applyBulk, type BulkTarget } from './bulk'
+import { BulkFillBar } from './BulkFillBar'
 import { sectionMarks } from './consistency'
 import { DefinitionList, type DefinitionRow } from './DefinitionList'
 import { EMPTY_FILTER, filterRowIndices, type GridFilter } from './filter'
 import { GridBody } from './GridBody'
-import { IMPOSSIBLE_LABEL } from './labels'
+import { CLEAR_RESULT_LABEL, IMPOSSIBLE_LABEL } from './labels'
 import { isMissingLabel, isMissingResult, LABEL_KIND, RESULT_KIND, tallyMissing } from './missing'
 import { MAX_ROWS, productSize } from './rows'
 
@@ -118,6 +120,7 @@ export function DecisionTableEditor({
   onChange,
   issues,
   modalOpen,
+  onToast,
 }: EditorProps<DecisionTableSchemaVersion1>) {
   const [pending, setPending] = useState<{
     applied: Applied
@@ -379,6 +382,29 @@ export function DecisionTableEditor({
   /** 表に出す行の「元配列での index」 */
   const visible = filterRowIndices(data.conditions, data.outcomes, data.rows, filter)
 
+  /**
+   * まとめて入力。**変更した行数を知らせる**——上書きは確認を挟まないので、
+   * 何行が動いたかを後から読める場所が要る。
+   *
+   * **文言の数はボタンの対象行数と分母が違う。** ボタンは絞り込みが出している
+   * 行を数え、こちらはそのうち値が変わった行を数える
+   */
+  const applyBulkFill = (target: BulkTarget): void => {
+    const out = applyBulk(data, visible, target)
+    if (out.changed === 0) {
+      onToast?.('値の変わる行はありません')
+      return
+    }
+    onChange(out.data, null)
+    const what =
+      target.kind === 'impossible'
+        ? `${IMPOSSIBLE_LABEL}を${target.on ? '付け' : '外し'}ました`
+        : `${data.outcomes[target.outcomeIndex].name}を「${
+            target.value === '' ? CLEAR_RESULT_LABEL : target.value
+          }」にしました`
+    onToast?.(`${what}（${out.changed} 行）`)
+  }
+
   /** 表本体のセルへフォーカスする。無ければ何もせず false を返す（既定動作を止めない） */
   const focusGridCell = (rowIndex: number, field: string): boolean => {
     const el = gridRef.current?.querySelector<HTMLElement>(
@@ -624,6 +650,11 @@ export function DecisionTableEditor({
                 {`${visible.length} / ${data.rows.length} 行`}
               </span>
             </div>
+            <BulkFillBar
+              outcomes={data.outcomes}
+              targetCount={visible.length}
+              onApply={applyBulkFill}
+            />
             <div ref={gridRef}>
               <GridBody
                 conditions={data.conditions}

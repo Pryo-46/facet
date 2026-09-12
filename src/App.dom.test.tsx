@@ -1417,3 +1417,31 @@ describe('設定', () => {
     })
   })
 })
+
+describe('エディタからの通知', () => {
+  const TABLE_PATH = '/proj/送料.json'
+
+  it('まとめて入力の結果がトーストに出る', async () => {
+    disk.set(
+      TABLE_PATH,
+      JSON.stringify({
+        schemaVersion: 1,
+        type: 'decisionTable',
+        title: '送料',
+        conditions: [{ id: 'cond_Aaaaaaaaa1', name: '会員か', values: ['はい', 'いいえ'] }],
+        outcomes: [{ id: 'out_Aaaaaaaaa1', name: '送料', choices: ['無料', '500円'] }],
+        rows: [
+          { values: ['はい'], impossible: false, results: [''] },
+          { values: ['いいえ'], impossible: false, results: [''] },
+        ],
+      }),
+    )
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    fireEvent.click(await screen.findByRole('button', { name: '送料（送料.json） を開く' }))
+    // 表は3つある（条件の定義部・結果の定義部・表本体）ので findByRole では引けない
+    await screen.findAllByRole('table')
+    fireEvent.click(screen.getByRole('button', { name: '表示中の 2 行に適用' }))
+    expect(await screen.findByText('送料を「無料」にしました（2 行）')).toBeTruthy()
+  })
+})

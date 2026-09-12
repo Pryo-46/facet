@@ -35,6 +35,7 @@ function Harness(props: {
   initial: DecisionTableSchemaVersion1
   onChange: (next: DecisionTableSchemaVersion1, mergeKey?: string | null) => void
   modalOpen?: boolean
+  onToast?: (message: string) => void
 }) {
   const [data, setData] = useState(props.initial)
   return (
@@ -42,6 +43,7 @@ function Harness(props: {
       data={data}
       issues={[]}
       modalOpen={props.modalOpen ?? false}
+      onToast={props.onToast}
       onChange={(next, mergeKey) => {
         setData(next)
         props.onChange(next, mergeKey)
@@ -1050,5 +1052,47 @@ describe('絞り込み', () => {
     fireEvent.keyDown(screen.getByLabelText('会員か の絞り込み'), { key: ' ' })
     fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'いいえ' }))
     expect(screen.getByText('2 / 4 行')).toBeTruthy()
+  })
+})
+
+describe('まとめて入力', () => {
+  it('表示中の行だけに書き込む', () => {
+    const { latest } = renderEditor(filterable)
+    fireEvent.keyDown(screen.getByLabelText('会員か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'いいえ' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    fireEvent.keyDown(screen.getByLabelText('書き込む値'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemradio', { name: '500円' }))
+    fireEvent.click(screen.getByRole('button', { name: '表示中の 2 行に適用' }))
+    expect(latest()?.rows.map((r) => r.results[0])).toEqual(['500円', '500円', '無料', '500円'])
+  })
+
+  it('対象の行数をボタンに出す', () => {
+    renderEditor(filterable)
+    expect(screen.getByRole('button', { name: '表示中の 4 行に適用' })).toBeTruthy()
+  })
+
+  it('1手で戻せるよう、まとめ鍵を渡さない', () => {
+    // 構造操作と同じ履歴の粒度にする。まとめ鍵を渡すと直前の打鍵と1手にまとまる
+    const { onChange } = renderEditor(filterable)
+    fireEvent.click(screen.getByRole('button', { name: '表示中の 4 行に適用' }))
+    expect(onChange.mock.calls.at(-1)?.[1]).toBeNull()
+  })
+
+  it('変更した行数を通知する', () => {
+    // ボタンの対象行数とは分母が違う。4行のうち、送料が既に無料でない行は2行
+    // （#2 が空欄、#4 が 500円。#1 と #3 は既に無料なので数えない）
+    const onToast = vi.fn()
+    render(<Harness initial={filterable} onChange={vi.fn()} onToast={onToast} />)
+    fireEvent.click(screen.getByRole('button', { name: '表示中の 4 行に適用' }))
+    expect(onToast).toHaveBeenCalledWith('送料を「無料」にしました（2 行）')
+  })
+
+  it('起こりえないの入り切りも適用先に並ぶ', () => {
+    const { latest } = renderEditor(filterable)
+    fireEvent.keyDown(screen.getByLabelText('適用先'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemradio', { name: IMPOSSIBLE_LABEL }))
+    fireEvent.click(screen.getByRole('button', { name: '表示中の 4 行に適用' }))
+    expect(latest()?.rows.map((r) => r.impossible)).toEqual([true, true, true, true])
   })
 })
