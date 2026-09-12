@@ -1134,7 +1134,7 @@ function App() {
             Miro から取り込む
           </ToolbarButton>
         </div>
-        {/* **右端の3つを絶対に押し出さないこと。** 余白を食って右端へ寄せるのは
+        {/* **右端の一群を絶対に押し出さないこと。** 余白を食って右端へ寄せるのは
             `ml-auto` の仕事で、`shrink-0` がそれ以上の圧縮を止める。 */}
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <button
@@ -1162,6 +1162,21 @@ function App() {
             }}
           >
             <SquareTerminal aria-hidden className="size-4" />
+          </button>
+          {/* 名前は「今どちらか」でなく「押すとどうなるか」。アイコンだけの
+              ボタンは押す前に結果が読めないと意味が取れない */}
+          <button
+            type="button"
+            aria-label={dark ? 'ライトにする' : 'ダークにする'}
+            title={dark ? 'ライトにする' : 'ダークにする'}
+            className={`${buttonBase} p-1 text-ink-muted`}
+            onClick={toggleTheme}
+          >
+            {dark ? (
+              <Sun aria-hidden className="size-4" />
+            ) : (
+              <Moon aria-hidden className="size-4" />
+            )}
           </button>
           {/* 自動アップデート。**mac では出さない**——latest.json に
               darwin-* を載せないので、押せば必ず「最新版です」と言う
@@ -1204,21 +1219,6 @@ function App() {
           >
             <Settings aria-hidden className="size-4" />
           </button>
-          {/* 名前は「今どちらか」でなく「押すとどうなるか」。アイコンだけの
-              ボタンは押す前に結果が読めないと意味が取れない */}
-          <button
-            type="button"
-            aria-label={dark ? 'ライトにする' : 'ダークにする'}
-            title={dark ? 'ライトにする' : 'ダークにする'}
-            className={`${buttonBase} p-1 text-ink-muted`}
-            onClick={toggleTheme}
-          >
-            {dark ? (
-              <Sun aria-hidden className="size-4" />
-            ) : (
-              <Moon aria-hidden className="size-4" />
-            )}
-          </button>
         </div>
       </header>
 
@@ -1232,14 +1232,13 @@ function App() {
 
       <div className="flex min-h-0 flex-1">
         {/* スクロールは FileList の中（一覧の領域だけ）が持つ。ここを
-            overflow-y-auto にすると新規作成ボタンの帯ごと流れてしまう。
+            overflow-y-auto にするとフォルダのパスの帯ごと流れてしまう。
             エディタ側の section と同じ形（帯は固定・中身だけスクロール） */}
         {sidebarOpen && (
           <aside className="w-64 shrink-0 overflow-hidden border-r border-rule bg-surface">
             <FileList
               groups={groups}
               selectedPath={selectedPath}
-              modules={modules}
               existingTypes={existingTypes}
               projectOpen={projectDir !== null}
               projectDir={projectDir}

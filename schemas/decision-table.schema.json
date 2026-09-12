@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "decision-table.schema.json",
+  "title": "デシジョンテーブル (decisionTable) schemaVersion 1",
+  "description": "仕様整理ツール詰め合わせのデシジョンテーブルファイル。条件の組み合わせで結果が決まる仕様を、全組み合わせを展開した表として持つ。行は conditions の値の直積であり、人は行を足しも消しもしない——アプリが条件の編集のたびに直積へ整え直す。キーの正規順序は本スキーマの properties 記載順とする。",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "description": "スキーマの版。decisionTable の初版は 1。アプリは検証前にこの値を読み、未知の新版は「一覧表示のみ・編集不可」として扱う。",
+      "const": 1
+    },
+    "type": {
+      "description": "ツール種別。デシジョンテーブルは decisionTable 固定。",
+      "const": "decisionTable"
+    },
+    "title": {
+      "description": "表示名。プロジェクトのファイル一覧に使う。",
+      "type": "string"
+    },
+    "conditions": {
+      "description": "条件の配列。配列順が行の並び順を決める（左端の条件が最もゆっくり回る）。",
+      "type": "array",
+      "items": { "$ref": "#/$defs/condition" }
+    },
+    "outcomes": {
+      "description": "結果の配列。配列順が rows[].results の並び順と一致する。",
+      "type": "array",
+      "items": { "$ref": "#/$defs/outcome" }
+    },
+    "rows": {
+      "description": "判定表の行。conditions の値の直積を展開したもので、欠け・余り・順序違いは整合性検証（レベル2）で赤表示する。",
+      "type": "array",
+      "items": { "$ref": "#/$defs/row" }
+    }
+  },
+  "required": ["schemaVersion", "type", "title", "conditions", "outcomes", "rows"],
+  "additionalProperties": false,
+  "$defs": {
+    "condition": {
+      "description": "条件1つ。全キー常在（欠損でなく空の値で「未記入」を表現する）。",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "不変ID。プレフィクス cond_ ＋ nanoid（英数字62文字カスタムアルファベット）10文字固定。連番禁止。",
+          "type": "string",
+          "pattern": "^cond_[A-Za-z0-9]{10}$"
+        },
+        "name": {
+          "description": "条件名。空文字＝「未記入」として欠落表示の対象。",
+          "type": "string"
+        },
+        "values": {
+          "description": "この条件がとりうる値のラベル。行はラベルを直接持つので、ここを書き換えるとアプリが全行を書き直す。同じラベルが2件以上あってもスキーマでは拒否せず、整合性検証（レベル2）で赤表示する——打ち終わる前の自動保存がレベル1違反ファイルを作らないようにするため。",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["id", "name", "values"],
+      "additionalProperties": false
+    },
+    "outcome": {
+      "description": "結果1つ。全キー常在（欠損でなく空の値で「未記入」を表現する）。",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "不変ID。プレフィクス out_ ＋ nanoid（英数字62文字カスタムアルファベット）10文字固定。連番禁止。",
+          "type": "string",
+          "pattern": "^out_[A-Za-z0-9]{10}$"
+        },
+        "name": {
+          "description": "結果名。空文字＝「未記入」として欠落表示の対象。",
+          "type": "string"
+        },
+        "choices": {
+          "description": "この結果が取りうる値のラベル。rows[].results はここから選ぶ。重複はスキーマで拒否せず整合性検証で赤表示する（values と同じ理由）。",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["id", "name", "choices"],
+      "additionalProperties": false
+    },
+    "row": {
+      "description": "判定表の行1つ。行は導出物なので ID を持たない——位置（先頭を #1 とする番号）で指す。",
+      "type": "object",
+      "properties": {
+        "values": {
+          "description": "条件の値。conditions と同じ長さ・同じ順で、各要素は conditions[i].values のいずれかのラベル。",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "impossible": {
+          "description": "現実には起こりえない組み合わせか。条件同士が独立でないと直積にそうした行が出るので、永遠に埋まらない欠落を残さないために持つ。理由の記述欄は持たない。",
+          "type": "boolean"
+        },
+        "results": {
+          "description": "結果。outcomes と同じ長さ・同じ順で、各要素は outcomes[j].choices のいずれかのラベルか空文字。空文字＝「未記入」で、impossible が true の行では欠落として数えない。",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["values", "impossible", "results"],
+      "additionalProperties": false
+    }
+  }
+}

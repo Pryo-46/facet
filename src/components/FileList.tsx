@@ -9,11 +9,12 @@ import { displayTitle, type ProjectFile } from '@/core/project-file'
 import type { AnyToolModule } from '@/core/registry'
 
 export interface FileListProps {
-  /** 種類ごとにまとめて並べ替え済みの一覧（`groupFiles` の結果。順序はコアが決める） */
+  /**
+   * 種類ごとにまとめて並べ替え済みの一覧（`groupFiles` の結果。順序はコアが決める）。
+   * 登録済みの種類はファイルが0件でも入っており、見出しに新規作成ボタンを載せる
+   */
   groups: FileGroup[]
   selectedPath: string | null
-  /** 新規作成の選択肢。レジストリの登録順（rev 6章。ツールは増える前提） */
-  modules: AnyToolModule[]
   /**
    * 走査済み全ファイルの type（読めなかったファイルは null）。
    * singleton モジュールの新規作成ボタンを、既に1つあるかどうかで
@@ -125,6 +126,32 @@ function FileRow(props: {
 }
 
 /**
+ * 種類の見出しに載せる新規作成ボタン。
+ * **singleton で既に1つあるときも、消さずに disabled で置く**——
+ * ボタンの有無で見出し行の形が種類ごとに変わると、並びが不揃いになる
+ */
+function CreateButton(props: {
+  module: AnyToolModule
+  creatable: boolean
+  onCreate: (module: AnyToolModule) => void
+}) {
+  const { module } = props
+  const label = `${module.displayName}を新規作成`
+  return (
+    <button
+      type="button"
+      disabled={!props.creatable}
+      aria-label={label}
+      title={props.creatable ? label : `${module.displayName}はプロジェクトに1つまでです`}
+      className={`${buttonBase} shrink-0 px-3 text-ink-muted hover:bg-canvas hover:text-ink disabled:hover:bg-transparent disabled:hover:text-ink-muted`}
+      onClick={() => props.onCreate(module)}
+    >
+      <Plus aria-hidden className="size-4" />
+    </button>
+  )
+}
+
+/**
  * ファイル一覧の額縁（rev 6章）。新規作成・削除・赤バッジを持つ。
  * 表示だけを担い、状態も I/O も持たない（配線は App）
  */
@@ -138,30 +165,6 @@ export function FileList(props: FileListProps) {
   }
   return (
     <div className="flex h-full flex-col">
-      {/* 作成ボタンは縦積みで幅をそろえる。**flex-wrap で横に流さない**——
-          ツール名の長さで折り返し位置が変わり、行ごとに端が揃わなくなる。
-          帯自体は `shrink-0`（一覧が長くなっても流れない。スクロールを持つのは
-          下の一覧だけ） */}
-      <div className="flex shrink-0 flex-col gap-1 border-b border-rule p-2">
-        {props.modules.map((module) => {
-          const creatable = canCreateFileOfType(module, props.existingTypes)
-          const Icon = module.icon
-          return (
-            <button
-              key={module.type}
-              type="button"
-              disabled={!creatable}
-              title={creatable ? undefined : `${module.displayName}はプロジェクトに1つまでです`}
-              className={`${buttonBase} w-full justify-start gap-2 border border-rule px-2 py-1 text-sm text-ink hover:bg-canvas disabled:hover:bg-transparent`}
-              onClick={() => props.onCreate(module)}
-            >
-              <Plus aria-hidden className="size-3.5 shrink-0" />
-              <Icon aria-hidden className="size-3.5 shrink-0" />
-              <span className="truncate">{module.displayName}を新規作成</span>
-            </button>
-          )
-        })}
-      </div>
       {/* パスは一覧の直上。長さが青天井なので truncate で受け、全文は title。
           帯なので `shrink-0`（スクロールを持つのは下の一覧だけ） */}
       {props.projectDir !== null && (
@@ -188,46 +191,52 @@ export function FileList(props: FileListProps) {
       {/* スクロールするのはここだけ（上の帯は固定）。**この責務を親の aside へ
           戻さないこと**——aside 側で overflow を持つと帯ごと流れる */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {props.groups.length === 0 ? (
-          <p className="p-4 text-base text-ink-muted">
-            このフォルダに JSON ファイルがありません。上のボタンで作成できます。
-          </p>
-        ) : (
-          props.groups.map((group, i) => (
-            <div key={group.key}>
+        {props.groups.map((group, i) => (
+          <div key={group.key}>
+            {/* **罫線は上に置く（下ではない）。** 見出しとその下の行は同じ
+                グループなので、間に線を引くと属するもの同士を分断する。
+                区切るべきは「前のグループの最後の行」と「次の見出し」の間。
+                先頭だけ線を外すのは、真上のパスの帯が既に
+                `border-b border-rule` を持っており、二重線になるため */}
+            <div
+              className={`flex items-stretch bg-surface-muted ${
+                i === 0 ? '' : 'border-t border-rule'
+              }`}
+            >
               {/* 見出しは装飾ではなく文書構造なので heading。面は
                   「見出しの面」トークンを使う（rev 9章）。
                   **h2 にすること。** 額縁の h1（`facet`）の直下で、間に入る
                   見出しは無い（エディタの h2 は帯へ一本化してある）ので、
-                  h3 にするとレベルが飛ぶ。
-
-                  **罫線は上に置く（下ではない）。** 見出しとその下の行は同じ
-                  グループなので、間に線を引くと属するもの同士を分断する。
-                  区切るべきは「前のグループの最後の行」と「次の見出し」の間。
-                  先頭だけ線を外すのは、真上の新規作成ボタンの帯が既に
-                  `border-b border-rule` を持っており、二重線になるため */}
-              <h2
-                className={`bg-surface-muted px-4 py-1 text-base font-medium tracking-wide text-ink-muted ${
-                  i === 0 ? '' : 'border-t border-rule'
-                }`}
-              >
+                  h3 にするとレベルが飛ぶ */}
+              <h2 className="min-w-0 flex-1 truncate px-4 py-1 text-base font-medium tracking-wide text-ink-muted">
                 {group.heading}
               </h2>
-              <ul>
-                {group.files.map((file) => (
-                  <FileRow
-                    key={file.path}
-                    file={file}
-                    selected={file.path === props.selectedPath}
-                    onSelect={() => props.onSelect(file)}
-                    onDelete={() => props.onDelete(file)}
-                    onHandoff={() => props.onHandoff(file)}
-                  />
-                ))}
-              </ul>
+              {/* **作成ボタンは h2 の外に置く。** 中に入れると、ボタンの
+                  aria-label が見出しのアクセシブル名に連結され、見出しが
+                  「用語集 用語集を新規作成」になる。
+                  未対応 type と種類不明は module を持たないのでボタンも出ない */}
+              {group.module !== null && (
+                <CreateButton
+                  module={group.module}
+                  creatable={canCreateFileOfType(group.module, props.existingTypes)}
+                  onCreate={props.onCreate}
+                />
+              )}
             </div>
-          ))
-        )}
+            <ul>
+              {group.files.map((file) => (
+                <FileRow
+                  key={file.path}
+                  file={file}
+                  selected={file.path === props.selectedPath}
+                  onSelect={() => props.onSelect(file)}
+                  onDelete={() => props.onDelete(file)}
+                  onHandoff={() => props.onHandoff(file)}
+                />
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
     </div>
   )

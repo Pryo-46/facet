@@ -97,6 +97,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **textarea の高さ計算が強制リフローを起こす**（`src/components/CellInput.tsx`）。`rows=1` に戻して `scrollHeight` を読む。
 - **ノードの測定結果キャッシュが上限で全消しになる**（`src/modules/logic-tree/LogicTreeEditor.tsx`）。LRU ではなく `cache.clear()`。
 - **`lastCell` が state のためセルにフォーカスが移るたびエディタ全体が再描画される**（`src/modules/issue-tree/IssueTreeEditor.tsx`）。
+- **表本体が上限を超える行数のファイルにも歯止めを掛けない**（`src/modules/decision-table/GridBody.tsx`）。`MAX_ROWS` が止めるのは定義部の追加ボタンだけなので、条件を多く持つファイルを外から置かれると開いた瞬間に全行を描く。
 
 ## アクセシビリティ
 
@@ -110,6 +111,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **方眼背景がキャンバスのズームに追従しない**（`src/modules/logic-tree/LogicTreeEditor.tsx`）。
 - **`Tab` を骨格ゾーンと答えゾーンの2つに分ける提案が未実装**（`src/modules/sequence/SequenceEditor.tsx`）。答えへのキーボード到達は崩さないことが条件。
 - **展開中の仮説が課題の列全体を押し広げ、深い木で横スクロールが増える**（`src/modules/issue-tree/layout.ts`）。
+- **デシジョンテーブルの列幅を変えられない**（`src/modules/decision-table/GridBody.tsx`）。列の本数がデータで変わるので、`useColumnResize` が要求する幅の配列を持てない。
 
 ## 小さな負債
 
@@ -141,3 +143,4 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **`docs/issue-tree/仮説検証モジュール-設計ノート.md`（71KB）の圧縮**。決着済みの論点や古い検討過程が残り、参照コストが高い。
 - **`schemas/*.json` の description に日付や人の判断の経緯が残る**（`schemas/issue-tree.schema.json` の `events`）。生成物 `src/types/` にそのまま写る。
 - **`allow_dot_claude` は旧版の残骸を読むためだけに `<project>/.claude` へ recursive な実行時 scope を与えている**（`src-tauri/src/lib.rs`）。旧版の検出を畳むときに一緒に消す。
+- **`CellSelect` の `changeOnArrows` と `openOnEnter` が常に反対の値で渡る**（`src/components/CellSelect.tsx`）。真偽2つずつで組み合わせは4通りあるが使う配置は2通りだけで、片方だけ渡すと矢印は移動でも `Enter` は開かない、誰も設計していない状態を作れる。

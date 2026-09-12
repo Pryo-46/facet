@@ -18,6 +18,13 @@ export interface FileGroup {
   key: string
   /** 見出しの表示名 */
   heading: string
+  /**
+   * この種類を作るモジュール。未対応 type と種類不明では null。
+   * 見出しに新規作成ボタンを出せるかの判定に使う——**見出し文字列から
+   * 引き直させない**。`heading` は displayName そのままなので、
+   * 同名のモジュールが2つあると引けなくなる
+   */
+  module: AnyToolModule | null
   files: ProjectFile[]
 }
 
@@ -25,9 +32,12 @@ export interface FileGroup {
  * ファイル一覧を種類でまとめて並べる（コアの純関数。`FileList` は結果を描くだけ）。
  *
  * 順序は **① レジストリの登録順 → ② 登録に無い type（type 文字列の昇順）
- * → ③ type が読めないもの**。①が登録順なのは、新規作成ボタンが既に同じ順に
- * 並んでいるため（`src/components/FileList.tsx` の `modules` prop）。
- * ファイルが1つも無い種類は見出しごと出さない
+ * → ③ type が読めないもの**。
+ *
+ * **登録済みの種類は、ファイルが1つも無くても見出しを出す**——見出しは
+ * その種類の新規作成ボタンを載せる場所でもあり、畳むと、まだ1つも作っていない
+ * ツールへ辿り着く手段が一覧から消える。②③は作成の入口を持たないので、
+ * 該当ファイルがあるときだけ出す
  */
 export function groupFiles(
   files: readonly ProjectFile[],
@@ -46,7 +56,12 @@ export function groupFiles(
 
   for (const module of modules) {
     const bucket = buckets.get(module.type)
-    if (bucket) groups.push({ key: module.type, heading: module.displayName, files: sorted(bucket) })
+    groups.push({
+      key: module.type,
+      heading: module.displayName,
+      module,
+      files: bucket ? sorted(bucket) : [],
+    })
   }
 
   // 未対応の type は type 文字列そのものを見出しにする。「ツールがまだ無い」と
@@ -55,11 +70,18 @@ export function groupFiles(
     .filter((key) => key !== UNKNOWN_TYPE_KEY && !registered.has(key))
     .sort()
   for (const type of unregistered) {
-    groups.push({ key: type, heading: `${type}（未対応）`, files: sorted(buckets.get(type)!) })
+    groups.push({
+      key: type,
+      heading: `${type}（未対応）`,
+      module: null,
+      files: sorted(buckets.get(type)!),
+    })
   }
 
   const unknown = buckets.get(UNKNOWN_TYPE_KEY)
-  if (unknown) groups.push({ key: UNKNOWN_TYPE_KEY, heading: '種類不明', files: sorted(unknown) })
+  if (unknown) {
+    groups.push({ key: UNKNOWN_TYPE_KEY, heading: '種類不明', module: null, files: sorted(unknown) })
+  }
 
   return groups
 }

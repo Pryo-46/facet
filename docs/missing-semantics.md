@@ -13,6 +13,7 @@
 | シーケンス | 問いが立っているのに `failures` にキーが無い（未回答）／アクターの `name` が空／ステップの `label` が空（未記入） | 問いが立っていないスロット、`notApplicable`（決めた） |
 | ロジックツリー | `text === ''`（未記入） | — |
 | 課題ツリー | 4つの問い（仮説なし・未決・保留・FB待ち）。`poseQuestions` が導出する | `detail` / `value` / `asks` が空、旗（見送り・解決）配下（抑制） |
+| デシジョンテーブル | 結果セルが空（未記入）／条件名・値ラベル・結果名・選択肢ラベルが空（未記入） | `impossible: true` の行の結果セル（決めた上で該当なし） |
 
 備考・別名・`detail`／`value`／`asks` を欠落にしない判断はこの文書でも変えない（[`docs/glossary/session-notes.md`](glossary/session-notes.md) の「`notes` は検知対象外」、`read-project` Skill の「欠落は仕様の穴ではない」）。
 
@@ -22,7 +23,7 @@
 
 欠落は、データの空欄そのものを指す。捏造した表示文字列や UI 側の解釈ではなく、**空である事実**が欠落である。判定源は [`plugins/facet/skills/read-project/SKILL.md`](../plugins/facet/skills/read-project/SKILL.md) の「未決」の定義と一対一で、上の決定1の表がその写しである。備考・別名・`rationale` は判定源が「未決」と扱わないので、欠落として塗ってはならない。
 
-- 判定を持つファイル: `src/modules/glossary/missing.ts`／`src/modules/error-catalog/missing.ts`／`src/modules/logic-tree/missing.ts`／`src/modules/sequence/missing.ts`／`src/modules/issue-tree/derive.ts`（`poseQuestions`）
+- 判定を持つファイル: `src/modules/glossary/missing.ts`／`src/modules/error-catalog/missing.ts`／`src/modules/logic-tree/missing.ts`／`src/modules/sequence/missing.ts`／`src/modules/issue-tree/derive.ts`（`poseQuestions`）／`src/modules/decision-table/missing.ts`
 - 判定源（AI 向け）: `plugins/facet/skills/read-project/SKILL.md` の「最重要: 未決を埋めない」節と「ツール別の読み方」節
 
 ### 2. 空は空のまま描く
@@ -60,7 +61,7 @@
 
 - 集計の型と組み立て文字列（コア）: `src/core/missing-tally.ts`（`MissingTally` / `MissingTallyPart` / `TALLY_TOTAL_LABEL` / `tallyLine`）
 - 表示部品（コア）: `src/components/MissingTally.tsx`
-- 各モジュールの判定・集計: `src/modules/glossary/missing.ts`／`src/modules/error-catalog/missing.ts`／`src/modules/logic-tree/missing.ts`／`src/modules/sequence/missing.ts`
+- 各モジュールの判定・集計: `src/modules/glossary/missing.ts`／`src/modules/error-catalog/missing.ts`／`src/modules/logic-tree/missing.ts`／`src/modules/sequence/missing.ts`／`src/modules/decision-table/missing.ts`
 - 課題ツリーだけ別経路: `src/modules/issue-tree/derive.ts` は `tallyLine` を自前で持つ（同梱 Skill のバイト一致コピー制約で `missing-tally.ts` を値 import できないため）。`toMissingTally(t)` でコアの形へ変換し、アプリの帯はこちらを使う。コアの `tallyLine(toMissingTally(t))` と `derive.ts` の `tallyLine(t)` が逐語一致することは `src/modules/issue-tree/derive.test.ts` が機械検査する
 - FB待ちバッジ（行）: `src/modules/issue-tree/HypothesisRow.tsx`（判断バッジの隣に `pending` variant で2つ目を出す）
 

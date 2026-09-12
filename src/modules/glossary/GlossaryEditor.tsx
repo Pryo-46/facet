@@ -5,6 +5,7 @@ import { CellSelect } from '@/components/CellSelect'
 import { buttonBase } from '@/components/button-styles'
 import { Chip } from '@/components/Chip'
 import { MissingTally } from '@/components/MissingTally'
+import { buttonCell, cellButton, cellFocus, cellInput, headCell } from '@/components/table-styles'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -14,6 +15,7 @@ import {
 } from '@/core/keyboard/keymap'
 import { altModifierLabel, currentPlatform } from '@/core/keyboard/platform'
 import { buildErrorMarks, cellFace, CELL_FACE_CLASS } from '@/core/list-editor/cell-face'
+import { focusCellField } from '@/core/list-editor/cell-hit'
 import { cellId, useListRows } from '@/core/list-editor/use-list-rows'
 import { useVisibleIdsReport } from '@/core/list-editor/use-visible-ids'
 import { newId } from '@/core/new-id'
@@ -35,15 +37,6 @@ import { EMPTY_FILTER, filterTermIndices, isDerivedView, type GlossaryFilter } f
 
 // 種別の選択肢はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂時に静かにずれる）
 const KIND_OPTIONS = glossarySchema.$defs.term.properties.kind.enum
-
-// フォーカスは面の塗り替えではなくリングで示す。テーブルの面は
-// bg-surface なので、focus:bg-surface はコントラスト比 1.00:1 で見えない。
-// エラー・未定義セルは輪郭（CELL_FACE_CLASS）で警告を示しているので、
-// フォーカスで背景を塗り替えても輪郭は消えない——リングは輪郭とは別の見た目
-// なので、どちらも潰さずに重ねられる。色は役割トークンの --ring から取る
-// （既に --ink に紐づいている。palette.css は変更していない）
-const cellInput =
-  'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 text-ink outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
 
 /**
  * 列の境界の縦罫。先頭列（No）には引かない。
@@ -241,12 +234,12 @@ export function GlossaryEditor({
   // この振る舞いを固定する場所が別に要る
   const marks = buildErrorMarks(issues)
 
-  /** セルの輪郭のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ。
-      行全体の指摘は No セルの輪郭で示す（rev 9章 D5）。No は GlossaryField
+  /** セルの面とフォーカス枠のクラス名。判定そのものは cell-face.ts の cellFace（純関数）が持つ。
+      行全体の指摘は No セルの面で示す（rev 9章 D5）。No は GlossaryField
       ではないので、ここでは rowAnchor は常に false——No セル自身は tbody の中で
       cellFace を直接呼んで別に組み立てる */
   const cellClass = (index: number, field: GlossaryField, warn = false): string =>
-    CELL_FACE_CLASS[cellFace(marks, index, field, warn, false)]
+    `${cellFocus} ${CELL_FACE_CLASS[cellFace(marks, index, field, warn, false)]}`
 
   return (
     <div ref={rows.containerRef} className="p-4">
@@ -324,7 +317,7 @@ export function GlossaryEditor({
                 return (
                   <th
                     key={col.field}
-                    className={`sticky top-0 z-10 relative border-b border-b-rule bg-surface-muted px-2 py-1 text-base font-medium tracking-wide text-ink-muted${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${headColBorder}`}`}
+                    className={`${headCell} relative${col.field === 'no' ? ' text-right' : ''}${i === 0 ? '' : ` ${headColBorder}`}`}
                   >
                     {label}
                     {/* No 列は導出（データ配列の index+1）なのでハンドルを出さない。
@@ -370,7 +363,10 @@ export function GlossaryEditor({
                   >
                     {index + 1}
                   </td>
-                  <td className={`${colBorder} ${cellClass(index, 'name')}`}>
+                  <td
+                    className={`${colBorder} cursor-text ${cellClass(index, 'name')}`}
+                    onMouseDown={focusCellField}
+                  >
                     <CellInput
                       className={cellInput}
                       aria-label={`${FIELD_LABELS.name}（${row}行目）`}
@@ -391,9 +387,12 @@ export function GlossaryEditor({
                       }
                     />
                   </td>
-                  <td className={`relative ${colBorder} ${cellClass(index, 'kind', isMissingCell(term, 'kind'))}`}>
+                  <td
+                    className={`relative ${colBorder} ${buttonCell} cursor-pointer ${cellClass(index, 'kind', isMissingCell(term, 'kind'))}`}
+                    onMouseDown={focusCellField}
+                  >
                     <CellSelect
-                      className={`${cellInput} appearance-none pr-6`}
+                      className={`${cellButton} appearance-none pr-6`}
                       aria-label={`${FIELD_LABELS.kind}（${row}行目）`}
                       data-cell={cellId(rowKey, 'kind')}
                       value={term.kind}
@@ -427,7 +426,10 @@ export function GlossaryEditor({
                       <path d="M3 4.5 L6 7.5 L9 4.5" />
                     </svg>
                   </td>
-                  <td className={`${colBorder} ${cellClass(index, 'definition', isMissingCell(term, 'definition'))}`}>
+                  <td
+                    className={`${colBorder} cursor-text ${cellClass(index, 'definition', isMissingCell(term, 'definition'))}`}
+                    onMouseDown={focusCellField}
+                  >
                     <CellInput
                       multiline
                       className={`${cellInput} leading-normal`}
@@ -444,7 +446,10 @@ export function GlossaryEditor({
                       }
                     />
                   </td>
-                  <td className={`${colBorder} ${cellClass(index, 'aliases')}`}>
+                  <td
+                    className={`${colBorder} cursor-pointer ${cellClass(index, 'aliases')}`}
+                    onMouseDown={focusCellField}
+                  >
                     <AliasCell
                       aliases={term.aliases}
                       onAliasesChange={(next, mergeKey) =>
@@ -475,7 +480,10 @@ export function GlossaryEditor({
                       onLeaveVertical={(direction) => focusVisible(visiblePos + direction, 'aliases')}
                     />
                   </td>
-                  <td className={`${colBorder} ${cellClass(index, 'notes')}`}>
+                  <td
+                    className={`${colBorder} cursor-text ${cellClass(index, 'notes')}`}
+                    onMouseDown={focusCellField}
+                  >
                     <CellInput
                       multiline
                       className={`${cellInput} leading-normal`}

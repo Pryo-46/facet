@@ -7,9 +7,8 @@ import { splitPastedAliases } from './alias-paste'
 
 const PLATFORM = currentPlatform()
 
-// GlossaryEditor.tsx の cellInput と同じ理由でリングにする——パネルの地は
-// bg-canvas なので focus:bg-surface 自体は見えなくはないが、セルの
-// フォーカス表現を表全体で揃えるため、ここもリングに統一する
+// 開いたパネルの中の欄。**ここだけは欄自身がリングを描く**——別名は1セルに
+// 複数並ぶので、セル側（`cellFocus`）の枠ではどの行にいるか分からない
 const aliasInput =
   'w-full bg-transparent px-2 py-1 text-ink outline-none rounded-sm focus:ring-2 focus:ring-inset focus:ring-ring'
 
@@ -205,9 +204,9 @@ export function AliasCell(props: AliasCellProps) {
         type="button"
         data-cell={cellId}
         aria-label={label}
-        // 閉じた別名セルは表本体の bg-surface に乗るので、cellInput と同じ理由で
-        // focus:bg-surface ではなくリングを使う
-        className="flex w-full flex-wrap gap-1 rounded-sm px-2 py-1 text-left outline-none focus:ring-2 focus:ring-inset focus:ring-ring"
+        // 閉じた別名セルは表のセルの一部なので、フォーカス枠を自分で描かない
+        // （`cellFocus` を載せた `<td>` が描く）
+        className="flex w-full flex-wrap gap-1 px-2 py-1 text-left outline-none"
         onFocus={() => {
           if (suppressOpen.current) {
             suppressOpen.current = false

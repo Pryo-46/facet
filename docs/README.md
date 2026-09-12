@@ -1,6 +1,6 @@
 # ドキュメントの地図
 
-facet は、人と AI がスキーマ定義されたデータを共通言語にして思考を進めるツール群。AI が候補を発散させ、人が構造の上で選別し、ツールが網羅性の担保・描画・構造化テキスト出力を担う。用語集・エラーカタログ・ロジックツリー・シーケンス・課題ツリーの5ツールがある。
+facet は、人と AI がスキーマ定義されたデータを共通言語にして思考を進めるツール群。AI が候補を発散させ、人が構造の上で選別し、ツールが網羅性の担保・描画・構造化テキスト出力を担う。用語集・エラーカタログ・ロジックツリー・シーケンス・課題ツリー・デシジョンテーブルの6ツールがある。
 
 ## どれを読むか
 
@@ -14,6 +14,7 @@ facet は、人と AI がスキーマ定義されたデータを共通言語に�
 | シーケンスの範囲と仕様の理由 | [`sequence/sequence-m1-scope.md`](sequence/sequence-m1-scope.md)、[`sequence/sequence-design-notes.md`](sequence/sequence-design-notes.md) |
 | エラーカタログの仕様の理由 | [`error-catalog/error-catalog-session-notes.md`](error-catalog/error-catalog-session-notes.md) |
 | 課題ツリーの設計 | [`issue-tree/仮説検証モジュール-設計ノート.md`](issue-tree/仮説検証モジュール-設計ノート.md)。モックは `issue-tree/俯瞰モック/` |
+| デシジョンテーブルの設計 | [`decision-table/decision-table-design-notes.md`](decision-table/decision-table-design-notes.md) |
 | 環境・ビルド・Tauri の前提 | [`project-setup.md`](project-setup.md) |
 | リリースの出し方 | [`release.md`](release.md) |
 | いま何が残っているか | [`open-issues.md`](open-issues.md)。Claude が着手できる項目だけ |

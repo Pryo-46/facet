@@ -30,6 +30,7 @@ function draft(overrides: { light?: Record<string, string>; dark?: Record<string
   const light: Record<string, string> = {
     canvas: 'oklch(0.95 0 0)',
     surface: 'oklch(0.985 0 0)',
+    'surface-subtle': 'oklch(0.97 0 0)',
     'surface-muted': 'oklch(0.91 0 0)',
     ink: 'oklch(0.18 0 0)',
     'ink-muted': 'oklch(0.42 0 0)',
@@ -53,6 +54,7 @@ function draft(overrides: { light?: Record<string, string>; dark?: Record<string
   const dark: Record<string, string> = {
     canvas: 'oklch(0.17 0 0)',
     surface: 'oklch(0.24 0 0)',
+    'surface-subtle': 'oklch(0.21 0 0)',
     'surface-muted': 'oklch(0.13 0 0)',
     ink: 'oklch(0.88 0 0)',
     'ink-muted': 'oklch(0.70 0 0)',

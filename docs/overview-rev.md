@@ -18,6 +18,7 @@
 4. **用語集エディタ** — 用語の型定義と表記ゆれ検知を担う、他ツールが参照するマスタデータ。（エディタ・登録 Skill・Markdown 出力まで実装済み。詳細は [`glossary/session-notes.md`](glossary/session-notes.md)）
 5. **エラーカタログエディタ** — エラーの一覧と対応方法を整理する。読み手も出力先も他ツールと異なるので独立モジュールとする。（エディタ・登録 Skill・Markdown 出力まで実装済み。詳細は [`error-catalog/error-catalog-session-notes.md`](error-catalog/error-catalog-session-notes.md)）
 6. **課題ツリーエディタ** — PoC で「試さないと分からないこと」を分解し、仮説と検証の結果を記録する。仮説の判断は未決・支持・棄却・保留・見送りの5語で、未決は判断イベントが0件であることから導出するため保存しない。（エディタ・登録 Skill・俯瞰の表現まで実装済み。出力は未実装。詳細は [`issue-tree/仮説検証モジュール-設計ノート.md`](issue-tree/仮説検証モジュール-設計ノート.md)）
+7. **デシジョンテーブルエディタ** — 条件の組み合わせで結果が決まる仕様を、全組み合わせを展開した表で扱う。行は条件の値の直積であり、人は行を足しも消しもしない。（エディタと整合性検証まで実装済み。出力・まとめて入力・畳み・登録 Skill は未実装。詳細は [`decision-table/decision-table-design-notes.md`](decision-table/decision-table-design-notes.md)）
 
 ツールを増やすときの採用基準は3つである。参照グラフに参加すること、未定義を利用者が自分で解決できること、データが人と AI の共通言語になることで、3つ目は発散・収束・現状確認・相談のどの場面でも双方が同じ単位（ID の付いた構造）を指して話せることを求める。
 
@@ -141,7 +142,7 @@ ID捏造・不正データの予防として、各Skillに ID採番と書き込�
 - プロトタイプの state 構造は叩き台にせずゼロから設計する（構造は信用しない）。
 - 全ファイル共通のエンベロープ（必須フィールド）：
   - `schemaVersion`：スキーマの版。**版は type ごとに独立して進める**ので、移行判定とSkillの追従管理（4章）は `type` × `schemaVersion` の組で行う。共通エンベロープの改訂は全ツールスキーマの改訂を含意する。
-  - `type`：ツール種別の enum（`logicTree` / `sequence` / `stateMachine` / `glossary` / `errorCatalog` / `issueTree`。ツール追加で増える）。旧アプリにとって未知の値になり得るが、受け皿は6章の前方互換の規定。
+  - `type`：ツール種別の enum（`logicTree` / `sequence` / `stateMachine` / `glossary` / `errorCatalog` / `issueTree` / `decisionTable`。ツール追加で増える）。旧アプリにとって未知の値になり得るが、受け皿は6章の前方互換の規定。
   - `title`：表示名。プロジェクトを開いたときの一覧表示に使う。
 
 ### バージョン互換とマイグレーション
@@ -355,7 +356,7 @@ ID捏造・不正データの予防として、各Skillに ID採番と書き込�
 - **二層構造にする。** 参照するのは役割トークン（意味の名前）だけで、色値は差し替え可能な下敷きである。色値の直書きと役割トークンへの透過は `src/styles/conventions.test.ts` が弾く。
 - **配色は `src/styles/palette.css` 1ファイルの書き換えで差し替えられる。** 差し替え後も `src/styles/palette.test.ts` がコントラスト要件（本文 4.5:1、罫線 3:1 等）を検証する。要件の表は `src/styles/palette-requirements.ts`、計算式は `src/styles/contrast.ts` が1本だけ持つ。
 - 差し替えの手順は `.claude/skills/palette-retheme/` が持つ。外部テーマから機械的に拾えるのは7つで、残りは候補から人が選ぶ。
-- **役割トークンは 20個で、色を持つのは意味だけである。** 面・文字・線は無彩色（C ≤ 0.01）に保つ。
+- **役割トークンは 21個で、色を持つのは意味だけである。** 面・文字・線は無彩色（C ≤ 0.01）に保つ。
   - 面：`canvas`（地。方眼を敷く）／`surface`（作業する面）／`surface-muted`（一段沈んだ面。選択中タブ・カラム名・旗を掲げた枝）
   - 文字：`ink`／`ink-muted`／`ink-faint`（非アクティブ。3:1。本文に使わず `opacity-*` の代わりに使う）
   - 線：`rule`（セル境界・入力枠。3:1）／`rule-muted`（表の罫線・弱い境界）／`grid`（方眼専任）
@@ -463,7 +464,7 @@ Primary（塗り）／Secondary（枠線のみ）／Tertiary（枠なしアイ�
 
 #### D20. ダークパレット
 
-同じ役割トークンにモードごとの値を割り当て、ライトの値を機械的に裏返して作らない。**ダークもライトと同じ輝度順にする**（`surface-muted` < `canvas` < `surface`）。ダークでは `canvas` と `surface` が線を挟むため方眼と罫線を1値で兼ねられず、`grid` を方眼専任、`rule-muted` を罫線に割り当てる（`src/styles/palette.css`）。
+同じ役割トークンにモードごとの値を割り当て、ライトの値を機械的に裏返して作らない。**ダークもライトと同じ輝度順にする**（`surface-muted` < `canvas` < `surface-subtle` < `surface`）。ダークでは `canvas` と `surface` が線を挟むため方眼と罫線を1値で兼ねられず、`grid` を方眼専任、`rule-muted` を罫線に割り当てる（`src/styles/palette.css`）。
 
 ### その他の規約
 
@@ -480,6 +481,12 @@ Primary（塗り）／Secondary（枠線のみ）／Tertiary（枠なしアイ�
 - **キャンバス系ツールでは、測定層と描画層が同一のフォントトークンを参照する。** 折り返し位置はオフスクリーン `<canvas>` の `measureText` が描画前に確定させるので、指定がずれると全ノードのサイズが一斉に狂う（`src/core/canvas/canvas-font.ts`）。
   - **測り直しの契機は `document.fonts.ready` だけでは足りず、`loadingdone` も要る。** 和文フォントは `unicode-range` で分割され、珍しい漢字が初めて出た瞬間に該当スライスが後から届く（`src/core/canvas/use-font-generation.ts`）。追従するのは高さだけで幅は動かない。
 - **フォーカスは面の塗り替え（`focus:bg-*`）ではなくリング（`focus:ring-2 focus:ring-inset focus:ring-ring`）で示す。** 面を塗り替えると警告の淡い面ごと表示が消えるが、リングは枠の内側に重なるだけなので面も輪郭も消えない。
+  - **リングは入力欄ではなく、その欄の矩形と一致する要素に載せる**（表では `<td>`。`src/components/table-styles.ts` の `cellFocus`）。入力欄は中身の分しか高さを持たないので、入力欄に載せると角丸の箱がセルの中に浮き、空欄では細い線に潰れる。
+  - **1つのセルに欄が複数並ぶ列では、セルではなく欄の側が描く**（デシジョンテーブルの値、用語集の別名）。セルが描くと、どの欄にいるかが分からない。
+  - **当たり判定もセルの矩形に合わせる**（`src/core/list-editor/cell-hit.ts` の `focusCellField` を `<td>` の `onMouseDown` に置く）。欄はセルより背が低いので、置かないと押しても何も起きない面が上下に残る。
+  - **選択肢・ボタンのセルは欄自身をセルの高さいっぱいに広げる**（`cellButton`）。フォーカスを渡すだけではメニューが開かず、欄の帯を狙うことになる。
+    - **`<td>` の側にも高さを指定する**（`buttonCell`）。`<td>` の高さが `auto` のままだと、中の `h-full` は解決できず `auto` に落ちる。
+    - **`<textarea>` には広げない。** `CellInput` は `scrollHeight` から折り返しの行数を測るので、高さを固定すると1行のセルが行いっぱいの行数を返す。
 - **操作ヒントは共通部品 `KeyHints`（`src/components/KeyHints.tsx`）が描く。** 修飾キーは文中に `$mod` / `$alt` というプレースホルダで書き、`src/core/keyboard/hint-text.ts` の解決関数が実行時のプラットフォームに応じて置き換える。
   - **主修飾キーは Windows では `Ctrl`、macOS では `Cmd` であり、`$mod` がこれを描く。** 画面に `Ctrl` と直接書くと macOS で誤った操作説明になる。
   - `KeyHints` は小さいまま、薄さを外す。14px のまま `text-ink` を使い、二重減衰を作らない。

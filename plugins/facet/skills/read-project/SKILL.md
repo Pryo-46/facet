@@ -1,19 +1,19 @@
 ---
 name: read-project
-description: 仕様整理ツール facet のプロジェクトフォルダ（type が glossary / errorCatalog / sequence / logicTree / issueTree の JSON がある）を読むときに使う。仕様の要約・実装・質問への回答・レビューでこれらの JSON に触れるとき、ファイルの見つけ方・ID の解決・「未決」の扱い・ツールごとの読み方を与える。空欄や undecided を推測で埋めないために、書き込みを伴わない読み取りでも必ず使うこと。
+description: 仕様整理ツール facet のプロジェクトフォルダ（type が glossary / errorCatalog / sequence / logicTree / issueTree / decisionTable の JSON がある）を読むときに使う。仕様の要約・実装・質問への回答・レビューでこれらの JSON に触れるとき、ファイルの見つけ方・ID の解決・「未決」の扱い・ツールごとの読み方を与える。空欄や undecided を推測で埋めないために、書き込みを伴わない読み取りでも必ず使うこと。
 ---
 
 # facet のプロジェクトデータの読み方
 
 ## ファイルの見つけ方
 
-- ファイル名ではなく、中身の `type` フィールドで種類を判別する（ファイル名は自由）。種類は現在5つ: `glossary`（用語集）／`errorCatalog`（エラーカタログ）／`sequence`（シーケンス）／`logicTree`（ロジックツリー）／`issueTree`（課題ツリー）
-- `glossary` と `errorCatalog` はプロジェクトに**1ファイルずつ**しか存在しない。複数見つけたら異常状態なので、どちらが正かを人間に確認する。`sequence`・`logicTree`・`issueTree` は何ファイルあってもよい
+- ファイル名ではなく、中身の `type` フィールドで種類を判別する（ファイル名は自由）。種類は現在6つ: `glossary`（用語集）／`errorCatalog`（エラーカタログ）／`sequence`（シーケンス）／`logicTree`（ロジックツリー）／`issueTree`（課題ツリー）／`decisionTable`（デシジョンテーブル）
+- `glossary` と `errorCatalog` はプロジェクトに**1ファイルずつ**しか存在しない。複数見つけたら異常状態なので、どちらが正かを人間に確認する。`sequence`・`logicTree`・`issueTree`・`decisionTable` は何ファイルあってもよい
 - 用語集は、他のファイルが ID で参照するハブである
 
 ## ID の読み方
 
-- ID は `term_Ab3xYz9Qw2` のように「プレフィクス + 英数字10文字」で、プレフィクスが種類を示す: `term_`＝用語／`error_`＝エラー／`actor_`＝シーケンスのアクター／`step_`＝シーケンスのステップ／`node_`＝ロジックツリーのノード／`issue_`＝課題ツリーの課題／`hypothesis_`＝課題ツリーの仮説／`ask_`＝課題ツリーの「聞きたいこと」
+- ID は `term_Ab3xYz9Qw2` のように「プレフィクス + 英数字10文字」で、プレフィクスが種類を示す: `term_`＝用語／`error_`＝エラー／`actor_`＝シーケンスのアクター／`step_`＝シーケンスのステップ／`node_`＝ロジックツリーのノード／`issue_`＝課題ツリーの課題／`hypothesis_`＝課題ツリーの仮説／`ask_`＝課題ツリーの「聞きたいこと」／`cond_`＝デシジョンテーブルの条件／`out_`＝デシジョンテーブルの結果
 - `term_` で始まる値を見たら、用語集ファイルの `terms[].id` で引いて名前と定義に解決する
 - **存在しない ID を作らない。** ID を新しく振る必要があるときは、末尾「書き込みたくなったら」の手順に従う
 
@@ -63,6 +63,14 @@ facet の核心は「決めていないことを消せなくする」ことで�
 - 課題＝観測された事実や、望む状態とのギャップ。仮説＝支持・棄却を判定できる主張。**ただし入力時に厳密な区別は求められていない**ので、どちらとも読める文があっても直さない
 - **イベントと FB は `date`（`YYYY-MM-DD`）を持つ。手で書き換えない**——アプリと登録 Skill が追記時に入れる
 
+### デシジョンテーブル（type: decisionTable）
+
+- **行は `conditions` の値の直積で、人が足したり消したりするものではない。** 行を足す・消す提案をせず、条件か値を増減する形で書く
+- 行の並び順は `conditions` の配列順にネストしたループで、左端の条件が最もゆっくり回る。行は ID を持たないので、`#1` から数えた位置で指す
+- `rows[].values` は `conditions` と同じ長さ・同じ順で、各要素は `conditions[i].values` のラベルそのものである。`rows[].results` と `outcomes` も同じ関係にある
+- `results` の空文字は「未記入」（未決）。ただし `impossible: true` の行の空は未決ではない——**その組み合わせは現実に起こりえないと決めた**という意思表示である
+- 条件名・値ラベル・結果名・選択肢ラベルの空文字も「未記入」（未決）
+
 ## 書き込みたくなったら
 
-このフォルダの JSON を直接手で編集しない。種類に応じて `facet:write-term` / `facet:write-error` / `facet:write-sequence` / `facet:write-issue-tree` / `facet:write-logic-tree` を必ず使う（ID 採番・スキーマ検証・正規形書き出しを通すため）。対応する Skill が無い種類のファイルを編集する場合も、最低限次を守る: (1) ID は既存と同じ形式で、ランダムに振る（連番にしない） (2) 既存のキー順・インデント（半角スペース2）・末尾改行を保つ。
+このフォルダの JSON を直接手で編集しない。種類に応じて `facet:write-term` / `facet:write-error` / `facet:write-sequence` / `facet:write-issue-tree` / `facet:write-logic-tree` を必ず使う（ID 採番・スキーマ検証・正規形書き出しを通すため）。`decisionTable` はまだ対応する登録 Skill が無い。対応する Skill が無い種類のファイルを編集する場合も、最低限次を守る: (1) ID は既存と同じ形式で、ランダムに振る（連番にしない） (2) 既存のキー順・インデント（半角スペース2）・末尾改行を保つ。

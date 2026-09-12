@@ -64,6 +64,7 @@
 
     --color-canvas: var(--canvas);
     --color-surface: var(--surface);
+    --color-surface-subtle: var(--surface-subtle);
     --color-surface-muted: var(--surface-muted);
     --color-ink: var(--ink);
     --color-ink-muted: var(--ink-muted);
