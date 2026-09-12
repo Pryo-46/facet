@@ -317,7 +317,7 @@ export function GridBody(props: GridBodyProps) {
                         aria-label={`${outcome.name}（${rowNo}行目）`}
                         data-cell={cellId(rowKey, field)}
                         value={row.results[j] ?? ''}
-                        options={['', ...outcome.choices]}
+                        options={outcomeFilterLabels(outcome)}
                         labelOf={(v) => v}
                         itemLabelOf={(v) => (v === '' ? CLEAR_RESULT_LABEL : v)}
                         onPick={(v) => onPickResult(index, j, v)}

@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { Outcome } from '@/types/decision-table'
 import type { BulkTarget } from './bulk'
+import { outcomeFilterLabels } from './filter'
 import { CLEAR_RESULT_LABEL, IMPOSSIBLE_LABEL } from './labels'
 
 export interface BulkFillBarProps {
@@ -63,7 +64,8 @@ export function BulkFillBar({ outcomes, targetCount, onApply }: BulkFillBarProps
   const outcome = resolvedOutcomeIndex === null ? undefined : outcomes[resolvedOutcomeIndex]
   const resolvedWhere = resolvedOutcomeIndex === null ? IMPOSSIBLE_KEY : `${resolvedOutcomeIndex}`
   /** 値の選択肢。結果列は空にするを先頭に置く */
-  const options = outcome === undefined ? [...IMPOSSIBLE_VALUES] : ['', ...outcome.choices]
+  const options =
+    outcome === undefined ? [...IMPOSSIBLE_VALUES] : outcomeFilterLabels(outcome)
   // 選んでいた値がいまの選択肢から外れていたら既定へ落とす。落とさずに残すと、
   // 例えば結果列の選択肢の値が「500円」から「on」の枠へそのまま居座ってしまう
   const resolvedValue = options.includes(value) ? value : defaultValue(outcome)
