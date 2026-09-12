@@ -564,6 +564,15 @@ describe('DecisionTableEditor: 表本体', () => {
     expect(cells[3]?.className).toContain('border-l-rule-muted')
   })
 
+  it('条件セルの境界が弱い罫線である', () => {
+    renderEditor(twoConditions)
+    const rows = gridRows()
+    const cells = within(rows[0]).getAllByRole('cell')
+    // No・条件A・条件B・結果A の順。条件A・条件B（添字1・2）が条件セル
+    expect(cells[1]?.className).toContain('border-l-rule-muted')
+    expect(cells[2]?.className).toContain('border-l-rule-muted')
+  })
+
   it('結果セルで ↓ を押すと下の行の同じ列へフォーカスが移り、値は変わらない', () => {
     const { latest } = renderEditor(twoConditions)
     const first = screen.getByLabelText('結果A（1行目）')
@@ -718,6 +727,14 @@ describe('DecisionTableEditor: 表本体のフォーカスと面', () => {
   it('表本体のヒントに Enter を「下の行へ」と説明する文字が出ない', () => {
     renderEditor(twoConditions)
     expect(screen.queryByText(/下の行へ/)).toBeNull()
+  })
+
+  it('フォーカスの無い行でも、条件セルに面が付く', () => {
+    renderEditor(twoConditions)
+    const rows = gridRows()
+    // フォーカスも開いたメニューも無い状態。No セルには行の面（フォーカス由来）が付かない
+    expect(rows[0].cells[0].className).not.toContain('bg-surface-muted')
+    expect(rows[0].cells[1].className).toContain('bg-surface-muted')
   })
 
   it('結果セルにフォーカスすると、その行のセルに面が付く', () => {
