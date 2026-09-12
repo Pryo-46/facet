@@ -77,7 +77,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **`IssueBanner` から該当行へのジャンプが無い**（`src/components/IssueBanner.tsx`）。メッセージは行を指すが押しても飛ばない。
 - **欠落ジャンプが4モジュールで巡回 ref に頼る**（`src/modules/glossary/GlossaryEditor.tsx`, `src/modules/error-catalog/ErrorCatalogEditor.tsx`, `src/modules/logic-tree/LogicTreeEditor.tsx`, `src/modules/sequence/SequenceEditor.tsx`）。フォーカス位置を起点にせず、シーケンスは `jumpAt` が担う。
 - **名前が空のアクターを面だけの空チップで示す**（`src/modules/sequence/ActorRefCell.tsx`）。視認性が低い。
-- **エラーカタログの集計は全行対象だがジャンプは表示中の行だけに飛ぶ**（`src/modules/error-catalog/ErrorCatalogEditor.tsx`）。デシジョンテーブルは飛び先が隠れていれば絞り込みを外す形で揃えている。
+- **エラーカタログの集計は全行対象だがジャンプは表示中の行だけに飛ぶ**（`src/modules/error-catalog/ErrorCatalogEditor.tsx`）。デシジョンテーブルでは、飛び先が隠れていれば絞り込みを外す。
 - **エラーカタログの読み手（プロファイル）が3箇所で別々に選ばれる**（`src/modules/error-catalog/ErrorCatalogEditor.tsx`）。
 - **Miro 書き出しのノード幅が概算でフォントが変わると折り返す**（`src/modules/logic-tree/miro-export.ts`）。
 - **循環で根から到達できないノードが Miro・Markdown・表の出力から警告なく落ちる**（`src/modules/logic-tree/miro-export.ts`, `src/modules/logic-tree/markdown.ts`, `src/modules/logic-tree/table.ts`）。
@@ -91,7 +91,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **「保留」の語が経緯の残らない列の上に乗る**（`schemas/issue-tree.schema.json` の `judgementEvent.kind`）。判断が差し替え式になり、保留にした経緯がデータに残らない。
 - **`writeMerged` の read-modify-write に直列化が無い**（`src/fs/settings-fs.ts`）。フォルダを開く保存と設定の保存が近接すると、後発が古い読み取りの上に書いて片方が落ちる。
 - **絞り込みの状態がファイルを切り替えると消える**（`src/modules/decision-table/DecisionTableEditor.tsx`）。データに持たない判断の裏返しで、同じファイルへ戻ると全行表示に戻る。
-- **まとめて入力の適用先を位置で指しており、結果が縮むと同じ添字が別の結果を指すようになる**（`src/modules/decision-table/BulkFillBar.tsx`）。表示される適用先はそれに追随するので、押す前に読めば分かる。
+- **まとめて入力の適用先を位置で指しており、結果が縮むと同じ添字が別の結果を指すようになる**（`src/modules/decision-table/BulkFillBar.tsx`）。
 
 ## 性能
 
