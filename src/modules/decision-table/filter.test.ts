@@ -6,6 +6,7 @@ import {
   filterRowIndices,
   isFiltered,
   outcomeFilterLabels,
+  reconcileFilter,
   toggleFilterValue,
 } from './filter'
 
@@ -106,5 +107,50 @@ describe('clearFilterValue', () => {
 describe('outcomeFilterLabels', () => {
   it('未記入を先頭に置き、選択肢を配列順で続ける', () => {
     expect(outcomeFilterLabels(outcomes[0])).toEqual(['', '無料', '500円'])
+  })
+})
+
+describe('reconcileFilter', () => {
+  it('消えた列の鍵を落とす', () => {
+    // 鍵が残ると isFiltered が真のままになり、行が全部出ているのに
+    // 絞り込み中として額縁へ報告し続ける
+    const filter = { values: { cond_gone: ['はい'] }, showImpossible: true }
+    const next = reconcileFilter(conditions, outcomes, filter)
+    expect(next.values).toEqual({})
+    expect(isFiltered(next)).toBe(false)
+  })
+
+  it('列から消えたラベルだけを落とし、残りの選択は保つ', () => {
+    const filter = { values: { cond_a: ['はい', '未知'] }, showImpossible: true }
+    expect(reconcileFilter(conditions, outcomes, filter).values.cond_a).toEqual(['はい'])
+  })
+
+  it('選択が1つも残らない鍵を落とす', () => {
+    const filter = { values: { cond_a: ['未知'] }, showImpossible: true }
+    expect(reconcileFilter(conditions, outcomes, filter).values.cond_a).toBeUndefined()
+  })
+
+  it('列の全ラベルを覆う鍵を落とす', () => {
+    const filter = { values: { cond_a: ['はい', 'いいえ'] }, showImpossible: true }
+    const next = reconcileFilter(conditions, outcomes, filter)
+    expect(next.values.cond_a).toBeUndefined()
+    expect(isFiltered(next)).toBe(false)
+  })
+
+  it('結果列では未記入もラベルとして扱う', () => {
+    const filter = { values: { out_a: ['', '無料'] }, showImpossible: true }
+    expect(reconcileFilter(conditions, outcomes, filter).values.out_a).toEqual(['', '無料'])
+  })
+
+  it('起こりえないを隠す設定は刈り込みで変えない', () => {
+    const filter = { values: { cond_gone: ['はい'] }, showImpossible: false }
+    expect(reconcileFilter(conditions, outcomes, filter).showImpossible).toBe(false)
+  })
+
+  it('変わるものが無ければ同じ参照を返す', () => {
+    // 描画のたびに新しいオブジェクトを返すと、これを state へ書き戻す経路が無限に回る
+    const filter = { values: { cond_a: ['はい'] }, showImpossible: true }
+    expect(reconcileFilter(conditions, outcomes, filter)).toBe(filter)
+    expect(reconcileFilter(conditions, outcomes, EMPTY_FILTER)).toBe(EMPTY_FILTER)
   })
 })

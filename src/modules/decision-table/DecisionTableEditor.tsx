@@ -33,7 +33,13 @@ import { applyBulk, type BulkTarget } from './bulk'
 import { BulkFillBar } from './BulkFillBar'
 import { sectionMarks } from './consistency'
 import { DefinitionList, type DefinitionRow } from './DefinitionList'
-import { EMPTY_FILTER, filterRowIndices, isFiltered, type GridFilter } from './filter'
+import {
+  EMPTY_FILTER,
+  filterRowIndices,
+  isFiltered,
+  reconcileFilter,
+  type GridFilter,
+} from './filter'
 import { GridBody } from './GridBody'
 import { CLEAR_RESULT_LABEL, IMPOSSIBLE_LABEL } from './labels'
 import { isMissingLabel, isMissingResult, LABEL_KIND, RESULT_KIND, tallyMissing } from './missing'
@@ -379,7 +385,31 @@ export function DecisionTableEditor({
    * 表本体の絞り込み。**データには持たない**——見ている範囲は人ごと・その場ごとに
    * 変わるもので、ファイルに残すと他の人の表示まで動かす
    */
-  const [filter, setFilter] = useState<GridFilter>(EMPTY_FILTER)
+  const [pickedFilter, setFilter] = useState<GridFilter>(EMPTY_FILTER)
+
+  /**
+   * いまの条件・結果に合わせて刈り込んだ絞り込み。**書き戻さず、描画のたびに導出する**
+   *——列を消す経路もラベルを書き換える経路も複数あり、どれか1つで書き戻しを
+   * 忘れると、画面から消えた列が行を隠したまま残る。導出なら取りこぼす経路が無い。
+   * 刈り込みは変わらないとき同じ参照を返すので、描画のたびに増えるものは無い
+   */
+  const filter = reconcileFilter(data.conditions, data.outcomes, pickedFilter)
+
+  /**
+   * 値ラベルの書き換えに絞り込みを追従させる。**呼ぶのは書き換えを適用する前**
+   *——旧ラベルは `data` からしか読めない。追従させないと、打鍵のたびに選んだ
+   * ラベルがどの行とも一致しなくなり、絞り込み中の表が黙って空になる
+   */
+  const followRename = (id: string, before: string, after: string): void => {
+    if (before === after) return
+    setFilter((f) => {
+      const picked = f.values[id]
+      if (picked === undefined || !picked.includes(before)) return f
+      // 書き換え先が既に選ばれていると同じラベルが2つ並ぶので、重複を畳む
+      const renamed = [...new Set(picked.map((label) => (label === before ? after : label)))]
+      return { ...f, values: { ...f.values, [id]: renamed } }
+    })
+  }
 
   /** 表に出す行の「元配列での index」 */
   const visible = filterRowIndices(data.conditions, data.outcomes, data.rows, filter)
@@ -611,13 +641,14 @@ export function DecisionTableEditor({
               false,
             )
           }
-          onRenameLabel={(index, labelIndex, label) =>
-            applyDefinition(
+          onRenameLabel={(index, labelIndex, label) => {
+            followRename(data.conditions[index].id, data.conditions[index].values[labelIndex], label)
+            return applyDefinition(
               renameValue(data, index, labelIndex, label),
               cellId(conditionRows.rowKeys[index], `${LABEL_FIELD}${labelIndex}`),
               false,
             )
-          }
+          }}
           onAddRow={() => conditionRows.insertAfter(data.conditions.length - 1)}
           onRemoveRow={(index) => removeRowAt('condition', conditionRows, index)}
           onAddLabel={addValueAt}
@@ -646,13 +677,14 @@ export function DecisionTableEditor({
               false,
             )
           }
-          onRenameLabel={(index, labelIndex, label) =>
-            applyDefinition(
+          onRenameLabel={(index, labelIndex, label) => {
+            followRename(data.outcomes[index].id, data.outcomes[index].choices[labelIndex], label)
+            return applyDefinition(
               renameChoice(data, index, labelIndex, label),
               cellId(outcomeRows.rowKeys[index], `${LABEL_FIELD}${labelIndex}`),
               false,
             )
-          }
+          }}
           onAddRow={() => outcomeRows.insertAfter(data.outcomes.length - 1)}
           onRemoveRow={(index) => removeRowAt('outcome', outcomeRows, index)}
           onAddLabel={addChoiceAt}

@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import type { EditorProps } from '@/core/registry'
 import type { Condition, DecisionTableSchemaVersion1, Outcome } from '@/types/decision-table'
 import { checkDecisionTableConsistency } from './consistency'
 import { DecisionTableEditor } from './DecisionTableEditor'
@@ -36,6 +37,7 @@ function Harness(props: {
   onChange: (next: DecisionTableSchemaVersion1, mergeKey?: string | null) => void
   modalOpen?: boolean
   onToast?: (message: string) => void
+  onVisibleIds?: EditorProps<DecisionTableSchemaVersion1>['onVisibleIds']
 }) {
   const [data, setData] = useState(props.initial)
   return (
@@ -44,6 +46,7 @@ function Harness(props: {
       issues={[]}
       modalOpen={props.modalOpen ?? false}
       onToast={props.onToast}
+      onVisibleIds={props.onVisibleIds}
       onChange={(next, mergeKey) => {
         setData(next)
         props.onChange(next, mergeKey)
@@ -1209,5 +1212,60 @@ describe('絞り込みの報告', () => {
     const [ids, total] = onVisibleIds.mock.calls.at(-1)!
     expect(total).toBe(4)
     expect(ids).toEqual(new Set([JSON.stringify(['はい', 'はい']), JSON.stringify(['はい', 'いいえ'])]))
+  })
+})
+
+/** 条件2本・結果1本で、結果は全行未記入。条件を消しても確認ダイアログが挟まらない */
+const filterableEmptyResults = table({
+  conditions: [
+    condition({ id: 'cond_a', name: '会員か' }),
+    condition({ id: 'cond_b', name: '5000円以上か' }),
+  ],
+  outcomes: [outcome({ id: 'out_a', name: '送料', choices: ['無料', '500円'] })],
+  rows: [
+    { values: ['はい', 'はい'], impossible: false, results: [''] },
+    { values: ['はい', 'いいえ'], impossible: false, results: [''] },
+    { values: ['いいえ', 'はい'], impossible: false, results: [''] },
+    { values: ['いいえ', 'いいえ'], impossible: false, results: [''] },
+  ],
+})
+
+describe('絞り込みと定義部の編集', () => {
+  it('絞り込んでいる値のラベルを打ち直しても行が残る', () => {
+    // 絞り込みはラベルで選択を持つ。打鍵ごとに行のラベルだけが変わると、
+    // 選んだラベルがどの行とも一致せず、表が黙って空になる
+    renderEditor(filterable)
+    fireEvent.keyDown(screen.getByLabelText('会員か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'いいえ' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    fireEvent.change(screen.getByLabelText('値（1行目の1つ目）'), { target: { value: 'は' } })
+    expect(gridRowNumbers()).toEqual(['1', '2'])
+  })
+
+  it('絞り込んでいる選択肢のラベルを打ち直しても行が残る', () => {
+    renderEditor(filterable)
+    fireEvent.keyDown(screen.getByLabelText('送料 の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: '未記入' }))
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: '500円' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(gridRowNumbers()).toEqual(['1', '3'])
+    fireEvent.change(screen.getByLabelText('選択肢（1行目の1つ目）'), { target: { value: '無' } })
+    expect(gridRowNumbers()).toEqual(['1', '3'])
+  })
+
+  it('絞り込んだ列を消すと、額縁への報告も絞り込みなしへ戻る', () => {
+    // 消えた列の鍵は行を隠さないので画面は全行に戻る。鍵だけが残ると、
+    // 報告の側だけが絞り込み中を指したままになる
+    const onVisibleIds = vi.fn()
+    render(
+      <Harness initial={filterableEmptyResults} onChange={vi.fn()} onVisibleIds={onVisibleIds} />,
+    )
+    fireEvent.keyDown(screen.getByLabelText('5000円以上か の絞り込み'), { key: ' ' })
+    fireEvent.click(screen.getByRole('menuitemcheckbox', { name: 'いいえ' }))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(onVisibleIds.mock.calls.at(-1)?.[0]).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '条件を消す（2行目）' }))
+    expect(gridRowNumbers()).toEqual(['1', '2'])
+    expect(onVisibleIds).toHaveBeenLastCalledWith(null, 2)
   })
 })

@@ -8,11 +8,15 @@ import type { Condition, Outcome, Row } from '@/types/decision-table'
  * 新しい値だけが隠れる。
  *
  * **鍵は条件・結果の `id` である。** 位置で持つと、並び替えたときに
- * 別の列の絞り込みを引き継ぐ。ID が重複しているファイルでは2列が同じ
- * 絞り込みを共有するが、その状態は `duplicate-id` が赤で出している
+ * 別の列の絞り込みを引き継ぐ。ID が重複しているファイルでは2列が同じ絞り込みを
+ * 共有する。`duplicate-id` が赤で出すのは条件どうし・結果どうしの重複だけなので、
+ * 条件と結果が同じ ID を持つ組み合わせは赤にならないまま共有する
  */
 export interface GridFilter {
-  /** ID → 出すラベル。空の配列は「1つも出さない」であり、鍵が無いのとは違う */
+  /**
+   * ID → 出すラベル。**鍵の無い列は絞り込まない。** 空の配列は「1つも出さない」
+   * という別の状態だが、画面は `reconcileFilter` を通すので絞り込みなしへ戻る
+   */
   values: Readonly<Record<string, readonly string[]>>
   /** 起こりえない行を出すか */
   showImpossible: boolean
@@ -31,9 +35,63 @@ export function isFiltered(filter: GridFilter): boolean {
   return !filter.showImpossible || Object.keys(filter.values).length > 0
 }
 
-/** 結果列の絞り込みに並べるラベル。**先頭は空文字で、画面では未記入と書く** */
+/**
+ * 結果列が取りうる値の一覧。**先頭は空文字で、画面では未記入や「空にする」と書く**
+ *——空欄は欠落であり、一覧から外すと抜けだけを取り出せなくなる
+ */
 export function outcomeFilterLabels(outcome: Outcome): string[] {
   return ['', ...outcome.choices]
+}
+
+/**
+ * 絞り込みを、いまの条件・結果に合わせて刈り込む。**絞り込みは、指している
+ * データより長く残る状態である**——列を消してもラベルを書き換えても、鍵と
+ * ラベルは触られないまま残る。
+ *
+ * 落とすのは3つ。消えた列の鍵、その列に無くなったラベル、そして残りが
+ * 「絞り込んでいない」と同じ意味になった鍵（空になった鍵と、列の全ラベルを
+ * 覆う鍵）である。**覆う鍵を残すと `isFiltered` が嘘をつく。**
+ *
+ * **ラベルの書き換えはここでは追えない。** 旧ラベルと新ラベルの対応を知るのは
+ * 書き換えた側だけで、ここから見ると旧ラベルが消えて新ラベルが増えたようにしか
+ * 見えない。追従は呼び出し側が行う。
+ *
+ * **変わらないときは同じ参照を返す。** 描画のたびに新しいオブジェクトを返すと、
+ * これを state へ書き戻す経路が無限に回る
+ */
+export function reconcileFilter(
+  conditions: readonly Condition[],
+  outcomes: readonly Outcome[],
+  filter: GridFilter,
+): GridFilter {
+  const labelsById = new Map<string, readonly string[]>()
+  // 条件と結果が同じ ID を持つファイルでは、両方のラベルを足した一覧で判定する。
+  // 片方だけで判定すると、共有された絞り込みのうち他方のラベルを落としてしまう
+  const add = (id: string, labels: readonly string[]): void => {
+    const known = labelsById.get(id)
+    labelsById.set(id, known === undefined ? labels : [...known, ...labels])
+  }
+  conditions.forEach((c) => add(c.id, c.values))
+  outcomes.forEach((o) => add(o.id, outcomeFilterLabels(o)))
+
+  const values: Record<string, readonly string[]> = {}
+  let changed = false
+  for (const [id, picked] of Object.entries(filter.values)) {
+    const labels = labelsById.get(id)
+    if (labels === undefined) {
+      changed = true
+      continue
+    }
+    const next = picked.filter((label) => labels.includes(label))
+    const nextSet = new Set(next)
+    if (next.length === 0 || labels.every((label) => nextSet.has(label))) {
+      changed = true
+      continue
+    }
+    if (next.length !== picked.length) changed = true
+    values[id] = next.length === picked.length ? picked : next
+  }
+  return changed ? { ...filter, values } : filter
 }
 
 /**
