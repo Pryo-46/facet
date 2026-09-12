@@ -634,3 +634,17 @@ describe('GlossaryEditor: セルの当たり判定', () => {
     expect(document.activeElement).toBe(other)
   })
 })
+
+describe('GlossaryEditor: 選択肢セルの高さ', () => {
+  it('種別のトリガーはセルの高さいっぱいに広がる', () => {
+    // 広がっていないと、メニューを開くのに欄の帯を狙うことになる
+    renderEditor(twoTerms)
+    expect(screen.getByLabelText('種別（1行目）').className).toContain('h-full')
+  })
+
+  it('文字を打つ欄は高さを持たない', () => {
+    // CellInput は scrollHeight から行数を測る。高さを固定すると測定が壊れる
+    renderEditor(twoTerms)
+    expect(screen.getByLabelText('名称（1行目）').className).not.toContain('h-full')
+  })
+})

@@ -449,3 +449,10 @@ describe('ErrorCatalogEditor: セルの当たり判定', () => {
     expect(document.activeElement).toBe(cell)
   })
 })
+
+describe('ErrorCatalogEditor: 選択肢セルの高さ', () => {
+  it('解決レベルのトリガーはセルの高さいっぱいに広がる', () => {
+    renderEditor(twoErrors)
+    expect(screen.getByLabelText('解決レベル（No.1）').className).toContain('h-full')
+  })
+})

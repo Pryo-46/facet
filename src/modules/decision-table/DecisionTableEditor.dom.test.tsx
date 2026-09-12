@@ -948,3 +948,21 @@ describe('DecisionTableEditor: セルの当たり判定', () => {
     expect(document.activeElement).toBe(cell)
   })
 })
+
+describe('DecisionTableEditor: 選択肢セルの高さ', () => {
+  it('結果のトリガーはセルの高さいっぱいに広がる', () => {
+    renderEditor(emptyResults)
+    expect(screen.getByLabelText('結果A（1行目）').className).toContain('h-full')
+  })
+
+  it('起こりえないのセルのボタンもセルの高さいっぱいに広がる', () => {
+    const withImpossible = table({
+      conditions: [condition({ id: 'cond_a', name: '条件A' })],
+      outcomes: [outcome({ id: 'out_a', name: '結果A', choices: ['X', 'Y'] })],
+      rows: [{ values: ['はい'], impossible: true, results: [''] }],
+    })
+    renderEditor(withImpossible)
+    const cell = screen.getByLabelText(`結果A（1行目）: ${IMPOSSIBLE_LABEL}`)
+    expect(cell.className).toContain('h-full')
+  })
+})

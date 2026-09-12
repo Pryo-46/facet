@@ -2,7 +2,7 @@ import { Ban } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { buttonBase } from '@/components/button-styles'
 import { CellSelect } from '@/components/CellSelect'
-import { cellField, cellFocus, cellInput, headCell } from '@/components/table-styles'
+import { cellButton, cellField, cellFocus, headCell } from '@/components/table-styles'
 import { cellFace, CELL_FACE_CLASS, type ErrorMarks } from '@/core/list-editor/cell-face'
 import { focusCellField } from '@/core/list-editor/cell-hit'
 import { cellId } from '@/core/list-editor/use-list-rows'
@@ -12,12 +12,13 @@ import { CLEAR_RESULT_LABEL, IMPOSSIBLE_LABEL } from './labels'
 import { isMissingResult } from './missing'
 
 /**
- * 起こりえないのセルの入力欄。非アクティブの文字色（`ink-faint`）で置く
+ * 起こりえないのセルのボタン。非アクティブの文字色（`ink-faint`）で置く
  * ——起こりえないが示すのは「この行に結果が無い」ことであって、強調ではない。
- * `cellInput` ではなく `cellField` から組むのは、同じ要素に文字色を2つ載せると
- * どちらが出るかが生成 CSS の並び順で決まるため
+ * `cellButton` ではなく `cellField` から組むのは、同じ要素に文字色を2つ載せると
+ * どちらが出るかが生成 CSS の並び順で決まるため。高さと表示形式は
+ * `cellButton` に合わせる（セルの高さいっぱいに広げ、下端に隙間を残さない）
  */
-const impossibleCellInput = `w-full ${cellField} text-left text-ink-faint`
+const impossibleCellInput = `block h-full w-full ${cellField} text-left text-ink-faint`
 
 /**
  * 結果どうしの境界の縦罫（弱い）。条件と結果の境界（先頭の結果列）は
@@ -258,7 +259,7 @@ export function GridBody(props: GridBodyProps) {
                       onMouseDown={focusCellField}
                     >
                       <CellSelect
-                        className={`${cellInput} appearance-none pr-6`}
+                        className={`${cellButton} appearance-none pr-6`}
                         aria-label={`${outcome.name}（${rowNo}行目）`}
                         data-cell={cellId(rowKey, field)}
                         value={row.results[j] ?? ''}

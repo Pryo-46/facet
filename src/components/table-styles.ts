@@ -30,6 +30,17 @@ export const cellField =
 export const cellInput = `w-full ${cellField} text-ink`
 
 /**
+ * 選択肢セル・ボタンセルの面。**セルの高さいっぱいに広がる**ので、
+ * メニューを開くのに欄の帯を狙わずに済む。`block` を外さないこと——
+ * ボタンの既定はインラインで、行ボックスの下端に隙間が残って高さが揃わない。
+ *
+ * **`<textarea>` には使わないこと。** `CellInput` は `scrollHeight` から
+ * 折り返しの行数を測るので、高さを固定すると測定値がセルの高さになり、
+ * 1行のセルが行いっぱいの行数を返す
+ */
+export const cellButton = `block h-full ${cellInput}`
+
+/**
  * フォーカス中のセルの枠。**`<td>` に載せる**ので、枠の矩形がセルの矩形と
  * 一致する。角丸を足さないこと——`<td>` は角丸を持たず、罫線とずれた
  * 「浮いた箱」に戻る。

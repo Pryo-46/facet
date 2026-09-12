@@ -5,7 +5,7 @@ import { CellSelect } from '@/components/CellSelect'
 import { buttonBase } from '@/components/button-styles'
 import { Chip } from '@/components/Chip'
 import { MissingTally } from '@/components/MissingTally'
-import { cellFocus, cellInput, headCell } from '@/components/table-styles'
+import { cellButton, cellFocus, cellInput, headCell } from '@/components/table-styles'
 import { useColumnResize } from '@/core/column-resize'
 import {
   resolveCommand,
@@ -289,7 +289,7 @@ export function ErrorCatalogEditor({
       return (
         <>
           <CellSelect
-            className={`${cellInput} appearance-none pr-6`}
+            className={`${cellButton} appearance-none pr-6`}
             aria-label={label}
             data-cell={cellId(rowKey, field)}
             value={entry.resolutionLevel}

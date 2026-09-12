@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cellField, cellFocus, cellInput, headCell } from './table-styles'
+import { cellButton, cellField, cellFocus, cellInput, headCell } from './table-styles'
 
 describe('表の見出しセル', () => {
   it('下罫線を border ではなく影で描く', () => {
@@ -38,5 +38,22 @@ describe('表のセルのフォーカス枠', () => {
     expect(cellFocus).toContain('focus-within:ring-inset')
     expect(cellFocus).toContain('focus-within:ring-ring')
     expect(cellFocus).not.toMatch(/rounded/)
+  })
+})
+
+describe('選択肢・ボタンのセル', () => {
+  it('セルの高さいっぱいに広がる', () => {
+    // 広がっていないと、メニューを開くのに欄の帯を狙うことになる。
+    // インラインのままだと行ボックスの下端に隙間が残り、高さが揃わない
+    expect(cellButton).toContain('h-full')
+    expect(cellButton).toMatch(/(^| )block( |$)/)
+    expect(cellButton).toContain(cellInput)
+  })
+
+  it('入力欄の側は高さを持たない', () => {
+    // CellInput は scrollHeight から折り返しの行数を測る。高さを固定すると
+    // 測定値がセルの高さになり、1行のセルが行いっぱいの行数を返す
+    expect(cellInput).not.toContain('h-full')
+    expect(cellField).not.toContain('h-full')
   })
 })
