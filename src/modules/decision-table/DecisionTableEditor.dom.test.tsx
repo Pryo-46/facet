@@ -193,28 +193,53 @@ const atMaxRows = table({
   ),
 })
 
+/**
+ * 直積が768（上限1024の下）で、条件ごとに値を足せるかが分かれる表。
+ *
+ * 値1本の条件Aは足すと2本になり直積が2倍（1536）になるので足せない。
+ * 値3本の条件Bは足すと4本になるだけで直積は1024（上限ちょうど）に収まるので足せる。
+ * **どの条件にも足せないわけではない**ので、上限の案内はまだ出ない
+ */
+const oneConditionAtLimit = table({
+  conditions: [
+    condition({ id: 'cond_a', name: '条件A', values: ['x'] }),
+    condition({ id: 'cond_b', name: '条件B', values: ['p', 'q', 'r'] }),
+    ...Array.from({ length: 8 }, (_, i) => condition({ id: `cond_f${i}`, name: `条件F${i}` })),
+  ],
+})
+
 describe('DecisionTableEditor: 定義部のキー操作（木の家族）', () => {
-  it('条件名セルで Tab を押すと、その条件の値が1つ増える', () => {
-    const { latest } = renderEditor(oneCondition)
+  it('条件名セルで Tab を押すと、1つ目の値の欄へ移り、値は増えない', () => {
+    const { onChange } = renderEditor(oneCondition)
     fireEvent.keyDown(screen.getByLabelText('条件名（1行目）'), { key: 'Tab' })
-    expect(latest()?.conditions[0].values).toHaveLength(3)
+    expect(document.activeElement).toBe(screen.getByLabelText('値（1行目の1つ目）'))
+    expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('条件名セルで Tab を押すと、増えた値の欄へフォーカスが移る', () => {
-    renderEditor(oneCondition)
+  it('値が1つしかない条件でも、名前セルの Tab はその値の欄へ移るだけで増えない', () => {
+    const { onChange } = renderEditor(singleValueCondition)
     fireEvent.keyDown(screen.getByLabelText('条件名（1行目）'), { key: 'Tab' })
+    expect(document.activeElement).toBe(screen.getByLabelText('値（1行目の1つ目）'))
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('途中の値の欄で Tab を押すと、次の値の欄へ移り、値は増えない', () => {
+    const { onChange } = renderEditor(threeValues)
+    fireEvent.keyDown(screen.getByLabelText('値（1行目の2つ目）'), { key: 'Tab' })
+    expect(document.activeElement).toBe(screen.getByLabelText('値（1行目の3つ目）'))
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('末尾の値の欄で Tab を押すと、値が1つ増えてその欄へ移る', () => {
+    const { latest } = renderEditor(oneCondition)
+    fireEvent.keyDown(screen.getByLabelText('値（1行目の2つ目）'), { key: 'Tab' })
+    expect(latest()?.conditions[0].values).toHaveLength(3)
     expect(document.activeElement).toBe(screen.getByLabelText('値（1行目の3つ目）'))
   })
 
-  it('値の欄で Tab を押しても、その行に値が増える（値に子は無いので行へ畳む）', () => {
-    const { latest } = renderEditor(oneCondition)
-    fireEvent.keyDown(screen.getByLabelText('値（1行目の1つ目）'), { key: 'Tab' })
-    expect(latest()?.conditions[0].values).toHaveLength(3)
-  })
-
-  it('行数の上限に達していると、Tab を押しても値が増えない', () => {
+  it('行数の上限に達していると、末尾の値の欄で Tab を押しても増えない', () => {
     const { onChange } = renderEditor(atMaxRows)
-    fireEvent.keyDown(screen.getByLabelText('条件名（1行目）'), { key: 'Tab' })
+    fireEvent.keyDown(screen.getByLabelText('値（1行目の2つ目）'), { key: 'Tab' })
     expect(onChange).not.toHaveBeenCalled()
   })
 
@@ -252,17 +277,25 @@ describe('DecisionTableEditor: 定義部のキー操作（木の家族）', () =
     expect(document.activeElement).toBe(screen.getByLabelText('値（1行目の1つ目）'))
   })
 
-  it('結果の一覧でも、結果名セルの Tab で選択肢が増え、増えた欄へフォーカスが移る', () => {
-    const { latest } = renderEditor(oneOutcome)
+  it('結果名セルで Tab を押すと、1つ目の選択肢の欄へ移り、選択肢は増えない', () => {
+    const { onChange } = renderEditor(oneOutcome)
     fireEvent.keyDown(screen.getByLabelText('結果名（1行目）'), { key: 'Tab' })
-    expect(latest()?.outcomes[0].choices).toHaveLength(3)
-    expect(document.activeElement).toBe(screen.getByLabelText('選択肢（1行目の3つ目）'))
+    expect(document.activeElement).toBe(screen.getByLabelText('選択肢（1行目の1つ目）'))
+    expect(onChange).not.toHaveBeenCalled()
   })
 
-  it('結果の一覧でも、選択肢の欄の Tab がその行に選択肢を足す', () => {
-    const { latest } = renderEditor(oneOutcome)
+  it('選択肢が0本の結果の名前セルで Tab を押すと、選択肢が1つ増えてその欄へ移る', () => {
+    const { latest } = renderEditor(noChoiceOutcome)
+    fireEvent.keyDown(screen.getByLabelText('結果名（1行目）'), { key: 'Tab' })
+    expect(latest()?.outcomes[0].choices).toHaveLength(1)
+    expect(document.activeElement).toBe(screen.getByLabelText('選択肢（1行目の1つ目）'))
+  })
+
+  it('選択肢の欄で Tab を押すと、次の選択肢の欄へ移り、選択肢は増えない', () => {
+    const { onChange } = renderEditor(oneOutcome)
     fireEvent.keyDown(screen.getByLabelText('選択肢（1行目の1つ目）'), { key: 'Tab' })
-    expect(latest()?.outcomes[0].choices).toHaveLength(3)
+    expect(document.activeElement).toBe(screen.getByLabelText('選択肢（1行目の2つ目）'))
+    expect(onChange).not.toHaveBeenCalled()
   })
 
   it('値の ✕ ボタンが Tab の順に入っていない', () => {
@@ -286,6 +319,22 @@ describe('DecisionTableEditor: 定義部のキー操作（木の家族）', () =
     // （フォーカスはこの名前セルに留まる）
     expect(() => fireEvent.keyDown(cell, { key: 'ArrowRight' })).not.toThrow()
     expect(document.activeElement).toBe(cell)
+  })
+})
+
+describe('DecisionTableEditor: 行数の上限の案内', () => {
+  it('行数の上限に達していると、案内の一文が出る', () => {
+    renderEditor(atMaxRows)
+    expect(
+      screen.getByText('行数の上限（1024行）に達しているので、値をこれ以上足せません。'),
+    ).toBeDefined()
+  })
+
+  it('値を足せない条件が1本あっても、他の条件がまだ足せるなら案内は出ない', () => {
+    renderEditor(oneConditionAtLimit)
+    expect(
+      screen.queryByText('行数の上限（1024行）に達しているので、値をこれ以上足せません。'),
+    ).toBeNull()
   })
 })
 

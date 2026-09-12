@@ -75,11 +75,10 @@ const gridContext = {
 const gridRowKey = (index: number): string => `row-${index}`
 
 /**
- * 条件を1本足したあとの行数。**`newCondition()` を呼ばないこと**——
- * 描画のたびに ID を採番することになる。数えるのに要るのは値の本数だけで、
- * ラベルの中身は読まない
+ * 条件を1本足したあとの行数を測るための値。**`newCondition()` を呼ばない**
+ *——描画のたびに ID を採番することになる。数えるのに要るのは値の本数だけである
  */
-const PROBE_CONDITION = { id: '', name: '', values: ['', ''] }
+const PROBE_CONDITION = { id: '', name: '', values: [''] }
 
 /**
  * 削除や追加のあと、フォーカスを移す先。
@@ -187,6 +186,9 @@ export function DecisionTableEditor({
     productSize(
       data.conditions.map((c, i) => (i === index ? { ...c, values: [...c.values, ''] } : c)),
     ) <= MAX_ROWS
+  /** どの条件にも値を足せない。上限に達していることの画面での知らせに使う */
+  const atRowLimit =
+    data.conditions.length > 0 && data.conditions.every((_, i) => !canAddValue(i))
 
   /** ラベルを1つ足し、足した欄へ移る。足す位置は行の末尾 */
   const addValueAt = (index: number): void =>
@@ -279,8 +281,12 @@ export function DecisionTableEditor({
         else section.onRemoveLabel(at.index, labelIndex)
         return true
       case 'insert-child': {
-        // 木の `Tab`＝子を足す。条件の子は値なので、その行に値を1つ足して移る。
-        // ラベルセルから打っても同じ——値に子は無いので、行に足す意味へ畳む
+        // 名前セルからは1つ目の値へ、値セルからは次の値へ移る。移動先が
+        // 無ければ生やす——`Tab` を続けて打つだけで値が並んでいく
+        const next = labelIndex === null ? 0 : labelIndex + 1
+        if (section.rows.focusCell(section.rows.rowKeys[at.index], `${LABEL_FIELD}${next}`)) {
+          return true
+        }
         if (!section.canAddLabel(at.index)) return true
         section.onAddLabel(at.index)
         return true
@@ -487,9 +493,9 @@ export function DecisionTableEditor({
         <MissingTally tally={tallyMissing(data)} onJump={jumpToMissing} />
         <KeyHints hints={DEFINITION_HINTS} />
       </div>
-      {!canAddCondition && (
+      {atRowLimit && (
         <p className="mb-3 text-base text-ink-muted">
-          {`行数の上限（${MAX_ROWS}行）に達しているので、条件をこれ以上足せません。`}
+          {`行数の上限（${MAX_ROWS}行）に達しているので、値をこれ以上足せません。`}
         </p>
       )}
       {/* useListRows の focusCell は containerRef の中を querySelector で引く。
