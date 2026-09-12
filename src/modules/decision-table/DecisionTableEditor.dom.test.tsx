@@ -755,30 +755,25 @@ describe('DecisionTableEditor: 表本体のフォーカスと面', () => {
     }
   })
 
-  it('起こりえないのセルのフォーカスリングが、濃い面の上で見える色である', () => {
+  it('1つのセルに面のクラスを2つ載せない', () => {
     renderEditor(twoOutcomes)
-    const button = screen.getByLabelText(`結果A（1行目）: ${IMPOSSIBLE_LABEL}`)
-    // 既定のリングは ink。ライトでは judge-no の上で 1.66:1 しか出ず、
-    // キーボードでセルを移ったときに行き先が見えない
-    expect(button.className).toContain('focus:ring-judge-no-fg')
-    expect(button.className).not.toContain('focus:ring-ring')
-  })
-
-  it('起こりえない行の結果セルは、行にフォーカスがあっても濃い面のままである', () => {
-    renderEditor(twoOutcomes)
+    // 2つ載せると、どちらが出るかはクラスを書いた順ではなく生成 CSS の並び順で決まる。
+    // 起こりえないと行の面が重なるこのセルが、いちばん踏みやすい
     const button = screen.getByLabelText(`結果A（1行目）: ${IMPOSSIBLE_LABEL}`)
     fireEvent.focus(button)
-    // 1セルに面のクラスを2つ載せると、どちらが出るかは生成 CSS の順で決まる
-    expect(button.closest('td')?.className).toContain('bg-judge-no')
-    expect(button.closest('td')?.className).not.toContain('bg-surface-muted')
+    const faces = button.closest('td')?.className.split(' ').filter((c) => c.startsWith('bg-'))
+    expect(faces).toHaveLength(1)
   })
 
-  it('起こりえない行の結果セルが、無効を表す濃い面になる', () => {
+  it('起こりえない行の結果セルが、沈んだ面と非アクティブの文字になる', () => {
     renderEditor(twoOutcomes)
-    const impossible = screen.getByLabelText(`結果A（1行目）: ${IMPOSSIBLE_LABEL}`).closest('td')
-    expect(impossible?.className).toContain('bg-judge-no')
-    const normal = screen.getByLabelText('結果A（2行目）').closest('td')
-    expect(normal?.className).not.toContain('bg-judge-no')
+    const button = screen.getByLabelText(`結果A（1行目）: ${IMPOSSIBLE_LABEL}`)
+    expect(button.closest('td')?.className).toContain('bg-surface-muted')
+    expect(button.className).toContain('text-ink-faint')
+    // フォーカスの無い普通の行は地のまま
+    expect(screen.getByLabelText('結果A（2行目）').closest('td')?.className).not.toContain(
+      'bg-surface-muted',
+    )
   })
 
   it('結果セルにフォーカスすると、その行のセルに面が付く', () => {

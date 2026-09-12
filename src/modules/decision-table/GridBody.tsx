@@ -11,25 +11,24 @@ import { CLEAR_RESULT_LABEL, IMPOSSIBLE_LABEL } from './labels'
 import { isMissingResult } from './missing'
 
 /**
- * セルの入力欄の土台。**文字とリングの色を持たない**——起こりえないのセルは
- * 濃い面の上に載るので、そこだけ別の色が要る。同じ要素にリングの色を2つ
- * 載せて上書きすることはできない（どちらが出るかは生成 CSS の並び順で決まる）
+ * セルの入力欄の土台。**文字の色を持たない**——起こりえないのセルだけ
+ * 非アクティブの文字色になる。同じ要素に文字色を2つ載せて上書きすることは
+ * できない（どちらが出るかは生成 CSS の並び順で決まる）
  */
 const cellInputBase =
-  'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset'
+  'w-full resize-none overflow-y-auto bg-transparent px-2 py-1 outline-none rounded-sm align-middle focus:ring-2 focus:ring-inset focus:ring-ring'
 
 /**
  * セルの入力欄。全ツール共通の見た目だが、モジュールごとに同じ文字列を持つ
  * （`DefinitionList.tsx` の同名定数と同じ）
  */
-const cellInput = `${cellInputBase} text-ink focus:ring-ring`
+const cellInput = `${cellInputBase} text-ink`
 
 /**
- * 起こりえないのセルの入力欄。濃い面（`judge-no`）の上に載るので、文字も
- * リングも `judge-no-fg` で置く——既定のリングの `ink` はライトで 1.66:1 しか
- * 出ず、キーボードでセルを移ったときに行き先が見えない
+ * 起こりえないのセルの入力欄。非アクティブの文字色（`ink-faint`）で置く
+ * ——起こりえないが示すのは「この行に結果が無い」ことであって、強調ではない
  */
-const impossibleCellInput = `${cellInputBase} text-left text-judge-no-fg focus:ring-judge-no-fg`
+const impossibleCellInput = `${cellInputBase} text-left text-ink-faint`
 
 /**
  * 結果どうしの境界の縦罫（弱い）。条件と結果の境界（先頭の結果列）は
@@ -119,7 +118,7 @@ export function GridBody(props: GridBodyProps) {
    * セルの面。**1セルにつき1つだけ返す**——面のクラスを2つ載せると、
    * どちらが出るかは生成 CSS の並び順で決まり、クラスを書いた順では決まらない。
    * 強い順に
-   * 指摘（赤・黄）＞ 起こりえない ＞ 行の面 ＞ 条件列の面 で当てる。
+   * 指摘（赤・黄）＞ 起こりえない ＞ 行の面 ＞ 読み取り専用の列の面 で当てる。
    *
    * **読み取り専用の列（No・条件）の面は行の面より弱い `bg-surface-subtle` である。**
    * 同じ面を敷くと、選択中の行がこれらの列の上で見分けられなくなる。明度の序列
@@ -135,7 +134,7 @@ export function GridBody(props: GridBodyProps) {
   ): string => {
     const face = cellFace(marks, index, field, warn, rowAnchor)
     if (face !== 'none') return CELL_FACE_CLASS[face]
-    if (impossible) return 'bg-judge-no'
+    if (impossible) return 'bg-surface-muted'
     if (index === surfaceRow) return 'bg-surface-muted'
     return READONLY_FIELDS.has(field) ? 'bg-surface-subtle' : ''
   }
@@ -234,8 +233,9 @@ export function GridBody(props: GridBodyProps) {
                   // 条件と結果の境界（先頭列）だけ見出しと同じ強い罫線にする。
                   // 結果どうしの境界は colBorder（弱い）のまま
                   const border = j === 0 ? headColBorder : colBorder
-                  // 起こりえないの結果セルは決着した否定の濃い面（judge-no）で塗る。
-                  // 面に載せてよい文字色は judge-no-fg だけ（palette-requirements の契約）
+                  // 起こりえないの結果セルは、見送りの箱と同じ一段沈んだ面で塗る。
+                  // 濃い面（judge-no）は決着をバッジの点で示すための色で、行いっぱいに
+                  // 敷くと表の中でいちばん強い要素になる
                   const cellClass = `${border} ${surfaceOf(index, field, isMissingResult(row, j), false, row.impossible)}`
                   if (row.impossible) {
                     return (
