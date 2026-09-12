@@ -123,6 +123,10 @@ export function GridBody(props: GridBodyProps) {
    */
   const [menuRow, setMenuRow] = useState<number | null>(null)
 
+  // 隠れた行のメニューの面を捨てる。行ごと消えたセルは `onOpenChange` の閉じるを
+  // 出さないので、残すと絞り込みを外したときに誰も開いていない行へ面が付く
+  if (menuRow !== null && !visible.includes(menuRow)) setMenuRow(null)
+
   /** 面を敷く行。開いているメニューがあればその行を優先し、無ければフォーカスの行に従う */
   const surfaceRow = menuRow ?? focusedRow
 

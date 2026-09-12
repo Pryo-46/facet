@@ -414,6 +414,11 @@ export function DecisionTableEditor({
   /** 表に出す行の「元配列での index」 */
   const visible = filterRowIndices(data.conditions, data.outcomes, data.rows, filter)
 
+  // 隠れた行のフォーカスの面を捨てる。フォーカスのある要素を DOM から外しても
+  // ブラウザは blur を出さないので、絞り込みで行を隠すと `onGridBlur` は呼ばれない。
+  // 残すと、絞り込みを外したときに誰もいない行へ「この行」の面が付く
+  if (focusedRow !== null && !visible.includes(focusedRow)) setFocusedRow(null)
+
   /**
    * 絞り込みを額縁へ知らせる。**鍵は値の組み合わせで、添字ではない**——
    * この報告は `useEffect` を通るので1フレーム古くなりうる。条件の値を1つ消すと

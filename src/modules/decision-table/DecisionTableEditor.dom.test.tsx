@@ -1316,6 +1316,20 @@ describe('絞り込み中のフォーカス移動', () => {
   })
 })
 
+describe('絞り込みで隠れた行の面', () => {
+  it('隠れている間にフォーカスの面を捨て、戻したときに残さない', () => {
+    // フォーカスのある要素を DOM から外してもブラウザは blur を出さないので、
+    // 隠したときに捨てないと、誰もいない行へ「この行」の面が付いたまま戻る
+    renderEditor(filterable)
+    fireEvent.focus(screen.getByLabelText(`送料（3行目）: ${IMPOSSIBLE_LABEL}`))
+    expect(gridRows()[2].cells[0].className).toContain('bg-surface-muted')
+    fireEvent.click(screen.getByLabelText('起こりえない行を表示'))
+    fireEvent.click(screen.getByLabelText('起こりえない行を表示'))
+    expect(gridRowNumbers()).toEqual(['1', '2', '3', '4'])
+    expect(gridRows()[2].cells[0].className).not.toContain('bg-surface-muted')
+  })
+})
+
 describe('絞り込みで0行になったとき', () => {
   it('見出しの絞り込みは残り、まとめて入力は何も変えない', () => {
     const onChange = vi.fn()
