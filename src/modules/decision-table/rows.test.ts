@@ -6,6 +6,7 @@ import {
   outcomeFromById,
   productSize,
   rebuildRows,
+  rowKeyOf,
   valueIndicesAt,
   type Axis,
 } from './rows'
@@ -182,5 +183,30 @@ describe('対応づけ', () => {
       1,
       null,
     ])
+  })
+})
+
+describe('rowKeyOf', () => {
+  it('値の組み合わせが同じ行だけが同じ鍵になる', () => {
+    const a: Row = { values: ['はい', 'いいえ'], impossible: false, results: ['X'] }
+    const b: Row = { values: ['はい', 'いいえ'], impossible: true, results: [] }
+    const c: Row = { values: ['いいえ', 'はい'], impossible: false, results: ['X'] }
+    expect(rowKeyOf(a)).toBe(rowKeyOf(b))
+    expect(rowKeyOf(a)).not.toBe(rowKeyOf(c))
+  })
+
+  it('区切りに使う NUL を鍵の中に出さない', () => {
+    // useVisibleIdsReport は鍵を NUL 文字で連結する。生の NUL を含む鍵を返すと、
+    // 1つの鍵が2つに割れて別の行を指す
+    const NUL = String.fromCharCode(0)
+    const row: Row = { values: [`あ${NUL}い`], impossible: false, results: [] }
+    expect(rowKeyOf(row)).not.toContain(NUL)
+  })
+
+  it('ラベルの連結では区別できない組み合わせを分ける', () => {
+    // 素朴な join では ['あ', 'いう'] と ['あい', 'う'] が同じ文字列になる
+    const a: Row = { values: ['あ', 'いう'], impossible: false, results: [] }
+    const b: Row = { values: ['あい', 'う'], impossible: false, results: [] }
+    expect(rowKeyOf(a)).not.toBe(rowKeyOf(b))
   })
 })
