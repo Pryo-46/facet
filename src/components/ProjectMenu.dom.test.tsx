@@ -160,5 +160,14 @@ describe('ProjectMenu: 登録が空のとき', () => {
     expect(onAdd).toHaveBeenCalled()
     // ドロップダウンではない（メニューを開こうとしても出てこない）
     expect(screen.queryByRole('menu')).toBeNull()
+    expect(trigger.getAttribute('aria-haspopup')).toBeNull()
+  })
+
+  // 素のボタンとドロップダウンの区別は `aria-haspopup` に出る。テストが
+  // その属性で経路を分けるので、1件でも登録があればトリガー側に立つことを縛る
+  it('登録が1件あればトリガーがドロップダウンを名乗る', () => {
+    render(<ProjectMenu {...makeProps({ projects: [juchu] })} />)
+    const trigger = screen.getByRole('button', { name: 'プロジェクトを切り替え' })
+    expect(trigger.getAttribute('aria-haspopup')).toBe('menu')
   })
 })

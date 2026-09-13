@@ -51,6 +51,8 @@ const {
   writeProjectFileMock,
   saveProjectsMock,
   saveSettingsMock,
+  pickConfig,
+  missingConfig,
   restoreConfig,
   allowProjectDirCalls,
   updateConfig,
@@ -77,6 +79,10 @@ const {
     writeProjectFileMock: vi.fn(async (_path: string, _text: string) => undefined),
     saveProjectsMock: vi.fn(async (_projects: readonly RegisteredProject[]) => undefined),
     saveSettingsMock: vi.fn(async () => undefined),
+    // フォルダ選択ダイアログが返すパス。既定の `/proj` は既存テストの前提
+    pickConfig: { dir: '/proj' as string | null },
+    // `dirsExist` が「無い」と答えるパス。既定は空（全部ある）
+    missingConfig: { paths: [] as string[] },
     // 起動時復元専用の可変状態。既定は「登録なし」——このファイルの
     // 既存テストはどれも起動時復元を前提にしていないので、既定を変えない
     restoreConfig: {
@@ -122,7 +128,7 @@ const {
 })
 
 vi.mock('@/fs/project-fs', () => ({
-  pickProjectFolder: async () => '/proj',
+  pickProjectFolder: async () => pickConfig.dir,
   // `disk` 経由だが、既定は空なので「listJsonFiles は常に []」という
   // 既存テストの前提はそのまま
   listJsonFiles: async () => [...disk.keys()],
@@ -134,7 +140,7 @@ vi.mock('@/fs/project-fs', () => ({
     if (restoreConfig.allowError !== null) throw restoreConfig.allowError
   },
   // 切り替えメニューを開いたときの存在確認。既定は「全部ある」
-  dirsExist: async (paths: readonly string[]) => paths.map(() => true),
+  dirsExist: async (paths: readonly string[]) => paths.map((p) => !missingConfig.paths.includes(p)),
   moveFileToTrash: async () => undefined,
   joinPath: async (dir: string, name: string) => `${dir}/${name}`,
   watchFolder: async () => () => undefined,
@@ -340,6 +346,8 @@ afterEach(() => {
   ptyDataMode.value = 'sync'
   writeProjectFileMock.mockClear()
   saveProjectsMock.mockClear()
+  pickConfig.dir = '/proj'
+  missingConfig.paths = []
   restoreConfig.projects = []
   restoreConfig.exists = false
   restoreConfig.allowError = null
@@ -365,11 +373,6 @@ beforeEach(() => {
 })
 
 /**
- * 端末ペインの中の要素を返す。**`role="tablist"` は名乗っていない**
- *（TerminalPane.tsx のコメント参照。素の button + aria-pressed）ので、
- * セッションのタブボタン（ラベルは `Claude <連番>`。sessions.ts）で代用する
- */
-/**
  * プロジェクトを追加してフォルダを選ぶ。**帯に専用のボタンは無い**——
  * プロジェクトのメニューを通す1本の経路しかないので、テストもそこを通す。
  * 開く操作は Radix の作法に合わせて pointerDown で起こす（ExportMenu.dom.test.tsx と同じ）。
@@ -388,6 +391,11 @@ async function openProjectFolder(triggerName = 'プロジェクトを追加') {
   fireEvent.click(await screen.findByRole('menuitem', { name: 'プロジェクトを追加' }))
 }
 
+/**
+ * 端末ペインの中の要素を返す。**`role="tablist"` は名乗っていない**
+ *（TerminalPane.tsx のコメント参照。素の button + aria-pressed）ので、
+ * セッションのタブボタン（ラベルは `Claude <連番>`。sessions.ts）で代用する
+ */
 async function openPane() {
   render(<App />)
   await openProjectFolder()
@@ -514,6 +522,50 @@ describe('プロジェクトの切り替えメニュー', () => {
     await openRename()
     // fireEvent は preventDefault されていなければ true を返す
     expect(fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })).toBe(true)
+  })
+})
+
+describe('見つからない登録を選び直す', () => {
+  const registered = (path: string): RegisteredProject => ({
+    path,
+    name: path.slice(1),
+    favorite: false,
+    lastOpenedAt: '2026-03-01T00:00:00.000Z',
+  })
+
+  /** 見つからない行を押して選び直しを起こす。押した後の登録の最終形を返す */
+  async function relocate(stored: readonly string[], missing: string, picked: string) {
+    restoreConfig.projects = stored.map(registered)
+    missingConfig.paths = [missing]
+    pickConfig.dir = picked
+    render(<App />)
+    const trigger = await screen.findByRole('button', { name: 'プロジェクトを切り替え' })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+    // 行そのもの（本体の menuitem）を押す。お気に入り・省略記号のボタンも
+    // 同じ名前を含むため、ヒントの祖先から辿って一意に選ぶ
+    const hint = await screen.findByText('見つからない — 押して選び直す')
+    const row = hint.closest('[role="menuitem"]')
+    if (row === null) throw new Error('行の menuitem が見つからない')
+    fireEvent.click(row)
+    await waitFor(() => expect(saveProjectsMock).toHaveBeenCalled())
+    return saveProjectsMock.mock.calls.at(-1)![0]
+  }
+
+  it('末尾に区切りが付いたパスを選んでも同じフォルダが二重に並ばない', async () => {
+    const saved = await relocate(['/gone'], '/gone', '/moved/')
+    await waitFor(() => {
+      expect(saveProjectsMock.mock.calls.at(-1)![0]).toHaveLength(1)
+    })
+    expect(saved[0]).toMatchObject({ path: '/moved', name: 'gone' })
+  })
+
+  it('既に登録済みのパスを選ぶと、同じパスの行が2つにならない', async () => {
+    await relocate(['/gone', '/keep'], '/gone', '/keep')
+    await waitFor(() => {
+      const latest = saveProjectsMock.mock.calls.at(-1)![0]
+      expect(latest.filter((p) => p.path === '/keep')).toHaveLength(1)
+      expect(latest).toHaveLength(1)
+    })
   })
 })
 

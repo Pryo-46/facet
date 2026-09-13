@@ -44,7 +44,7 @@ import { describeLegacyArtifacts } from '@/core/legacy-artifacts'
 import { titleOf, withTitle } from '@/core/load'
 import { dropModal, pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
 import type { ProjectFile } from '@/core/project-file'
-import { touchProject, type RegisteredProject } from '@/core/projects'
+import { canonicalPath, touchProject, type RegisteredProject } from '@/core/projects'
 import { scanFolder } from '@/core/scan'
 import { type AppSettings } from '@/core/settings'
 import { appSettings } from '@/core/settings-store'
@@ -392,12 +392,13 @@ function App() {
    * 次回の起動で復元されないだけで、このセッションの作業には響かない
    */
   const persistProjects = (next: readonly RegisteredProject[]) => {
-    setProjects([...next])
+    const snapshot = [...next]
+    setProjects(snapshot)
     // **ref も同じ行で進める。** 続けて `projectsRef` を読む経路（選び直して
     // そのまま開く等）が再レンダーを待たずに走るので、ここを省くと直前の
     // 差し替えを取り逃がす
-    projectsRef.current = [...next]
-    saveProjects(next).catch((err: unknown) => {
+    projectsRef.current = snapshot
+    saveProjects(snapshot).catch((err: unknown) => {
       console.error('プロジェクトの登録の保存に失敗しました', err)
     })
   }
@@ -754,10 +755,9 @@ function App() {
    * 起動時に最終オープンが最も新しい登録を復元する。**お気に入りは見ない**——
    * お気に入りは一覧の並び順の都合で、最後に開いていたものとは別である。
    *
-   * ダイアログを
-   * 経由しないため、`fileExists` の前に `allowProjectDir` で fs の実行時 scope
-   * を明示的に取り直す必要がある（`allow_project_dir` 参照。ダイアログ由来の
-   * scope はセッション限りで次回起動には引き継がれない）。
+   * ダイアログを経由しないため、`fileExists` の前に `allowProjectDir` で fs の
+   * 実行時 scope を明示的に取り直す必要がある（`allow_project_dir` 参照。
+   * ダイアログ由来の scope はセッション限りで次回起動には引き継がれない）。
    *
    * あらゆる失敗（設定の読み込み・scope の再付与・存在確認）は「フォルダ
    * 未選択」の通常起動として握りつぶす——ユーザーに通知するほどの障害ではない。
@@ -890,12 +890,23 @@ function App() {
     )
   }
 
-  /** 見つからない登録のパスを選び直す。表示名とお気に入りは保つ */
+  /**
+   * 見つからない登録のパスを選び直す。表示名とお気に入りは保つ。
+   *
+   * **`canonicalPath` を通してから書く。** 末尾に区切りが付いたまま鍵にすると、
+   * 直後の `touchProject` が正規形で引いて当たらず、同じフォルダが二重に並ぶ。
+   *
+   * **選び直し先が既に登録済みなら、その行を落とす。** 同じ `path` の行が2つ
+   * できると `ProjectMenu` の `key` が重複する
+   */
   const relocateProject = async (project: RegisteredProject) => {
-    const dir = await pickProjectFolder()
-    if (dir === null) return
+    const picked = await pickProjectFolder()
+    if (picked === null) return
+    const dir = canonicalPath(picked)
     persistProjects(
-      projectsRef.current.map((p) => (p.path === project.path ? { ...p, path: dir } : p)),
+      projectsRef.current
+        .filter((p) => p.path === project.path || p.path !== dir)
+        .map((p) => (p.path === project.path ? { ...p, path: dir } : p)),
     )
     await requestSwitch(dir)
   }
@@ -1174,13 +1185,15 @@ function App() {
             onAdd={() => void addProject()}
             onToggleFavorite={(project) =>
               persistProjects(
-                projects.map((p) =>
+                projectsRef.current.map((p) =>
                   p.path === project.path ? { ...p, favorite: !p.favorite } : p,
                 ),
               )
             }
             onRename={(project) => setRenameTarget(project)}
-            onRemove={(project) => persistProjects(projects.filter((p) => p.path !== project.path))}
+            onRemove={(project) =>
+              persistProjects(projectsRef.current.filter((p) => p.path !== project.path))
+            }
             onRelocate={(project) => void relocateProject(project)}
           />
         </div>
@@ -1507,7 +1520,9 @@ function App() {
       <RenameProjectDialog
         project={renameTarget}
         onSubmit={(project, name) => {
-          persistProjects(projects.map((p) => (p.path === project.path ? { ...p, name } : p)))
+          persistProjects(
+            projectsRef.current.map((p) => (p.path === project.path ? { ...p, name } : p)),
+          )
           setRenameTarget(null)
         }}
         onClose={() => setRenameTarget(null)}
