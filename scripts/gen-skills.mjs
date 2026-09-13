@@ -41,6 +41,15 @@ export const SKILL_SOURCES = {
     schema: 'logic-tree',
     shared: ['src/core/canonical.ts', 'src/core/canvas/flat-tree-core.ts'],
   },
+  'write-decision-table': {
+    schema: 'decision-table',
+    shared: [
+      'src/core/canonical.ts',
+      'src/modules/decision-table/rows.ts',
+      'src/modules/decision-table/missing.ts',
+      'src/core/missing-tally.ts',
+    ],
+  },
 }
 
 /**
