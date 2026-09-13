@@ -1,6 +1,13 @@
 import type { MissingTally } from '@/core/missing-tally'
 import type { DecisionTableSchemaVersion1, Row } from '@/types/decision-table'
 
+/*
+ * **このファイルは `npm run gen:skills` が `.mjs` へ変換し、
+ * plugins/facet/skills/write-decision-table/scripts/generated/missing.mjs として
+ * 登録 Skill へ同梱される。** だから値 import・相対 import・enum を持たない。
+ * 制約と出力の一致は scripts/gen-skills.test.mjs が検知する
+ */
+
 /** 帯のチップの鍵。ジャンプ先の区画がこれで決まる */
 export const RESULT_KIND = 'result'
 export const LABEL_KIND = 'label'

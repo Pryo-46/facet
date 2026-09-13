@@ -7,6 +7,11 @@
  * **課題ツリーの derive.ts は同じ文字列を自前で組み立てる**（同梱 Skill の
  * バイト一致コピーが値 import を持てないため）。両者の一致は
  * derive.test.ts が機械検査する——どちらかを変えるときは必ず両方
+ *
+ * **このファイル自体も `npm run gen:skills` が `.mjs` へ変換し、
+ * plugins/facet/skills/write-decision-table/scripts/generated/missing-tally.mjs
+ * として登録 Skill へ同梱される。** だから import を持たない。
+ * 制約と出力の一致は scripts/gen-skills.test.mjs が検知する
  */
 export interface MissingTallyPart {
   /** モジュール固有の鍵。MissingTally 部品の onJump に渡る */

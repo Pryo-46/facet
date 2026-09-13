@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import type { Condition, Row } from '@/types/decision-table'
+import type { Condition, Outcome, Row } from '@/types/decision-table'
 import {
+  alignRowsByLabel,
   axesById,
   identityAxes,
   outcomeFromById,
   productSize,
+  rebaseRows,
   rebuildRows,
   rowKeyOf,
   valueIndicesAt,
@@ -183,6 +185,123 @@ describe('対応づけ', () => {
       1,
       null,
     ])
+  })
+})
+
+describe('下書きの行を直積へ引き当てる', () => {
+  it('乱れた並びの行を直積の並びへ整え、中身は変えない', () => {
+    const scrambled = [TWO_ROWS[3], TWO_ROWS[1], TWO_ROWS[0], TWO_ROWS[2]]
+    const aligned = alignRowsByLabel(TWO, 1, scrambled)
+    expect(aligned).toEqual({ rows: TWO_ROWS, stray: [], conflicts: [], ambiguous: false })
+  })
+
+  it('欠けた組み合わせを空の結果で補う', () => {
+    const aligned = alignRowsByLabel(TWO, 2, [row(['いいえ', 'はい'], ['無料', '出す'], true)])
+    expect(aligned.rows).toEqual([
+      row(['はい', 'はい'], ['', '']),
+      row(['はい', 'いいえ'], ['', '']),
+      row(['いいえ', 'はい'], ['無料', '出す'], true),
+      row(['いいえ', 'いいえ'], ['', '']),
+    ])
+  })
+
+  it('直積に当てはまらない行を stray に入れ、行は入力のまま返す', () => {
+    const input = [
+      row(['はい', 'はい'], ['無料']),
+      row(['はい', 'たぶん'], ['無料']), // 未知の値
+      row(['はい'], ['無料']), // values の長さ違い
+      row(['いいえ', 'はい'], ['無料', '余り']), // results の長さ違い
+    ]
+    const aligned = alignRowsByLabel(TWO, 1, input)
+    expect(aligned.stray).toEqual([1, 2, 3])
+    expect(aligned.rows).toEqual(input)
+  })
+
+  it('同じ組み合わせの2行は、中身が同じなら1行にまとめ、食い違えば conflicts に入れる', () => {
+    const same = alignRowsByLabel(TWO, 1, [...TWO_ROWS, row(['はい', 'はい'], ['無料'])])
+    expect(same.rows).toEqual(TWO_ROWS)
+    expect(same.conflicts).toEqual([])
+
+    const input = [...TWO_ROWS, row(['いいえ', 'いいえ'], ['無料']), row(['はい', 'はい'], ['無料'], true)]
+    const differ = alignRowsByLabel(TWO, 1, input)
+    expect(differ.conflicts).toEqual([
+      [0, 5],
+      [3, 4],
+    ])
+    expect(differ.rows).toEqual(input)
+  })
+
+  it('1つの条件に同じ値ラベルが2件あると、並べ替えずに ambiguous を立てる', () => {
+    const dup = [cond('cond_Aaaaaaaaa1', '会員か', ['はい', 'はい']), TWO[1]]
+    const input = [TWO_ROWS[1], TWO_ROWS[0]]
+    const aligned = alignRowsByLabel(dup, 1, input)
+    expect(aligned.ambiguous).toBe(true)
+    expect(aligned.rows).toEqual(input)
+  })
+
+  it('条件が0本なら行は0本で、入力の行はすべて stray', () => {
+    expect(alignRowsByLabel([], 1, [])).toEqual({ rows: [], stray: [], conflicts: [], ambiguous: false })
+    expect(alignRowsByLabel([], 1, [row([], ['無料'])]).stray).toEqual([0])
+  })
+})
+
+describe('定義の変更から行を組み直す', () => {
+  const out = (id: string, name: string, choices: string[]): Outcome => ({ id, name, choices })
+  const FEE = out('out_Aaaaaaaaa1', '送料', ['無料', '500円'])
+  const base = { conditions: TWO, outcomes: [FEE], rows: TWO_ROWS }
+
+  it('条件を1本足すと、既存の結果が新しい値ぶん複製される', () => {
+    const next = { conditions: [...TWO, cond('cond_Aaaaaaaaa3', 'キャンペーン中か', ['はい', 'いいえ'])], outcomes: [FEE] }
+    const built = rebaseRows(base, next)
+    expect(built.rows).toHaveLength(8)
+    expect(built.rows[6]).toEqual(row(['いいえ', 'いいえ', 'はい'], ['500円']))
+    expect(built.rows[7]).toEqual(row(['いいえ', 'いいえ', 'いいえ'], ['500円']))
+    expect(built.lostCells).toBe(0)
+  })
+
+  it('条件を消して結果が食い違うと空欄に落ちる', () => {
+    const built = rebaseRows(base, { conditions: [TWO[1]], outcomes: [FEE] })
+    expect(built.rows).toEqual([row(['はい'], ['無料']), row(['いいえ'], [''])])
+    expect(built.clearedCells).toBe(1)
+  })
+
+  it('値の本数が変わらなければ、改名として位置で引き継ぐ', () => {
+    const renamed = [cond('cond_Aaaaaaaaa1', '会員か', ['会員', '非会員']), TWO[1]]
+    const built = rebaseRows(base, { conditions: renamed, outcomes: [FEE] })
+    expect(built.rows[3]).toEqual(row(['非会員', 'いいえ'], ['500円']))
+    expect(built.lostCells).toBe(0)
+  })
+
+  it('値の本数が変われば、ラベルで引き継ぎ、新しい値の行は空から始まる', () => {
+    // 先頭に足す。位置で引くと「はい」の行へ「退会済み」の結果が入る
+    const grown = [cond('cond_Aaaaaaaaa1', '会員か', ['退会済み', 'はい', 'いいえ']), TWO[1]]
+    const built = rebaseRows(base, { conditions: grown, outcomes: [FEE] })
+    expect(built.rows).toEqual([
+      row(['退会済み', 'はい'], ['']),
+      row(['退会済み', 'いいえ'], ['']),
+      ...TWO_ROWS,
+    ])
+    expect(built.lostCells).toBe(0)
+  })
+
+  it('選択肢の改名で、結果セルのラベルも書き換わる', () => {
+    const renamed = out('out_Aaaaaaaaa1', '送料', ['0円', '500円'])
+    const built = rebaseRows(base, { conditions: TWO, outcomes: [renamed] })
+    expect(built.rows.map((r) => r.results[0])).toEqual(['0円', '0円', '0円', '500円'])
+    expect(built.lostCells).toBe(0)
+  })
+
+  it('選択肢を消すと、それを選んでいた結果セルが空に戻り、失われた数に入る', () => {
+    const shrunk = out('out_Aaaaaaaaa1', '送料', ['500円', '1000円', '2000円'])
+    const built = rebaseRows(base, { conditions: TWO, outcomes: [shrunk] })
+    expect(built.rows.map((r) => r.results[0])).toEqual(['', '', '', '500円'])
+    expect(built.lostCells).toBe(3)
+  })
+
+  it('結果を消すと、記入済みのセルが失われた数に入る', () => {
+    const built = rebaseRows(base, { conditions: TWO, outcomes: [] })
+    expect(built.rows[0].results).toEqual([])
+    expect(built.lostCells).toBe(4)
   })
 })
 
