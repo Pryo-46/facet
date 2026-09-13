@@ -89,7 +89,8 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **仮説と FB の並び替え、および挿入位置の指定手段が無い**（`src/modules/issue-tree/commands.ts`）。
 - **別種のチップを押すときの挿入起点が問いの欄でだけ列の先頭へ落ちる**（`src/modules/issue-tree/IssueTreeEditor.tsx`）。
 - **「保留」の語が経緯の残らない列の上に乗る**（`schemas/issue-tree.schema.json` の `judgementEvent.kind`）。判断が差し替え式になり、保留にした経緯がデータに残らない。
-- **`writeMerged` の read-modify-write に直列化が無い**（`src/fs/settings-fs.ts`）。フォルダを開く保存と設定の保存が近接すると、後発が古い読み取りの上に書いて片方が落ちる。
+- **`writeMerged` の read-modify-write に直列化が無い**（`src/fs/settings-fs.ts`）。プロジェクトの登録と設定の保存が近接すると、後発が古い読み取りの上に書いて片方が落ちる。
+- **メニューから切り替えるとき `allowProjectDir` の失敗が画面に出ない**（`src/App.tsx`）。`console.error` だけで、押しても何も起きないように見える。
 - **絞り込みの状態がファイルを切り替えると消える**（`src/modules/decision-table/DecisionTableEditor.tsx`）。データに持たない判断の裏返しで、同じファイルへ戻ると全行表示に戻る。
 - **まとめて入力の適用先を位置で指しており、結果が縮むと同じ添字が別の結果を指すようになる**（`src/modules/decision-table/BulkFillBar.tsx`）。
 
