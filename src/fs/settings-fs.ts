@@ -1,6 +1,7 @@
 import { appConfigDir, join } from '@tauri-apps/api/path'
 import { exists, mkdir, readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { normalizeSettings, type AppSettings } from '@/core/settings'
+import { normalizeProjects, folderName, type RegisteredProject } from '@/core/projects'
 
 const SETTINGS_FILE_NAME = 'settings.json'
 
@@ -22,7 +23,7 @@ async function readFile(): Promise<Record<string, unknown>> {
 
 /**
  * 読んでから重ねて書く。**丸ごと上書きしないこと。**
- * `lastProjectDir`（起動時の復元）と設定は書き手が別なので、片方が全体を
+ * 登録済みプロジェクトと設定は書き手が別なので、片方が全体を
  * 書くと他方が毎回消える
  */
 async function writeMerged(patch: Record<string, unknown>): Promise<void> {
@@ -66,4 +67,25 @@ export async function readSettings(): Promise<AppSettings> {
 /** 設定を保存する。`lastProjectDir` は触らない */
 export async function saveSettings(settings: AppSettings): Promise<void> {
   await writeMerged({ theme: settings.theme, canvas: settings.canvas })
+}
+
+/**
+ * 登録済みプロジェクトを読む。読めない・壊れているのいずれでも空配列を返し、
+ * 例外を投げない。
+ *
+ * **`projects` キーが無いときだけ `lastProjectDir` を取り込む。**
+ * 空配列を「まだ移行していない」と読むと、全部を一覧から外した利用者に
+ * 消したはずの1件が毎回戻る
+ */
+export async function readProjects(): Promise<RegisteredProject[]> {
+  const parsed = await readFile()
+  if (parsed.projects !== undefined) return normalizeProjects(parsed.projects)
+  const dir = parsed.lastProjectDir
+  if (typeof dir !== 'string' || dir === '') return []
+  return normalizeProjects([{ path: dir, name: folderName(dir) }])
+}
+
+/** 登録済みプロジェクトを保存する。`theme` と `canvas` は触らない */
+export async function saveProjects(projects: readonly RegisteredProject[]): Promise<void> {
+  await writeMerged({ projects: [...projects] })
 }
