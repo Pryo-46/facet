@@ -19,12 +19,24 @@ describe('decisionTableModule', () => {
     expect(empty.rows).toEqual([])
   })
 
-  it('出力を持たない（額縁が書き出しボタンを押せなくする）', () => {
-    expect(decisionTableModule.outputs).toEqual([])
+  it('出力は Markdown 1本で、describeIssueEffect を持つ', () => {
+    expect(decisionTableModule.outputs).toHaveLength(1)
+    const [only] = decisionTableModule.outputs
+    expect(only.id).toBe('default')
+    expect(only.label).toBe('Markdown')
+    expect(only.fileSuffix).toBe('')
+    expect(only.describeIssueEffect).toBeTypeOf('function')
+    expect(only.toMarkdown(decisionTableModule.createEmpty('t'))).toContain('### 判定表')
   })
 
-  it('表形式コピーもクリップボード交換も宣言しない', () => {
-    expect(decisionTableModule.tableExport).toBeUndefined()
+  it('表形式コピーは判定表1本で、設定は No 列と（未定義）だけ', () => {
+    const tableExport = decisionTableModule.tableExport
+    expect(tableExport?.options).toEqual(['numbering', 'showUndefined'])
+    expect(tableExport?.variants.map((v) => v.id)).toEqual(['default'])
+    expect(tableExport?.variants.map((v) => v.label)).toEqual(['判定表'])
+  })
+
+  it('クリップボード交換は宣言しない', () => {
     expect(decisionTableModule.clipboardExchanges).toBeUndefined()
   })
 
