@@ -34,6 +34,17 @@ export interface KeyEventLike {
   isComposing: boolean
 }
 
+/**
+ * 構造ファミリー（rev 10章の構造依存層）。**排他なので1つだけ選ぶ**——真偽値を
+ * 並べると、両方が立った文脈を型が許してしまう。
+ *
+ * - `'list'`: 縦に並ぶフラットなリスト。`Tab` は欄の移動で、`←→` は欄のもの
+ * - `'tree'`: 子を持てる構造。`Tab` は子追加で、`←→` が親子間の移動になる
+ * - `'horizontal'`: 横に並ぶリスト。`Alt+←→` が並び替えで、`↑↓` は関与しない
+ * - `'grid'`: 行を足せない表。`Enter` は下の行へ、`←→` は隣の列へ送る
+ */
+export type KeyFamily = 'list' | 'tree' | 'horizontal' | 'grid'
+
 export interface KeyContext {
   platform: Platform
   /** モーダル表示中は操作言語を停止する（キーはモーダル側が取る） */
@@ -51,18 +62,8 @@ export interface KeyContext {
   arrowsOwnedByField: boolean
   /** 並び替えが有効か。導出表示中は false（session-notes 論点4） */
   reorderEnabled: boolean
-  /**
-   * 子を持てる構造か（ツリー・アウトライン）。true のとき Tab は
-   * ファミリー標準の「子追加」になり、←→ が親子間の移動になる（rev 10章）。
-   * 用語集のようなフラットなリストは false——「子」という意味が存在しない
-   */
-  hierarchical: boolean
-  /**
-   * 横に並ぶリストか（シーケンスのアクターヘッダ）。true のとき Alt+←→ が
-   * 並び替え、←→ がキャレット端で隣への移動になり、↑↓ は関与しない。
-   * hierarchical と同時に true にしないこと
-   */
-  horizontal: boolean
+  /** 構造ファミリー。`Tab`・`←→`・`Enter` の意味がこれで決まる */
+  family: KeyFamily
 }
 
 /**
@@ -95,44 +96,54 @@ export function resolveCommand(e: KeyEventLike, ctx: KeyContext): Command | null
     case 'Escape':
       return 'cancel'
     case 'Enter':
-      return e.altKey || e.shiftKey ? null : 'insert-item-after'
+      if (e.altKey || e.shiftKey) return null
+      // 表の行は条件の直積から導出するので足せない。Excel と同じく下の行へ送る
+      return ctx.family === 'grid' ? 'focus-next' : 'insert-item-after'
     case 'Tab':
       if (e.altKey) return null
       // 階層構造では Tab は子追加（rev 10章 階層・リスト系の標準）。
       // Shift+Tab に「親にする」は割り当てない——意味を
       // 与えないことで、キャンバスから Tab 順で抜ける経路として残る
-      if (ctx.hierarchical) return e.shiftKey ? null : 'insert-child'
+      if (ctx.family === 'tree') return e.shiftKey ? null : 'insert-child'
       return e.shiftKey ? 'focus-prev-field' : 'focus-next-field'
     case 'Backspace':
       if (e.altKey || e.shiftKey) return null
       return ctx.fieldEmpty && ctx.deletableField ? 'delete-item' : null
     case 'ArrowUp':
-      if (ctx.horizontal) return null
+      if (ctx.family === 'horizontal') return null
       if (e.altKey) return ctx.reorderEnabled ? 'move-item-up' : null
       if (e.shiftKey || ctx.arrowsOwnedByField) return null
       return !ctx.editing || ctx.caretAtStart ? 'focus-prev' : null
     case 'ArrowDown':
-      if (ctx.horizontal) return null
+      if (ctx.family === 'horizontal') return null
       if (e.altKey) return ctx.reorderEnabled ? 'move-item-down' : null
       if (e.shiftKey || ctx.arrowsOwnedByField) return null
       return !ctx.editing || ctx.caretAtEnd ? 'focus-next' : null
     case 'ArrowLeft':
-      if (ctx.horizontal) {
+      if (ctx.family === 'horizontal') {
         if (e.altKey) return ctx.reorderEnabled && !e.shiftKey ? 'move-item-up' : null
         if (e.shiftKey || ctx.arrowsOwnedByField) return null
         return !ctx.editing || ctx.caretAtStart ? 'focus-prev' : null
       }
-      if (!ctx.hierarchical || e.altKey || e.shiftKey) return null
+      if (ctx.family === 'grid') {
+        if (e.altKey || e.shiftKey || ctx.arrowsOwnedByField) return null
+        return !ctx.editing || ctx.caretAtStart ? 'focus-prev-field' : null
+      }
+      if (ctx.family !== 'tree' || e.altKey || e.shiftKey) return null
       // 欄が矢印を使うなら欄のもの。端でだけ構造の移動に切り替える（↑↓ と同じ規則）
       if (ctx.arrowsOwnedByField) return null
       return !ctx.editing || ctx.caretAtStart ? 'focus-parent' : null
     case 'ArrowRight':
-      if (ctx.horizontal) {
+      if (ctx.family === 'horizontal') {
         if (e.altKey) return ctx.reorderEnabled && !e.shiftKey ? 'move-item-down' : null
         if (e.shiftKey || ctx.arrowsOwnedByField) return null
         return !ctx.editing || ctx.caretAtEnd ? 'focus-next' : null
       }
-      if (!ctx.hierarchical || e.altKey || e.shiftKey) return null
+      if (ctx.family === 'grid') {
+        if (e.altKey || e.shiftKey || ctx.arrowsOwnedByField) return null
+        return !ctx.editing || ctx.caretAtEnd ? 'focus-next-field' : null
+      }
+      if (ctx.family !== 'tree' || e.altKey || e.shiftKey) return null
       if (ctx.arrowsOwnedByField) return null
       return !ctx.editing || ctx.caretAtEnd ? 'focus-child' : null
     default:

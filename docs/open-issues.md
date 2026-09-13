@@ -10,10 +10,10 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **二重に `pty_kill` しても無害であることを踏む Rust テストが無い**（`src-tauri/src/pty.rs`）。`TerminalTab` のアンマウント時 kill がこの性質に依存している。
 - **課題ツリーの構造編集関数の一部に直接のテストがない**（`src/modules/issue-tree/commands.ts`）。ロジックツリーから移植した関数が対象。
 - **`poseQuestions` の並び契約を突くテストがない**（`src/modules/issue-tree/derive.ts`）。「戻り値は入力と同じ添字で並ぶ」という契約は ID 重複ファイルで必要になる。
-- **`write-issue-tree` に evals が無い**（`plugins/facet/skills/write-issue-tree/`）。他4つの登録 Skill は evals ディレクトリを持つ。
-- **`write-logic-tree` の evals は実行ハーネスに掛けていない**（`plugins/facet/skills/write-logic-tree/evals/`）。`evals.json` と `grade.mjs` はあるが、npm スクリプトからも CI からも呼ばれていない。
+- **`write-issue-tree` に evals が無い**（`plugins/facet/skills/write-issue-tree/`）。他の登録 Skill は evals ディレクトリを持つ。
+- **`write-term`・`write-error`・`write-sequence`・`write-logic-tree` の evals の判定器にテストが無い**（`plugins/facet/skills/*/evals/grade.mjs`）。判定器が壊れても evals の実走まで気づけず、`write-decision-table` の `src/modules/decision-table/skill-grade.test.ts` の形が手本になる。
 - **`.gitattributes` 欠落の警告が「整合性の警告」の見出しの下に出る**（`plugins/facet/skills/write-logic-tree/scripts/logic-tree-write.mjs`）。整合性の警告とは別種の警告が同じ見出しに混ざる。
-- **smoke テストが子プロセスの `stdio` を捨て、落ちても原因が残らない**（`src/modules/logic-tree/skill-write.smoke.test.ts`）。意図的なエラーケースの stderr が緑の実行でも画面に出る一方、再現条件不明の失敗が観測されている。
+- **smoke テストが揃って子プロセスの `stdio` を捨て、落ちても原因が残らない**（`src/modules/*/skill-write.smoke.test.ts`）。意図的なエラーケースの stderr は緑の実行でも画面に出る一方、全体実行でまれに起きる失敗は原因が追えない。
 - **`logic-tree-write.mjs` の exit 2 の経路とスキーマの解決順が未テスト**（`plugins/facet/skills/write-logic-tree/scripts/logic-tree-write.mjs`）。
 - **`ink-faint` をアクティブな本文に使っていないことを機械検査していない**（`src/styles/conventions.test.ts`）。WCAG 1.4.3 の免除範囲に収まる前提が崩れても検知できない。
 - **schemaVersion の移行を読み込み時以外の経路で見るテストが無い**（`src/core/load.ts`）。自動保存など他の経路は未検証。
@@ -27,6 +27,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **判断バッジのトリガーのキーボード経路に DOM テストが無い**（`src/modules/issue-tree/IssueTreeEditor.tsx` の `KindMenu`）。
 - **`modalOpen` が設定画面を数えることを守るテストが無い**（`src/App.tsx`）。式が `modals.length > 0` に戻る事故を検出できない。
 - **`system` 追従を App の配線ごと通したテストが無い**（`src/App.tsx`）。`watchPrefersDark` 自体のテストはあるが、`setSystemDark` → `resolveTheme` → クラス反映の経路は未検証。
+- **各ツールが渡す `family` の値を縛るテストが無い**（`src/core/keyboard/keymap.test.ts`）。固定しているのは家族から写像への対応だけなので、`src/modules/glossary/GlossaryEditor.tsx` の `'list'` を `'tree'` に打ち間違えても型は通る。
 
 ## 将来の機能を作った瞬間に踏むもの
 
@@ -76,11 +77,11 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **`IssueBanner` から該当行へのジャンプが無い**（`src/components/IssueBanner.tsx`）。メッセージは行を指すが押しても飛ばない。
 - **欠落ジャンプが4モジュールで巡回 ref に頼る**（`src/modules/glossary/GlossaryEditor.tsx`, `src/modules/error-catalog/ErrorCatalogEditor.tsx`, `src/modules/logic-tree/LogicTreeEditor.tsx`, `src/modules/sequence/SequenceEditor.tsx`）。フォーカス位置を起点にせず、シーケンスは `jumpAt` が担う。
 - **名前が空のアクターを面だけの空チップで示す**（`src/modules/sequence/ActorRefCell.tsx`）。視認性が低い。
-- **エラーカタログの集計は全行対象だがジャンプは表示中の行だけに飛ぶ**（`src/modules/error-catalog/ErrorCatalogEditor.tsx`）。
+- **エラーカタログの集計は全行対象だがジャンプは表示中の行だけに飛ぶ**（`src/modules/error-catalog/ErrorCatalogEditor.tsx`）。デシジョンテーブルでは、飛び先が隠れていれば絞り込みを外す。
 - **エラーカタログの読み手（プロファイル）が3箇所で別々に選ばれる**（`src/modules/error-catalog/ErrorCatalogEditor.tsx`）。
 - **Miro 書き出しのノード幅が概算でフォントが変わると折り返す**（`src/modules/logic-tree/miro-export.ts`）。
 - **循環で根から到達できないノードが Miro・Markdown・表の出力から警告なく落ちる**（`src/modules/logic-tree/miro-export.ts`, `src/modules/logic-tree/markdown.ts`, `src/modules/logic-tree/table.ts`）。
-- **表に貼ると `=`／`+`／`-`／`@` で始まるセルが数式として実行されうる**（`src/core/table-tsv.ts`, `src/core/table-html.ts`）。CSV/TSV インジェクション。
+- **表に貼ると `=`／`+`／`-`／`@` で始まるセルが数式として実行されうる**（`src/core/table-tsv.ts`, `src/core/table-html.ts`）。デシジョンテーブルは値ラベルを人が自由に打ち、`-` を「どちらでもよい」の意味で使う表もあるので、先頭に `'` を足す対策はラベルの見た目を変える。
 - **`readClipboardText` が空と失敗を区別せず空文字に潰す**（`src/fs/clipboard.ts`）。
 - **起動時の貼り付けが bracketed paste mode と静穏の両方を待つ設計のまま**（`src/components/TerminalTab.tsx`）。`INSERTION_QUIET_MS` は1環境でしか確認していない。
 - **存在しない `ask` を指す FB を整合性検証が見ていない**（`src/modules/issue-tree/consistency.ts`）。
@@ -88,7 +89,11 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **仮説と FB の並び替え、および挿入位置の指定手段が無い**（`src/modules/issue-tree/commands.ts`）。
 - **別種のチップを押すときの挿入起点が問いの欄でだけ列の先頭へ落ちる**（`src/modules/issue-tree/IssueTreeEditor.tsx`）。
 - **「保留」の語が経緯の残らない列の上に乗る**（`schemas/issue-tree.schema.json` の `judgementEvent.kind`）。判断が差し替え式になり、保留にした経緯がデータに残らない。
-- **`writeMerged` の read-modify-write に直列化が無い**（`src/fs/settings-fs.ts`）。フォルダを開く保存と設定の保存が近接すると、後発が古い読み取りの上に書いて片方が落ちる。
+- **`writeMerged` の read-modify-write に直列化が無い**（`src/fs/settings-fs.ts`）。プロジェクトの登録と設定の保存が近接すると、後発が古い読み取りの上に書いて片方が落ちる。
+- **メニューから切り替えるとき `allowProjectDir` の失敗が画面に出ない**（`src/App.tsx`）。`console.error` だけで、押しても何も起きないように見える。
+- **絞り込みの状態がファイルを切り替えると消える**（`src/modules/decision-table/DecisionTableEditor.tsx`）。データに持たない判断の裏返しで、同じファイルへ戻ると全行表示に戻る。
+- **まとめて入力の適用先を位置で指しており、結果が縮むと同じ添字が別の結果を指すようになる**（`src/modules/decision-table/BulkFillBar.tsx`）。
+- **結果が0本の表では、出力から `起こりえない` の行を見分けられない**（`src/modules/decision-table/table.ts`）。`起こりえない` を結果列に書いて示すので、結果列が無いと書く場所が無い。
 
 ## 性能
 
@@ -96,6 +101,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **textarea の高さ計算が強制リフローを起こす**（`src/components/CellInput.tsx`）。`rows=1` に戻して `scrollHeight` を読む。
 - **ノードの測定結果キャッシュが上限で全消しになる**（`src/modules/logic-tree/LogicTreeEditor.tsx`）。LRU ではなく `cache.clear()`。
 - **`lastCell` が state のためセルにフォーカスが移るたびエディタ全体が再描画される**（`src/modules/issue-tree/IssueTreeEditor.tsx`）。
+- **表本体が上限を超える行数のファイルにも歯止めを掛けない**（`src/modules/decision-table/GridBody.tsx`）。`MAX_ROWS` が止めるのは定義部の追加ボタンだけなので、条件を多く持つファイルを外から置かれると開いた瞬間に全行を描く。
 
 ## アクセシビリティ
 
@@ -109,6 +115,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **方眼背景がキャンバスのズームに追従しない**（`src/modules/logic-tree/LogicTreeEditor.tsx`）。
 - **`Tab` を骨格ゾーンと答えゾーンの2つに分ける提案が未実装**（`src/modules/sequence/SequenceEditor.tsx`）。答えへのキーボード到達は崩さないことが条件。
 - **展開中の仮説が課題の列全体を押し広げ、深い木で横スクロールが増える**（`src/modules/issue-tree/layout.ts`）。
+- **デシジョンテーブルの列幅を変えられない**（`src/modules/decision-table/GridBody.tsx`）。列の本数がデータで変わるので、`useColumnResize` が要求する幅の配列を持てない。
 
 ## 小さな負債
 
@@ -129,7 +136,6 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **Miro のクリップボード形式が非公開で Miro 側の変更で壊れうる**（`src/modules/logic-tree/miro-codec.ts`）。
 - **`escapeMermaidLabel` の re-export を参照する本番コードが無い**（`src/modules/sequence/mermaid.ts`）。
 - **端末の配色が `palette.css` の `.dark` クラスセレクタに依存している**（`src/components/TerminalTab.tsx`）。
-- **「（未定義）」の文言が4箇所で複製されている**（`src/core/table-export.ts`, `src/modules/error-catalog/markdown.ts`, `src/modules/glossary/markdown.ts`, `src/modules/logic-tree/markdown.ts`）。
 - **「どの問いにも紐づかない FB」ブロックの固定文が編集できない**（`src/modules/issue-tree/AskBlock.tsx`）。
 - **アクセシブル名の動詞が仮説だけ「削除」、FB・問いは「消す」で不揃い**（`src/modules/issue-tree/HypothesisPanel.tsx`, `src/modules/issue-tree/AskBlock.tsx`）。
 - **`.add`（節末の追加ボタン）の面クラスが2ファイルに逐語で複製されている**（`src/modules/issue-tree/HypothesisPanel.tsx`, `src/modules/issue-tree/IssueTreeEditor.tsx`）。
@@ -140,3 +146,4 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **`docs/issue-tree/仮説検証モジュール-設計ノート.md`（71KB）の圧縮**。決着済みの論点や古い検討過程が残り、参照コストが高い。
 - **`schemas/*.json` の description に日付や人の判断の経緯が残る**（`schemas/issue-tree.schema.json` の `events`）。生成物 `src/types/` にそのまま写る。
 - **`allow_dot_claude` は旧版の残骸を読むためだけに `<project>/.claude` へ recursive な実行時 scope を与えている**（`src-tauri/src/lib.rs`）。旧版の検出を畳むときに一緒に消す。
+- **`CellSelect` の `changeOnArrows` と `openOnEnter` が常に反対の値で渡る**（`src/components/CellSelect.tsx`）。真偽2つずつで組み合わせは4通りあるが使う配置は2通りだけで、片方だけ渡すと矢印は移動でも `Enter` は開かない、誰も設計していない状態を作れる。

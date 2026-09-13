@@ -58,6 +58,7 @@ export function readTokenBlock(
 export const TOKENS = [
   'canvas',
   'surface',
+  'surface-subtle',
   'surface-muted',
   'ink',
   'ink-muted',
@@ -76,6 +77,8 @@ export const TOKENS = [
   'judge-yes-face',
   'judge-no',
   'judge-no-fg',
+  'toast',
+  'toast-fg',
 ] as const
 
 export type Token = (typeof TOKENS)[number]
@@ -121,7 +124,7 @@ export const REQUIREMENTS = [
  * `surface-accent` を集合に入れなかった判断（淡い緑を選べなくなる）は、
  * 面が無彩色になった今は効かない——無彩色の面なら 3:1 / 4.5:1 は明度だけで作れる
  */
-export const BACKGROUNDS = ['canvas', 'surface', 'surface-muted'] as const
+export const BACKGROUNDS = ['canvas', 'surface', 'surface-subtle', 'surface-muted'] as const
 
 /**
  * 面に載せる色の要件。judge-yes-fg / judge-no-fg は自分の面にしか
@@ -144,6 +147,8 @@ export const BACKGROUNDS = ['canvas', 'surface', 'surface-muted'] as const
 export const FACE_REQUIREMENTS = [
   { token: 'judge-yes-fg', face: 'judge-yes', min: 4.5, use: '支持の面の文字' },
   { token: 'judge-no-fg', face: 'judge-no', min: 4.5, use: '棄却の面の文字' },
+  // トーストの面には本文・操作・「閉じる」がすべて toast-fg で載る（抑えた段を持たない）
+  { token: 'toast-fg', face: 'toast', min: 4.5, use: 'トーストの文字と操作' },
   { token: 'ink', face: 'missing-face', min: 4.5, use: '欠落の淡い面の本文' },
   { token: 'ink-muted', face: 'missing-face', min: 4.5, use: '欠落の淡い面の抑えた文字' },
   { token: 'missing', face: 'missing-face', min: 4.5, use: '欠落の淡い面の線と文字' },
@@ -253,6 +258,7 @@ export const DISTINCT_MIN = 0.1
 export const ACHROMATIC = [
   'canvas',
   'surface',
+  'surface-subtle',
   'surface-muted',
   'ink',
   'ink-muted',
@@ -262,6 +268,8 @@ export const ACHROMATIC = [
   'grid',
   'judge-no',
   'judge-no-fg',
+  'toast',
+  'toast-fg',
 ] as const
 export const ACHROMATIC_MAX_C = 0.01
 

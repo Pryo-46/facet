@@ -47,9 +47,9 @@
      * 段1 のうち種別セル・参照セルの実効行間は 1.3 ではなく 1.2 である。
      *
      * **使ってよいのは sm / base / xl の3段だけ。**
-     * text-xs（12px）は D11 の 14px 下限で廃止。text-lg は実使用 0 件のまま閉鎖。
-     * text-2xl はアプリ名を 22px に統合して閉鎖（2px 差の段を体系に残さない）。
-     * xs・lg・2xl・3xl 以上・任意値 text-[...] は conventions.test.ts が弾く。
+     * text-xs（12px）はファイル一覧のフォルダパスとファイル名だけに使う。text-lg は使わない。
+     * text-2xl は使わない（22px と 2px 差の段を体系に残さない）。
+     * ファイル一覧の外の xs・lg・2xl・3xl 以上・任意値 text-[...] は conventions.test.ts が弾く。
      *
      * 行間は「詰めた値を既定にし、読ませる欄だけ leading-normal（1.5）を明示」（D11:
      * 密度は行高で稼ぎ、サイズでは稼がない）。セクション見出しの 130% は本文の
@@ -58,12 +58,14 @@
     --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans JP', 'Yu Gothic UI', 'Hiragino Sans', sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
     --text-xl: 22px;
+    --text-xs--line-height: 1.3;
     --text-sm--line-height: 1.3;
     --text-base--line-height: 1.25;
     --text-xl--line-height: 1.3;
 
     --color-canvas: var(--canvas);
     --color-surface: var(--surface);
+    --color-surface-subtle: var(--surface-subtle);
     --color-surface-muted: var(--surface-muted);
     --color-ink: var(--ink);
     --color-ink-muted: var(--ink-muted);
@@ -82,6 +84,8 @@
     --color-judge-yes-face: var(--judge-yes-face);
     --color-judge-no: var(--judge-no);
     --color-judge-no-fg: var(--judge-no-fg);
+    --color-toast: var(--toast);
+    --color-toast-fg: var(--toast-fg);
 
     /* shadcn の生成物が参照するトークン */
     --color-sidebar-ring: var(--sidebar-ring);

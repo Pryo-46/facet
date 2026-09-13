@@ -9,9 +9,10 @@
  */
 
 import { escapeMermaidLabel } from '@/core/mermaid'
+import { UNDEFINED_TEXT } from '@/core/output-labels'
 import type { SequenceSchemaVersion1 } from '@/types/sequence'
 import { stepShapeOf, type StepShapeValue } from './commands'
-import { UNDEFINED_VALUE, UNRESOLVED_ACTOR_LABEL } from './output-labels'
+import { UNRESOLVED_ACTOR_LABEL } from './output-labels'
 
 export { escapeMermaidLabel }
 
@@ -31,7 +32,7 @@ const UNRESOLVED_ID = 'unresolved'
 
 /** 空の名前・文言は（未定義）にする。`participant a1 as ` や `a1->>a2: ` は Mermaid で壊れる */
 function orUndefined(text: string): string {
-  return text === '' ? UNDEFINED_VALUE : text
+  return text === '' ? UNDEFINED_TEXT : text
 }
 
 /**

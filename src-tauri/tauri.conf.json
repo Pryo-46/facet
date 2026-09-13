@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "facet",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "identifier": "app.facet.desktop",
   "build": {
     "frontendDist": "../dist",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "title": "facet",
-        "width": 1280,
+        "width": 1500,
         "height": 800,
         "minWidth": 1000,
         "minHeight": 600,

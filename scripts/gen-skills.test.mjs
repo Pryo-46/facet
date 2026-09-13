@@ -27,6 +27,7 @@ const SAMPLES = [
   ['応募から書類選考まで.json', 'sequence'],
   ['課題ツリー.json', 'issue-tree'],
   ['応募が書類選考に進まないケース.json', 'logic-tree'],
+  ['書類選考の結果通知.json', 'decision-table'],
 ]
 
 function skillOf(schema) {
@@ -160,6 +161,49 @@ describe('生成した questions.mjs', () => {
   })
 })
 
+describe('生成した rows.mjs / missing.mjs / missing-tally.mjs', () => {
+  // 空欄・起こりえない・名前なしを1つずつ含む小さな表。行は並びを乱し、1組み合わせを欠く。
+  // 起こりえない行の空欄と、欠けた組み合わせは未記入に数えない
+  const data = {
+    schemaVersion: 1,
+    type: 'decisionTable',
+    title: '検証用',
+    conditions: [
+      { id: 'cond_AAAAAAAAAA', name: '会員か', values: ['はい', 'いいえ'] },
+      { id: 'cond_BBBBBBBBBB', name: '', values: ['はい', 'いいえ'] },
+    ],
+    outcomes: [{ id: 'out_AAAAAAAAAA', name: '送料', choices: ['無料', '500円'] }],
+    rows: [
+      { values: ['いいえ', 'いいえ'], impossible: false, results: [''] },
+      { values: ['はい', 'はい'], impossible: false, results: ['無料'] },
+      { values: ['いいえ', 'はい'], impossible: true, results: [''] },
+    ],
+  }
+  const load = (file) =>
+    import(pathToFileURL(path.resolve(generatedPath('write-decision-table', file))).href)
+
+  it('行の引き当てと組み直しがアプリ側と一致する', async () => {
+    const gen = await load('rows.mjs')
+    const app = await import('../src/modules/decision-table/rows.ts')
+    expect(gen.alignRowsByLabel(data.conditions, 1, data.rows)).toEqual(
+      app.alignRowsByLabel(data.conditions, 1, data.rows),
+    )
+    const next = { conditions: [data.conditions[1]], outcomes: data.outcomes }
+    expect(gen.rebaseRows(data, next)).toEqual(app.rebaseRows(data, next))
+  })
+
+  it('欠落の集計行がアプリ側と一致する', async () => {
+    const genMissing = await load('missing.mjs')
+    const genTally = await load('missing-tally.mjs')
+    const appMissing = await import('../src/modules/decision-table/missing.ts')
+    const appTally = await import('../src/core/missing-tally.ts')
+    const line = genTally.tallyLine(genMissing.tallyMissing(data))
+    // 表が退化していないこと（未記入と名前なしの両方が 0 でない）を先に固める
+    expect(line).toBe('⚠ 要対応 2（未記入 1 ／ 名前なし 1）')
+    expect(line).toBe(appTally.tallyLine(appMissing.tallyMissing(data)))
+  })
+})
+
 describe('生成物の配布', () => {
   it('作業ツリーに未コミットの生成物が残らない', () => {
     // marketplace は git の内容をそのまま配る。生成物が追跡外だったり
@@ -169,10 +213,14 @@ describe('生成物の配布', () => {
     //
     // **見るのは生成物のディレクトリだけ。** Skill 全体を対象にすると、
     // SKILL.md を書きかけているだけで赤くなり、編集とテストを同時に
-    // 回せなくなる
+    // 回せなくなる。
+    //
+    // **pathspec の末尾に `/**` が要る。** `*` を含む pathspec は前方一致をせず
+    // パス全体と照合するので、`.../generated` だけでは中のファイルにも
+    // 未追跡の新しい Skill にも一致せず、この検査は常に緑になる
     const status = execFileSync(
       'git',
-      ['status', '--porcelain', '--', 'plugins/facet/skills/*/scripts/generated'],
+      ['status', '--porcelain', '--', 'plugins/facet/skills/*/scripts/generated/**'],
       { encoding: 'utf8' },
     )
     expect(status).toBe('')

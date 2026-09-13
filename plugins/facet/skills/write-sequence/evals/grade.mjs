@@ -9,9 +9,6 @@ import { fileURLToPath } from "node:url";
 
 const ITER = path.resolve(process.argv[2] ?? ".");
 const SKILL = path.resolve(fileURLToPath(import.meta.url), "../..");
-// 同梱コピーを指す（facet のチェックアウトの有無に依存しない。コピーは
-// src/core/skill-schema-copy.test.ts が原本とのバイト一致を強制している）
-const SCHEMA = path.resolve(SKILL, "schemas/sequence.schema.json");
 const ACTOR_RE = /^actor_[A-Za-z0-9]{10}$/;
 const STEP_RE = /^step_[A-Za-z0-9]{10}$/;
 
@@ -35,7 +32,7 @@ function sequenceFiles(dir) {
 /** スキーマ検証・正規形・整合性の警告をスクリプトから取る */
 function inspect(file) {
   try {
-    const out = execFileSync("node", [path.join(SKILL, "scripts/sequence-write.mjs"), "--check", file, "--schema", SCHEMA], { encoding: "utf8" });
+    const out = execFileSync("node", [path.join(SKILL, "scripts/sequence-write.mjs"), "--check", file], { encoding: "utf8" });
     return { schemaOk: true, canonicalOk: out.includes("正規形と一致"), warned: out.includes("整合性の警告"), out };
   } catch {
     return { schemaOk: false, canonicalOk: false, warned: true, out: "" };

@@ -30,7 +30,6 @@ function setup(
     <FileList
       groups={groupFiles(files, appRegistry.list())}
       selectedPath={null}
-      modules={appRegistry.list()}
       existingTypes={existingTypes}
       projectOpen={projectOpen}
       projectDir={projectDir}
@@ -40,24 +39,76 @@ function setup(
   return handlers
 }
 
+/** jsdom はレイアウトを持たないので、省略の有無を幅の値で差し替える */
+function fakeWidths(el: Element, scrollWidth: number, clientWidth: number): void {
+  Object.defineProperty(el, 'scrollWidth', { configurable: true, value: scrollWidth })
+  Object.defineProperty(el, 'clientWidth', { configurable: true, value: clientWidth })
+}
+
+describe('FileList の省略時の全文表示', () => {
+  it('省略された行にホバーすると、title とファイル名の全文を title に出す', () => {
+    setup([file('長い名前.json', { result: { status: 'editable', type: 'glossary', title: 'とても長い用語集', data: {} } })])
+    const row = screen.getByRole('button', { name: 'とても長い用語集（長い名前.json） を開く' })
+    fakeWidths(row.querySelector('.truncate')!, 300, 100)
+    fireEvent.mouseEnter(row)
+    expect(row.getAttribute('title')).toBe('とても長い用語集（長い名前.json）')
+  })
+
+  it('省略されていなければ title を出さない', () => {
+    setup([file('用語集.json')])
+    const row = screen.getByRole('button', { name: '用語集（用語集.json） を開く' })
+    fireEvent.mouseEnter(row)
+    expect(row.hasAttribute('title')).toBe(false)
+  })
+
+  it('省略された見出しにホバーすると、見出しの全文を title に出す', () => {
+    setup([])
+    const heading = screen.getByRole('heading', { level: 2, name: 'デシジョンテーブル' })
+    fakeWidths(heading.querySelector('.truncate')!, 300, 100)
+    fireEvent.mouseEnter(heading)
+    expect(heading.getAttribute('title')).toBe('デシジョンテーブル')
+  })
+})
+
 describe('FileList', () => {
   it('フォルダ未選択なら案内文だけを出す', () => {
     setup([], false)
     expect(screen.getByText(/プロジェクトフォルダを開くと/)).not.toBeNull()
-    // ボタンのラベルは「＋ 用語集を新規作成」なので部分一致で引く
-    expect(screen.queryByRole('button', { name: /用語集を新規作成/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: '用語集を新規作成' })).toBeNull()
   })
 
-  it('登録モジュールごとに新規作成ボタンを出す（type 選択。rev 6章）', () => {
+  it('種類の見出しの新規作成ボタンで onCreate を呼ぶ（type 選択。rev 6章）', () => {
     const { onCreate } = setup([])
-    fireEvent.click(screen.getByRole('button', { name: /用語集を新規作成/ }))
+    fireEvent.click(screen.getByRole('button', { name: '用語集を新規作成' }))
     expect(onCreate).toHaveBeenCalledWith(appRegistry.get('glossary'))
   })
 
-  it('ファイルが0件なら空状態を出す（ボタンは出したまま）', () => {
+  // 見出しが新規作成の唯一の入口なので、畳むとその種類を作れなくなる
+  it('ファイルが0件でも、登録モジュールごとに見出しと新規作成ボタンを出す', () => {
     setup([])
-    expect(screen.getByText(/JSON ファイルがありません/)).not.toBeNull()
-    expect(screen.getByRole('button', { name: /用語集を新規作成/ })).not.toBeNull()
+    for (const module of appRegistry.list()) {
+      expect(screen.getByRole('heading', { level: 2, name: module.displayName })).not.toBeNull()
+      expect(
+        screen.getByRole('button', { name: `${module.displayName}を新規作成` }),
+      ).not.toBeNull()
+    }
+  })
+
+  // ボタンの aria-label を見出しの中に入れると、見出しのアクセシブル名が
+  // 「用語集 用語集を新規作成」に伸びる
+  it('見出しのアクセシブル名に新規作成ボタンの名前が混ざらない', () => {
+    setup([])
+    expect(screen.getByRole('heading', { level: 2, name: '用語集' })).not.toBeNull()
+  })
+
+  it('未対応 type の見出しには新規作成ボタンを出さない', () => {
+    setup([
+      file('謎.json', {
+        result: { status: 'editable', type: 'stateMachine', title: '注文の状態遷移', data: {} },
+      }),
+    ])
+    expect(screen.getByRole('heading', { level: 2, name: 'stateMachine（未対応）' })).not.toBeNull()
+    expect(screen.queryByRole('button', { name: /stateMachine.*を新規作成/ })).toBeNull()
   })
 
   it('行のクリックで onSelect を呼ぶ', () => {
@@ -152,19 +203,20 @@ describe('FileList', () => {
 describe('新規作成ボタンの単一性ゲート', () => {
   it('用語集が無ければ新規作成ボタンは押せる', () => {
     setup([], true, [])
-    const button = screen.getByRole('button', { name: /用語集を新規作成/ })
+    const button = screen.getByRole('button', { name: '用語集を新規作成' })
     expect(button.hasAttribute('disabled')).toBe(false)
   })
 
+  // 押せないときも消さずに置く（見出し行の形を種類ごとに変えないため）
   it('用語集が既にあれば新規作成ボタンは disabled になる', () => {
     setup([file('用語集.json')], true, ['glossary'])
-    const button = screen.getByRole('button', { name: /用語集を新規作成/ })
+    const button = screen.getByRole('button', { name: '用語集を新規作成' })
     expect(button.hasAttribute('disabled')).toBe(true)
   })
 
   it('disabled のボタンをクリックしても onCreate は呼ばれない', () => {
     const { onCreate } = setup([file('用語集.json')], true, ['glossary'])
-    fireEvent.click(screen.getByRole('button', { name: /用語集を新規作成/ }))
+    fireEvent.click(screen.getByRole('button', { name: '用語集を新規作成' }))
     expect(onCreate).not.toHaveBeenCalled()
   })
 
@@ -186,7 +238,7 @@ describe('新規作成ボタンの単一性ゲート', () => {
         },
       }),
     ])
-    const button = screen.getByRole('button', { name: /用語集を新規作成/ })
+    const button = screen.getByRole('button', { name: '用語集を新規作成' })
     expect(button.hasAttribute('disabled')).toBe(true)
   })
 })
@@ -330,7 +382,7 @@ describe('種類の見出しとソート', () => {
   it('実在の title は通常の色で出す', () => {
     setup([file('用語集.json')])
     // 行の主表示（副表示のファイル名ではない方）
-    const label = screen.getByText('用語集', { selector: 'span' })
+    const label = screen.getByText('用語集', { selector: 'li span' })
     expect(label.className).toContain('text-ink')
     expect(label.className).not.toContain('text-ink-muted')
   })

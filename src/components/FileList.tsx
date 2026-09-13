@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { AtSign, Folder, Plus, Trash2 } from 'lucide-react'
+import { AtSign, FileQuestion, Folder, Plus, Trash2 } from 'lucide-react'
 import { Badge } from './Badge'
 import { buttonBase } from '@/components/button-styles'
 import type { FileGroup } from '@/core/file-grouping'
@@ -9,11 +9,12 @@ import { displayTitle, type ProjectFile } from '@/core/project-file'
 import type { AnyToolModule } from '@/core/registry'
 
 export interface FileListProps {
-  /** 種類ごとにまとめて並べ替え済みの一覧（`groupFiles` の結果。順序はコアが決める） */
+  /**
+   * 種類ごとにまとめて並べ替え済みの一覧（`groupFiles` の結果。順序はコアが決める）。
+   * 登録済みの種類はファイルが0件でも入っており、見出しに新規作成ボタンを載せる
+   */
   groups: FileGroup[]
   selectedPath: string | null
-  /** 新規作成の選択肢。レジストリの登録順（rev 6章。ツールは増える前提） */
-  modules: AnyToolModule[]
   /**
    * 走査済み全ファイルの type（読めなかったファイルは null）。
    * singleton モジュールの新規作成ボタンを、既に1つあるかどうかで
@@ -39,6 +40,21 @@ export interface FileListProps {
  * **エスケープのまま書くこと**——生の文字は幅を持たず、差分でもエディタでも見えない
  */
 const LTR_MARK = '\u200e'
+
+/**
+ * 中の `.truncate` が1つでも省略されていれば、全文を title に出す。
+ *
+ * **ホバーした瞬間に測る。** 省略されるかはサイドメニューの幅と字形で決まり、
+ * 描画時の文字数からは判定できない。省略されていないときに title を出すと、
+ * 見えている文字と同じツールチップが重なるだけになる
+ */
+function titleIfTruncated(el: HTMLElement, fullText: string): void {
+  const truncated = [...el.querySelectorAll<HTMLElement>('.truncate')].some(
+    (span) => span.scrollWidth > span.clientWidth,
+  )
+  if (truncated) el.title = fullText
+  else el.removeAttribute('title')
+}
 
 /**
  * ファイル1行。**`useId` を使うために切り出している**——
@@ -73,17 +89,18 @@ function FileRow(props: {
         // accessible name に含まれない（WCAG 2.5.3 Label in Name）
         aria-label={`${fullName} を開く`}
         aria-describedby={descId}
-        className={`min-w-0 flex-1 border-l-2 px-4 py-2 text-left text-base ${
+        className={`min-w-0 flex-1 border-l-2 px-4 py-2 text-left text-sm ${
           props.selected ? 'border-ink bg-canvas' : 'border-transparent hover:bg-canvas'
         }`}
         onClick={props.onSelect}
+        onMouseEnter={(e) => titleIfTruncated(e.currentTarget, fullName)}
       >
         {/* `(無題)` は人間がつけた名前ではないので弱く出す（設計スペック）。
             実在の title と見分けがつかないと「名前をつけ忘れた」が伝わらない */}
         <span className={`block truncate ${label === UNTITLED ? 'text-ink-muted' : 'text-ink'}`}>
           {label}
         </span>
-        <span id={descId} className="block truncate text-sm text-ink-muted">
+        <span id={descId} className="block truncate text-xs text-ink-muted">
           {showFileName && file.name}
           {file.result.status === 'rejected' && <span className="ml-1 text-invalid">開けない</span>}
           {file.result.status === 'listOnly' && <span className="ml-1">編集不可</span>}
@@ -124,6 +141,36 @@ function FileRow(props: {
   )
 }
 
+function GroupIcon({ icon: Icon }: { icon: AnyToolModule['icon'] }) {
+  return <Icon className="size-4" />
+}
+
+/**
+ * 種類の見出しに載せる新規作成ボタン。
+ * **singleton で既に1つあるときも、消さずに disabled で置く**——
+ * ボタンの有無で見出し行の形が種類ごとに変わると、並びが不揃いになる
+ */
+function CreateButton(props: {
+  module: AnyToolModule
+  creatable: boolean
+  onCreate: (module: AnyToolModule) => void
+}) {
+  const { module } = props
+  const label = `${module.displayName}を新規作成`
+  return (
+    <button
+      type="button"
+      disabled={!props.creatable}
+      aria-label={label}
+      title={props.creatable ? label : `${module.displayName}はプロジェクトに1つまでです`}
+      className={`${buttonBase} shrink-0 px-3 text-ink-muted hover:bg-canvas hover:text-ink disabled:hover:bg-transparent disabled:hover:text-ink-muted`}
+      onClick={() => props.onCreate(module)}
+    >
+      <Plus aria-hidden className="size-4" />
+    </button>
+  )
+}
+
 /**
  * ファイル一覧の額縁（rev 6章）。新規作成・削除・赤バッジを持つ。
  * 表示だけを担い、状態も I/O も持たない（配線は App）
@@ -138,35 +185,11 @@ export function FileList(props: FileListProps) {
   }
   return (
     <div className="flex h-full flex-col">
-      {/* 作成ボタンは縦積みで幅をそろえる。**flex-wrap で横に流さない**——
-          ツール名の長さで折り返し位置が変わり、行ごとに端が揃わなくなる。
-          帯自体は `shrink-0`（一覧が長くなっても流れない。スクロールを持つのは
-          下の一覧だけ） */}
-      <div className="flex shrink-0 flex-col gap-1 border-b border-rule p-2">
-        {props.modules.map((module) => {
-          const creatable = canCreateFileOfType(module, props.existingTypes)
-          const Icon = module.icon
-          return (
-            <button
-              key={module.type}
-              type="button"
-              disabled={!creatable}
-              title={creatable ? undefined : `${module.displayName}はプロジェクトに1つまでです`}
-              className={`${buttonBase} w-full justify-start gap-2 border border-rule px-2 py-1 text-sm text-ink hover:bg-canvas disabled:hover:bg-transparent`}
-              onClick={() => props.onCreate(module)}
-            >
-              <Plus aria-hidden className="size-3.5 shrink-0" />
-              <Icon aria-hidden className="size-3.5 shrink-0" />
-              <span className="truncate">{module.displayName}を新規作成</span>
-            </button>
-          )
-        })}
-      </div>
       {/* パスは一覧の直上。長さが青天井なので truncate で受け、全文は title。
           帯なので `shrink-0`（スクロールを持つのは下の一覧だけ） */}
       {props.projectDir !== null && (
         <div
-          className="flex shrink-0 items-center gap-1.5 border-b border-rule px-2 py-1.5 text-sm text-ink-muted"
+          className="flex shrink-0 items-center gap-1.5 border-b border-rule px-2 py-1.5 text-xs text-ink-muted"
           title={props.projectDir}
         >
           <Folder aria-hidden className="size-3.5 shrink-0" />
@@ -188,46 +211,61 @@ export function FileList(props: FileListProps) {
       {/* スクロールするのはここだけ（上の帯は固定）。**この責務を親の aside へ
           戻さないこと**——aside 側で overflow を持つと帯ごと流れる */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {props.groups.length === 0 ? (
-          <p className="p-4 text-base text-ink-muted">
-            このフォルダに JSON ファイルがありません。上のボタンで作成できます。
-          </p>
-        ) : (
-          props.groups.map((group, i) => (
-            <div key={group.key}>
+        {props.groups.map((group, i) => (
+          <div key={group.key}>
+            {/* **罫線は上に置く（下ではない）。** 見出しとその下の行は同じ
+                グループなので、間に線を引くと属するもの同士を分断する。
+                区切るべきは「前のグループの最後の行」と「次の見出し」の間。
+                先頭だけ線を外すのは、真上のパスの帯が既に
+                `border-b border-rule` を持っており、二重線になるため */}
+            <div
+              className={`flex items-stretch bg-surface-muted ${
+                i === 0 ? '' : 'border-t border-rule'
+              }`}
+            >
               {/* 見出しは装飾ではなく文書構造なので heading。面は
                   「見出しの面」トークンを使う（rev 9章）。
                   **h2 にすること。** 額縁の h1（`facet`）の直下で、間に入る
                   見出しは無い（エディタの h2 は帯へ一本化してある）ので、
-                  h3 にするとレベルが飛ぶ。
-
-                  **罫線は上に置く（下ではない）。** 見出しとその下の行は同じ
-                  グループなので、間に線を引くと属するもの同士を分断する。
-                  区切るべきは「前のグループの最後の行」と「次の見出し」の間。
-                  先頭だけ線を外すのは、真上の新規作成ボタンの帯が既に
-                  `border-b border-rule` を持っており、二重線になるため */}
+                  h3 にするとレベルが飛ぶ */}
+              {/* アイコンは aria-hidden にして、見出しのアクセシブル名を表示名だけに保つ。
+                  module を持たない見出し（未対応・種類不明）にも代替を置き、文字の始まりを揃える */}
               <h2
-                className={`bg-surface-muted px-4 py-1 text-base font-medium tracking-wide text-ink-muted ${
-                  i === 0 ? '' : 'border-t border-rule'
-                }`}
+                className="flex min-w-0 flex-1 items-center gap-2 px-4 py-1 text-sm font-medium tracking-wide text-ink-muted"
+                onMouseEnter={(e) => titleIfTruncated(e.currentTarget, group.heading)}
               >
-                {group.heading}
+                {/* icon の型は className しか受けないので、aria-hidden は包む span に付ける */}
+                <span aria-hidden className="flex shrink-0">
+                  <GroupIcon icon={group.module?.icon ?? FileQuestion} />
+                </span>
+                <span className="min-w-0 truncate">{group.heading}</span>
               </h2>
-              <ul>
-                {group.files.map((file) => (
-                  <FileRow
-                    key={file.path}
-                    file={file}
-                    selected={file.path === props.selectedPath}
-                    onSelect={() => props.onSelect(file)}
-                    onDelete={() => props.onDelete(file)}
-                    onHandoff={() => props.onHandoff(file)}
-                  />
-                ))}
-              </ul>
+              {/* **作成ボタンは h2 の外に置く。** 中に入れると、ボタンの
+                  aria-label が見出しのアクセシブル名に連結され、見出しが
+                  「用語集 用語集を新規作成」になる。
+                  未対応 type と種類不明は module を持たないのでボタンも出ない */}
+              {group.module !== null && (
+                <CreateButton
+                  module={group.module}
+                  creatable={canCreateFileOfType(group.module, props.existingTypes)}
+                  onCreate={props.onCreate}
+                />
+              )}
             </div>
-          ))
-        )}
+            <ul>
+              {group.files.map((file) => (
+                <FileRow
+                  key={file.path}
+                  file={file}
+                  selected={file.path === props.selectedPath}
+                  onSelect={() => props.onSelect(file)}
+                  onDelete={() => props.onDelete(file)}
+                  onHandoff={() => props.onHandoff(file)}
+                />
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
     </div>
   )

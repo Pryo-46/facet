@@ -13,6 +13,7 @@
 | シーケンス | 問いが立っているのに `failures` にキーが無い（未回答）／アクターの `name` が空／ステップの `label` が空（未記入） | 問いが立っていないスロット、`notApplicable`（決めた） |
 | ロジックツリー | `text === ''`（未記入） | — |
 | 課題ツリー | 4つの問い（仮説なし・未決・保留・FB待ち）。`poseQuestions` が導出する | `detail` / `value` / `asks` が空、旗（見送り・解決）配下（抑制） |
+| デシジョンテーブル | 結果セルが空（未記入）／条件名・値ラベル・結果名・選択肢ラベルが空（未記入） | `impossible: true` の行の結果セル（決めた上で該当なし） |
 
 備考・別名・`detail`／`value`／`asks` を欠落にしない判断はこの文書でも変えない（[`docs/glossary/session-notes.md`](glossary/session-notes.md) の「`notes` は検知対象外」、`read-project` Skill の「欠落は仕様の穴ではない」）。
 
@@ -22,17 +23,17 @@
 
 欠落は、データの空欄そのものを指す。捏造した表示文字列や UI 側の解釈ではなく、**空である事実**が欠落である。判定源は [`plugins/facet/skills/read-project/SKILL.md`](../plugins/facet/skills/read-project/SKILL.md) の「未決」の定義と一対一で、上の決定1の表がその写しである。備考・別名・`rationale` は判定源が「未決」と扱わないので、欠落として塗ってはならない。
 
-- 判定を持つファイル: `src/modules/glossary/missing.ts`／`src/modules/error-catalog/missing.ts`／`src/modules/logic-tree/missing.ts`／`src/modules/sequence/missing.ts`／`src/modules/issue-tree/derive.ts`（`poseQuestions`）
+- 判定を持つファイル: `src/modules/glossary/missing.ts`／`src/modules/error-catalog/missing.ts`／`src/modules/logic-tree/missing.ts`／`src/modules/sequence/missing.ts`／`src/modules/issue-tree/derive.ts`（`poseQuestions`）／`src/modules/decision-table/missing.ts`
 - 判定源（AI 向け）: `plugins/facet/skills/read-project/SKILL.md` の「最重要: 未決を埋めない」節と「ツール別の読み方」節
 
 ### 2. 空は空のまま描く
 
 画面に「未定義」「別名なし」のような、データに実在しない文字列を捏造してはならない。`placeholder` にも欠落を意味する語を使わない——面が欠落を運ぶので、`placeholder` は同じ情報の二重表現になる。**データに実在する値のラベルは捏造ではない**ので、`undecided` の「未分類」、`notApplicable` の「考慮不要」は使ってよい。空タイトルの `(無題)`（`src/core/load.ts` の `UNTITLED`）も引き続き使ってよいが、理由は別で——**タイトルは決定1の表に無く、この文書が規約する欠落軸そのものではない**（ファイル一覧・帯の見出しの表示上の便宜であって、`missing` の面を伴わない）。欠落軸のフィールド（決定1の表にある値）を空のまま実在しない文字列で埋めることは、このルールが引き続き禁じる。
 
-出力（Markdown / Mermaid）は画面と別の制約を持つ。出力先（NotePM 等）には面が無く文字でしか欠落を残せないため、未回答は出力に `（未定義）` と書く（`src/modules/sequence/output-labels.ts` の `UNDEFINED_VALUE`）。**ただし `notApplicable`（考慮不要）は画面・出力のどちらも同じ語 `考慮不要` を書く**——`NOT_APPLICABLE_LABEL` は `'考慮不要'` で（かつて `'─ 考慮不要'` だったが M22 で記号を外した）、`GutterSlot.tsx` の画面表示にも `markdown.ts` の出力にも同じ定数を使う。`（未解決）`（`UNRESOLVED_ACTOR_LABEL`。参照先のアクターが無い）は無効軸の表示であって欠落ではなく、捏造でもない。
+出力（Markdown / Mermaid）は画面と別の制約を持つ。出力先（NotePM 等）には面が無く文字でしか欠落を残せないため、未回答は出力に `（未定義）` と書く（`src/core/output-labels.ts` の `UNDEFINED_TEXT`）。**ただし `notApplicable`（考慮不要）は画面・出力のどちらも同じ語 `考慮不要` を書く**——`NOT_APPLICABLE_LABEL` は `'考慮不要'` で、`GutterSlot.tsx` の画面表示にも `markdown.ts` の出力にも同じ定数を使う。`（未解決）`（`UNRESOLVED_ACTOR_LABEL`。参照先のアクターが無い）は無効軸の表示であって欠落ではなく、捏造でもない。デシジョンテーブルの `impossible` も同じ扱いで、画面・出力のどちらも `起こりえない` を書く（`src/modules/decision-table/labels.ts` の `IMPOSSIBLE_LABEL`）。
 
 - 捏造文字列を消した箇所: `src/modules/glossary/AliasCell.tsx`（別名なし→消去）／`src/modules/glossary/GlossaryEditor.tsx`（定義列の `placeholder="未定義"`→消去）／`src/modules/error-catalog/ErrorCatalogEditor.tsx`（対応欄の `placeholder="未定義"`→消去）／`src/modules/sequence/GutterSlot.tsx`（未回答の `placeholder="未定義"`→消去）／`src/modules/sequence/ActorRefCell.tsx`（本文の `（未定義）`→消去。ボタン自体を破線＋淡い面にする）
-- 語の一元管理: `src/modules/sequence/output-labels.ts`（`UNDEFINED_VALUE` / `NOT_APPLICABLE_LABEL` / `UNRESOLVED_ACTOR_LABEL`）
+- 語の一元管理: `src/core/output-labels.ts`（`UNDEFINED_TEXT`。全ツール共通）／`src/modules/sequence/output-labels.ts`（`NOT_APPLICABLE_LABEL` / `UNRESOLVED_ACTOR_LABEL`）
 
 ### 3. 見せ方は rev 9章の欠落軸に従う
 
@@ -60,7 +61,7 @@
 
 - 集計の型と組み立て文字列（コア）: `src/core/missing-tally.ts`（`MissingTally` / `MissingTallyPart` / `TALLY_TOTAL_LABEL` / `tallyLine`）
 - 表示部品（コア）: `src/components/MissingTally.tsx`
-- 各モジュールの判定・集計: `src/modules/glossary/missing.ts`／`src/modules/error-catalog/missing.ts`／`src/modules/logic-tree/missing.ts`／`src/modules/sequence/missing.ts`
+- 各モジュールの判定・集計: `src/modules/glossary/missing.ts`／`src/modules/error-catalog/missing.ts`／`src/modules/logic-tree/missing.ts`／`src/modules/sequence/missing.ts`／`src/modules/decision-table/missing.ts`
 - 課題ツリーだけ別経路: `src/modules/issue-tree/derive.ts` は `tallyLine` を自前で持つ（同梱 Skill のバイト一致コピー制約で `missing-tally.ts` を値 import できないため）。`toMissingTally(t)` でコアの形へ変換し、アプリの帯はこちらを使う。コアの `tallyLine(toMissingTally(t))` と `derive.ts` の `tallyLine(t)` が逐語一致することは `src/modules/issue-tree/derive.test.ts` が機械検査する
 - FB待ちバッジ（行）: `src/modules/issue-tree/HypothesisRow.tsx`（判断バッジの隣に `pending` variant で2つ目を出す）
 

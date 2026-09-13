@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "type": "decisionTable",
+  "title": "書類選考の結果通知",
+  "conditions": [
+    {
+      "id": "cond_iP5mhFFti5",
+      "name": "必須要件を満たすか",
+      "values": [
+        "満たす",
+        "満たさない"
+      ]
+    },
+    {
+      "id": "cond_2cxQIoOKhM",
+      "name": "応募経路",
+      "values": [
+        "自社サイト",
+        "エージェント"
+      ]
+    },
+    {
+      "id": "cond_4ISIfJ27Lt",
+      "name": "募集状況",
+      "values": [
+        "募集中",
+        "締切後"
+      ]
+    }
+  ],
+  "outcomes": [
+    {
+      "id": "out_IoIOgehie9",
+      "name": "通知",
+      "choices": [
+        "書類選考へ進む",
+        "お見送り"
+      ]
+    },
+    {
+      "id": "out_gH1acJAI9u",
+      "name": "エージェントへの連絡",
+      "choices": [
+        "する",
+        "しない"
+      ]
+    }
+  ],
+  "rows": [
+    {
+      "values": [
+        "満たす",
+        "自社サイト",
+        "募集中"
+      ],
+      "impossible": false,
+      "results": [
+        "書類選考へ進む",
+        "しない"
+      ]
+    },
+    {
+      "values": [
+        "満たす",
+        "自社サイト",
+        "締切後"
+      ],
+      "impossible": true,
+      "results": [
+        "",
+        ""
+      ]
+    },
+    {
+      "values": [
+        "満たす",
+        "エージェント",
+        "募集中"
+      ],
+      "impossible": false,
+      "results": [
+        "書類選考へ進む",
+        "する"
+      ]
+    },
+    {
+      "values": [
+        "満たす",
+        "エージェント",
+        "締切後"
+      ],
+      "impossible": false,
+      "results": [
+        "",
+        "する"
+      ]
+    },
+    {
+      "values": [
+        "満たさない",
+        "自社サイト",
+        "募集中"
+      ],
+      "impossible": false,
+      "results": [
+        "お見送り",
+        "しない"
+      ]
+    },
+    {
+      "values": [
+        "満たさない",
+        "自社サイト",
+        "締切後"
+      ],
+      "impossible": true,
+      "results": [
+        "",
+        ""
+      ]
+    },
+    {
+      "values": [
+        "満たさない",
+        "エージェント",
+        "募集中"
+      ],
+      "impossible": false,
+      "results": [
+        "お見送り",
+        ""
+      ]
+    },
+    {
+      "values": [
+        "満たさない",
+        "エージェント",
+        "締切後"
+      ],
+      "impossible": false,
+      "results": [
+        "",
+        ""
+      ]
+    }
+  ]
+}

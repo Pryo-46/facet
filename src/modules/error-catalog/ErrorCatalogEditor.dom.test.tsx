@@ -180,16 +180,18 @@ describe('ErrorCatalogEditor: No 列', () => {
 })
 
 /**
- * 無方向の `border-<色>` は border-color を4辺へ流す。列の境界の縦罫
- * （colBorder）と同じ th に載ると、生成 CSS の後勝ちでヘッダー下罫の色まで
- * 縦罫の色に変わり、縦罫を持たない No 列だけが濃いまま残る（実機で
- * 「No の下だけ濃い」段差になった）。だから th の罫線の色は辺指定で書く
+ * ヘッダーの下罫は `border` ではなく影で描く（`headCell`）——`border-collapse`
+ * の表では罫線が表の格子に属するので、`sticky` で浮いた見出しは罫線を
+ * 置き去りにし、スクロール中だけ線が消える。
+ *
+ * 縦罫の色は辺指定で書く。無方向の `border-<色>` は border-color を4辺へ
+ * 流すので、縦罫を持たない No 列だけが他の列と違う見た目になる
  */
 describe('ErrorCatalogEditor: ヘッダーの罫線', () => {
-  it('下罫の色を全列そろえる（No 列だけ濃くならない）', () => {
+  it('下罫を全列そろえ、スクロールで消えない描き方で持つ', () => {
     renderEditor(twoErrors)
     for (const th of screen.getAllByRole('columnheader')) {
-      expect(th.className).toMatch(/(^|\s)border-b-rule(\s|$)/)
+      expect(th.className).toContain('shadow-[inset_0_-1px_0_var(--rule)]')
       expect(th.className).not.toMatch(/(^|\s)border-rule(-muted)?(\s|$)/)
     }
   })
@@ -424,5 +426,48 @@ describe('ErrorCatalogEditor: 表示中の行の報告', () => {
     fireEvent.click(within(group).getByRole('button', { name: 'サポート対応' }))
     const [ids] = onVisibleIds.mock.calls.at(-1)!
     expect(ids).not.toBeNull()
+  })
+})
+
+describe('ErrorCatalogEditor: セルのフォーカス枠', () => {
+  it('入力欄ではなくセルが描く', () => {
+    // 入力欄はセルより小さいので、入力欄が枠を描くとセルの中に箱が浮く
+    renderEditor(twoErrors)
+    const cell = screen.getByLabelText('エラー名（No.1）')
+    expect(cell.className).not.toMatch(/ring/)
+    expect(cell.closest('td')?.className).toContain('focus-within:ring-2')
+  })
+})
+
+describe('ErrorCatalogEditor: セルの当たり判定', () => {
+  it('欄の外の余白を押しても欄へフォーカスが移る', () => {
+    renderEditor(twoErrors)
+    const cell = screen.getByLabelText('エラー名（No.1）')
+    const td = cell.closest('td')
+    if (td === null) throw new Error('セルが見つからない')
+    fireEvent.mouseDown(td)
+    expect(document.activeElement).toBe(cell)
+  })
+})
+
+describe('ErrorCatalogEditor: 選択肢セルの高さ', () => {
+  it('解決レベルのトリガーはセルの高さいっぱいに広がる', () => {
+    renderEditor(twoErrors)
+    expect(screen.getByLabelText('解決レベル（No.1）').className).toContain('h-full')
+  })
+})
+
+describe('ErrorCatalogEditor: 選択肢セルの <td>', () => {
+  it('高さを指定する（指定しないと中の h-full が解決しない）', () => {
+    renderEditor(twoErrors)
+    const td = screen.getByLabelText('解決レベル（No.1）').closest('td')
+    expect(td?.className).toContain('h-px')
+  })
+
+  it('文字を打つセルには指定しない', () => {
+    // 高さを持たない欄しか入らないので、指定しても効かない
+    renderEditor(twoErrors)
+    const td = screen.getByLabelText('エラー名（No.1）').closest('td')
+    expect(td?.className).not.toContain('h-px')
   })
 })

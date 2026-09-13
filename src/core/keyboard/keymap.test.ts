@@ -17,8 +17,7 @@ function ctx(over: Partial<KeyContext> = {}): KeyContext {
     caretAtEnd: false,
     arrowsOwnedByField: false,
     reorderEnabled: true,
-    hierarchical: false,
-    horizontal: false,
+    family: 'list',
     ...over,
   }
 }
@@ -148,16 +147,16 @@ describe('resolveCommand: 矢印の境界規則', () => {
   })
 })
 
-describe('階層構造（hierarchical: true）', () => {
+describe('木の家族（family は tree）', () => {
   it('Tab で子を追加する（rev 10章 階層・リスト系の標準）', () => {
     expect(
-      resolveCommand(key({ key: 'Tab' }), ctx({ hierarchical: true })),
+      resolveCommand(key({ key: 'Tab' }), ctx({ family: 'tree' })),
     ).toBe('insert-child')
   })
 
   it('Shift+Tab には意味を与えない（キャンバスから抜ける経路として残す）', () => {
     expect(
-      resolveCommand(key({ key: 'Tab', shiftKey: true }), ctx({ hierarchical: true })),
+      resolveCommand(key({ key: 'Tab', shiftKey: true }), ctx({ family: 'tree' })),
     ).toBe(null)
   })
 
@@ -165,7 +164,7 @@ describe('階層構造（hierarchical: true）', () => {
     expect(
       resolveCommand(
         key({ key: 'ArrowLeft' }),
-        ctx({ hierarchical: true, editing: true, caretAtStart: true }),
+        ctx({ family: 'tree', editing: true, caretAtStart: true }),
       ),
     ).toBe('focus-parent')
   })
@@ -174,7 +173,7 @@ describe('階層構造（hierarchical: true）', () => {
     expect(
       resolveCommand(
         key({ key: 'ArrowLeft' }),
-        ctx({ hierarchical: true, editing: true, caretAtStart: false }),
+        ctx({ family: 'tree', editing: true, caretAtStart: false }),
       ),
     ).toBe(null)
   })
@@ -183,7 +182,7 @@ describe('階層構造（hierarchical: true）', () => {
     expect(
       resolveCommand(
         key({ key: 'ArrowRight' }),
-        ctx({ hierarchical: true, editing: true, caretAtEnd: true }),
+        ctx({ family: 'tree', editing: true, caretAtEnd: true }),
       ),
     ).toBe('focus-child')
   })
@@ -192,7 +191,7 @@ describe('階層構造（hierarchical: true）', () => {
     expect(
       resolveCommand(
         key({ key: 'ArrowRight' }),
-        ctx({ hierarchical: true, editing: true, caretAtEnd: false }),
+        ctx({ family: 'tree', editing: true, caretAtEnd: false }),
       ),
     ).toBe(null)
   })
@@ -201,13 +200,13 @@ describe('階層構造（hierarchical: true）', () => {
     expect(
       resolveCommand(
         key({ key: 'ArrowLeft', altKey: true }),
-        ctx({ hierarchical: true, editing: true, caretAtStart: true }),
+        ctx({ family: 'tree', editing: true, caretAtStart: true }),
       ),
     ).toBe(null)
     expect(
       resolveCommand(
         key({ key: 'ArrowRight', altKey: true }),
-        ctx({ hierarchical: true, editing: true, caretAtEnd: true }),
+        ctx({ family: 'tree', editing: true, caretAtEnd: true }),
       ),
     ).toBe(null)
   })
@@ -216,38 +215,38 @@ describe('階層構造（hierarchical: true）', () => {
     expect(
       resolveCommand(
         key({ key: 'ArrowLeft', shiftKey: true }),
-        ctx({ hierarchical: true, editing: true, caretAtStart: true }),
+        ctx({ family: 'tree', editing: true, caretAtStart: true }),
       ),
     ).toBe(null)
     expect(
       resolveCommand(
         key({ key: 'ArrowRight', shiftKey: true }),
-        ctx({ hierarchical: true, editing: true, caretAtEnd: true }),
+        ctx({ family: 'tree', editing: true, caretAtEnd: true }),
       ),
     ).toBe(null)
   })
 
   it('Enter は階層でも「直後に追加」のまま', () => {
-    expect(resolveCommand(key({ key: 'Enter' }), ctx({ hierarchical: true }))).toBe(
+    expect(resolveCommand(key({ key: 'Enter' }), ctx({ family: 'tree' }))).toBe(
       'insert-item-after',
     )
   })
 
   it('Ctrl+C / Ctrl+V は階層でも奪わない（複製を後から入れるため）', () => {
-    expect(resolveCommand(key({ key: 'c', ctrlKey: true }), ctx({ hierarchical: true }))).toBe(null)
-    expect(resolveCommand(key({ key: 'v', ctrlKey: true }), ctx({ hierarchical: true }))).toBe(null)
+    expect(resolveCommand(key({ key: 'c', ctrlKey: true }), ctx({ family: 'tree' }))).toBe(null)
+    expect(resolveCommand(key({ key: 'v', ctrlKey: true }), ctx({ family: 'tree' }))).toBe(null)
   })
 
   it('IME 変換中は階層でも何も起こさない', () => {
     expect(
-      resolveCommand(key({ key: 'Tab', isComposing: true }), ctx({ hierarchical: true })),
+      resolveCommand(key({ key: 'Tab', isComposing: true }), ctx({ family: 'tree' })),
     ).toBe(null)
   })
 })
 
-describe('階層でない構造（hierarchical: false）は挙動が変わらない', () => {
+describe('リストの家族（family は list）は挙動が変わらない', () => {
   it('Tab は欄の移動のまま', () => {
-    expect(resolveCommand(key({ key: 'Tab' }), ctx({ hierarchical: false }))).toBe(
+    expect(resolveCommand(key({ key: 'Tab' }), ctx({ family: 'list' }))).toBe(
       'focus-next-field',
     )
   })
@@ -256,13 +255,13 @@ describe('階層でない構造（hierarchical: false）は挙動が変わらな
     expect(
       resolveCommand(
         key({ key: 'ArrowLeft' }),
-        ctx({ hierarchical: false, editing: true, caretAtStart: true }),
+        ctx({ family: 'list', editing: true, caretAtStart: true }),
       ),
     ).toBe(null)
     expect(
       resolveCommand(
         key({ key: 'ArrowRight' }),
-        ctx({ hierarchical: false, editing: true, caretAtEnd: true }),
+        ctx({ family: 'list', editing: true, caretAtEnd: true }),
       ),
     ).toBe(null)
   })
@@ -357,44 +356,44 @@ describe('toKeyEventLike', () => {
   })
 })
 
-// ---- horizontal / toggle-item-state / ←→ の arrowsOwnedByField ----
+// ---- 横リスト / toggle-item-state / ←→ の arrowsOwnedByField ----
 
-describe('horizontal（横リスト＝アクターヘッダ）', () => {
+describe('横リストの家族（family は horizontal。アクターヘッダ）', () => {
   it('Alt+← は move-item-up（前へ）、Alt+→ は move-item-down（次へ）', () => {
-    expect(resolveCommand(key({ key: 'ArrowLeft', altKey: true }), ctx({ horizontal: true }))).toBe(
+    expect(resolveCommand(key({ key: 'ArrowLeft', altKey: true }), ctx({ family: 'horizontal' }))).toBe(
       'move-item-up',
     )
-    expect(resolveCommand(key({ key: 'ArrowRight', altKey: true }), ctx({ horizontal: true }))).toBe(
+    expect(resolveCommand(key({ key: 'ArrowRight', altKey: true }), ctx({ family: 'horizontal' }))).toBe(
       'move-item-down',
     )
   })
 
   it('素の ←→ はキャレット端でだけ focus-prev / focus-next', () => {
     expect(
-      resolveCommand(key({ key: 'ArrowLeft' }), ctx({ horizontal: true, caretAtStart: true })),
+      resolveCommand(key({ key: 'ArrowLeft' }), ctx({ family: 'horizontal', caretAtStart: true })),
     ).toBe('focus-prev')
     expect(
-      resolveCommand(key({ key: 'ArrowLeft' }), ctx({ horizontal: true, caretAtStart: false })),
+      resolveCommand(key({ key: 'ArrowLeft' }), ctx({ family: 'horizontal', caretAtStart: false })),
     ).toBeNull()
     expect(
-      resolveCommand(key({ key: 'ArrowRight' }), ctx({ horizontal: true, caretAtEnd: true })),
+      resolveCommand(key({ key: 'ArrowRight' }), ctx({ family: 'horizontal', caretAtEnd: true })),
     ).toBe('focus-next')
     expect(
-      resolveCommand(key({ key: 'ArrowRight' }), ctx({ horizontal: true, caretAtEnd: false })),
+      resolveCommand(key({ key: 'ArrowRight' }), ctx({ family: 'horizontal', caretAtEnd: false })),
     ).toBeNull()
   })
 
-  it('horizontal では Alt+↑↓ は並び替えにならない（縦の意味が無い）', () => {
-    expect(resolveCommand(key({ key: 'ArrowUp', altKey: true }), ctx({ horizontal: true }))).toBeNull()
-    expect(resolveCommand(key({ key: 'ArrowDown', altKey: true }), ctx({ horizontal: true }))).toBeNull()
+  it('横リストでは Alt+↑↓ は並び替えにならない（縦の意味が無い）', () => {
+    expect(resolveCommand(key({ key: 'ArrowUp', altKey: true }), ctx({ family: 'horizontal' }))).toBeNull()
+    expect(resolveCommand(key({ key: 'ArrowDown', altKey: true }), ctx({ family: 'horizontal' }))).toBeNull()
   })
 
-  it('horizontal では素の（Alt 無し）↑↓ も関与しない（↑↓の horizontal ガードの変異耐性: キャレット端でも focus-prev/next にならない）', () => {
+  it('横リストでは素の（Alt 無し）↑↓ も関与しない（↑↓ の家族ガードの変異耐性: キャレット端でも focus-prev/next にならない）', () => {
     expect(
-      resolveCommand(key({ key: 'ArrowUp' }), ctx({ horizontal: true, caretAtStart: true })),
+      resolveCommand(key({ key: 'ArrowUp' }), ctx({ family: 'horizontal', caretAtStart: true })),
     ).toBeNull()
     expect(
-      resolveCommand(key({ key: 'ArrowDown' }), ctx({ horizontal: true, caretAtEnd: true })),
+      resolveCommand(key({ key: 'ArrowDown' }), ctx({ family: 'horizontal', caretAtEnd: true })),
     ).toBeNull()
   })
 
@@ -402,7 +401,7 @@ describe('horizontal（横リスト＝アクターヘッダ）', () => {
     expect(
       resolveCommand(
         key({ key: 'ArrowLeft', altKey: true }),
-        ctx({ horizontal: true, reorderEnabled: false }),
+        ctx({ family: 'horizontal', reorderEnabled: false }),
       ),
     ).toBeNull()
   })
@@ -430,33 +429,150 @@ describe('toggle-item-state（主修飾キー＋Enter）', () => {
 })
 
 describe('←→ と arrowsOwnedByField（open-issues の穴の解消）', () => {
-  it('hierarchical でも欄が矢印を使うなら ←→ は欄のもの（キャレット端でも構造移動に化けない＝ガードの変異耐性）', () => {
+  it('木でも欄が矢印を使うなら ←→ は欄のもの（キャレット端でも構造移動に化けない＝ガードの変異耐性）', () => {
     expect(
       resolveCommand(
         key({ key: 'ArrowLeft' }),
-        ctx({ hierarchical: true, arrowsOwnedByField: true, caretAtStart: true }),
+        ctx({ family: 'tree', arrowsOwnedByField: true, caretAtStart: true }),
       ),
     ).toBeNull()
     expect(
       resolveCommand(
         key({ key: 'ArrowRight' }),
-        ctx({ hierarchical: true, arrowsOwnedByField: true, caretAtEnd: true }),
+        ctx({ family: 'tree', arrowsOwnedByField: true, caretAtEnd: true }),
       ),
     ).toBeNull()
   })
 
-  it('horizontal でも同様（キャレット端でも focus-prev/next に化けない＝ガードの変異耐性）', () => {
+  it('横リストでも同様（キャレット端でも focus-prev/next に化けない＝ガードの変異耐性）', () => {
     expect(
       resolveCommand(
         key({ key: 'ArrowLeft' }),
-        ctx({ horizontal: true, arrowsOwnedByField: true, caretAtStart: true }),
+        ctx({ family: 'horizontal', arrowsOwnedByField: true, caretAtStart: true }),
       ),
     ).toBeNull()
     expect(
       resolveCommand(
         key({ key: 'ArrowRight' }),
-        ctx({ horizontal: true, arrowsOwnedByField: true, caretAtEnd: true }),
+        ctx({ family: 'horizontal', arrowsOwnedByField: true, caretAtEnd: true }),
       ),
     ).toBeNull()
+  })
+})
+
+describe('表の家族（family は grid）', () => {
+  it('Enter は行を足さず下の行へ送る', () => {
+    expect(resolveCommand(key({ key: 'Enter' }), ctx({ family: 'grid' }))).toBe('focus-next')
+  })
+
+  it('Shift+Enter と Alt+Enter は関与しない（セル内改行を残す）', () => {
+    expect(resolveCommand(key({ key: 'Enter', shiftKey: true }), ctx({ family: 'grid' }))).toBeNull()
+    expect(resolveCommand(key({ key: 'Enter', altKey: true }), ctx({ family: 'grid' }))).toBeNull()
+  })
+
+  it('←→ はキャレット端で隣の列へ移る', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft' }),
+        ctx({ family: 'grid', editing: true, caretAtStart: true }),
+      ),
+    ).toBe('focus-prev-field')
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight' }),
+        ctx({ family: 'grid', editing: true, caretAtEnd: true }),
+      ),
+    ).toBe('focus-next-field')
+  })
+
+  it('←→ はキャレットが中間なら欄のもの', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft' }),
+        ctx({ family: 'grid', editing: true, caretAtStart: false }),
+      ),
+    ).toBeNull()
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight' }),
+        ctx({ family: 'grid', editing: true, caretAtEnd: false }),
+      ),
+    ).toBeNull()
+  })
+
+  it('欄が矢印を使うなら ←→ は欄のもの（キャレット端でも列移動に化けない）', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowLeft' }),
+        ctx({ family: 'grid', arrowsOwnedByField: true, editing: true, caretAtStart: true }),
+      ),
+    ).toBeNull()
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowRight' }),
+        ctx({ family: 'grid', arrowsOwnedByField: true, editing: true, caretAtEnd: true }),
+      ),
+    ).toBeNull()
+  })
+
+  it('Alt+←→ は並び替えにならない（横リストの意味を借りない）', () => {
+    expect(
+      resolveCommand(key({ key: 'ArrowLeft', altKey: true }), ctx({ family: 'grid' })),
+    ).toBeNull()
+    expect(
+      resolveCommand(key({ key: 'ArrowRight', altKey: true }), ctx({ family: 'grid' })),
+    ).toBeNull()
+  })
+
+  it('Tab はリストと同じく欄の移動', () => {
+    expect(resolveCommand(key({ key: 'Tab' }), ctx({ family: 'grid' }))).toBe('focus-next-field')
+    expect(resolveCommand(key({ key: 'Tab', shiftKey: true }), ctx({ family: 'grid' }))).toBe(
+      'focus-prev-field',
+    )
+  })
+
+  it('↑↓ はリストと同じく行の移動', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowUp' }),
+        ctx({ family: 'grid', editing: true, caretAtStart: true }),
+      ),
+    ).toBe('focus-prev')
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowDown' }),
+        ctx({ family: 'grid', editing: true, caretAtEnd: true }),
+      ),
+    ).toBe('focus-next')
+  })
+
+  it('reorderEnabled が偽なら Alt+↑↓ は並び替えにならない', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowUp', altKey: true }),
+        ctx({ family: 'grid', reorderEnabled: false }),
+      ),
+    ).toBeNull()
+    expect(
+      resolveCommand(
+        key({ key: 'ArrowDown', altKey: true }),
+        ctx({ family: 'grid', reorderEnabled: false }),
+      ),
+    ).toBeNull()
+  })
+
+  it('deletableField が偽なら空欄 Backspace で行が消えない', () => {
+    expect(
+      resolveCommand(
+        key({ key: 'Backspace' }),
+        ctx({ family: 'grid', fieldEmpty: true, deletableField: false }),
+      ),
+    ).toBeNull()
+  })
+
+  it('主修飾キー＋Enter は toggle-item-state', () => {
+    expect(resolveCommand(key({ key: 'Enter', ctrlKey: true }), ctx({ family: 'grid' }))).toBe(
+      'toggle-item-state',
+    )
   })
 })

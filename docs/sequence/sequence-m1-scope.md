@@ -39,7 +39,7 @@ facet 共通の検証観点「入力が思考に追いつくか」（rev 11章�
 - 導出テーブルと問いの文言は [`sequence-design-notes.md`](sequence-design-notes.md) 論点3 が正
 - reply 行のガターには一般文言「─ 応答の失敗は呼出側の『結果不明』が扱う」を薄く表示（空白にしない）
 
-### 3. キーボード操作（rev 10章の階層・リスト系ファミリー標準、`hierarchical: false`）
+### 3. キーボード操作（rev 10章の階層・リスト系ファミリー標準、`family: 'list'`）
 
 - `Enter` = 直後にステップ追加。既定値: `from`＝前ステップの `to`、`kind: "call"`、`awaitsReply: true`
 - `Tab` = セル間移動（from → to → kind/awaitsReply → ラベル → 答えスロット群、実機フィードバックで改訂。レール配置ではレール→図→ガターの視覚順が正。初期フォーカスはラベルのまま）

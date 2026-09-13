@@ -802,8 +802,7 @@ export function IssueTreeEditor({
       // 導出表示（検索・フィルタ）が無いので並び替えは常に有効
       reorderEnabled: true,
       // 子を持てる構造。Tab＝子課題、←→＝親子移動になる
-      hierarchical: true,
-      horizontal: false,
+      family: 'tree',
     }
     const cmd = resolveCommand(toKeyEventLike(e), context)
     if (cmd === null) return

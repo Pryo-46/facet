@@ -1,4 +1,5 @@
 import { createRegistry } from '@/core/registry'
+import { decisionTableModule } from './decision-table/module'
 import { errorCatalogModule } from './error-catalog/module'
 import { glossaryModule } from './glossary/module'
 import { issueTreeModule } from './issue-tree/module'
@@ -12,3 +13,4 @@ appRegistry.register(errorCatalogModule)
 appRegistry.register(logicTreeModule)
 appRegistry.register(sequenceModule)
 appRegistry.register(issueTreeModule)
+appRegistry.register(decisionTableModule)
