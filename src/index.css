@@ -83,6 +83,8 @@
     --color-judge-yes-face: var(--judge-yes-face);
     --color-judge-no: var(--judge-no);
     --color-judge-no-fg: var(--judge-no-fg);
+    --color-toast: var(--toast);
+    --color-toast-fg: var(--toast-fg);
 
     /* shadcn の生成物が参照するトークン */
     --color-sidebar-ring: var(--sidebar-ring);

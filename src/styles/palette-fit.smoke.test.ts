@@ -23,7 +23,7 @@ const SCRIPT = path.join(REPO_ROOT, '.claude/skills/palette-retheme/scripts/pale
 const PALETTE_CSS = path.join(REPO_ROOT, 'src/styles/palette.css')
 
 /**
- * 実物の `palette.css` と同じ20トークン×2モード。
+ * 実物の `palette.css` と同じ23トークン×2モード。
  * `overrides` で1つだけ書き換えて、狙った節だけを破る
  */
 function draft(overrides: { light?: Record<string, string>; dark?: Record<string, string> } = {}): string {
@@ -49,6 +49,8 @@ function draft(overrides: { light?: Record<string, string>; dark?: Record<string
     'judge-yes-face': 'oklch(0.95 0.045 165)',
     'judge-no': 'oklch(0.35 0 0)',
     'judge-no-fg': 'oklch(0.985 0 0)',
+    toast: 'oklch(0.18 0 0)',
+    'toast-fg': 'oklch(0.985 0 0)',
     ...overrides.light,
   }
   const dark: Record<string, string> = {
@@ -73,6 +75,8 @@ function draft(overrides: { light?: Record<string, string>; dark?: Record<string
     'judge-yes-face': 'oklch(0.26 0.05 165)',
     'judge-no': 'oklch(0.36 0 0)',
     'judge-no-fg': 'oklch(0.95 0 0)',
+    toast: 'oklch(0.45 0 0)',
+    'toast-fg': 'oklch(0.95 0 0)',
     ...overrides.dark,
   }
   const block = (tokens: Record<string, string>): string =>
