@@ -15,3 +15,13 @@ export const IMPOSSIBLE_LABEL = '起こりえない'
  * 空であることを運ぶ
  */
 export const UNFILLED_LABEL = '未記入'
+
+/**
+ * 列見出しの語。**画面の定義部・表本体と、出力の列見出しが同じ定数を読む**
+ *——画面が「条件名」、出力が「条件」と書くと、貼った表と画面で同じ列を別の語で呼ぶ
+ */
+export const NO_COLUMN_LABEL = 'No'
+export const CONDITION_NAME_LABEL = '条件名'
+export const VALUE_LABEL = '値'
+export const OUTCOME_NAME_LABEL = '結果名'
+export const CHOICE_LABEL = '選択肢'

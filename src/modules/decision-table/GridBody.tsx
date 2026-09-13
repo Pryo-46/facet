@@ -15,7 +15,7 @@ import {
   type GridFilter,
 } from './filter'
 import { FilterMenu } from './FilterMenu'
-import { IMPOSSIBLE_LABEL, UNFILLED_LABEL } from './labels'
+import { IMPOSSIBLE_LABEL, NO_COLUMN_LABEL, UNFILLED_LABEL } from './labels'
 import { isMissingResult } from './missing'
 
 /**
@@ -221,7 +221,7 @@ export function GridBody(props: GridBodyProps) {
         </colgroup>
         <thead>
           <tr className="text-left">
-            <th className={`${headCell} text-right`}>No</th>
+            <th className={`${headCell} text-right`}>{NO_COLUMN_LABEL}</th>
             {conditions.map((c, i) => (
               <th key={`cond-${i}`} className={`${headCell} ${condColBorder}`}>
                 <span className="flex items-center justify-between gap-1">

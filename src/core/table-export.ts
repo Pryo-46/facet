@@ -64,15 +64,6 @@ export const DEFAULT_TABLE_OPTIONS: TableOptions = {
 }
 
 /**
- * 未記入の欄に出す文言。**既存の Markdown 出力と1文字も違えない**——
- * 仕様書に貼った瞬間に未定義が見えなくなるのは文章仕様書の悪癖の再生産である
- *（rev 5章）。`glossary/markdown.ts` と `error-catalog/markdown.ts` と
- * `logic-tree/markdown.ts` が各自ローカル定数で持っている値と同じ。
- * **表側だけがここを使う**——Markdown 側の3つを畳むのはここでは扱わない
- */
-export const UNDEFINED_TEXT = '（未定義）'
-
-/**
  * 読み手の出し分け。**規約5 の `OutputProfile` を流用しない**——あちらは
  * `fileSuffix` と `toMarkdown` を必ず持つが、表形式コピーではどちらも意味が無い
  *（ファイル出力を作らない）。持てない値を持たせると、必ず誰かが使う

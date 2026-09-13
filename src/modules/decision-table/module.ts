@@ -5,7 +5,9 @@ import type { DecisionTableSchemaVersion1 } from '@/types/decision-table'
 import decisionTableSchema from '../../../schemas/decision-table.schema.json'
 import { checkDecisionTableConsistency } from './consistency'
 import { DecisionTableEditor } from './DecisionTableEditor'
+import { decisionTableToMarkdown, describeDecisionTableIssueEffect } from './markdown'
 import { migrateDecisionTable } from './migrate'
+import { decisionTableToTable } from './table'
 
 export const decisionTableModule: ToolModule<DecisionTableSchemaVersion1> = {
   type: 'decisionTable',
@@ -16,9 +18,23 @@ export const decisionTableModule: ToolModule<DecisionTableSchemaVersion1> = {
   idPrefixes: ['cond', 'out'],
   Editor: DecisionTableEditor,
   checkConsistency: checkDecisionTableConsistency,
-  // 規約5: 出力は持たない。額縁は outputs[0] が無いと書き出し・コピーの
-  // 両ボタンを押せなくする（rev 6章が認めている「0本」の状態）
-  outputs: [],
+  // 規約5: 判定表を含む Markdown 1本。畳んだ表を足しても形式ごとにプロファイルを割らない
+  outputs: [
+    {
+      id: 'default',
+      label: 'Markdown',
+      fileSuffix: '',
+      toMarkdown: decisionTableToMarkdown,
+      describeIssueEffect: describeDecisionTableIssueEffect,
+    },
+  ],
+  // 規約8: 表形式コピー。**読み手は1本**なのでダイアログに選択を出さない。
+  // 階層が無いので numberStyle も、親が無いので repeatParent も宣言しない。
+  // `variants` は静的な配列なので、結果列ごとに変わる表はここに載せられない
+  tableExport: {
+    options: ['numbering', 'showUndefined'],
+    variants: [{ id: 'default', label: '判定表', toTable: decisionTableToTable }],
+  },
   // 論点ごとに表を分けるのが普通の使い方なので、1プロジェクトに何本でも置ける
   singleton: false,
   migrate: migrateDecisionTable,

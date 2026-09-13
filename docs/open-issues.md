@@ -81,7 +81,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **エラーカタログの読み手（プロファイル）が3箇所で別々に選ばれる**（`src/modules/error-catalog/ErrorCatalogEditor.tsx`）。
 - **Miro 書き出しのノード幅が概算でフォントが変わると折り返す**（`src/modules/logic-tree/miro-export.ts`）。
 - **循環で根から到達できないノードが Miro・Markdown・表の出力から警告なく落ちる**（`src/modules/logic-tree/miro-export.ts`, `src/modules/logic-tree/markdown.ts`, `src/modules/logic-tree/table.ts`）。
-- **表に貼ると `=`／`+`／`-`／`@` で始まるセルが数式として実行されうる**（`src/core/table-tsv.ts`, `src/core/table-html.ts`）。CSV/TSV インジェクション。
+- **表に貼ると `=`／`+`／`-`／`@` で始まるセルが数式として実行されうる**（`src/core/table-tsv.ts`, `src/core/table-html.ts`）。デシジョンテーブルは値ラベルを人が自由に打ち、`-` を「どちらでもよい」の意味で使う表もあるので、先頭に `'` を足す対策はラベルの見た目を変える。
 - **`readClipboardText` が空と失敗を区別せず空文字に潰す**（`src/fs/clipboard.ts`）。
 - **起動時の貼り付けが bracketed paste mode と静穏の両方を待つ設計のまま**（`src/components/TerminalTab.tsx`）。`INSERTION_QUIET_MS` は1環境でしか確認していない。
 - **存在しない `ask` を指す FB を整合性検証が見ていない**（`src/modules/issue-tree/consistency.ts`）。
@@ -92,6 +92,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **`writeMerged` の read-modify-write に直列化が無い**（`src/fs/settings-fs.ts`）。フォルダを開く保存と設定の保存が近接すると、後発が古い読み取りの上に書いて片方が落ちる。
 - **絞り込みの状態がファイルを切り替えると消える**（`src/modules/decision-table/DecisionTableEditor.tsx`）。データに持たない判断の裏返しで、同じファイルへ戻ると全行表示に戻る。
 - **まとめて入力の適用先を位置で指しており、結果が縮むと同じ添字が別の結果を指すようになる**（`src/modules/decision-table/BulkFillBar.tsx`）。
+- **結果が0本の表では、出力から `起こりえない` の行を見分けられない**（`src/modules/decision-table/table.ts`）。`起こりえない` を結果列に書いて示すので、結果列が無いと書く場所が無い。
 
 ## 性能
 
@@ -134,7 +135,6 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **Miro のクリップボード形式が非公開で Miro 側の変更で壊れうる**（`src/modules/logic-tree/miro-codec.ts`）。
 - **`escapeMermaidLabel` の re-export を参照する本番コードが無い**（`src/modules/sequence/mermaid.ts`）。
 - **端末の配色が `palette.css` の `.dark` クラスセレクタに依存している**（`src/components/TerminalTab.tsx`）。
-- **「（未定義）」の文言が4箇所で複製されている**（`src/core/table-export.ts`, `src/modules/error-catalog/markdown.ts`, `src/modules/glossary/markdown.ts`, `src/modules/logic-tree/markdown.ts`）。
 - **「どの問いにも紐づかない FB」ブロックの固定文が編集できない**（`src/modules/issue-tree/AskBlock.tsx`）。
 - **アクセシブル名の動詞が仮説だけ「削除」、FB・問いは「消す」で不揃い**（`src/modules/issue-tree/HypothesisPanel.tsx`, `src/modules/issue-tree/AskBlock.tsx`）。
 - **`.add`（節末の追加ボタン）の面クラスが2ファイルに逐語で複製されている**（`src/modules/issue-tree/HypothesisPanel.tsx`, `src/modules/issue-tree/IssueTreeEditor.tsx`）。

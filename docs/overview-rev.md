@@ -18,7 +18,7 @@
 4. **用語集エディタ** — 用語の型定義と表記ゆれ検知を担う、他ツールが参照するマスタデータ。（エディタ・登録 Skill・Markdown 出力まで実装済み。詳細は [`glossary/session-notes.md`](glossary/session-notes.md)）
 5. **エラーカタログエディタ** — エラーの一覧と対応方法を整理する。読み手も出力先も他ツールと異なるので独立モジュールとする。（エディタ・登録 Skill・Markdown 出力まで実装済み。詳細は [`error-catalog/error-catalog-session-notes.md`](error-catalog/error-catalog-session-notes.md)）
 6. **課題ツリーエディタ** — PoC で「試さないと分からないこと」を分解し、仮説と検証の結果を記録する。仮説の判断は未決・支持・棄却・保留・見送りの5語で、未決は判断イベントが0件であることから導出するため保存しない。（エディタ・登録 Skill・俯瞰の表現まで実装済み。出力は未実装。詳細は [`issue-tree/仮説検証モジュール-設計ノート.md`](issue-tree/仮説検証モジュール-設計ノート.md)）
-7. **デシジョンテーブルエディタ** — 条件の組み合わせで結果が決まる仕様を、全組み合わせを展開した表で扱う。行は条件の値の直積であり、人は行を足しも消しもしない。（エディタと整合性検証まで実装済み。出力・まとめて入力・畳み・登録 Skill は未実装。詳細は [`decision-table/decision-table-design-notes.md`](decision-table/decision-table-design-notes.md)）
+7. **デシジョンテーブルエディタ** — 条件の組み合わせで結果が決まる仕様を、全組み合わせを展開した表で扱う。行は条件の値の直積であり、人は行を足しも消しもしない。（エディタ・整合性検証・絞り込み・まとめて入力・Markdown 出力・表形式コピーまで実装済み。畳み・登録 Skill は未実装。詳細は [`decision-table/decision-table-design-notes.md`](decision-table/decision-table-design-notes.md)）
 
 ツールを増やすときの採用基準は3つである。参照グラフに参加すること、未定義を利用者が自分で解決できること、データが人と AI の共通言語になることで、3つ目は発散・収束・現状確認・相談のどの場面でも双方が同じ単位（ID の付いた構造）を指して話せることを求める。
 
