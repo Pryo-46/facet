@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import type { ToastItem } from '@/core/toasts'
+import { WEAK_TOAST_MS, type ToastItem } from '@/core/toasts'
 import { ToastStack } from './Toast'
 
 afterEach(() => {
@@ -56,16 +56,41 @@ describe('ToastStack', () => {
     expect(onDismiss).not.toHaveBeenCalled()
   })
 
-  it('時間が経っても消えない（閉じるまで残る）', () => {
+  it('弱い通知は決まった時間で消える', () => {
     vi.useFakeTimers()
-    // 操作の有無を問わず時間では消えない。6秒で自動消去すると、
-    // 見逃したのか出ていないのかが区別できず検証を妨げる
+    const { onDismiss } = setup([{ id: 7, message: 'コピーしました' }])
+    vi.advanceTimersByTime(WEAK_TOAST_MS - 1)
+    expect(onDismiss).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(onDismiss).toHaveBeenCalledWith(7)
+  })
+
+  it('重要な通知と操作付きの通知は時間が経っても消えない（閉じるまで残る）', () => {
+    vi.useFakeTimers()
+    // 裏で起きた破壊的な変更は、画面から目を離していた人にも届かなければならない
     const { onDismiss } = setup([
-      { id: 7, message: '増えました' },
+      { id: 7, message: '外部で削除されました', important: true },
       { id: 8, message: '取り込みました', action: { label: '取り込み前に戻す', run: vi.fn() } },
     ])
     vi.advanceTimersByTime(60_000)
     expect(onDismiss).not.toHaveBeenCalled()
     expect(screen.queryAllByRole('status')).toHaveLength(2)
+  })
+
+  it('ポインタを載せている間は弱い通知も消えない', () => {
+    vi.useFakeTimers()
+    const { onDismiss } = setup([{ id: 7, message: 'コピーしました' }])
+    fireEvent.pointerEnter(screen.getByRole('status'))
+    vi.advanceTimersByTime(60_000)
+    expect(onDismiss).not.toHaveBeenCalled()
+    fireEvent.pointerLeave(screen.getByRole('status'))
+    vi.advanceTimersByTime(WEAK_TOAST_MS)
+    expect(onDismiss).toHaveBeenCalledWith(7)
+  })
+
+  it('右端から端末ペインの幅だけ空けて置く（Claude Code の入力欄に重ねない）', () => {
+    render(<ToastStack toasts={[{ id: 1, message: 'a' }]} onDismiss={vi.fn()} rightInset={480} />)
+    const stack = screen.getByRole('status').parentElement as HTMLElement
+    expect(stack.style.right).toBe('480px')
   })
 })

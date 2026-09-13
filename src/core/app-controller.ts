@@ -544,7 +544,7 @@ export function createAppController(
     moduleBeforeChange: AnyToolModule | undefined,
   ): void => {
     // 同じファイルの古い通知——特に前回の取り込みで出した「取り込み前に戻す」——を消す。
-    // トーストは時間で消えないので、残すと二択に答えた後に押せてしまい、
+    // 操作付きのトーストは時間で消えないので、残すと二択に答えた後に押せてしまい、
     // 二択の前提（ディスクは検知した内容のまま）が崩れる
     host.dismissToast(`external:${selected.path}`)
     host.showModal({
@@ -582,7 +582,11 @@ export function createAppController(
     host.dropModal(`external:${path}`)
     // 外部で消えた後に古い削除確認を確定すると、trashFile が失敗する
     host.dropModal(`delete:${path}`)
-    host.showToast({ key: `external:${path}`, message: `開いていたファイルが外部で削除されました: ${name}` })
+    host.showToast({
+      key: `external:${path}`,
+      message: `開いていたファイルが外部で削除されました: ${name}`,
+      important: true,
+    })
   }
 
   /**

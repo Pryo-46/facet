@@ -576,7 +576,8 @@ function App() {
     // のコメント参照。理由は id の採番と role="status" の読み上げ直し）
     if (message === lastProgressMessage.current) return
     lastProgressMessage.current = message
-    showToast({ message, key: 'update' })
+    // 進捗は数秒で消すと、ダウンロードが止まったのか終わったのか区別できない
+    showToast({ message, key: 'update', important: true })
   }, [updateState, showToast])
 
   /**
@@ -706,7 +707,7 @@ function App() {
     // プラグインより先に見つかって古い版が発火する。**消すのは利用者**
     try {
       const message = describeLegacyArtifacts(await findLegacyArtifacts(dir))
-      if (message !== null) showToast({ message, key: 'legacy-artifacts' })
+      if (message !== null) showToast({ message, key: 'legacy-artifacts', important: true })
     } catch (err: unknown) {
       console.error('旧版の成果物を確認できませんでした', err)
     }
@@ -1397,7 +1398,12 @@ function App() {
         </div>
       </div>
 
-      <ToastStack toasts={toasts} onDismiss={dismiss} modalOpen={modalOpen} />
+      <ToastStack
+        toasts={toasts}
+        onDismiss={dismiss}
+        modalOpen={modalOpen}
+        rightInset={paneOpen && projectDir !== null ? displayPaneWidth : 0}
+      />
       <SettingsDialog
         open={settingsOpen}
         settings={settings}

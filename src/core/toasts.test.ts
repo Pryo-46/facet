@@ -1,9 +1,30 @@
 import { describe, expect, it } from 'vitest'
-import { dismissToast, dismissToastByKey, MAX_TOASTS, pushToast, type ToastItem } from './toasts'
+import {
+  dismissToast,
+  dismissToastByKey,
+  isWeakToast,
+  MAX_TOASTS,
+  pushToast,
+  type ToastItem,
+} from './toasts'
 
 function toast(id: number, over: Partial<ToastItem> = {}): ToastItem {
   return { id, message: `通知${id}`, ...over }
 }
+
+describe('isWeakToast', () => {
+  it('important も操作も無い通知は弱い（時間で消える）', () => {
+    expect(isWeakToast(toast(1))).toBe(true)
+  })
+
+  it('important の通知は弱くない', () => {
+    expect(isWeakToast(toast(1, { important: true }))).toBe(false)
+  })
+
+  it('操作付きの通知は important が無くても弱くない（復元手段を時間切れで失わない）', () => {
+    expect(isWeakToast(toast(1, { action: { label: '取り込み前に戻す', run: () => {} } }))).toBe(false)
+  })
+})
 
 describe('pushToast', () => {
   it('末尾に足す', () => {
@@ -35,6 +56,14 @@ describe('pushToast', () => {
     for (let id = 2; id <= MAX_TOASTS + 2; id++) list = pushToast(list, toast(id))
     expect(list).toHaveLength(MAX_TOASTS)
     expect(list.some((t) => t.id === 1)).toBe(true)
+  })
+
+  it('上限を超えたら重要な通知より先に弱い通知を落とす', () => {
+    let list: ToastItem[] = [toast(1, { important: true }), toast(2)]
+    for (let id = 3; id <= MAX_TOASTS + 1; id++) list = pushToast(list, toast(id, { important: true }))
+    expect(list).toHaveLength(MAX_TOASTS)
+    expect(list.map((t) => t.id)).not.toContain(2)
+    expect(list.map((t) => t.id)).toContain(1)
   })
 
   it('押し込んだ通知は落とさない（操作付きが上限まで溜まっていても表示する）', () => {
