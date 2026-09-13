@@ -105,21 +105,32 @@ describe('色値の直書き禁止（rev 9章）', () => {
   })
 })
 
-describe('フォントサイズの段階（3サイズ4段）', () => {
+describe('フォントサイズの段階（3サイズ4段と、ファイル一覧の副表示）', () => {
   it('text-sm / text-base / text-xl 以外を使っていない', () => {
     // 「許可外」を直接探す。text-ink のような色のユーティリティと区別する
     // 必要があるので、許可リストとの照合ではなく許可外の段と任意値を弾く。
     //
-    // **xs は D11 の 14px 下限を割るので使わず、lg は実使用が無く、2xl は
-    // アプリ名を text-xl（22px）へ統合したため使わない。**
+    // **lg は実使用が無く、2xl はアプリ名を text-xl（22px）に揃えるため使わない。**
     // 2px 差の段（22 と 24）を体系に残さないため、xl と 2xl は同時に開けない。
     //
-    // 任意値側は末尾に \b を付けない——`]` の直後は語構成文字ではないため
-    // \b が成立せず、`text-[13px]` のような検出が一度も発火しなかった
-    const offenders = offendingLines(/\btext-(xs|lg|[2-9]xl)\b|\btext-\[[^\]]*\]/)
+    // 任意値側は末尾に \b を付けない。`]` の直後は語構成文字ではないため
+    // \b が成立せず、`text-[13px]` のような任意値を取り逃がす
+    const offenders = offendingLines(/\btext-(lg|[2-9]xl)\b|\btext-\[[^\]]*\]/)
     expect(
       offenders,
       `使ってよいのは text-sm / text-base / text-xl の3段（複数行は text-sm + leading-normal）:\n${offenders.join('\n')}`,
+    ).toEqual([])
+  })
+
+  it('text-xs はファイル一覧（FileList.tsx）の中だけで使う', () => {
+    // 12px は D11 の下限の例外で、ファイル一覧のフォルダパスとファイル名にだけ許す。
+    // 他の場所へ広がると、14px 下限そのものが崩れる
+    const offenders = offendingLines(/\btext-xs\b/).filter(
+      (line) => !line.startsWith('src/components/FileList.tsx:'),
+    )
+    expect(
+      offenders,
+      `text-xs（12px）はファイル一覧のフォルダパスとファイル名だけの例外。他では text-sm を使う:\n${offenders.join('\n')}`,
     ).toEqual([])
   })
 })

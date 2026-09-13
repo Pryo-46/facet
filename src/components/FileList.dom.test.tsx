@@ -39,6 +39,37 @@ function setup(
   return handlers
 }
 
+/** jsdom はレイアウトを持たないので、省略の有無を幅の値で差し替える */
+function fakeWidths(el: Element, scrollWidth: number, clientWidth: number): void {
+  Object.defineProperty(el, 'scrollWidth', { configurable: true, value: scrollWidth })
+  Object.defineProperty(el, 'clientWidth', { configurable: true, value: clientWidth })
+}
+
+describe('FileList の省略時の全文表示', () => {
+  it('省略された行にホバーすると、title とファイル名の全文を title に出す', () => {
+    setup([file('長い名前.json', { result: { status: 'editable', type: 'glossary', title: 'とても長い用語集', data: {} } })])
+    const row = screen.getByRole('button', { name: 'とても長い用語集（長い名前.json） を開く' })
+    fakeWidths(row.querySelector('.truncate')!, 300, 100)
+    fireEvent.mouseEnter(row)
+    expect(row.getAttribute('title')).toBe('とても長い用語集（長い名前.json）')
+  })
+
+  it('省略されていなければ title を出さない', () => {
+    setup([file('用語集.json')])
+    const row = screen.getByRole('button', { name: '用語集（用語集.json） を開く' })
+    fireEvent.mouseEnter(row)
+    expect(row.hasAttribute('title')).toBe(false)
+  })
+
+  it('省略された見出しにホバーすると、見出しの全文を title に出す', () => {
+    setup([])
+    const heading = screen.getByRole('heading', { level: 2, name: 'デシジョンテーブル' })
+    fakeWidths(heading.querySelector('.truncate')!, 300, 100)
+    fireEvent.mouseEnter(heading)
+    expect(heading.getAttribute('title')).toBe('デシジョンテーブル')
+  })
+})
+
 describe('FileList', () => {
   it('フォルダ未選択なら案内文だけを出す', () => {
     setup([], false)
@@ -351,7 +382,7 @@ describe('種類の見出しとソート', () => {
   it('実在の title は通常の色で出す', () => {
     setup([file('用語集.json')])
     // 行の主表示（副表示のファイル名ではない方）
-    const label = screen.getByText('用語集', { selector: 'span' })
+    const label = screen.getByText('用語集', { selector: 'li span' })
     expect(label.className).toContain('text-ink')
     expect(label.className).not.toContain('text-ink-muted')
   })

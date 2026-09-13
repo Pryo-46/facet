@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import { AtSign, Folder, Plus, Trash2 } from 'lucide-react'
+import { AtSign, FileQuestion, Folder, Plus, Trash2 } from 'lucide-react'
 import { Badge } from './Badge'
 import { buttonBase } from '@/components/button-styles'
 import type { FileGroup } from '@/core/file-grouping'
@@ -42,6 +42,21 @@ export interface FileListProps {
 const LTR_MARK = '\u200e'
 
 /**
+ * 中の `.truncate` が1つでも省略されていれば、全文を title に出す。
+ *
+ * **ホバーした瞬間に測る。** 省略されるかはサイドメニューの幅と字形で決まり、
+ * 描画時の文字数からは判定できない。省略されていないときに title を出すと、
+ * 見えている文字と同じツールチップが重なるだけになる
+ */
+function titleIfTruncated(el: HTMLElement, fullText: string): void {
+  const truncated = [...el.querySelectorAll<HTMLElement>('.truncate')].some(
+    (span) => span.scrollWidth > span.clientWidth,
+  )
+  if (truncated) el.title = fullText
+  else el.removeAttribute('title')
+}
+
+/**
  * ファイル1行。**`useId` を使うために切り出している**——
  * `aria-describedby` は id で結ぶ必要があり、map の中では id を作れない
  */
@@ -74,17 +89,18 @@ function FileRow(props: {
         // accessible name に含まれない（WCAG 2.5.3 Label in Name）
         aria-label={`${fullName} を開く`}
         aria-describedby={descId}
-        className={`min-w-0 flex-1 border-l-2 px-4 py-2 text-left text-base ${
+        className={`min-w-0 flex-1 border-l-2 px-4 py-2 text-left text-sm ${
           props.selected ? 'border-ink bg-canvas' : 'border-transparent hover:bg-canvas'
         }`}
         onClick={props.onSelect}
+        onMouseEnter={(e) => titleIfTruncated(e.currentTarget, fullName)}
       >
         {/* `(無題)` は人間がつけた名前ではないので弱く出す（設計スペック）。
             実在の title と見分けがつかないと「名前をつけ忘れた」が伝わらない */}
         <span className={`block truncate ${label === UNTITLED ? 'text-ink-muted' : 'text-ink'}`}>
           {label}
         </span>
-        <span id={descId} className="block truncate text-sm text-ink-muted">
+        <span id={descId} className="block truncate text-xs text-ink-muted">
           {showFileName && file.name}
           {file.result.status === 'rejected' && <span className="ml-1 text-invalid">開けない</span>}
           {file.result.status === 'listOnly' && <span className="ml-1">編集不可</span>}
@@ -123,6 +139,10 @@ function FileRow(props: {
       </button>
     </li>
   )
+}
+
+function GroupIcon({ icon: Icon }: { icon: AnyToolModule['icon'] }) {
+  return <Icon className="size-4" />
 }
 
 /**
@@ -169,7 +189,7 @@ export function FileList(props: FileListProps) {
           帯なので `shrink-0`（スクロールを持つのは下の一覧だけ） */}
       {props.projectDir !== null && (
         <div
-          className="flex shrink-0 items-center gap-1.5 border-b border-rule px-2 py-1.5 text-sm text-ink-muted"
+          className="flex shrink-0 items-center gap-1.5 border-b border-rule px-2 py-1.5 text-xs text-ink-muted"
           title={props.projectDir}
         >
           <Folder aria-hidden className="size-3.5 shrink-0" />
@@ -208,8 +228,17 @@ export function FileList(props: FileListProps) {
                   **h2 にすること。** 額縁の h1（`facet`）の直下で、間に入る
                   見出しは無い（エディタの h2 は帯へ一本化してある）ので、
                   h3 にするとレベルが飛ぶ */}
-              <h2 className="min-w-0 flex-1 truncate px-4 py-1 text-base font-medium tracking-wide text-ink-muted">
-                {group.heading}
+              {/* アイコンは aria-hidden にして、見出しのアクセシブル名を表示名だけに保つ。
+                  module を持たない見出し（未対応・種類不明）にも代替を置き、文字の始まりを揃える */}
+              <h2
+                className="flex min-w-0 flex-1 items-center gap-2 px-4 py-1 text-sm font-medium tracking-wide text-ink-muted"
+                onMouseEnter={(e) => titleIfTruncated(e.currentTarget, group.heading)}
+              >
+                {/* icon の型は className しか受けないので、aria-hidden は包む span に付ける */}
+                <span aria-hidden className="flex shrink-0">
+                  <GroupIcon icon={group.module?.icon ?? FileQuestion} />
+                </span>
+                <span className="min-w-0 truncate">{group.heading}</span>
               </h2>
               {/* **作成ボタンは h2 の外に置く。** 中に入れると、ボタンの
                   aria-label が見出しのアクセシブル名に連結され、見出しが
