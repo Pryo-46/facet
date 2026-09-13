@@ -10,6 +10,7 @@ export const WRITE_SKILLS: readonly string[] = [
   'write-sequence',
   'write-issue-tree',
   'write-logic-tree',
+  'write-decision-table',
 ]
 
 /** データを読むだけの Skill */

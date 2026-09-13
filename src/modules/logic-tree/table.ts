@@ -1,5 +1,6 @@
 import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
-import { type Table, type TableOptions, UNDEFINED_TEXT } from '@/core/table-export'
+import { UNDEFINED_TEXT } from '@/core/output-labels'
+import type { Table, TableOptions } from '@/core/table-export'
 import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
 
 /**

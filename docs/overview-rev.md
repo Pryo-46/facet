@@ -18,7 +18,7 @@
 4. **用語集エディタ** — 用語の型定義と表記ゆれ検知を担う、他ツールが参照するマスタデータ。（エディタ・登録 Skill・Markdown 出力まで実装済み。詳細は [`glossary/session-notes.md`](glossary/session-notes.md)）
 5. **エラーカタログエディタ** — エラーの一覧と対応方法を整理する。読み手も出力先も他ツールと異なるので独立モジュールとする。（エディタ・登録 Skill・Markdown 出力まで実装済み。詳細は [`error-catalog/error-catalog-session-notes.md`](error-catalog/error-catalog-session-notes.md)）
 6. **課題ツリーエディタ** — PoC で「試さないと分からないこと」を分解し、仮説と検証の結果を記録する。仮説の判断は未決・支持・棄却・保留・見送りの5語で、未決は判断イベントが0件であることから導出するため保存しない。（エディタ・登録 Skill・俯瞰の表現まで実装済み。出力は未実装。詳細は [`issue-tree/仮説検証モジュール-設計ノート.md`](issue-tree/仮説検証モジュール-設計ノート.md)）
-7. **デシジョンテーブルエディタ** — 条件の組み合わせで結果が決まる仕様を、全組み合わせを展開した表で扱う。行は条件の値の直積であり、人は行を足しも消しもしない。（エディタと整合性検証まで実装済み。出力・まとめて入力・畳み・登録 Skill は未実装。詳細は [`decision-table/decision-table-design-notes.md`](decision-table/decision-table-design-notes.md)）
+7. **デシジョンテーブルエディタ** — 条件の組み合わせで結果が決まる仕様を、全組み合わせを展開した表で扱う。行は条件の値の直積であり、人は行を足しも消しもしない。（エディタ・整合性検証・絞り込み・まとめて入力・Markdown 出力・表形式コピー・登録 Skill まで実装済み。畳みは未実装。詳細は [`decision-table/decision-table-design-notes.md`](decision-table/decision-table-design-notes.md)）
 
 ツールを増やすときの採用基準は3つである。参照グラフに参加すること、未定義を利用者が自分で解決できること、データが人と AI の共通言語になることで、3つ目は発散・収束・現状確認・相談のどの場面でも双方が同じ単位（ID の付いた構造）を指して話せることを求める。
 
@@ -80,7 +80,7 @@ ID捏造・不正データの予防として、各Skillに ID採番と書き込�
 - どの Skill がどの共有ソースを要るかは手書きの表 `SKILL_SOURCES` で宣言し、**`WRITE_SKILLS` から導出しない**（導出は恒真式になる）。
 - 変換の健全性は**出力の一致**で見る。生成物を import してアプリ側と同じ結果を返すこと、CJS の `require(` が残らないことを確かめる。
 - **JSON Schema だけは生成の対象ではない**（実行時にそのまま読む JSON だから）。
-- 共有している原本は `src/core/canonical.ts` と、ツール固有の導出3本（`src/modules/sequence/questions.ts`、`src/modules/issue-tree/derive.ts`、`src/core/canvas/flat-tree-core.ts`）。原本がどの層にあるかは要件ではない。
+- 共有している原本は `src/core/canonical.ts`・`src/core/missing-tally.ts` と、ツール固有の導出5本（`src/modules/sequence/questions.ts`、`src/modules/issue-tree/derive.ts`、`src/core/canvas/flat-tree-core.ts`、`src/modules/decision-table/rows.ts`、`src/modules/decision-table/missing.ts`）。原本がどの層にあるかは要件ではない。
 - **新しいツールの登録 Skill では導出ロジックを手で複製せず、この形に寄せる。** 導出ロジックは制約の下で書き、同梱予定である旨と制約を原本の JSDoc に書いておく。
 - **予定が立っていないファイルを共有したくなったら、原本を曲げず、共有が要る部分を純粋な下層として切り出す**（`flat-tree-core.ts` がその形）。
 - 書き出しスクリプトが配列順を正規化するかは、並べ替えロジックを共有できるかで決まる。共有できれば持たせ、できないツールは配列順を触らない。

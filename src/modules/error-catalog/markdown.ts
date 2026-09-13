@@ -1,4 +1,5 @@
 import { dividerRow, documentHeading, escapeCell, headingText, row } from '@/core/markdown-table'
+import { UNDEFINED_TEXT } from '@/core/output-labels'
 import type { VisibleRows } from '@/core/table-export'
 import type { ErrorCatalogSchemaVersion1, ErrorEntry } from '@/types/error-catalog'
 import errorCatalogSchema from '../../../schemas/error-catalog.schema.json'
@@ -25,8 +26,6 @@ import { resolutionLabel } from './resolution-labels'
 const LEVEL_ORDER: readonly string[] =
   errorCatalogSchema.$defs.errorEntry.properties.resolutionLevel.enum
 
-const UNDEFINED_VALUE = '（未定義）'
-
 /**
  * セルの値。**空は「（未定義）」と書いて負債を出力にも残す。**
  * ただし `notes` は検知対象外の自由メモなので空のまま——用語集の備考と揃える。
@@ -34,7 +33,7 @@ const UNDEFINED_VALUE = '（未定義）'
  */
 function value(entry: ErrorEntry, field: ErrorField): string {
   const raw: string = entry[field]
-  if (raw === '' && field !== 'notes') return UNDEFINED_VALUE
+  if (raw === '' && field !== 'notes') return UNDEFINED_TEXT
   return escapeCell(raw)
 }
 

@@ -1,6 +1,7 @@
 import { buildTree, type FlatTreeNode } from '@/core/canvas/flat-tree'
 import { documentHeading } from '@/core/markdown-table'
 import { escapeMermaidLabel } from '@/core/mermaid'
+import { UNDEFINED_TEXT } from '@/core/output-labels'
 import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
 
 /**
@@ -16,8 +17,6 @@ import type { LogicTreeSchemaVersion1 } from '@/types/logic-tree'
  * - 空文言は `（未定義）`。**仕様書に貼った瞬間に未定義が見えなくなるのは
  *   文章仕様書の悪癖の再生産である**（rev 5章。用語集・シーケンスと同じ規約）
  */
-
-const UNDEFINED_TEXT = '（未定義）'
 
 /**
  * 箇条書き側の文言。空なら（未定義）。改行は `<br>` に変える。

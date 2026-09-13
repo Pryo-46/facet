@@ -41,7 +41,14 @@ import {
   type GridFilter,
 } from './filter'
 import { GridBody } from './GridBody'
-import { IMPOSSIBLE_LABEL, UNFILLED_LABEL } from './labels'
+import {
+  CHOICE_LABEL,
+  CONDITION_NAME_LABEL,
+  IMPOSSIBLE_LABEL,
+  OUTCOME_NAME_LABEL,
+  UNFILLED_LABEL,
+  VALUE_LABEL,
+} from './labels'
 import { isMissingLabel, isMissingResult, LABEL_KIND, RESULT_KIND, tallyMissing } from './missing'
 import { MAX_ROWS, productSize, rowKeyOf } from './rows'
 
@@ -636,8 +643,8 @@ export function DecisionTableEditor({
       <div ref={conditionRows.containerRef} className="mb-6">
         <DefinitionList
           heading="条件"
-          nameLabel="条件名"
-          itemLabel="値"
+          nameLabel={CONDITION_NAME_LABEL}
+          itemLabel={VALUE_LABEL}
           labelsField="values"
           rows={conditionDefinitionRows}
           marks={sectionMarks(issues, 'condition')}
@@ -672,8 +679,8 @@ export function DecisionTableEditor({
       <div ref={outcomeRows.containerRef}>
         <DefinitionList
           heading="結果"
-          nameLabel="結果名"
-          itemLabel="選択肢"
+          nameLabel={OUTCOME_NAME_LABEL}
+          itemLabel={CHOICE_LABEL}
           labelsField="choices"
           rows={outcomeDefinitionRows}
           marks={sectionMarks(issues, 'outcome')}

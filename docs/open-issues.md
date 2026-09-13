@@ -10,10 +10,10 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **二重に `pty_kill` しても無害であることを踏む Rust テストが無い**（`src-tauri/src/pty.rs`）。`TerminalTab` のアンマウント時 kill がこの性質に依存している。
 - **課題ツリーの構造編集関数の一部に直接のテストがない**（`src/modules/issue-tree/commands.ts`）。ロジックツリーから移植した関数が対象。
 - **`poseQuestions` の並び契約を突くテストがない**（`src/modules/issue-tree/derive.ts`）。「戻り値は入力と同じ添字で並ぶ」という契約は ID 重複ファイルで必要になる。
-- **`write-issue-tree` に evals が無い**（`plugins/facet/skills/write-issue-tree/`）。他4つの登録 Skill は evals ディレクトリを持つ。
-- **`write-logic-tree` の evals は実行ハーネスに掛けていない**（`plugins/facet/skills/write-logic-tree/evals/`）。`evals.json` と `grade.mjs` はあるが、npm スクリプトからも CI からも呼ばれていない。
+- **`write-issue-tree` に evals が無い**（`plugins/facet/skills/write-issue-tree/`）。他の登録 Skill は evals ディレクトリを持つ。
+- **`write-term`・`write-error`・`write-sequence`・`write-logic-tree` の evals の判定器にテストが無い**（`plugins/facet/skills/*/evals/grade.mjs`）。判定器が壊れても evals の実走まで気づけず、`write-decision-table` の `src/modules/decision-table/skill-grade.test.ts` の形が手本になる。
 - **`.gitattributes` 欠落の警告が「整合性の警告」の見出しの下に出る**（`plugins/facet/skills/write-logic-tree/scripts/logic-tree-write.mjs`）。整合性の警告とは別種の警告が同じ見出しに混ざる。
-- **smoke テストの5本が揃って子プロセスの `stdio` を捨て、落ちても原因が残らない**（`src/modules/*/skill-write.smoke.test.ts`）。意図的なエラーケースの stderr は緑の実行でも画面に出る一方、全体実行でまれに起きる失敗は原因が追えない。
+- **smoke テストが揃って子プロセスの `stdio` を捨て、落ちても原因が残らない**（`src/modules/*/skill-write.smoke.test.ts`）。意図的なエラーケースの stderr は緑の実行でも画面に出る一方、全体実行でまれに起きる失敗は原因が追えない。
 - **`logic-tree-write.mjs` の exit 2 の経路とスキーマの解決順が未テスト**（`plugins/facet/skills/write-logic-tree/scripts/logic-tree-write.mjs`）。
 - **`ink-faint` をアクティブな本文に使っていないことを機械検査していない**（`src/styles/conventions.test.ts`）。WCAG 1.4.3 の免除範囲に収まる前提が崩れても検知できない。
 - **schemaVersion の移行を読み込み時以外の経路で見るテストが無い**（`src/core/load.ts`）。自動保存など他の経路は未検証。
@@ -81,7 +81,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **エラーカタログの読み手（プロファイル）が3箇所で別々に選ばれる**（`src/modules/error-catalog/ErrorCatalogEditor.tsx`）。
 - **Miro 書き出しのノード幅が概算でフォントが変わると折り返す**（`src/modules/logic-tree/miro-export.ts`）。
 - **循環で根から到達できないノードが Miro・Markdown・表の出力から警告なく落ちる**（`src/modules/logic-tree/miro-export.ts`, `src/modules/logic-tree/markdown.ts`, `src/modules/logic-tree/table.ts`）。
-- **表に貼ると `=`／`+`／`-`／`@` で始まるセルが数式として実行されうる**（`src/core/table-tsv.ts`, `src/core/table-html.ts`）。CSV/TSV インジェクション。
+- **表に貼ると `=`／`+`／`-`／`@` で始まるセルが数式として実行されうる**（`src/core/table-tsv.ts`, `src/core/table-html.ts`）。デシジョンテーブルは値ラベルを人が自由に打ち、`-` を「どちらでもよい」の意味で使う表もあるので、先頭に `'` を足す対策はラベルの見た目を変える。
 - **`readClipboardText` が空と失敗を区別せず空文字に潰す**（`src/fs/clipboard.ts`）。
 - **起動時の貼り付けが bracketed paste mode と静穏の両方を待つ設計のまま**（`src/components/TerminalTab.tsx`）。`INSERTION_QUIET_MS` は1環境でしか確認していない。
 - **存在しない `ask` を指す FB を整合性検証が見ていない**（`src/modules/issue-tree/consistency.ts`）。
@@ -93,6 +93,7 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **メニューから切り替えるとき `allowProjectDir` の失敗が画面に出ない**（`src/App.tsx`）。`console.error` だけで、押しても何も起きないように見える。
 - **絞り込みの状態がファイルを切り替えると消える**（`src/modules/decision-table/DecisionTableEditor.tsx`）。データに持たない判断の裏返しで、同じファイルへ戻ると全行表示に戻る。
 - **まとめて入力の適用先を位置で指しており、結果が縮むと同じ添字が別の結果を指すようになる**（`src/modules/decision-table/BulkFillBar.tsx`）。
+- **結果が0本の表では、出力から `起こりえない` の行を見分けられない**（`src/modules/decision-table/table.ts`）。`起こりえない` を結果列に書いて示すので、結果列が無いと書く場所が無い。
 
 ## 性能
 
@@ -135,7 +136,6 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **Miro のクリップボード形式が非公開で Miro 側の変更で壊れうる**（`src/modules/logic-tree/miro-codec.ts`）。
 - **`escapeMermaidLabel` の re-export を参照する本番コードが無い**（`src/modules/sequence/mermaid.ts`）。
 - **端末の配色が `palette.css` の `.dark` クラスセレクタに依存している**（`src/components/TerminalTab.tsx`）。
-- **「（未定義）」の文言が4箇所で複製されている**（`src/core/table-export.ts`, `src/modules/error-catalog/markdown.ts`, `src/modules/glossary/markdown.ts`, `src/modules/logic-tree/markdown.ts`）。
 - **「どの問いにも紐づかない FB」ブロックの固定文が編集できない**（`src/modules/issue-tree/AskBlock.tsx`）。
 - **アクセシブル名の動詞が仮説だけ「削除」、FB・問いは「消す」で不揃い**（`src/modules/issue-tree/HypothesisPanel.tsx`, `src/modules/issue-tree/AskBlock.tsx`）。
 - **`.add`（節末の追加ボタン）の面クラスが2ファイルに逐語で複製されている**（`src/modules/issue-tree/HypothesisPanel.tsx`, `src/modules/issue-tree/IssueTreeEditor.tsx`）。
