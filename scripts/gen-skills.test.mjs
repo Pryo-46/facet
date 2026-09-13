@@ -27,6 +27,7 @@ const SAMPLES = [
   ['応募から書類選考まで.json', 'sequence'],
   ['課題ツリー.json', 'issue-tree'],
   ['応募が書類選考に進まないケース.json', 'logic-tree'],
+  ['書類選考の結果通知.json', 'decision-table'],
 ]
 
 function skillOf(schema) {
