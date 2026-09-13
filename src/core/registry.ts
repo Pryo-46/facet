@@ -33,6 +33,17 @@ export interface EditorProps<TData> {
    * **間違った行の内容が出ることは原理的にない**
    */
   onVisibleIds?: (ids: VisibleRows, total: number) => void
+  /**
+   * 起きた出来事を人に知らせる（トースト）。**持たないエディタは呼ばなくてよい**
+   *（`onVisibleIds` と同じ層の任意スロットで、モジュール規約の点数は増えない）。
+   *
+   * **いま続いている状態はここへ流さない。** バナーが状態を出す場所で、
+   * トーストは出来事を流す場所である（`src/core/toasts.ts`）。
+   *
+   * **鍵は額縁が付ける。** トーストは時間では消えないので、鍵が無いと
+   * 同じ操作をくり返した分だけ積み上がる
+   */
+  onToast?: (message: string) => void
 }
 
 /**

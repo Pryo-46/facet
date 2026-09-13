@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FieldState } from '@/components/CellInput'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { KeyHints } from '@/components/KeyHints'
@@ -8,6 +8,7 @@ import { resolveCommand, toKeyEventLike, type Command } from '@/core/keyboard/ke
 import { currentPlatform } from '@/core/keyboard/platform'
 import { stepField } from '@/core/list-editor/field-step'
 import { cellId, useListRows, type ListRows } from '@/core/list-editor/use-list-rows'
+import { useVisibleIdsReport } from '@/core/list-editor/use-visible-ids'
 import { computeRowKeys } from '@/core/row-keys'
 import type { EditorProps } from '@/core/registry'
 import type { Condition, DecisionTableSchemaVersion1, Outcome } from '@/types/decision-table'
@@ -28,12 +29,21 @@ import {
   toggleImpossible,
   type Applied,
 } from './commands'
+import { applyBulk, type BulkTarget } from './bulk'
+import { BulkFillBar } from './BulkFillBar'
 import { sectionMarks } from './consistency'
 import { DefinitionList, type DefinitionRow } from './DefinitionList'
+import {
+  EMPTY_FILTER,
+  filterRowIndices,
+  isFiltered,
+  reconcileFilter,
+  type GridFilter,
+} from './filter'
 import { GridBody } from './GridBody'
-import { IMPOSSIBLE_LABEL } from './labels'
+import { IMPOSSIBLE_LABEL, UNFILLED_LABEL } from './labels'
 import { isMissingLabel, isMissingResult, LABEL_KIND, RESULT_KIND, tallyMissing } from './missing'
-import { MAX_ROWS, productSize } from './rows'
+import { MAX_ROWS, productSize, rowKeyOf } from './rows'
 
 const PLATFORM = currentPlatform()
 
@@ -117,6 +127,8 @@ export function DecisionTableEditor({
   onChange,
   issues,
   modalOpen,
+  onToast,
+  onVisibleIds,
 }: EditorProps<DecisionTableSchemaVersion1>) {
   const [pending, setPending] = useState<{
     applied: Applied
@@ -369,6 +381,85 @@ export function DecisionTableEditor({
    */
   const [focusedRow, setFocusedRow] = useState<number | null>(null)
 
+  /**
+   * 表本体の絞り込み。**データには持たない**——見ている範囲は人ごと・その場ごとに
+   * 変わるもので、ファイルに残すと他の人の表示まで動かす
+   */
+  const [pickedFilter, setFilter] = useState<GridFilter>(EMPTY_FILTER)
+
+  /**
+   * いまの条件・結果に合わせて刈り込んだ絞り込み。**書き戻さず、描画のたびに導出する**
+   *——列を消す経路もラベルを書き換える経路も複数あり、どれか1つで書き戻しを
+   * 忘れると、画面から消えた列が行を隠したまま残る。導出なら取りこぼす経路が無い。
+   * 刈り込みは変わらないとき同じ参照を返すので、描画のたびに増えるものは無い
+   */
+  const filter = reconcileFilter(data.conditions, data.outcomes, pickedFilter)
+
+  /**
+   * 値ラベルの書き換えに絞り込みを追従させる。**呼ぶのは書き換えを適用する前**
+   *——旧ラベルは `data` からしか読めない。追従させないと、打鍵のたびに選んだ
+   * ラベルがどの行とも一致しなくなり、絞り込み中の表が黙って空になる
+   */
+  const followRename = (id: string, before: string, after: string): void => {
+    if (before === after) return
+    setFilter((f) => {
+      const picked = f.values[id]
+      if (picked === undefined || !picked.includes(before)) return f
+      // 書き換え先が既に選ばれていると同じラベルが2つ並ぶので、重複を畳む
+      const renamed = [...new Set(picked.map((label) => (label === before ? after : label)))]
+      return { ...f, values: { ...f.values, [id]: renamed } }
+    })
+  }
+
+  /** 表に出す行の「元配列での index」 */
+  const visible = filterRowIndices(data.conditions, data.outcomes, data.rows, filter)
+
+  // 隠れた行のフォーカスの面を捨てる。フォーカスのある要素を DOM から外しても
+  // ブラウザは blur を出さないので、絞り込みで行を隠すと `onGridBlur` は呼ばれない。
+  // 残すと、絞り込みを外したときに誰もいない行へ「この行」の面が付く
+  if (focusedRow !== null && !visible.includes(focusedRow)) setFocusedRow(null)
+
+  /**
+   * 絞り込みを額縁へ知らせる。**鍵は値の組み合わせで、添字ではない**——
+   * この報告は `useEffect` を通るので1フレーム古くなりうる。条件の値を1つ消すと
+   * 直積が縮み、同じ添字が別の組み合わせを指す
+   */
+  useVisibleIdsReport(
+    isFiltered(filter) ? visible.map((i) => rowKeyOf(data.rows[i])) : null,
+    data.rows.length,
+    onVisibleIds,
+  )
+
+  /**
+   * まとめて入力が書き込む行数。**起こりえない行は数えない**——バーの文は
+   * 適用を押すと何が起きるかの約束なので、数は `applyBulk` が書く行の数と
+   * 一致させる。起こりえない行を隠しているときは表示中の行数と同じになる
+   */
+  const bulkTargetCount = visible.filter((i) => !data.rows[i].impossible).length
+
+  /**
+   * まとめて入力。**変更した行数を知らせる**——上書きは確認を挟まないので、
+   * 何行が動いたかを後から読める場所が要る。
+   *
+   * **通知の数はバーの文の行数と分母が違う。** 文は書き込む先の行を数え、
+   * こちらはそのうち値が変わった行を数える
+   */
+  const applyBulkFill = (target: BulkTarget): void => {
+    const out = applyBulk(data, visible, target)
+    if (out.changed === 0) {
+      onToast?.('値の変わる行はありません')
+      return
+    }
+    onChange(out.data, null)
+    const what =
+      target.kind === 'impossible'
+        ? `${IMPOSSIBLE_LABEL}を${target.on ? '付け' : '外し'}ました`
+        : `${data.outcomes[target.outcomeIndex].name}を「${
+            target.value === '' ? UNFILLED_LABEL : target.value
+          }」にしました`
+    onToast?.(`${what}（${out.changed} 行）`)
+  }
+
   /** 表本体のセルへフォーカスする。無ければ何もせず false を返す（既定動作を止めない） */
   const focusGridCell = (rowIndex: number, field: string): boolean => {
     const el = gridRef.current?.querySelector<HTMLElement>(
@@ -379,23 +470,61 @@ export function DecisionTableEditor({
     return true
   }
 
+  /**
+   * 表の中の位置で数えたセルへ移る。**上下の移動はこちらを使う**——
+   * 元配列の添字で隣を引くと、絞り込みで隠れた行の `data-cell` が見つからず
+   * 移動がそこで止まる
+   */
+  const focusVisible = (visiblePos: number, field: string): boolean => {
+    const index = visible[visiblePos]
+    return index === undefined ? false : focusGridCell(index, field)
+  }
+
+  /**
+   * 絞り込みを外してから移る先。**`focusGridCell` では代われない**——
+   * 絞り込みを外した直後は、移動先のセルがまだ描かれていない
+   */
+  const [pendingJump, setPendingJump] = useState<{ index: number; field: string } | null>(null)
+
+  useEffect(() => {
+    if (pendingJump === null) return
+    focusGridCell(pendingJump.index, pendingJump.field)
+    setPendingJump(null)
+  }, [pendingJump])
+
+  /**
+   * 欠落のセルへ移る。**隠れていたら絞り込みを外す**——帯は全行を数えるので、
+   * 表示中の行だけを巡ると、数とジャンプ先が食い違う
+   */
+  const jumpToGridCell = (index: number, field: string): void => {
+    if (visible.includes(index)) {
+      focusGridCell(index, field)
+      return
+    }
+    setFilter(EMPTY_FILTER)
+    setPendingJump({ index, field })
+  }
+
   /** 結果列の並び。`stepField` に渡して隣の列・行端の折り返しを引く */
   const resultFieldOrder = data.outcomes.map((_, j) => `result:${j}`)
 
   /** コマンドを表本体の構造へ写像する。戻り値 true＝消費した（既定動作を止める） */
-  const runGridCommand = (cmd: Command, at: { index: number; field: string }): boolean => {
+  const runGridCommand = (
+    cmd: Command,
+    at: { index: number; visiblePos: number; field: string },
+  ): boolean => {
     switch (cmd) {
       case 'focus-prev':
-        return focusGridCell(at.index - 1, at.field)
+        return focusVisible(at.visiblePos - 1, at.field)
       case 'focus-next':
-        return focusGridCell(at.index + 1, at.field)
+        return focusVisible(at.visiblePos + 1, at.field)
       case 'focus-prev-field': {
         const step = stepField(resultFieldOrder, at.field, -1)
-        return focusGridCell(at.index + step.rowDelta, step.field)
+        return focusVisible(at.visiblePos + step.rowDelta, step.field)
       }
       case 'focus-next-field': {
         const step = stepField(resultFieldOrder, at.field, 1)
-        return focusGridCell(at.index + step.rowDelta, step.field)
+        return focusVisible(at.visiblePos + step.rowDelta, step.field)
       }
       case 'toggle-item-state':
         onChange(toggleImpossible(data, at.index), null)
@@ -411,7 +540,10 @@ export function DecisionTableEditor({
   }
 
   /** 表本体のセルのキー入力。キーの判定はコアの resolveCommand に委ねる（rev 10章） */
-  const onGridCellKeyDown = (e: React.KeyboardEvent, at: { index: number; field: string }): void => {
+  const onGridCellKeyDown = (
+    e: React.KeyboardEvent,
+    at: { index: number; visiblePos: number; field: string },
+  ): void => {
     const cmd = resolveCommand(toKeyEventLike(e), {
       platform: PLATFORM,
       modalOpen: anyModalOpen,
@@ -453,7 +585,7 @@ export function DecisionTableEditor({
       const next = ((jumpAt.current[kind] ?? -1) + 1) % targets.length
       jumpAt.current[kind] = next
       const target = targets[next]
-      focusGridCell(target.index, target.field)
+      jumpToGridCell(target.index, target.field)
       return
     }
     if (kind !== LABEL_KIND) return
@@ -521,13 +653,14 @@ export function DecisionTableEditor({
               false,
             )
           }
-          onRenameLabel={(index, labelIndex, label) =>
-            applyDefinition(
+          onRenameLabel={(index, labelIndex, label) => {
+            followRename(data.conditions[index].id, data.conditions[index].values[labelIndex], label)
+            return applyDefinition(
               renameValue(data, index, labelIndex, label),
               cellId(conditionRows.rowKeys[index], `${LABEL_FIELD}${labelIndex}`),
               false,
             )
-          }
+          }}
           onAddRow={() => conditionRows.insertAfter(data.conditions.length - 1)}
           onRemoveRow={(index) => removeRowAt('condition', conditionRows, index)}
           onAddLabel={addValueAt}
@@ -556,13 +689,14 @@ export function DecisionTableEditor({
               false,
             )
           }
-          onRenameLabel={(index, labelIndex, label) =>
-            applyDefinition(
+          onRenameLabel={(index, labelIndex, label) => {
+            followRename(data.outcomes[index].id, data.outcomes[index].choices[labelIndex], label)
+            return applyDefinition(
               renameChoice(data, index, labelIndex, label),
               cellId(outcomeRows.rowKeys[index], `${LABEL_FIELD}${labelIndex}`),
               false,
             )
-          }
+          }}
           onAddRow={() => outcomeRows.insertAfter(data.outcomes.length - 1)}
           onRemoveRow={(index) => removeRowAt('outcome', outcomeRows, index)}
           onAddLabel={addChoiceAt}
@@ -579,14 +713,38 @@ export function DecisionTableEditor({
           </p>
         ) : (
           <>
-            <div className="mb-2">
+            <div className="mb-2 flex flex-wrap items-center gap-3">
               <KeyHints hints={GRID_HINTS} />
+              <label className="flex items-center gap-2 text-base text-ink">
+                <input
+                  type="checkbox"
+                  aria-label="起こりえない行を表示"
+                  checked={filter.showImpossible}
+                  onChange={() =>
+                    setFilter((f) => ({ ...f, showImpossible: !f.showImpossible }))
+                  }
+                />
+                {`${IMPOSSIBLE_LABEL}行を表示`}
+              </label>
+              {/* 絞り込んでいない間も出す。数が出たり消えたりすると、
+                  絞り込みが効いているかを数の有無で読む癖が付く */}
+              <span className="text-base text-ink-muted">
+                {`${visible.length} / ${data.rows.length} 行`}
+              </span>
             </div>
+            <BulkFillBar
+              outcomes={data.outcomes}
+              targetCount={bulkTargetCount}
+              onApply={applyBulkFill}
+            />
             <div ref={gridRef}>
               <GridBody
                 conditions={data.conditions}
                 outcomes={data.outcomes}
                 rows={data.rows}
+                visible={visible}
+                filter={filter}
+                onFilterChange={setFilter}
                 marks={sectionMarks(issues, 'row')}
                 gridRowKey={gridRowKey}
                 focusedRow={focusedRow}
@@ -595,6 +753,7 @@ export function DecisionTableEditor({
                   onChange(setResult(data, rowIndex, outIndex, value), null)
                 }
                 onToggleImpossible={(rowIndex) => onChange(toggleImpossible(data, rowIndex), null)}
+                onBulkImpossible={(on) => applyBulkFill({ kind: 'impossible', on })}
                 onCellKeyDown={onGridCellKeyDown}
               />
             </div>

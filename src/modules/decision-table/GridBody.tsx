@@ -1,4 +1,4 @@
-import { Ban } from 'lucide-react'
+import { Circle, CircleOff } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { buttonBase } from '@/components/button-styles'
 import { CellSelect } from '@/components/CellSelect'
@@ -8,7 +8,14 @@ import { focusCellField } from '@/core/list-editor/cell-hit'
 import { cellId } from '@/core/list-editor/use-list-rows'
 import { rowRef } from '@/core/row-ref'
 import type { Condition, Outcome, Row } from '@/types/decision-table'
-import { CLEAR_RESULT_LABEL, IMPOSSIBLE_LABEL } from './labels'
+import {
+  clearFilterValue,
+  outcomeFilterLabels,
+  toggleFilterValue,
+  type GridFilter,
+} from './filter'
+import { FilterMenu } from './FilterMenu'
+import { IMPOSSIBLE_LABEL, UNFILLED_LABEL } from './labels'
 import { isMissingResult } from './missing'
 
 /**
@@ -50,7 +57,12 @@ const IMPOSSIBLE_FIELD = 'impossible-column'
 export interface GridBodyProps {
   conditions: readonly Condition[]
   outcomes: readonly Outcome[]
+  /** 行の全体。**絞り込んだ配列を渡さない**——marks と No が元配列の位置で引く */
   rows: readonly Row[]
+  /** 描く行の「元配列での index」を配列順のまま並べたもの */
+  visible: readonly number[]
+  filter: GridFilter
+  onFilterChange: (next: GridFilter) => void
   marks: ErrorMarks
   /** 行の鍵。行は ID を持たないので、呼び出し側が位置から作る */
   gridRowKey: (index: number) => string
@@ -60,7 +72,19 @@ export interface GridBodyProps {
   onFocusRow: (index: number | null) => void
   onPickResult: (rowIndex: number, outIndex: number, value: string) => void
   onToggleImpossible: (rowIndex: number) => void
-  onCellKeyDown: (e: React.KeyboardEvent, at: { index: number; field: string }) => void
+  /**
+   * 表示中の行の起こりえないをまとめて入り切りする。**呼び出し側が対象行を決める**
+   *——`GridBody` は描く行しか知らないので、書き込みと通知の分母を1箇所に保つ
+   */
+  onBulkImpossible: (on: boolean) => void
+  /**
+   * セルのキー入力。**`index`（元配列の位置）と `visiblePos`（表の中の位置）の
+   * 両方を渡す**——書き込みは `index` で、上下の移動は `visiblePos` で引く
+   */
+  onCellKeyDown: (
+    e: React.KeyboardEvent,
+    at: { index: number; visiblePos: number; field: string },
+  ) => void
 }
 
 /**
@@ -70,22 +94,29 @@ export interface GridBodyProps {
  *
  * **`impossible` の行でも結果セルの本数を変えない。** `colSpan` でまとめると、
  * `Tab` の送り先が行によって消える。`impossible` の行は各結果セルを
- * 「起こりえない」を表示するボタンにする——押すと解除する。
+ * 「起こりえない」を表示するボタンにする。**このボタンは押しても値を変えない**
+ *——キー移動の行き先と主修飾キー＋`Enter` の入口を持つだけで、解除は行末の
+ * ボタンとそのキーが受け持つ。
  *
  * 表の右端に行ごとの `起こりえない` トグルボタンを置く。主修飾キー＋`Enter` は
- * 結果セルにしか届かないので、結果が0本の表ではこのボタンだけが入り切りの入口になる
+ * 結果セルにしか届かないので、結果が0本の表ではこのボタンだけが入り切りの入口になる。
+ * 同じ列の見出しには、表示中の行をまとめて入り切りする2つのボタンを置く
  */
 export function GridBody(props: GridBodyProps) {
   const {
     conditions,
     outcomes,
     rows,
+    visible,
+    filter,
+    onFilterChange,
     marks,
     gridRowKey,
     focusedRow,
     onFocusRow,
     onPickResult,
     onToggleImpossible,
+    onBulkImpossible,
     onCellKeyDown,
   } = props
 
@@ -97,9 +128,16 @@ export function GridBody(props: GridBodyProps) {
    * **開いている間の面は jsdom では決められない。** メニューを開くと
    * トリガーにフォーカスが当たり、`focusedRow` が同じ面を付けるので、
    * どちらが付けたのかをテストから区別できない。閉じたときに戻すことと、
-   * `CellSelect` が開閉を知らせることの2点だけがテストで縛れる
+   * `CellSelect` が開閉を知らせることの2点だけがテストで縛れる。
+   *
+   * **隠れた行の面を捨てる分岐にもテストが無いのは同じ理由である。**
+   * 開いたまま行を隠す操作が jsdom では組めず、面の出所も区別できない
    */
   const [menuRow, setMenuRow] = useState<number | null>(null)
+
+  // 隠れた行のメニューの面を捨てる。行ごと消えたセルは `onOpenChange` の閉じるを
+  // 出さないので、残すと絞り込みを外したときに誰も開いていない行へ面が付く
+  if (menuRow !== null && !visible.includes(menuRow)) setMenuRow(null)
 
   /** 面を敷く行。開いているメニューがあればその行を優先し、無ければフォーカスの行に従う */
   const surfaceRow = menuRow ?? focusedRow
@@ -139,12 +177,15 @@ export function GridBody(props: GridBodyProps) {
    * No・条件セルをクリックしたときの移動先。**結果が0本の表では、起こりえないの
    * トグルボタンへ移す**——結果セルが無い表では、このボタンだけがフォーカスできる
    * セルとして残る。トグルボタンは `data-cell` を持たないので、行の `<tr>` を
-   * 位置で数えて中の `aria-pressed` 属性で引く
+   * 位置で数えて中の `aria-pressed` 属性で引く。
+   *
+   * **数えるのは表の中の位置（`visiblePos`）である。** 絞り込みで行が隠れると、
+   * 元配列の位置は `<tr>` の並びと一致しない
    */
-  const focusFirstResultCell = (index: number, rowKey: string): void => {
+  const focusFirstResultCell = (visiblePos: number, rowKey: string): void => {
     if (outcomes.length === 0) {
       containerRef.current
-        ?.querySelectorAll<HTMLElement>('tbody tr')[index]
+        ?.querySelectorAll<HTMLElement>('tbody tr')[visiblePos]
         ?.querySelector<HTMLElement>('button[aria-pressed]')
         ?.focus()
       return
@@ -174,28 +215,78 @@ export function GridBody(props: GridBodyProps) {
           {outcomes.map((_, j) => (
             <col key={`out-${j}`} />
           ))}
-          {/* 起こりえないのボタン列。幅は定義部の削除列と同じ40px */}
-          <col style={{ width: 40 }} />
+          {/* 起こりえないのボタン列。見出しに `size-6` のボタンを2つ並べるので、
+              48px＋見出しセルの左右の余白（`headCell` の `px-2`）で72px 要る */}
+          <col style={{ width: 72 }} />
         </colgroup>
         <thead>
           <tr className="text-left">
             <th className={`${headCell} text-right`}>No</th>
             {conditions.map((c, i) => (
               <th key={`cond-${i}`} className={`${headCell} ${condColBorder}`}>
-                {c.name}
+                <span className="flex items-center justify-between gap-1">
+                  {c.name}
+                  <FilterMenu
+                    name={c.name}
+                    all={c.values}
+                    picked={filter.values[c.id]}
+                    onToggle={(label) =>
+                      onFilterChange(toggleFilterValue(filter, c.id, label, c.values))
+                    }
+                    onClear={() => onFilterChange(clearFilterValue(filter, c.id))}
+                  />
+                </span>
               </th>
             ))}
             {outcomes.map((o, j) => (
               <th key={`out-${j}`} className={`${headCell} ${headColBorder}`}>
-                {o.name}
+                <span className="flex items-center justify-between gap-1">
+                  {o.name}
+                  <FilterMenu
+                    name={o.name}
+                    all={outcomeFilterLabels(o)}
+                    picked={filter.values[o.id]}
+                    onToggle={(label) =>
+                      onFilterChange(
+                        toggleFilterValue(filter, o.id, label, outcomeFilterLabels(o)),
+                      )
+                    }
+                    onClear={() => onFilterChange(clearFilterValue(filter, o.id))}
+                  />
+                </span>
               </th>
             ))}
-            {/* 見出しは空。列の意味は行のボタンのアクセシブル名が運ぶ */}
-            <th className={`${headCell} ${headColBorder}`} />
+            {/* 表示中の行の起こりえないをまとめて入り切りする。**入り切りを2つの
+                ボタンに分ける**——1つのトグルにすると、押した結果が行それぞれの
+                いまの状態で決まり、押す前に何が起きるかを読めない。
+                結果のまとめて入力と違い、既に起こりえないの行も対象に含む */}
+            <th className={`${headCell} ${headColBorder}`}>
+              <span className="flex items-center justify-center">
+                <button
+                  type="button"
+                  aria-label={`表示中の行を${IMPOSSIBLE_LABEL}にする`}
+                  title={`表示中の行を${IMPOSSIBLE_LABEL}にする`}
+                  className={`${buttonBase} size-6 text-ink-faint hover:text-ink`}
+                  onClick={() => onBulkImpossible(true)}
+                >
+                  <CircleOff aria-hidden className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`表示中の行の${IMPOSSIBLE_LABEL}を外す`}
+                  title={`表示中の行の${IMPOSSIBLE_LABEL}を外す`}
+                  className={`${buttonBase} size-6 text-ink-faint hover:text-ink`}
+                  onClick={() => onBulkImpossible(false)}
+                >
+                  <Circle aria-hidden className="size-4" />
+                </button>
+              </span>
+            </th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => {
+          {visible.map((index, visiblePos) => {
+            const row = rows[index]
             const rowNo = index + 1
             const rowKey = gridRowKey(index)
             const rowSurface = surfaceOf(index, IMPOSSIBLE_FIELD, false)
@@ -205,7 +296,7 @@ export function GridBody(props: GridBodyProps) {
                     クリックでも行へ移れる——編集はできないので onClick は移動のみ */}
                 <td
                   className={`cursor-pointer px-2 py-1 text-right text-ink-muted ${surfaceOf(index, 'no', false, true)}`}
-                  onClick={() => focusFirstResultCell(index, rowKey)}
+                  onClick={() => focusFirstResultCell(visiblePos, rowKey)}
                 >
                   {rowNo}
                 </td>
@@ -213,7 +304,7 @@ export function GridBody(props: GridBodyProps) {
                   <td
                     key={`cond-${i}`}
                     className={`cursor-pointer px-2 py-1 text-ink-muted ${condColBorder} ${surfaceOf(index, CONDITION_FIELD, false)}`}
-                    onClick={() => focusFirstResultCell(index, rowKey)}
+                    onClick={() => focusFirstResultCell(visiblePos, rowKey)}
                   >
                     {row.values[i]}
                   </td>
@@ -233,18 +324,20 @@ export function GridBody(props: GridBodyProps) {
                       // ボタンとトリガーの両方に同じ配線を重複させずに済む
                       <td
                         key={`out-${j}`}
-                        className={`cursor-pointer ${cellClass}`}
+                        className={cellClass}
                         onFocus={() => onFocusRow(index)}
                         onMouseDown={focusCellField}
                       >
-                        {/* impossible の行のセル。押すと起こりえないを解除する */}
+                        {/* impossible の行のセル。押しても何も変えない——結果を選ぶつもりの
+                            クリックで起こりえないが外れると、人は外したことに気づかない。
+                            ボタンのまま置くのは、キー移動の行き先（data-cell）と
+                            主修飾キー＋Enter の入口をこのセルに残すため */}
                         <button
                           type="button"
                           data-cell={cellId(rowKey, field)}
                           aria-label={`${outcome.name}（${rowNo}行目）: ${IMPOSSIBLE_LABEL}`}
                           className={impossibleCellInput}
-                          onClick={() => onToggleImpossible(index)}
-                          onKeyDown={(e) => onCellKeyDown(e, { index, field })}
+                          onKeyDown={(e) => onCellKeyDown(e, { index, visiblePos, field })}
                         >
                           {IMPOSSIBLE_LABEL}
                         </button>
@@ -263,11 +356,11 @@ export function GridBody(props: GridBodyProps) {
                         aria-label={`${outcome.name}（${rowNo}行目）`}
                         data-cell={cellId(rowKey, field)}
                         value={row.results[j] ?? ''}
-                        options={['', ...outcome.choices]}
+                        options={outcomeFilterLabels(outcome)}
                         labelOf={(v) => v}
-                        itemLabelOf={(v) => (v === '' ? CLEAR_RESULT_LABEL : v)}
+                        itemLabelOf={(v) => (v === '' ? UNFILLED_LABEL : v)}
                         onPick={(v) => onPickResult(index, j, v)}
-                        onKeyDown={(e) => onCellKeyDown(e, { index, field })}
+                        onKeyDown={(e) => onCellKeyDown(e, { index, visiblePos, field })}
                         changeOnArrows={false}
                         openOnEnter
                         onOpenChange={(nowOpen) => setMenuRow(nowOpen ? index : null)}
@@ -299,7 +392,7 @@ export function GridBody(props: GridBodyProps) {
                     className={`${buttonBase} size-6 ${row.impossible ? 'text-ink' : 'text-ink-faint hover:text-ink'}`}
                     onClick={() => onToggleImpossible(index)}
                   >
-                    <Ban aria-hidden className="size-4" />
+                    <CircleOff aria-hidden className="size-4" />
                   </button>
                 </td>
               </tr>

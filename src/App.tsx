@@ -618,6 +618,16 @@ function App() {
     [controller],
   )
 
+  /**
+   * エディタからの通知。**鍵を額縁が付ける**——トーストは時間で消えないので、
+   * 鍵が無いと同じ操作をくり返した分だけ積み上がる。エディタの通知は
+   * 「直前の1件」だけ残れば足りる
+   */
+  const onEditorToast = useCallback(
+    (message: string) => showToast({ message, key: 'editor' }),
+    [showToast],
+  )
+
   const editingData = history === null ? null : history.present
 
   const updateSettings = useCallback((next: AppSettings) => {
@@ -1332,6 +1342,7 @@ function App() {
                   issues={selected.issues}
                   modalOpen={modalOpen}
                   onVisibleIds={onVisibleIds}
+                  onToast={onEditorToast}
                   onChange={(next: unknown, mergeKey?: string | null) => {
                     setHistory((h) => (h === null ? h : record(h, next, mergeKey ?? null, Date.now())))
                     controller.applyEdit(selected.path, selectedModule, next)
