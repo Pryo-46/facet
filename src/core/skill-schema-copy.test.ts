@@ -49,6 +49,11 @@ const SCHEMA_COPIES = [
     schema: 'logic-tree.schema.json',
     script: 'scripts/logic-tree-write.mjs',
   },
+  {
+    skill: 'write-decision-table',
+    schema: 'decision-table.schema.json',
+    script: 'scripts/decision-table-write.mjs',
+  },
 ]
 
 describe('同梱 Skill が配布するスキーマ', () => {
