@@ -492,6 +492,19 @@ describe('開いたプロジェクトの登録', () => {
     await openProjectFolder()
     expect(await screen.findByRole('button', { name: 'proj' })).toBeTruthy()
   })
+
+  it('末尾に区切りが付いたパスを選んでも、開いている行に「一覧から外す」が出ない', async () => {
+    // ダイアログが末尾に区切りを付けて返しても、登録の path と projectDir が
+    // 食い違わないこと。食い違うと isActive が偽になり、開いたまま
+    // 登録だけ外せてしまう行が出る
+    pickConfig.dir = '/proj/'
+    render(<App />)
+    await openProjectFolder()
+    const trigger = await screen.findByRole('button', { name: 'proj' })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'proj の操作' }))
+    expect(screen.queryByRole('menuitem', { name: '一覧から外す' })).toBeNull()
+  })
 })
 
 describe('プロジェクトの切り替えメニュー', () => {

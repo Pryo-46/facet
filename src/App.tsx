@@ -723,16 +723,21 @@ function App() {
    * 開けなかったフォルダは登録しない（開けない場所を次回の復元先にしない）。
    *
    * **`projectsRef` から読む。** `openProject` は毎レンダー作り直されるが、
-   * 確認ダイアログの `onConfirm` に渡ると古いクロージャのまま後で走る
+   * 確認ダイアログの `onConfirm` に渡ると古いクロージャのまま後で走る。
+   *
+   * **先頭で一度だけ `canonicalPath` を通す。** `controller.openFolder` と
+   * `touchProject` に別々の形（素のパスと正規形）を渡すと、`projectDir` と
+   * 登録の `path` が食い違い、開いている行の `isActive` が偽になる
    */
   const openProject = async (dir: string): Promise<boolean> => {
-    const opened = await controller.openFolder(dir)
+    const canonicalDir = canonicalPath(dir)
+    const opened = await controller.openFolder(canonicalDir)
     if (!opened) return false
-    persistProjects(touchProject(projectsRef.current, dir, new Date().toISOString()))
+    persistProjects(touchProject(projectsRef.current, canonicalDir, new Date().toISOString()))
     // 旧版が置いたものが残っていると、プロジェクトスコープの Skill が
     // プラグインより先に見つかって古い版が発火する。**消すのは利用者**
     try {
-      const message = describeLegacyArtifacts(await findLegacyArtifacts(dir))
+      const message = describeLegacyArtifacts(await findLegacyArtifacts(canonicalDir))
       if (message !== null) showToast({ message, key: 'legacy-artifacts', important: true })
     } catch (err: unknown) {
       console.error('旧版の成果物を確認できませんでした', err)
@@ -903,6 +908,7 @@ function App() {
     const picked = await pickProjectFolder()
     if (picked === null) return
     const dir = canonicalPath(picked)
+    // 書くのは確認の前。確認後に回すと、取り消したときに選び直しごと失う
     persistProjects(
       projectsRef.current
         .filter((p) => p.path === project.path || p.path !== dir)

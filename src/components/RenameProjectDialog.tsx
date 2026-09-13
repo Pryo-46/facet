@@ -38,20 +38,27 @@ function RenameProjectForm({
         <DialogTitle>プロジェクト名を変更</DialogTitle>
       </DialogHeader>
       <p className="text-sm text-muted-foreground">{project.path}</p>
-      <input
-        aria-label="プロジェクト名"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        className="h-9 rounded-sm border border-border bg-background px-2.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-      />
-      <div className="flex justify-end gap-1.5">
-        <Button variant="ghost" onClick={onClose}>
-          キャンセル
-        </Button>
-        <Button variant="outline" onClick={submit}>
-          変更する
-        </Button>
-      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          submit()
+        }}
+      >
+        <input
+          aria-label="プロジェクト名"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="h-9 w-full rounded-sm border border-border bg-background px-2.5 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        />
+        <div className="mt-4 flex justify-end gap-1.5">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            キャンセル
+          </Button>
+          <Button type="submit" variant="outline">
+            変更する
+          </Button>
+        </div>
+      </form>
     </DialogContent>
   )
 }

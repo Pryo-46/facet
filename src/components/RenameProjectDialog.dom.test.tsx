@@ -33,6 +33,15 @@ describe('RenameProjectDialog', () => {
     expect(onSubmit).toHaveBeenCalledWith(target, '受注リプレイス')
   })
 
+  it('入力欄で Enter を押すと確定する', () => {
+    const onSubmit = vi.fn()
+    render(<RenameProjectDialog project={target} onSubmit={onSubmit} onClose={vi.fn()} />)
+    const input = screen.getByLabelText('プロジェクト名')
+    fireEvent.change(input, { target: { value: '受注リプレイス' } })
+    fireEvent.submit(input.closest('form') as HTMLFormElement)
+    expect(onSubmit).toHaveBeenCalledWith(target, '受注リプレイス')
+  })
+
   it('空で確定するとフォルダ名に戻る', () => {
     const onSubmit = vi.fn()
     render(<RenameProjectDialog project={target} onSubmit={onSubmit} onClose={vi.fn()} />)
