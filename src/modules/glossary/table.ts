@@ -1,9 +1,5 @@
-import {
-  type Table,
-  type TableOptions,
-  UNDEFINED_TEXT,
-  type VisibleRows,
-} from '@/core/table-export'
+import { UNDEFINED_TEXT } from '@/core/output-labels'
+import { type Table, type TableOptions, type VisibleRows } from '@/core/table-export'
 import type { GlossarySchemaVersion1 } from '@/types/glossary'
 import { NO_COLUMN_LABEL } from './columns'
 import { FIELD_LABELS, FIELD_ORDER } from './fields'

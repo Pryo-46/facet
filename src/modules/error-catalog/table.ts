@@ -1,9 +1,5 @@
-import {
-  type Table,
-  type TableOptions,
-  UNDEFINED_TEXT,
-  type VisibleRows,
-} from '@/core/table-export'
+import { UNDEFINED_TEXT } from '@/core/output-labels'
+import { type Table, type TableOptions, type VisibleRows } from '@/core/table-export'
 import type { ErrorCatalogSchemaVersion1, ErrorEntry } from '@/types/error-catalog'
 import { NO_COLUMN_LABEL } from './columns'
 import { FIELD_LABELS, type ErrorField } from './fields'

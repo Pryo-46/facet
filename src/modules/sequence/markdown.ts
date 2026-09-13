@@ -1,13 +1,9 @@
 import type { ConsistencyIssue } from '@/core/consistency'
 import { dividerRow, documentHeading, escapeCell, row } from '@/core/markdown-table'
+import { UNDEFINED_TEXT } from '@/core/output-labels'
 import type { SequenceSchemaVersion1, SequenceStep } from '@/types/sequence'
 import { sequenceToMermaid } from './mermaid'
-import {
-  NOT_APPLICABLE_LABEL,
-  TABLE_HEADERS,
-  UNDEFINED_VALUE,
-  UNRESOLVED_ACTOR_LABEL,
-} from './output-labels'
+import { NOT_APPLICABLE_LABEL, TABLE_HEADERS, UNRESOLVED_ACTOR_LABEL } from './output-labels'
 import { poseQuestions, readSlot, type AnswerPath } from './questions'
 
 /**
@@ -30,7 +26,7 @@ const ANSWER_COLUMNS: readonly AnswerPath[] = ['failed', 'unknown', 'ifExecuted'
 function actorLabel(data: SequenceSchemaVersion1, ref: string | undefined): string {
   const actor = ref === undefined ? undefined : data.actors.find((a) => a.id === ref)
   if (actor === undefined) return UNRESOLVED_ACTOR_LABEL
-  return actor.name === '' ? UNDEFINED_VALUE : escapeCell(actor.name)
+  return actor.name === '' ? UNDEFINED_TEXT : escapeCell(actor.name)
 }
 
 /** from → to 列。self は宛先を持たないので「名前（内部処理）」と書く */
@@ -52,13 +48,13 @@ function routeCell(data: SequenceSchemaVersion1, step: SequenceStep): string {
 function answerCell(step: SequenceStep, path: AnswerPath): string {
   if (!poseQuestions(step)[path]) return ''
   const slot = readSlot(step, path)
-  if (slot.decision === undefined) return UNDEFINED_VALUE
+  if (slot.decision === undefined) return UNDEFINED_TEXT
   if (slot.decision === 'notApplicable') {
     return slot.text === undefined || slot.text === ''
       ? NOT_APPLICABLE_LABEL
       : `${NOT_APPLICABLE_LABEL}（${escapeCell(slot.text)}）`
   }
-  return slot.text === undefined || slot.text === '' ? UNDEFINED_VALUE : escapeCell(slot.text)
+  return slot.text === undefined || slot.text === '' ? UNDEFINED_TEXT : escapeCell(slot.text)
 }
 
 export function sequenceToMarkdown(data: SequenceSchemaVersion1): string {
@@ -68,7 +64,7 @@ export function sequenceToMarkdown(data: SequenceSchemaVersion1): string {
       // 一致させる——会議で「3番の結果不明が空だ」と口頭で指すための目印
       `${index + 1}`,
       routeCell(data, step),
-      step.label === '' ? UNDEFINED_VALUE : escapeCell(step.label),
+      step.label === '' ? UNDEFINED_TEXT : escapeCell(step.label),
       ...ANSWER_COLUMNS.map((path) => answerCell(step, path)),
     ]),
   )

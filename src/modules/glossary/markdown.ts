@@ -1,4 +1,5 @@
 import { dividerRow, documentHeading, escapeCell, headingText, row } from '@/core/markdown-table'
+import { UNDEFINED_TEXT } from '@/core/output-labels'
 import type { VisibleRows } from '@/core/table-export'
 import type { GlossarySchemaVersion1, Term } from '@/types/glossary'
 import glossarySchema from '../../../schemas/glossary.schema.json'
@@ -21,13 +22,11 @@ import { kindLabel } from './kind-labels'
 /** グループ順はスキーマの enum から実行時に導出する（ハードコードすると enum 改訂で静かにずれる） */
 const KIND_ORDER: readonly string[] = glossarySchema.$defs.term.properties.kind.enum
 
-const UNDEFINED_DEFINITION = '（未定義）'
-
 function termRow(term: Term): string {
   return row([
     escapeCell(term.name),
     escapeCell(kindLabel(term.kind)),
-    term.definition === '' ? UNDEFINED_DEFINITION : escapeCell(term.definition),
+    term.definition === '' ? UNDEFINED_TEXT : escapeCell(term.definition),
     // 別名は1行1件で持っているので、表に収めるときだけ読点で連ねる
     escapeCell(term.aliases.join('、')),
     escapeCell(term.notes),
