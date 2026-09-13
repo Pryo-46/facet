@@ -98,8 +98,10 @@ const base = basePath ? readJson(basePath, "既存ファイル") : null;
 if (base) {
   requireValid(base, "既存ファイルの");
   // 定義の変更と結果の記入を1回に混ぜさせない。混ぜると、組み直しが引き継いだ
-  // 結果と下書きが書いた結果のどちらを採るかを決められない
-  if (JSON.stringify(data.rows) !== JSON.stringify(base.rows)) {
+  // 結果と下書きが書いた結果のどちらを採るかを決められない。
+  // **比べるのは中身で、JSON の文字列ではない。** 文字列で比べると、キーの順だけが
+  // 違う同じ行を「手を入れた」と取り違える
+  if (!sameRows(data.rows, base.rows)) {
     die(
       2,
       "--base を渡すときは、下書きの rows を既存ファイルの rows のまま置いてください。\n" +
@@ -359,6 +361,15 @@ function findDuplicates(items, keyOf) {
   const out = new Map();
   for (const [key, indices] of groups) if (indices.length > 1) out.set(key, indices);
   return out;
+}
+
+/** 行の集合が中身で一致するか。キーの順は見ない */
+function sameRows(a, b) {
+  const same = (x, y) => x.length === y.length && x.every((v, i) => v === y[i]);
+  return (
+    a.length === b.length &&
+    a.every((row, i) => row.impossible === b[i].impossible && same(row.values, b[i].values) && same(row.results, b[i].results))
+  );
 }
 
 function requireValid(value, subject) {

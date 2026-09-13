@@ -260,6 +260,8 @@ describe('decision-table-write.mjs（実行 smoke ＋ 警告文言のアプリ�
     const draft = {
       ...base,
       conditions: [...base.conditions, cond('cond_CCCCCCCCCC', 'キャンペーン中か', ['はい', 'いいえ'])],
+      // キーの順だけが違う同じ行は「rows に手を入れた」ことにならない
+      rows: base.rows.map((r) => ({ results: r.results, impossible: r.impossible, values: r.values })),
     }
     withTempDir((dir) => {
       const dst = writeJson(dir, 'table.json', base)
