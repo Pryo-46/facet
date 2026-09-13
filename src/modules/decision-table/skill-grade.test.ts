@@ -34,7 +34,12 @@ interface Grading {
 
 const yesNo = ['はい', 'いいえ']
 const row = (values: string[], results: string[], impossible = false) => ({ values, impossible, results })
-const table = (title: string, conditions: unknown[], outcomes: unknown[], rows: unknown[]) => ({
+const table = (
+  title: string,
+  conditions: unknown[],
+  outcomes: unknown[],
+  rows: ReturnType<typeof row>[],
+) => ({
   schemaVersion: 1,
   type: 'decisionTable',
   title,
