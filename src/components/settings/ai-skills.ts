@@ -6,6 +6,7 @@ export const SKILL_LABELS: readonly { name: string; label: string }[] = [
   { name: 'write-sequence', label: 'シーケンスを書く' },
   { name: 'write-issue-tree', label: '課題ツリーを書く' },
   { name: 'write-logic-tree', label: 'ロジックツリーを書く' },
+  { name: 'write-decision-table', label: 'デシジョンテーブルを書く' },
 ]
 
 export const INSTALL_COMMANDS = [

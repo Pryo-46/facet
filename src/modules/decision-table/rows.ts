@@ -1,4 +1,12 @@
-import type { Condition, Row } from '@/types/decision-table'
+import type { Condition, Outcome, Row } from '@/types/decision-table'
+
+/*
+ * **このファイルは `npm run gen:skills` が `.mjs` へ変換し、
+ * plugins/facet/skills/write-decision-table/scripts/generated/rows.mjs として
+ * 登録 Skill へ同梱される。** だから値 import・相対 import・enum を持たない
+ * ——`transpileModule` は import を解決しないので、値 import があると
+ * 置いた先で解決できなくなる。制約と出力の一致は scripts/gen-skills.test.mjs が検知する
+ */
 
 /**
  * 行数の上限。2値の条件なら10本、3値なら6本まで立てられる。
@@ -203,4 +211,154 @@ export function rebuildRows(
     for (const value of prev.results) if (value !== '') filled += 1
   }
   return { rows, clearedCells, lostCells: filled - survived.size }
+}
+
+export interface AlignResult {
+  /** 直積の並びの行。`stray`・`conflicts` があるとき、または `ambiguous` のときは入力の行のまま */
+  rows: Row[]
+  /** 直積に当てはまらない入力の行の位置（未知の値・`values` か `results` の長さ違い） */
+  stray: number[]
+  /** 同じ組み合わせで `impossible` か `results` が食い違う、入力の行の位置の組 */
+  conflicts: number[][]
+  /** 1つの条件に同じ値ラベルが2件あり、ラベルで行を指せない */
+  ambiguous: boolean
+}
+
+/**
+ * 下書きの行を、値ラベルの組み合わせで直積の位置へ引き当てる。欠けた組み合わせは
+ * 結果が空の行で補う。登録 Skill の書き出しスクリプトが使う。
+ *
+ * **引き当てられない行が1つでもあれば、並べ替えずに入力のまま返す。**
+ * 当てはまらない行を落とすと、人が決めた結果が黙って消える
+ */
+export function alignRowsByLabel(
+  conditions: readonly Condition[],
+  outcomeCount: number,
+  rows: readonly Row[],
+): AlignResult {
+  const asIs = rows.map(copyRow)
+  if (conditions.some((c) => new Set(c.values).size !== c.values.length)) {
+    return { rows: asIs, stray: [], conflicts: [], ambiguous: true }
+  }
+
+  const total = productSize(conditions)
+  const stray: number[] = []
+  const byKey = new Map<string, number[]>()
+  rows.forEach((row, index) => {
+    const fits =
+      total > 0 &&
+      row.values.length === conditions.length &&
+      row.results.length === outcomeCount &&
+      row.values.every((v, i) => conditions[i].values.includes(v))
+    if (!fits) {
+      stray.push(index)
+      return
+    }
+    const key = rowKeyOf(row)
+    const group = byKey.get(key)
+    if (group === undefined) byKey.set(key, [index])
+    else group.push(index)
+  })
+
+  const aligned: Row[] = []
+  const conflicts: number[][] = []
+  for (let position = 0; position < total; position++) {
+    const indices = valueIndicesAt(conditions, position)
+    const values = conditions.map((c, i) => c.values[indices[i]])
+    const group = byKey.get(rowKeyOf({ values, impossible: false, results: [] }))
+    if (group === undefined) {
+      aligned.push({ values, impossible: false, results: Array.from({ length: outcomeCount }, () => '') })
+      continue
+    }
+    const first = rows[group[0]]
+    const same = (row: Row): boolean =>
+      row.impossible === first.impossible && row.results.every((v, j) => v === first.results[j])
+    if (!group.every((i) => same(rows[i]))) conflicts.push(group)
+    aligned.push(copyRow(first))
+  }
+
+  if (stray.length > 0 || conflicts.length > 0) {
+    return { rows: asIs, stray, conflicts, ambiguous: false }
+  }
+  return { rows: aligned, stray, conflicts, ambiguous: false }
+}
+
+function copyRow(row: Row): Row {
+  return { values: [...row.values], impossible: row.impossible, results: [...row.results] }
+}
+
+interface TableDefinition {
+  conditions: readonly Condition[]
+  outcomes: readonly Outcome[]
+}
+
+/**
+ * 定義（条件・値・結果・選択肢）を差し替えた表の行を、旧の行から組み直す。
+ * 登録 Skill の書き出しスクリプトが使う。
+ *
+ * 条件と結果は `id` で対応づける。値と選択肢は、本数が変わらなければ位置で
+ * （改名とみなす）、変われば完全一致のラベルで対応づける。
+ * **改名と増減を1回に混ぜると、改名した側はラベルで引けず引き継げない。**
+ *
+ * `lostCells` は旧のセル単位で数える。選択肢を消して空に戻したセルもここに入る
+ */
+export function rebaseRows(
+  base: TableDefinition & { rows: readonly Row[] },
+  next: TableDefinition,
+): RebuildResult {
+  const outcomeFrom = outcomeFromById(base.outcomes, next.outcomes)
+
+  // 選択肢の対応は再構築の前に旧の行へ当てる。再構築の後で当てると、
+  // 複製された行ごとに数えてしまい、旧のセル単位で数えられない
+  const choiceMaps = base.outcomes.map((o, p) => {
+    const j = outcomeFrom.indexOf(p)
+    return j < 0 ? null : choiceMap(o.choices, next.outcomes[j].choices)
+  })
+  let choiceLost = 0
+  const prevRows = base.rows.map((row) => ({
+    ...row,
+    results: row.results.map((value, p) => {
+      const to = value === '' ? undefined : choiceMaps[p]?.get(value)
+      if (to === undefined) return value
+      if (to === '') choiceLost += 1
+      return to
+    }),
+  }))
+
+  const built = rebuildRows(
+    base.conditions,
+    prevRows,
+    next.conditions,
+    axesByDefinition(base.conditions, next.conditions),
+    outcomeFrom,
+  )
+  return { ...built, lostCells: built.lostCells + choiceLost }
+}
+
+/** 値の対応づけ。本数が同じなら位置、違えば一意に引けるラベル */
+function axesByDefinition(prev: readonly Condition[], next: readonly Condition[]): Axis[] {
+  return next.map((c) => {
+    const from = prev.findIndex((p) => p.id === c.id)
+    if (from < 0) return { from: null, valueFrom: [] }
+    const old = prev[from].values
+    if (old.length === c.values.length) return { from, valueFrom: old.map((_, v) => v) }
+    return {
+      from,
+      valueFrom: c.values.map((label) => {
+        const at = old.indexOf(label)
+        return at >= 0 && old.lastIndexOf(label) === at ? at : null
+      }),
+    }
+  })
+}
+
+/** 旧の選択肢ラベル → 新しいラベル。空文字は「消えた」。本数が同じなら位置で改名とみなす */
+function choiceMap(prev: readonly string[], next: readonly string[]): Map<string, string> {
+  const map = new Map<string, string>()
+  prev.forEach((label, k) => {
+    if (map.has(label)) return
+    if (prev.length === next.length) map.set(label, next[k])
+    else map.set(label, next.includes(label) ? label : '')
+  })
+  return map
 }

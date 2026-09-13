@@ -10,10 +10,10 @@ Claude が着手できる項目の一覧。解消したら消す。人間の作�
 - **二重に `pty_kill` しても無害であることを踏む Rust テストが無い**（`src-tauri/src/pty.rs`）。`TerminalTab` のアンマウント時 kill がこの性質に依存している。
 - **課題ツリーの構造編集関数の一部に直接のテストがない**（`src/modules/issue-tree/commands.ts`）。ロジックツリーから移植した関数が対象。
 - **`poseQuestions` の並び契約を突くテストがない**（`src/modules/issue-tree/derive.ts`）。「戻り値は入力と同じ添字で並ぶ」という契約は ID 重複ファイルで必要になる。
-- **`write-issue-tree` に evals が無い**（`plugins/facet/skills/write-issue-tree/`）。他4つの登録 Skill は evals ディレクトリを持つ。
-- **`write-logic-tree` の evals は実行ハーネスに掛けていない**（`plugins/facet/skills/write-logic-tree/evals/`）。`evals.json` と `grade.mjs` はあるが、npm スクリプトからも CI からも呼ばれていない。
+- **`write-issue-tree` に evals が無い**（`plugins/facet/skills/write-issue-tree/`）。他の登録 Skill は evals ディレクトリを持つ。
+- **`write-term`・`write-error`・`write-sequence`・`write-logic-tree` の evals の判定器にテストが無い**（`plugins/facet/skills/*/evals/grade.mjs`）。判定器が壊れても evals の実走まで気づけず、`write-decision-table` の `src/modules/decision-table/skill-grade.test.ts` の形が手本になる。
 - **`.gitattributes` 欠落の警告が「整合性の警告」の見出しの下に出る**（`plugins/facet/skills/write-logic-tree/scripts/logic-tree-write.mjs`）。整合性の警告とは別種の警告が同じ見出しに混ざる。
-- **smoke テストの5本が揃って子プロセスの `stdio` を捨て、落ちても原因が残らない**（`src/modules/*/skill-write.smoke.test.ts`）。意図的なエラーケースの stderr は緑の実行でも画面に出る一方、全体実行でまれに起きる失敗は原因が追えない。
+- **smoke テストが揃って子プロセスの `stdio` を捨て、落ちても原因が残らない**（`src/modules/*/skill-write.smoke.test.ts`）。意図的なエラーケースの stderr は緑の実行でも画面に出る一方、全体実行でまれに起きる失敗は原因が追えない。
 - **`logic-tree-write.mjs` の exit 2 の経路とスキーマの解決順が未テスト**（`plugins/facet/skills/write-logic-tree/scripts/logic-tree-write.mjs`）。
 - **`ink-faint` をアクティブな本文に使っていないことを機械検査していない**（`src/styles/conventions.test.ts`）。WCAG 1.4.3 の免除範囲に収まる前提が崩れても検知できない。
 - **schemaVersion の移行を読み込み時以外の経路で見るテストが無い**（`src/core/load.ts`）。自動保存など他の経路は未検証。

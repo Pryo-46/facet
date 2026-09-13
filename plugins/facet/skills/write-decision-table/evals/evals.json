@@ -1,0 +1,40 @@
+{
+  "skill_name": "write-decision-table",
+  "evals": [
+    {
+      "id": 0,
+      "name": "new-table-from-conversation",
+      "prompt": "送料の決め方を整理しています。会員で5000円以上なら無料、会員で5000円未満も無料、会員でない人で5000円以上なら無料です。会員でなくて5000円未満のときの送料はまだ決めていません。表にしておいてください。プロジェクトフォルダは <PROJECT_DIR> です。",
+      "expected_output": "<PROJECT_DIR> に type=decisionTable の JSON が1つ作られる。条件は2本で値は2つずつ、結果は1本、行は4行で直積の並び。会話で決まった3行の結果は「無料」で、会員でなく5000円未満の行の結果は空文字のまま。impossible はすべて false。ID は cond_／out_ ＋英数字10文字。正規形で書かれ、整合性の警告が無い。",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "route-to-decision-table",
+      "prompt": "会員ランク（ゴールド・シルバー・一般）と、購入金額が1万円以上かどうかの組み合わせで、ポイント倍率が決まります。組み合わせを漏れなく表で整理したいです。倍率はまだ決めていません。プロジェクトフォルダは <PROJECT_DIR> です。",
+      "expected_output": "type=decisionTable の JSON が1つ作られ、条件2本（3値と2値）で行は6行。type=logicTree の JSON は作られていない（「組み合わせ」「表」はロジックツリーではなくデシジョンテーブルの担当）。倍率は決まっていないので結果はすべて空文字。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "defer-to-logic-tree",
+      "prompt": "夜間の決済バッチがときどき失敗します。どんな原因で失敗するのか、分解して洗い出しておきたいです。プロジェクトフォルダは <PROJECT_DIR> です。",
+      "expected_output": "type=decisionTable の JSON が作られていない。原因の分解はロジックツリー（write-logic-tree）の担当なので、そちらへ譲っている。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "add-condition-to-existing",
+      "prompt": "<PROJECT_DIR> の「送料の決定」の表に、条件「キャンペーン中か」（はい／いいえ）を足してください。",
+      "expected_output": "既存の 送料の決定.json が更新される（2つ目のファイルを作らない）。cond_Aa1Bb2Cc3D / cond_Ee4Ff5Gg6H / out_Ii7Jj8Kk9L の id・名前・値が変わらず、title も変わらない。条件が3本になり、足した条件の id は新しく採番された cond_ ＋英数字10文字。行は8行で、どの行の結果も、会員か・5000円以上かの値が同じ元の行の結果と一致する（キャンペーンの値によらず複製されている）。",
+      "files": ["fixtures/existing-project/送料の決定.json"]
+    },
+    {
+      "id": 4,
+      "name": "impossible-only-when-said",
+      "prompt": "送料を、会員かどうかと5000円以上かどうかで決めます。会員で5000円以上は無料、会員でなく5000円以上も無料、会員でなく5000円未満は500円です。会員は最低購入額が5000円なので、会員で5000円未満の注文は起こりえません。表にしてください。プロジェクトフォルダは <PROJECT_DIR> です。",
+      "expected_output": "type=decisionTable の JSON が1つ作られる。4行のうち、会員で5000円未満の1行だけが impossible: true で結果が空文字。残る3行は impossible: false で結果が埋まっている。",
+      "files": []
+    }
+  ]
+}

@@ -134,7 +134,7 @@ facet は、人間が構造化された UI で入力し、ツールが網羅性�
 
 ### 3. お手本を開いてみる
 
-このリポジトリの **[`sample-project/`](sample-project/)** が、5ツールを同じ題材（中途採用の応募管理）で埋めたお手本。**わざと未決を残してある。**
+このリポジトリの **[`sample-project/`](sample-project/)** が、6ツールを同じ題材（中途採用の応募管理）で埋めたお手本。**わざと未決を残してある。**
 
 | ファイル | 仕込んである未決 |
 | --- | --- |
@@ -143,6 +143,7 @@ facet は、人間が構造化された UI で入力し、ツールが網羅性�
 | `応募から書類選考まで.json` | 12ステップに立つ問いのうち、7つが未回答・8つが回答済み・1つが「考慮不要と決めた」 |
 | `応募が書類選考に進まないケース.json` | ノードが1つ空 |
 | `課題ツリー.json` | `⚠ 要対応 3（仮説なし 1 ／ 保留 1 ／ FB待ち 1）`。対比として `見送り 1（見送り配下の問いは要対応に数えません）` と `解決 1（解決配下の問いは要対応に数えません）` が別枠に出る |
+| `書類選考の結果通知.json` | `⚠ 要対応 4（未記入 4）`。対比として、自社サイト経由で締切後の2行は `起こりえない`（応募フォームが閉じる）と決めてあり、数えない |
 
 **これが facet の見方の全部**——未決が warning として残り、埋めるまで消えない。フォルダをそのままコピーして自分の題材に書き換えるのが、いちばん早い始め方になる。
 
@@ -161,7 +162,7 @@ claude plugin marketplace add Pryo-46/facet --sparse .claude-plugin plugins
 claude plugin install facet@facet
 ```
 
-導入すると `facet:read-project` と、`facet:write-term` / `facet:write-error` / `facet:write-sequence` / `facet:write-issue-tree` / `facet:write-logic-tree` が使えるようになる。書き込み側は**会話でヒアリングしながらデータを組み立てる** ためのもので、ID の採番・スキーマ検証・正規形での書き出しは同梱スクリプトが行う。手書きの JSON が混ざらない。
+導入すると `facet:read-project` と、`facet:write-term` / `facet:write-error` / `facet:write-sequence` / `facet:write-issue-tree` / `facet:write-logic-tree` / `facet:write-decision-table` が使えるようになる。書き込み側は**会話でヒアリングしながらデータを組み立てる** ためのもので、ID の採番・スキーマ検証・正規形での書き出しは同梱スクリプトが行う。手書きの JSON が混ざらない。
 
 アプリの中の Claude Code ペインでは、プラグインを未導入でも Skill が使える。アプリが同じ Skill を resources に同梱しており、端末を起動するとき `--plugin-dir` で渡すため。
 

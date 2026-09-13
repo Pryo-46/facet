@@ -38,5 +38,5 @@ facet は、人と AI がスキーマ定義されたデータを共通言語に�
 ## リポジトリ内の他の「正」
 
 - `schemas/*.schema.json`: 各ツールのデータ形式の正。型（`src/types/*.ts`）はここから生成する
-- `plugins/facet/skills/`: AI 側の実装。プラグインとして配る登録 Skill 5本（アプリと正規形が一致していなければならない）と、読み取り専用の `read-project`
+- `plugins/facet/skills/`: AI 側の実装。プラグインとして配る登録 Skill 6本（アプリと正規形が一致していなければならない）と、読み取り専用の `read-project`
 - `.claude/skills/palette-retheme`: アプリ自身のソースを触る Skill。利用者へは配らない
