@@ -44,7 +44,7 @@ async function openMenu(triggerName: string) {
   await screen.findByRole('menu')
 }
 
-describe('ProjectMenu: Step 1 実測（行を包む div と入れ子の DropdownMenuSub）', () => {
+describe('ProjectMenu: 行を包む div の中に置いた項目と入れ子のサブメニューが引ける', () => {
   it('行を包む div の中の DropdownMenuItem が menuitem として引ける', async () => {
     render(<ProjectMenu {...makeProps()} />)
     await openMenu('プロジェクトを切り替え')

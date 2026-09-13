@@ -81,8 +81,7 @@ function ProjectRow(props: {
             )}
           </span>
         </DropdownMenuItem>
-        {/* ホバーで出す操作。opacity-0 group-hover:opacity-100 だけで隠すと、
-            キーボードで到達したとき（ホバーが起きない）見えなくなる。
+        {/* opacity-0 group-hover:opacity-100 だけで隠すと、キーボードで到達したとき見えない。
             focus-visible:opacity-100 を併せて、矢印キーで来た人にも見せる */}
         <DropdownMenuItem
           aria-label={favoriteLabel(project)}
@@ -128,10 +127,8 @@ export function ProjectMenu(props: ProjectMenuProps) {
     )
   }
 
-  // **並び順は sortProjects の戻り値をそのまま使う。** ここで favorite の
-  // 有無ごとに作り直すと、区切りの位置と実際の並び順が別の情報源から来て
-  // 食い違いうる——区切りは「並び済みの配列のどこで favorite が尽きるか」を
-  // 数えるだけにする
+  // **並び順は sortProjects の戻り値をそのまま使う。** favorite の有無ごとに
+  // 作り直すと、区切りの位置と並び順が別の情報源から来て食い違いうる
   const sorted = sortProjects(props.projects)
   const duplicated = duplicatedNames(props.projects)
   const active = props.projects.find((p) => p.path === props.activePath) ?? null
