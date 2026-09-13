@@ -5,6 +5,7 @@ import { cellField, cellFocus, cellInput, headCell } from '@/components/table-st
 import { cellFace, CELL_FACE_CLASS, type ErrorMarks } from '@/core/list-editor/cell-face'
 import { focusCellField } from '@/core/list-editor/cell-hit'
 import { cellId } from '@/core/list-editor/use-list-rows'
+import { NO_COLUMN_LABEL } from './labels'
 import { isMissingLabel } from './missing'
 
 /**
@@ -112,7 +113,7 @@ export function DefinitionList(props: DefinitionListProps) {
           </colgroup>
           <thead>
             <tr className="text-left">
-              <th className={`${headCell} text-right`}>No</th>
+              <th className={`${headCell} text-right`}>{NO_COLUMN_LABEL}</th>
               <th className={`${headCell} ${headColBorder}`}>{nameLabel}</th>
               <th className={`${headCell} ${headColBorder}`}>{itemLabel}</th>
               {/* 削除列の見出しは空。列の意味は行の ✕ のアクセシブル名が運ぶ */}
