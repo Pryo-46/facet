@@ -179,8 +179,8 @@ describe('triggerTextClass', () => {
   })
 
   it('収まらなくなったぶんだけ文字サイズを落とす', () => {
-    // 全角12文字は 16px なら 192px で溢れ、14px なら 168px で収まる
-    expect(triggerTextClass('あいうえおかきくけこさし')).toBe('text-sm')
+    // 全角11文字は 16px なら 176px で溢れ、14px なら 154px で収まる
+    expect(triggerTextClass('あいうえおかきくけこさ')).toBe('text-sm')
   })
 
   it('下限の段でも収まらない名前は下限の段のまま出す', () => {
@@ -190,7 +190,7 @@ describe('triggerTextClass', () => {
 
   it('半角は全角の半分の幅として数える', () => {
     // 同じ文字数でも、半角なら最大の段のまま収まる
-    expect(triggerTextClass('a'.repeat(22))).toBe('text-base')
-    expect(triggerTextClass('あ'.repeat(22))).toBe('text-sm')
+    expect(triggerTextClass('a'.repeat(20))).toBe('text-base')
+    expect(triggerTextClass('あ'.repeat(20))).toBe('text-sm')
   })
 })

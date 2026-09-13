@@ -1178,7 +1178,9 @@ function App() {
             `p-4` を持つのでちょうど本文の始まりの上に来る。
             **サイドメニューを畳んだときのずれは許容する**（畳んだ状態に
             合わせると、開いているときの方がずれる） */}
-        <div className="-ml-6 flex w-64 shrink-0 items-center gap-2 pl-6">
+        {/* **左右の余白を揃える。** `pr-6` を落とすと切り替え口が枠の右端まで
+            伸び、左の 24px と釣り合わなくなる */}
+        <div className="-ml-6 flex w-64 shrink-0 items-center gap-2 pl-6 pr-6">
           {/* **見出しを消さない。** 見える位置にはプロジェクト名が出るが、
               文書の見出しは `facet` のまま残す */}
           <h1 className="sr-only">facet</h1>
