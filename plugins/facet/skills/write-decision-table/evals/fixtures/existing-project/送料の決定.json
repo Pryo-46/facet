@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "type": "decisionTable",
+  "title": "送料の決定",
+  "conditions": [
+    {
+      "id": "cond_Aa1Bb2Cc3D",
+      "name": "会員か",
+      "values": [
+        "はい",
+        "いいえ"
+      ]
+    },
+    {
+      "id": "cond_Ee4Ff5Gg6H",
+      "name": "5000円以上か",
+      "values": [
+        "はい",
+        "いいえ"
+      ]
+    }
+  ],
+  "outcomes": [
+    {
+      "id": "out_Ii7Jj8Kk9L",
+      "name": "送料",
+      "choices": [
+        "無料",
+        "500円"
+      ]
+    }
+  ],
+  "rows": [
+    {
+      "values": [
+        "はい",
+        "はい"
+      ],
+      "impossible": false,
+      "results": [
+        "無料"
+      ]
+    },
+    {
+      "values": [
+        "はい",
+        "いいえ"
+      ],
+      "impossible": false,
+      "results": [
+        "無料"
+      ]
+    },
+    {
+      "values": [
+        "いいえ",
+        "はい"
+      ],
+      "impossible": false,
+      "results": [
+        "無料"
+      ]
+    },
+    {
+      "values": [
+        "いいえ",
+        "いいえ"
+      ],
+      "impossible": false,
+      "results": [
+        ""
+      ]
+    }
+  ]
+}
