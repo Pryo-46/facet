@@ -11,6 +11,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { createEstimateMeasurer } from '@/core/canvas/wrap'
 import { duplicatedNames, sortProjects, type RegisteredProject } from '@/core/projects'
 
 /**
@@ -35,6 +36,39 @@ export interface ProjectMenuProps {
   onRemove: (project: RegisteredProject) => void
   /** 見つからない登録のパスを選び直す */
   onRelocate: (project: RegisteredProject) => void
+}
+
+/**
+ * トリガーの中で名前に残る幅。ヘッダの枠（`w-64`）から、枠の `pl-6`・ボタンの
+ * `px-2.5`・アイコンと `gap-1.5` を引いた値。
+ *
+ * 枠やボタンの余白を変えるとここもずれる。名前が1段小さくなる境目が動くだけで
+ * 見た目は壊れないので、目分量の安全側に取ってある
+ */
+const TRIGGER_TEXT_WIDTH = 184
+
+/**
+ * トリガーの文字サイズの候補。大きい順に試し、最初に収まったものを使う。
+ *
+ * **下は `text-sm`（14px）で止まる。** 体系の下限がそこで、`text-xs` は
+ * `src/styles/conventions.test.ts` が弾く
+ */
+const TRIGGER_SIZES = [
+  { px: 16, className: 'text-base' },
+  { px: 14, className: 'text-sm' },
+] as const
+
+/**
+ * 名前を省略せずに出せる最大の文字サイズ。どの段でも収まらなければ下限の段に
+ * 落とし、あふれた分は `truncate` が受ける。
+ *
+ * **幅は `createEstimateMeasurer` の概算で決める。** キャンバスのレイアウトでは
+ * 概算を使わないが、ここはどの段を選ぶかが決まればよく、外した分は省略記号が
+ * 引き取る
+ */
+export function triggerTextClass(name: string, available = TRIGGER_TEXT_WIDTH): string {
+  const fit = TRIGGER_SIZES.find((size) => createEstimateMeasurer(size.px)(name) <= available)
+  return (fit ?? TRIGGER_SIZES[TRIGGER_SIZES.length - 1]).className
 }
 
 const ADD_LABEL = 'プロジェクトを追加'
@@ -120,7 +154,7 @@ export function ProjectMenu(props: ProjectMenuProps) {
   // 存在理由が無い（ExportMenu の「押せないときは通常のボタン」と同じ判断）
   if (props.projects.length === 0) {
     return (
-      <Button variant="outline" onClick={props.onAdd}>
+      <Button variant="outline" className="w-full justify-start" onClick={props.onAdd}>
         <Plus aria-hidden className="size-4" />
         {ADD_LABEL}
       </Button>
@@ -135,6 +169,7 @@ export function ProjectMenu(props: ProjectMenuProps) {
   const favoriteCount = sorted.filter((p) => p.favorite).length
   // お気に入りとその他を分ける区切りは、両方の群が空でないときだけ置く
   const showSeparator = favoriteCount > 0 && favoriteCount < sorted.length
+  const label = active?.name ?? SWITCH_LABEL
 
   const pick = (project: RegisteredProject) => {
     if (props.missing.has(project.path)) {
@@ -166,13 +201,19 @@ export function ProjectMenu(props: ProjectMenuProps) {
         if (open) props.onCheckMissing()
       }}
     >
+      {/* **幅は枠いっぱいで固定する。** 中身なりに伸び縮みさせると、切り替える
+          たびにヘッダの左端が動く */}
       <DropdownMenuTrigger asChild>
-        <Button variant="outline">
+        <Button variant="outline" className="w-full justify-start">
           <Folder aria-hidden className="size-4" />
-          <span className="max-w-40 truncate">{active?.name ?? SWITCH_LABEL}</span>
+          <span className={`min-w-0 flex-1 truncate text-left ${triggerTextClass(label)}`}>
+            {label}
+          </span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
+      {/* 中身なりに縮むと、名前もサブメニューも見切れる。下限を置いて長い名前で
+          だけ伸ばす */}
+      <DropdownMenuContent align="start" className="min-w-72 max-w-96">
         {sorted.map((project, i) => (
           <Fragment key={project.path}>
             {showSeparator && i === favoriteCount && <DropdownMenuSeparator />}
