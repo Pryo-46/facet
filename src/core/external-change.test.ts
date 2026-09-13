@@ -148,7 +148,7 @@ describe('planExternalChange', () => {
     expect(plan.selected).toEqual({ kind: 'none' })
     expect(plan.next.map((f) => f.name)).toEqual(['用語集.json'])
     expect(plan.notices).toEqual([
-      { key: `external:${B.path}`, message: 'ファイルが外部で削除されました: メモ.json' },
+      { key: `external:${B.path}`, message: 'ファイルが外部で削除されました: メモ.json', important: true },
     ])
   })
 
@@ -197,6 +197,8 @@ describe('選択中でないファイルの通知', () => {
     expect(plan.notices.map((n) => n.message)).toEqual([
       '外部の変更でこのファイルを開けなくなりました: 用語集.json',
     ])
+    // 裏で起きた破壊的な変更なので、閉じるまで残す
+    expect(plan.notices[0].important).toBe(true)
   })
 
   it('開ける内容のままなら従来どおりのメッセージ', () => {

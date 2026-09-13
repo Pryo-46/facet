@@ -8,7 +8,7 @@
  *
  * 値は `oklch(L C H)` の形で書く。L は 0..1 の小数（% 不可）、アルファ不可。
  *
- * 役割（rev 9章。21個）:
+ * 役割（rev 9章。23個）:
  *   面（無彩色）   canvas / surface / surface-subtle（わずかに沈んだ面）/
  *                  surface-muted（一段沈んだ面）
  *   文字（無彩色） ink / ink-muted / ink-faint（3:1。本文に使わない）
@@ -18,6 +18,7 @@
  *   着信軸（青）   pending / pending-face   線・文字／淡い面
  *   判断軸         judge-yes / judge-yes-fg（緑の面）、judge-no / judge-no-fg（無彩色の面）
  *                  ＋ judge-yes-face（淡い緑。**決着したものに付く唯一の淡い面**）
+ *   通知（無彩色） toast / toast-fg   トーストの面と文字。地と反対の明度に置き、作業面から浮かせる
  *
  * 開いているもの（欠落・無効・着信）は**淡い面＋線＋文字**、決着したもの
  * （判断軸）は**濃い面**（規約2）。M21 の実機確認で「1px の輪郭だけでは
@@ -84,6 +85,11 @@
     --judge-yes-face: oklch(0.95 0.045 165);
     --judge-no: oklch(0.35 0 0);            /* チャコール。judge-yes と 7.9:1 */
     --judge-no-fg: oklch(0.985 0 0);
+
+    /* トースト。明るい地の上に黒い面で出す（ink と同じ明度）。
+       表や方眼の上に出ても、地と同じ面では通知が出たことに気付けない */
+    --toast: oklch(0.18 0 0);
+    --toast-fg: oklch(0.985 0 0);           /* toast 上 18.01:1 */
 }
 
 .dark {
@@ -138,4 +144,9 @@
     --judge-yes-face: oklch(0.26 0.05 165);
     --judge-no: oklch(0.36 0 0);
     --judge-no-fg: oklch(0.95 0 0);
+
+    /* トーストのダーク側。黒い地の上に中間のグレーの面で出す。
+       ライトと同じく地と反対の明度だが、ink（0.88）まで明るくすると暗い画面で眩しい */
+    --toast: oklch(0.45 0 0);
+    --toast-fg: oklch(0.95 0 0);            /* toast 上 6.43:1 */
 }

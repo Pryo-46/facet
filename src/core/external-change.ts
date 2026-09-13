@@ -24,7 +24,7 @@ export interface ExternalChangePlan {
    *  key を持つのは、同じファイルの古い通知——特に「取り込み前に戻す」を
    *  載せた操作付きトースト——を新しい検知で必ず置き換えるため。
    *  残っていると、古い退避テキストで新しい外部変更を無言で潰せてしまう */
-  notices: { key: string; message: string }[]
+  notices: { key: string; message: string; important?: boolean }[]
 }
 
 /**
@@ -94,10 +94,12 @@ export function planExternalChange(args: {
         // **「読み込みました」で済ませない。** 外部の変更でスキーマ違反に
         // 落ちたファイルは一覧に残るが開けなくなる。赤バッジは出るものの、
         // メッセージが成功時と同じでは何が起きたか伝わらない
-        message:
-          e.result.status === 'rejected'
-            ? `外部の変更でこのファイルを開けなくなりました: ${e.name}`
-            : `外部の変更を読み込みました: ${e.name}`,
+        //
+        // 閉じるまで残すのは開けなくなったときと消えたときだけ（裏で起きた破壊的な変更）。
+        // 読み込み・追加は Claude Code に書かせている間は頻繁に出るので、数秒で消す
+        ...(e.result.status === 'rejected'
+          ? { message: `外部の変更でこのファイルを開けなくなりました: ${e.name}`, important: true }
+          : { message: `外部の変更を読み込みました: ${e.name}` }),
       })),
     ...added.map((e) => ({ key: `external:${e.path}`, message: `ファイルが増えました: ${e.name}` })),
     ...removed
@@ -105,6 +107,7 @@ export function planExternalChange(args: {
       .map((f) => ({
         key: `external:${f.path}`,
         message: `ファイルが外部で削除されました: ${f.name}`,
+        important: true,
       })),
   ]
 
