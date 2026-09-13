@@ -544,8 +544,8 @@ git commit -m "feat(m37): 登録済みプロジェクトの読み書きと移行
 describe('dirsExist', () => {
   it('自前コマンド dirs_exist に paths を渡す', async () => {
     invoke.mockResolvedValue([true, false])
-    await expect(dirsExist(['C:\a', 'C:\b'])).resolves.toEqual([true, false])
-    expect(invoke).toHaveBeenCalledWith('dirs_exist', { paths: ['C:\a', 'C:\b'] })
+    await expect(dirsExist(['C:\\a', 'C:\\b'])).resolves.toEqual([true, false])
+    expect(invoke).toHaveBeenCalledWith('dirs_exist', { paths: ['C:\\a', 'C:\\b'] })
   })
 
   it('空の入力ではコマンドを呼ばない', async () => {
