@@ -806,7 +806,7 @@ import { RenameProjectDialog } from './RenameProjectDialog'
 afterEach(cleanup)
 
 const target: RegisteredProject = {
-  path: 'C:\work\juchu',
+  path: 'C:\\work\\juchu',
   name: '受注管理',
   favorite: false,
   lastOpenedAt: '2026-03-01T00:00:00.000Z',
@@ -821,7 +821,7 @@ describe('RenameProjectDialog', () => {
   it('いまの表示名を入れた状態で開き、パスを読める', () => {
     render(<RenameProjectDialog project={target} onSubmit={vi.fn()} onClose={vi.fn()} />)
     expect((screen.getByLabelText('プロジェクト名') as HTMLInputElement).value).toBe('受注管理')
-    expect(screen.getByText('C:\work\juchu')).toBeTruthy()
+    expect(screen.getByText('C:\\work\\juchu')).toBeTruthy()
   })
 
   it('入れ替えた名前で確定する', () => {
