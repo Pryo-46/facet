@@ -77,6 +77,28 @@ fn read_clipboard_html() -> Result<String, String> {
         .map_err(|err| err.to_string())
 }
 
+/// 渡したパスのそれぞれについて、フォルダとして存在するかを返す。
+///
+/// fs プラグインの `exists` は実行時 scope の中しか見えず、登録済み
+/// プロジェクトの一覧を確かめるには全件へ `allow_project_dir` を掛けることに
+/// なる。**開いてもいないフォルダへ fs の実行時 scope を広げないため**に
+/// ここを通す。できるのは存在の確認だけで、読み書きの経路は開かない。
+///
+/// **ワーカースレッドで実行する。** Tauri v2 は `async` でないコマンドを
+/// メインスレッド上で実行するため、ネットワークドライブ上のパスを含むと
+/// 一覧を開いた瞬間にウィンドウが固まる。判断は一切置かない（rev 7章）
+#[tauri::command]
+async fn dirs_exist(paths: Vec<String>) -> Result<Vec<bool>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        paths
+            .iter()
+            .map(|path| std::path::Path::new(path).is_dir())
+            .collect()
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -98,6 +120,7 @@ pub fn run() {
             allow_project_dir,
             allow_dot_claude,
             read_clipboard_html,
+            dirs_exist,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,

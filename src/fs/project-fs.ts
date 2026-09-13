@@ -60,6 +60,18 @@ export async function fileExists(path: string): Promise<boolean> {
 }
 
 /**
+ * 渡したパスのそれぞれがフォルダとして存在するか。入力と同じ長さ・同じ順序で返る。
+ *
+ * **`fileExists` で代用しないこと。** あちらは fs プラグインの `exists` で
+ * 実行時 scope の中しか見えず、登録済みの全件を確かめるには開いてもいない
+ * フォルダへ scope を広げることになる
+ */
+export async function dirsExist(paths: readonly string[]): Promise<boolean[]> {
+  if (paths.length === 0) return []
+  return invoke<boolean[]>('dirs_exist', { paths: [...paths] })
+}
+
+/**
  * ファイルを OS のゴミ箱へ移す（完全削除はしない。rev 6章）。
  * fs プラグインにゴミ箱 API が無いため、ここだけ自前の Tauri コマンドを呼ぶ。
  * 自前コマンドは ACL の対象外なので capabilities への追記は要らない
