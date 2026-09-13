@@ -22,13 +22,20 @@ const EPOCH = '1970-01-01T00:00:00.000Z'
 
 /**
  * 末尾の区切りを落とす。**同一性の鍵を作る唯一の口。**
+ *
  * フォルダ選択ダイアログが返すパスと手で直した設定ファイルの値で末尾が
  * 揃わないため、比較の前に必ずここを通す。
  *
- * **区切りを1文字だけ落とす。** ルート（`/` や `C:\`）を空文字列に潰すと、
- * `allow_project_dir` が空パスを受け取る経路ができる
+ * **ルートは区切りを落とさない。** 落とすと `allow_project_dir` が空パスや
+ * ドライブの既定ディレクトリを受け取る経路ができる。
+ *
+ * `/` は `path.length > 1` のガードで守られる。`C:\` はこのガードの外に出る
+ * ため、ドライブルートは正規表現で別に判定する
  */
+const WINDOWS_DRIVE_ROOT = /^[A-Za-z]:[\\/]$/
+
 export function canonicalPath(path: string): string {
+  if (WINDOWS_DRIVE_ROOT.test(path)) return path
   return path.length > 1 && (path.endsWith('/') || path.endsWith('\\'))
     ? path.slice(0, -1)
     : path
@@ -63,6 +70,8 @@ export function normalizeProjects(raw: unknown): RegisteredProject[] {
   const projects: RegisteredProject[] = []
   for (const item of raw) {
     const source = asRecord(item)
+    // 空パスを弾く判定はここと次行の2箇所にある。canonicalPath は非空の入力を
+    // 空文字列にしないため、片方を「冗長だから」と外しても他方が同じ入力を拾う
     if (typeof source.path !== 'string' || source.path === '') continue
     const path = canonicalPath(source.path)
     if (path === '' || seen.has(path)) continue
@@ -77,18 +86,25 @@ export function normalizeProjects(raw: unknown): RegisteredProject[] {
   return projects
 }
 
-/** お気に入りを先に置き、どちらの群も最終オープンの降順にする */
+/**
+ * お気に入りを先に置き、どちらの群も最終オープンの降順にする。
+ *
+ * **ロケール依存の比較を使わない。** ISO8601 は辞書順と時刻順が一致するので、
+ * 文字列の大小だけで並べる
+ */
 export function sortProjects(projects: readonly RegisteredProject[]): RegisteredProject[] {
   return [...projects].sort((a, b) => {
     if (a.favorite !== b.favorite) return a.favorite ? -1 : 1
-    return b.lastOpenedAt.localeCompare(a.lastOpenedAt)
+    if (a.lastOpenedAt === b.lastOpenedAt) return 0
+    return a.lastOpenedAt > b.lastOpenedAt ? -1 : 1
   })
 }
 
 /**
  * 開いたことを記録する。登録済みなら最終オープンだけを更新し、未登録なら
- * フォルダ名を表示名として足す。**並べ替えはしない**——並び順は
- * `sortProjects` が描画の直前に決める
+ * フォルダ名を表示名として足す。
+ *
+ * **並べ替えはしない**——並び順は `sortProjects` が描画の直前に決める
  */
 export function touchProject(
   projects: readonly RegisteredProject[],

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  canonicalPath,
   duplicatedNames,
   folderName,
   normalizeProjects,
@@ -16,6 +17,18 @@ const project = (over: Partial<RegisteredProject> = {}): RegisteredProject => ({
   favorite: false,
   lastOpenedAt: EPOCH,
   ...over,
+})
+
+describe('canonicalPath', () => {
+  it('ルート単体は潰さずそのまま返す', () => {
+    expect(canonicalPath('/')).toBe('/')
+    expect(canonicalPath('C:\\')).toBe('C:\\')
+  })
+
+  it('多階層のパスは末尾の区切りだけを落とす', () => {
+    expect(canonicalPath('/home/me/juchu/')).toBe('/home/me/juchu')
+    expect(canonicalPath('C:\\work\\juchu\\')).toBe('C:\\work\\juchu')
+  })
 })
 
 describe('folderName', () => {
