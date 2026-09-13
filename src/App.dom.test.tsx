@@ -12,6 +12,7 @@ import { INSERTION_QUIET_MS } from '@/components/TerminalTab'
 import { tableCopyPrefs } from '@/core/table-copy-options'
 import { UNSUPPORTED_REASON } from '@/components/ToolbarButton'
 import { DEFAULT_SETTINGS, type AppSettings } from '@/core/settings'
+import type { RegisteredProject } from '@/core/projects'
 import { appSettings } from '@/core/settings-store'
 
 /**
@@ -48,8 +49,10 @@ const {
   ptyExitHandlers,
   disk,
   writeProjectFileMock,
-  saveLastProjectDirMock,
+  saveProjectsMock,
   saveSettingsMock,
+  pickConfig,
+  missingConfig,
   restoreConfig,
   allowProjectDirCalls,
   updateConfig,
@@ -74,11 +77,19 @@ const {
     ptyExitHandlers: new Map<number, (code: number | null) => void>(),
     disk: new Map<string, string>(),
     writeProjectFileMock: vi.fn(async (_path: string, _text: string) => undefined),
-    saveLastProjectDirMock: vi.fn(async (_dir: string) => undefined),
+    saveProjectsMock: vi.fn(async (_projects: readonly RegisteredProject[]) => undefined),
     saveSettingsMock: vi.fn(async () => undefined),
-    // 起動時復元専用の可変状態。既定は「復元対象パス無し」——このファイルの
+    // フォルダ選択ダイアログが返すパス。既定の `/proj` は既存テストの前提
+    pickConfig: { dir: '/proj' as string | null },
+    // `dirsExist` が「無い」と答えるパス。既定は空（全部ある）
+    missingConfig: { paths: [] as string[] },
+    // 起動時復元専用の可変状態。既定は「登録なし」——このファイルの
     // 既存テストはどれも起動時復元を前提にしていないので、既定を変えない
-    restoreConfig: { lastDir: null as string | null, exists: false, allowError: null as Error | null },
+    restoreConfig: {
+      projects: [] as RegisteredProject[],
+      exists: false,
+      allowError: null as Error | null,
+    },
     allowProjectDirCalls: [] as string[],
     // 自動アップデート専用の可変状態。**既定は「更新なし」**——
     // 既存テストはどれも更新を前提にしていないので、既定を変えない
@@ -117,7 +128,7 @@ const {
 })
 
 vi.mock('@/fs/project-fs', () => ({
-  pickProjectFolder: async () => '/proj',
+  pickProjectFolder: async () => pickConfig.dir,
   // `disk` 経由だが、既定は空なので「listJsonFiles は常に []」という
   // 既存テストの前提はそのまま
   listJsonFiles: async () => [...disk.keys()],
@@ -128,6 +139,8 @@ vi.mock('@/fs/project-fs', () => ({
     allowProjectDirCalls.push(dir)
     if (restoreConfig.allowError !== null) throw restoreConfig.allowError
   },
+  // 切り替えメニューを開いたときの存在確認。既定は「全部ある」
+  dirsExist: async (paths: readonly string[]) => paths.map((p) => !missingConfig.paths.includes(p)),
   moveFileToTrash: async () => undefined,
   joinPath: async (dir: string, name: string) => `${dir}/${name}`,
   watchFolder: async () => () => undefined,
@@ -136,8 +149,8 @@ vi.mock('@/fs/project-fs', () => ({
 // 起動時に読ませる設定。テストごとに差し替える
 const settingsConfig: { stored: AppSettings } = { stored: DEFAULT_SETTINGS }
 vi.mock('@/fs/settings-fs', () => ({
-  readLastProjectDir: async () => restoreConfig.lastDir,
-  saveLastProjectDir: saveLastProjectDirMock,
+  readProjects: async () => restoreConfig.projects,
+  saveProjects: saveProjectsMock,
   readSettings: async () => settingsConfig.stored,
   saveSettings: saveSettingsMock,
 }))
@@ -332,8 +345,10 @@ afterEach(() => {
   pasted.length = 0
   ptyDataMode.value = 'sync'
   writeProjectFileMock.mockClear()
-  saveLastProjectDirMock.mockClear()
-  restoreConfig.lastDir = null
+  saveProjectsMock.mockClear()
+  pickConfig.dir = '/proj'
+  missingConfig.paths = []
+  restoreConfig.projects = []
   restoreConfig.exists = false
   restoreConfig.allowError = null
   allowProjectDirCalls.length = 0
@@ -358,13 +373,32 @@ beforeEach(() => {
 })
 
 /**
+ * プロジェクトを追加してフォルダを選ぶ。**帯に専用のボタンは無い**——
+ * プロジェクトのメニューを通す1本の経路しかないので、テストもそこを通す。
+ * 開く操作は Radix の作法に合わせて pointerDown で起こす（ExportMenu.dom.test.tsx と同じ）。
+ *
+ * トリガーの表示名は登録の有無で変わる。登録が1件でもある状態から呼ぶ側だけが
+ * 現在の名前を渡す。**登録が0件のときはトリガーがそのまま追加のボタンなので、
+ * メニューは開かない**——`aria-haspopup` の有無で経路を分ける
+ */
+async function openProjectFolder(triggerName = 'プロジェクトを追加') {
+  const trigger = screen.getByRole('button', { name: triggerName })
+  if (trigger.getAttribute('aria-haspopup') === null) {
+    fireEvent.click(trigger)
+    return
+  }
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'プロジェクトを追加' }))
+}
+
+/**
  * 端末ペインの中の要素を返す。**`role="tablist"` は名乗っていない**
  *（TerminalPane.tsx のコメント参照。素の button + aria-pressed）ので、
  * セッションのタブボタン（ラベルは `Claude <連番>`。sessions.ts）で代用する
  */
 async function openPane() {
   render(<App />)
-  fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+  await openProjectFolder()
   const toggle = await screen.findByRole('button', { name: 'Claude Code ペインを開く' })
   await waitFor(() => expect(toggle.hasAttribute('disabled')).toBe(false))
   fireEvent.click(toggle)
@@ -396,7 +430,7 @@ describe('フォルダ切替', () => {
   it('実行中のタブがあれば確認してから切り替える', async () => {
     await openPane()
     await screen.findByRole('button', { name: 'Claude 1' })
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder('proj')
     expect(
       await screen.findByText('Claude Code のタブを終了してフォルダを切り替えますか？'),
     ).toBeTruthy()
@@ -405,7 +439,7 @@ describe('フォルダ切替', () => {
   it('承認するとタブが消える', async () => {
     await openPane()
     await screen.findByRole('button', { name: 'Claude 1' })
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder('proj')
     fireEvent.click(await screen.findByRole('button', { name: '終了して切り替える' }))
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
     // 「タブを閉じても Claude が残る」症状の肯定側——フォルダ切替の
@@ -416,14 +450,14 @@ describe('フォルダ切替', () => {
   it('取り消すとタブが残る', async () => {
     await openPane()
     await screen.findByRole('button', { name: 'Claude 1' })
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder('proj')
     fireEvent.click(await screen.findByRole('button', { name: 'キャンセル' }))
     expect(screen.getByRole('button', { name: 'Claude 1' })).toBeTruthy()
   })
 
   it('**終了済みのタブしか無くてもフォルダ切替で消える**（確認は出ない）', async () => {
     // `hasRunning` は starting / running しか見ないので、exited のタブだけが
-    // 残っていると openFolder が確認も後始末もせず素通りし、旧フォルダ
+    // 残っていると requestSwitch が確認も後始末もせず素通りし、旧フォルダ
     // の残骸がタブバーに残る
     await openPane()
     await screen.findByRole('button', { name: 'Claude 1' })
@@ -434,7 +468,7 @@ describe('フォルダ切替', () => {
     })
     await screen.findByText('終了しました（コード 0）')
 
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder('proj')
 
     // 旧フォルダの残骸が消える
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Claude 1' })).toBeNull())
@@ -443,11 +477,108 @@ describe('フォルダ切替', () => {
   })
 })
 
-describe('最後に開いたフォルダの保存', () => {
-  it('フォルダを開くと保存する', async () => {
+describe('開いたプロジェクトの登録', () => {
+  it('プロジェクトを追加すると登録に足して保存する', async () => {
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
-    await waitFor(() => expect(saveLastProjectDirMock).toHaveBeenCalledWith('/proj'))
+    await openProjectFolder()
+    await waitFor(() => expect(saveProjectsMock).toHaveBeenCalled())
+    const [saved] = saveProjectsMock.mock.calls.at(-1)!
+    expect(saved).toHaveLength(1)
+    expect(saved[0]).toMatchObject({ path: '/proj', name: 'proj', favorite: false })
+  })
+
+  it('トリガーは開いているプロジェクトの表示名を名乗る', async () => {
+    render(<App />)
+    await openProjectFolder()
+    expect(await screen.findByRole('button', { name: 'proj' })).toBeTruthy()
+  })
+
+  it('末尾に区切りが付いたパスを選んでも、開いている行に「一覧から外す」が出ない', async () => {
+    // ダイアログが末尾に区切りを付けて返しても、登録の path と projectDir が
+    // 食い違わないこと。食い違うと isActive が偽になり、開いたまま
+    // 登録だけ外せてしまう行が出る
+    pickConfig.dir = '/proj/'
+    render(<App />)
+    await openProjectFolder()
+    const trigger = await screen.findByRole('button', { name: 'proj' })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'proj の操作' }))
+    expect(screen.queryByRole('menuitem', { name: '一覧から外す' })).toBeNull()
+  })
+})
+
+describe('プロジェクトの切り替えメニュー', () => {
+  /** 開いているプロジェクトの行の省略記号から「プロジェクト名を変更」を開く */
+  async function openRename() {
+    render(<App />)
+    await openProjectFolder()
+    const trigger = await screen.findByRole('button', { name: 'proj' })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'proj の操作' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'プロジェクト名を変更' }))
+    return await screen.findByRole('textbox', { name: 'プロジェクト名' })
+  }
+
+  it('改名を確定すると表示名が差し替わって保存される', async () => {
+    const input = await openRename()
+    fireEvent.change(input, { target: { value: '受注管理' } })
+    fireEvent.click(screen.getByRole('button', { name: '変更する' }))
+    await waitFor(() => {
+      expect(saveProjectsMock.mock.calls.at(-1)![0][0]).toMatchObject({
+        path: '/proj',
+        name: '受注管理',
+      })
+    })
+  })
+
+  it('改名ダイアログを開いている間はグローバル層の Ctrl+Z が届かない', async () => {
+    await openRename()
+    // fireEvent は preventDefault されていなければ true を返す
+    expect(fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })).toBe(true)
+  })
+})
+
+describe('見つからない登録を選び直す', () => {
+  const registered = (path: string): RegisteredProject => ({
+    path,
+    name: path.slice(1),
+    favorite: false,
+    lastOpenedAt: '2026-03-01T00:00:00.000Z',
+  })
+
+  /** 見つからない行を押して選び直しを起こす。押した後の登録の最終形を返す */
+  async function relocate(stored: readonly string[], missing: string, picked: string) {
+    restoreConfig.projects = stored.map(registered)
+    missingConfig.paths = [missing]
+    pickConfig.dir = picked
+    render(<App />)
+    const trigger = await screen.findByRole('button', { name: 'プロジェクトを切り替え' })
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false })
+    // 行そのもの（本体の menuitem）を押す。お気に入り・省略記号のボタンも
+    // 同じ名前を含むため、ヒントの祖先から辿って一意に選ぶ
+    const hint = await screen.findByText('見つからない — 押して選び直す')
+    const row = hint.closest('[role="menuitem"]')
+    if (row === null) throw new Error('行の menuitem が見つからない')
+    fireEvent.click(row)
+    await waitFor(() => expect(saveProjectsMock).toHaveBeenCalled())
+    return saveProjectsMock.mock.calls.at(-1)![0]
+  }
+
+  it('末尾に区切りが付いたパスを選んでも同じフォルダが二重に並ばない', async () => {
+    const saved = await relocate(['/gone'], '/gone', '/moved/')
+    await waitFor(() => {
+      expect(saveProjectsMock.mock.calls.at(-1)![0]).toHaveLength(1)
+    })
+    expect(saved[0]).toMatchObject({ path: '/moved', name: 'gone' })
+  })
+
+  it('既に登録済みのパスを選ぶと、同じパスの行が2つにならない', async () => {
+    await relocate(['/gone', '/keep'], '/gone', '/keep')
+    await waitFor(() => {
+      const latest = saveProjectsMock.mock.calls.at(-1)![0]
+      expect(latest.filter((p) => p.path === '/keep')).toHaveLength(1)
+      expect(latest).toHaveLength(1)
+    })
   })
 })
 
@@ -529,7 +660,7 @@ describe('名前の帯', () => {
   /** フォルダを開いて用語集を選び、帯の入力欄を返す */
   async function openBand(rowName: string) {
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: `${rowName} を開く` }))
     return await screen.findByRole('textbox', { name: 'ファイルの名前' })
   }
@@ -629,7 +760,7 @@ describe('アプリ終了', () => {
 describe('額縁の帯', () => {
   it('ヘッダーはフォルダのパスを出さない', async () => {
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Claude Code ペインを開く' }).hasAttribute('disabled')).toBe(false)
     })
@@ -674,7 +805,7 @@ describe('指摘バナーと額縁の配線', () => {
   async function openDuplicated() {
     putDuplicated()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: '重複あり（用語集.json） を開く' }))
     // エディタ（用語テーブル）の描画まで待つ
     return await screen.findByRole('table')
@@ -700,15 +831,23 @@ describe('指摘バナーと額縁の配線', () => {
 })
 
 describe('起動時のフォルダ復元', () => {
-  it('保存済みパスがあり実在すれば自動で開く', async () => {
-    restoreConfig.lastDir = '/restored'
+  const registered = (path: string, over: Partial<RegisteredProject> = {}): RegisteredProject => ({
+    path,
+    name: path.slice(1),
+    favorite: false,
+    lastOpenedAt: '2026-03-01T00:00:00.000Z',
+    ...over,
+  })
+
+  it('登録があり実在すれば自動で開く', async () => {
+    restoreConfig.projects = [registered('/restored')]
     restoreConfig.exists = true
     render(<App />)
     await waitFor(() => expect(screen.getByTitle('/restored')).toBeTruthy())
     expect(allowProjectDirCalls).toEqual(['/restored'])
   })
 
-  it('保存済みパスが無ければ何も開かず通常起動する', async () => {
+  it('登録が無ければ何も開かず通常起動する', async () => {
     render(<App />)
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(allowProjectDirCalls).toEqual([])
@@ -717,8 +856,8 @@ describe('起動時のフォルダ復元', () => {
     expect(screen.getByRole('button', { name: 'Claude Code ペインを開く' }).hasAttribute('disabled')).toBe(true)
   })
 
-  it('保存済みパスが実在しなければ何も開かず通常起動する', async () => {
-    restoreConfig.lastDir = '/gone'
+  it('登録したフォルダが実在しなければ何も開かず通常起動する', async () => {
+    restoreConfig.projects = [registered('/gone')]
     restoreConfig.exists = false
     render(<App />)
     await waitFor(() => expect(allowProjectDirCalls).toEqual(['/gone']))
@@ -727,7 +866,7 @@ describe('起動時のフォルダ復元', () => {
   })
 
   it('scope の再付与が失敗しても通常起動にフォールバックする', async () => {
-    restoreConfig.lastDir = '/restored'
+    restoreConfig.projects = [registered('/restored')]
     restoreConfig.exists = true
     restoreConfig.allowError = new Error('forbidden path')
     render(<App />)
@@ -737,7 +876,7 @@ describe('起動時のフォルダ復元', () => {
   })
 
   it('StrictMode の二重マウントでも復元は1回しか走らない', async () => {
-    restoreConfig.lastDir = '/restored'
+    restoreConfig.projects = [registered('/restored')]
     restoreConfig.exists = true
     render(
       <StrictMode>
@@ -747,6 +886,18 @@ describe('起動時のフォルダ復元', () => {
     await waitFor(() => expect(screen.getByTitle('/restored')).toBeTruthy())
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(allowProjectDirCalls).toEqual(['/restored'])
+  })
+
+  it('登録が複数あれば最終オープンが最も新しいものを開く', async () => {
+    restoreConfig.projects = [
+      registered('/old', { favorite: true, lastOpenedAt: '2026-01-01T00:00:00.000Z' }),
+      registered('/new', { lastOpenedAt: '2026-03-01T00:00:00.000Z' }),
+    ]
+    restoreConfig.exists = true
+    render(<App />)
+    await waitFor(() => expect(screen.getByTitle('/new')).toBeTruthy())
+    // お気に入りは並び順の都合であって、復元先を決める材料ではない
+    expect(allowProjectDirCalls).toEqual(['/new'])
   })
 })
 
@@ -855,7 +1006,7 @@ describe('自動アップデート', () => {
     expect(screen.queryByRole('button', { name: 'v1.2.3 に更新' })).toBeNull()
     expect(screen.queryByRole('button', { name: '更新を確認' })).toBeNull()
     // 額縁自体は描画されている（描画そのものが落ちていて全部 null、を弾く）
-    expect(screen.getByRole('button', { name: 'フォルダを開く' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'プロジェクトを追加' })).toBeTruthy()
   })
 
   it('**ダウンロードの進捗がトーストに積み上がる**', async () => {
@@ -874,14 +1025,25 @@ describe('自動アップデート', () => {
   })
 })
 
-describe('額縁の版番号', () => {
-  it('アプリ名の横に、いま動いている版が出る', async () => {
+describe('版番号', () => {
+  it('設定の一般タブにいま動いている版が出る', async () => {
     versionConfig.value = '4.5.6'
     render(<App />)
-    expect(await screen.findByText('v4.5.6')).toBeTruthy()
+    fireEvent.click(await screen.findByRole('button', { name: '設定' }))
+    expect(await screen.findByText('facet v4.5.6')).toBeTruthy()
   })
 
-  it('**版番号が取れなくても画面は出る**（額縁の添え物のために起動を落とさない）', async () => {
+  it('帯には出さない（見出しはスクリーンリーダー向けに残る）', async () => {
+    versionConfig.value = '4.5.6'
+    render(<App />)
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(screen.getByRole('heading', { level: 1, name: 'facet' })).toBeTruthy()
+    expect(document.querySelector('header')?.textContent).not.toContain('4.5.6')
+  })
+
+  it('**版番号が取れなくても画面は出る**（添え物のために起動を落とさない）', async () => {
     // 「出ていない」だけでは、まだ取得中なのか諦めたのかを区別できない。
     // 更新チェックの失敗と同じく、諦めた証拠として console.error を見る
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -891,7 +1053,7 @@ describe('額縁の版番号', () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
     expect(screen.getByRole('heading', { level: 1, name: 'facet' })).toBeTruthy()
-    expect(screen.queryByText(/^v\d/)).toBeNull()
+    expect(screen.queryByText(/^facet v\d/)).toBeNull()
     expect(consoleError).toHaveBeenCalled()
     consoleError.mockRestore()
   })
@@ -954,7 +1116,7 @@ describe('額縁の Miro 交換の配線', () => {
   it('Miro のボタンは常に出ていて、ロジックツリー以外では押せない', async () => {
     putGlossary()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
     await screen.findByRole('textbox', { name: 'ファイルの名前' })
 
@@ -982,7 +1144,7 @@ describe('額縁の Miro 交換の配線', () => {
   it('ロジックツリーを開くと「Miro へコピー」が押せる', async () => {
     putLogicTree()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: '木（木.json） を開く' }))
     await screen.findByRole('textbox', { name: 'ファイルの名前' })
 
@@ -993,7 +1155,7 @@ describe('額縁の Miro 交換の配線', () => {
   it('「Miro から取り込む」はクリップボードに Miro のデータがあるときだけ押せる', async () => {
     putLogicTree()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: '木（木.json） を開く' }))
     await screen.findByRole('textbox', { name: 'ファイルの名前' })
 
@@ -1017,7 +1179,7 @@ describe('額縁の Miro 交換の配線', () => {
   it('クリップボードが Miro のデータでなければ取り込みは押せないまま', async () => {
     putLogicTree()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: '木（木.json） を開く' }))
     await screen.findByRole('textbox', { name: 'ファイルの名前' })
 
@@ -1053,7 +1215,7 @@ describe('Claude Code へファイルを渡す', () => {
   it('選択中のファイルの参照を持ってペインが開く', async () => {
     putGlossary()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
     // 選択の完了を待つ（名前の帯の openBand と同じ理由）。**選択は
     // `selectFile` 経由で非同期に進む**ので、待たずに次のクリックへ進むと
@@ -1072,7 +1234,7 @@ describe('Claude Code へファイルを渡す', () => {
   it('ファイルを選んでいなければ何も差し込まない', async () => {
     putGlossary()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     await screen.findByRole('button', { name: '用語集（用語集.json） を開く' })
     fireEvent.click(screen.getByRole('button', { name: 'Claude Code ペインを開く' }))
 
@@ -1084,7 +1246,7 @@ describe('Claude Code へファイルを渡す', () => {
   it('@ ボタンは、ペインが閉じていても開いて渡す', async () => {
     putGlossary()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     // **ファイルを選ばずに** @ を押す。選択と無関係に渡せることが要点
     fireEvent.click(
       await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
@@ -1110,7 +1272,7 @@ describe('Claude Code へファイルを渡す', () => {
     ptyDataMode.value = 'async'
     putGlossary()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(
       await screen.findByRole('button', { name: '用語集（用語集.json） を Claude Code に渡す' }),
     )
@@ -1128,7 +1290,7 @@ describe('Claude Code へファイルを渡す', () => {
     // 差し込まれることで確かめる
     putGlossary()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     const toggle = await screen.findByRole('button', { name: 'Claude Code ペインを開く' })
     await waitFor(() => expect(toggle.hasAttribute('disabled')).toBe(false))
     fireEvent.click(toggle)
@@ -1154,7 +1316,7 @@ describe('Claude Code へファイルを渡す', () => {
     // 書きに行ってしまう
     putGlossary()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     const toggle = await screen.findByRole('button', { name: 'Claude Code ペインを開く' })
     await waitFor(() => expect(toggle.hasAttribute('disabled')).toBe(false))
     fireEvent.click(toggle)
@@ -1266,7 +1428,7 @@ describe('表形式でコピー', () => {
       JSON.stringify({ schemaVersion: 1, type: 'sequence', title: 'シーケンス', actors: [], steps: [] }),
     )
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: 'シーケンス（シーケンス.json） を開く' }))
     await screen.findByRole('textbox', { name: 'ファイルの名前' })
 
@@ -1278,7 +1440,7 @@ describe('表形式でコピー', () => {
   it('用語集を開くと押せて、設定ダイアログが開く', async () => {
     putGlossary()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
     await screen.findByRole('textbox', { name: 'ファイルの名前' })
 
@@ -1291,7 +1453,7 @@ describe('表形式でコピー', () => {
   it('ロジックツリーでは階層番号の選択と親のくり返しが出る', async () => {
     putLogicTree()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: '木（木.json） を開く' }))
     await screen.findByRole('textbox', { name: 'ファイルの名前' })
 
@@ -1303,7 +1465,7 @@ describe('表形式でコピー', () => {
   it('[コピー]でクリップボードへ HTML と TSV が載る', async () => {
     putGlossary()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
     await screen.findByRole('textbox', { name: 'ファイルの名前' })
 
@@ -1319,7 +1481,7 @@ describe('表形式でコピー', () => {
   it('[キャンセル]で閉じ、クリップボードに何も載らない', async () => {
     putGlossary()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
     await screen.findByRole('textbox', { name: 'ファイルの名前' })
 
@@ -1335,7 +1497,7 @@ describe('表形式でコピー', () => {
   it('絞り込んでからコピーすると、絞り込み後の行だけが載り No は元のまま', async () => {
     putGlossaryWithTwoTerms()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
     await screen.findByRole('textbox', { name: 'ファイルの名前' })
 
@@ -1359,7 +1521,7 @@ describe('表形式でコピー', () => {
   it('Markdown をコピーすると絞り込みに追従する', async () => {
     putGlossaryWithTwoTerms()
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: '用語集（用語集.json） を開く' }))
     await screen.findByRole('textbox', { name: 'ファイルの名前' })
 
@@ -1437,7 +1599,7 @@ describe('エディタからの通知', () => {
       }),
     )
     render(<App />)
-    fireEvent.click(screen.getByRole('button', { name: 'フォルダを開く' }))
+    await openProjectFolder()
     fireEvent.click(await screen.findByRole('button', { name: '送料（送料.json） を開く' }))
     // 表は3つある（条件の定義部・結果の定義部・表本体）ので findByRole では引けない
     await screen.findAllByRole('table')

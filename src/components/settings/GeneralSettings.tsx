@@ -13,22 +13,27 @@ const THEME_LABELS: readonly { value: Theme; label: string }[] = [
  * **ラジオはネイティブを使う。** `TableCopyDialog` と同じ理由で、インラインで
  * 完結する入力に `<select>` を避ける動機は当たらない
  */
-export function GeneralSettings({ settings, onChange }: SettingsPanelProps) {
+export function GeneralSettings({ settings, onChange, appVersion }: SettingsPanelProps) {
   return (
-    <fieldset className="flex flex-col gap-2">
-      <legend className="mb-2 text-sm text-ink-muted">テーマ</legend>
-      {THEME_LABELS.map(({ value, label }) => (
-        <label key={value} className="flex items-center gap-2 text-base text-ink">
-          <input
-            type="radio"
-            name="theme"
-            value={value}
-            checked={settings.theme === value}
-            onChange={() => onChange({ ...settings, theme: value })}
-          />
-          {label}
-        </label>
-      ))}
-    </fieldset>
+    <>
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 text-sm text-ink-muted">テーマ</legend>
+        {THEME_LABELS.map(({ value, label }) => (
+          <label key={value} className="flex items-center gap-2 text-base text-ink">
+            <input
+              type="radio"
+              name="theme"
+              value={value}
+              checked={settings.theme === value}
+              onChange={() => onChange({ ...settings, theme: value })}
+            />
+            {label}
+          </label>
+        ))}
+      </fieldset>
+      {appVersion !== null && (
+        <p className="border-t border-rule pt-2 text-sm text-ink-muted">facet v{appVersion}</p>
+      )}
+    </>
   )
 }

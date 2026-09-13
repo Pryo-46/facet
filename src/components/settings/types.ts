@@ -10,4 +10,6 @@ export interface SettingsPanelProps {
    * 未導入なら、アプリの端末は同梱版を `--plugin-dir` で渡している
    */
   pluginInstalled: boolean
+  /** アプリの版番号。読めなかったときは null */
+  appVersion: string | null
 }

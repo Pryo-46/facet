@@ -36,6 +36,8 @@ export interface SettingsDialogProps {
    * 未導入なら、アプリの端末は同梱版を `--plugin-dir` で渡している
    */
   pluginInstalled: boolean
+  /** アプリの版番号。読めなかったときは null */
+  appVersion: string | null
   onClose: () => void
 }
 
@@ -56,6 +58,7 @@ export function SettingsDialog({
   settings,
   onChange,
   pluginInstalled,
+  appVersion,
   onClose,
 }: SettingsDialogProps) {
   return (
@@ -79,7 +82,12 @@ export function SettingsDialog({
           </TabsList>
           {SETTINGS_TABS.map(({ id, Panel }) => (
             <TabsContent key={id} value={id}>
-              <Panel settings={settings} onChange={onChange} pluginInstalled={pluginInstalled} />
+              <Panel
+                settings={settings}
+                onChange={onChange}
+                pluginInstalled={pluginInstalled}
+                appVersion={appVersion}
+              />
             </TabsContent>
           ))}
         </Tabs>

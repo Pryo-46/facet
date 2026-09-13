@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '@/core/settings'
+import type { RegisteredProject } from '@/core/projects'
+
+const juchu: RegisteredProject = {
+  path: 'C:\\work\\juchu',
+  name: '受注',
+  favorite: false,
+  lastOpenedAt: '2026-03-01T00:00:00.000Z',
+}
 
 const existsMock = vi.fn()
 const mkdirMock = vi.fn()
@@ -20,7 +28,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 }))
 
 // モックの登録後に読む必要があるので動的 import にする
-const { readLastProjectDir, saveLastProjectDir, readSettings, saveSettings } =
+const { readLastProjectDir, readSettings, saveSettings, readProjects, saveProjects } =
   await import('./settings-fs')
 
 beforeEach(() => {
@@ -55,26 +63,6 @@ describe('readLastProjectDir', () => {
   it('lastProjectDir が空文字列でも null（fs scope をルート全体に広げないため）', async () => {
     readTextFileMock.mockResolvedValue('{"lastProjectDir":""}')
     await expect(readLastProjectDir()).resolves.toBeNull()
-  })
-})
-
-describe('saveLastProjectDir', () => {
-  it('設定ディレクトリが無ければ作ってから書き込む', async () => {
-    existsMock.mockResolvedValue(false)
-    await saveLastProjectDir('C:\\proj')
-    expect(existsMock).toHaveBeenCalledWith('C:\\config')
-    expect(mkdirMock).toHaveBeenCalledWith('C:\\config', { recursive: true })
-    expect(writeTextFileMock).toHaveBeenCalledWith(
-      'C:\\config\\settings.json',
-      JSON.stringify({ lastProjectDir: 'C:\\proj' }),
-    )
-  })
-
-  it('設定ディレクトリが既にあれば mkdir を呼ばない', async () => {
-    existsMock.mockResolvedValue(true)
-    await saveLastProjectDir('C:\\proj')
-    expect(mkdirMock).not.toHaveBeenCalled()
-    expect(writeTextFileMock).toHaveBeenCalled()
   })
 })
 
@@ -114,24 +102,107 @@ describe('書き込みは読んで merge する', () => {
     })
   })
 
-  it('フォルダを開いても設定が残る', async () => {
+  it('登録を書いても設定が残る', async () => {
     existsMock.mockResolvedValue(true)
     readTextFileMock.mockResolvedValue('{"theme":"dark","canvas":{"panWithRightDrag":true}}')
-    await saveLastProjectDir('C:\\proj')
+    await saveProjects([juchu])
     const written: unknown = JSON.parse(writeTextFileMock.mock.calls[0][1] as string)
     expect(written).toEqual({
       theme: 'dark',
       canvas: { panWithRightDrag: true },
-      lastProjectDir: 'C:\\proj',
+      projects: [juchu],
     })
   })
 
   it('読めないファイルの上へは新しい内容だけを書く', async () => {
     existsMock.mockResolvedValue(true)
     readTextFileMock.mockRejectedValue(new Error('not found'))
-    await saveLastProjectDir('C:\\proj')
+    await saveProjects([juchu])
     expect(JSON.parse(writeTextFileMock.mock.calls[0][1] as string)).toEqual({
-      lastProjectDir: 'C:\\proj',
+      projects: [juchu],
     })
+  })
+})
+
+describe('readProjects', () => {
+  it('保存済みの一覧を正規化して返す', async () => {
+    readTextFileMock.mockResolvedValue(
+      '{"projects":[{"path":"C:\\\\work\\\\a","name":"受注","favorite":true,"lastOpenedAt":"2026-03-01T00:00:00.000Z"}]}',
+    )
+    await expect(readProjects()).resolves.toEqual([
+      { path: 'C:\\work\\a', name: '受注', favorite: true, lastOpenedAt: '2026-03-01T00:00:00.000Z' },
+    ])
+  })
+
+  it('ファイルが無ければ空（例外を投げない）', async () => {
+    readTextFileMock.mockRejectedValue(new Error('not found'))
+    await expect(readProjects()).resolves.toEqual([])
+  })
+
+  it('JSON が壊れていても空（例外を投げない）', async () => {
+    readTextFileMock.mockResolvedValue('{not json')
+    await expect(readProjects()).resolves.toEqual([])
+  })
+
+  it('projects が無ければ lastProjectDir を1件目として取り込む', async () => {
+    readTextFileMock.mockResolvedValue('{"lastProjectDir":"C:\\\\work\\\\juchu"}')
+    await expect(readProjects()).resolves.toEqual([
+      {
+        path: 'C:\\work\\juchu',
+        name: 'juchu',
+        favorite: false,
+        lastOpenedAt: '1970-01-01T00:00:00.000Z',
+      },
+    ])
+  })
+
+  it('projects があれば lastProjectDir を見ない', async () => {
+    readTextFileMock.mockResolvedValue(
+      '{"projects":[{"path":"C:\\\\work\\\\a"}],"lastProjectDir":"C:\\\\work\\\\old"}',
+    )
+    const got = await readProjects()
+    expect(got.map((p) => p.path)).toEqual(['C:\\work\\a'])
+  })
+
+  it('projects が空配列なら lastProjectDir を見ない', async () => {
+    // 全部を一覧から外した状態を、移行前と取り違えない
+    readTextFileMock.mockResolvedValue('{"projects":[],"lastProjectDir":"C:\\\\work\\\\old"}')
+    await expect(readProjects()).resolves.toEqual([])
+  })
+
+  it('lastProjectDir が空文字列なら取り込まない', async () => {
+    readTextFileMock.mockResolvedValue('{"lastProjectDir":""}')
+    await expect(readProjects()).resolves.toEqual([])
+  })
+})
+
+describe('saveProjects', () => {
+  it('設定を保ったまま書く', async () => {
+    existsMock.mockResolvedValue(true)
+    readTextFileMock.mockResolvedValue('{"theme":"dark","canvas":{"panWithRightDrag":true}}')
+    await saveProjects([
+      { path: 'C:\\work\\a', name: '受注', favorite: false, lastOpenedAt: '2026-03-01T00:00:00.000Z' },
+    ])
+    expect(JSON.parse(writeTextFileMock.mock.calls[0][1] as string)).toEqual({
+      theme: 'dark',
+      canvas: { panWithRightDrag: true },
+      projects: [
+        { path: 'C:\\work\\a', name: '受注', favorite: false, lastOpenedAt: '2026-03-01T00:00:00.000Z' },
+      ],
+    })
+  })
+
+  it('設定を書いても projects が残る', async () => {
+    existsMock.mockResolvedValue(true)
+    readTextFileMock.mockResolvedValue('{"projects":[{"path":"C:\\\\work\\\\a"}]}')
+    await saveSettings({ ...DEFAULT_SETTINGS, theme: 'dark' })
+    const written = JSON.parse(writeTextFileMock.mock.calls[0][1] as string) as Record<string, unknown>
+    expect(written.projects).toEqual([{ path: 'C:\\work\\a' }])
+  })
+
+  it('設定ディレクトリが無ければ作ってから書き込む', async () => {
+    existsMock.mockResolvedValue(false)
+    await saveProjects([])
+    expect(mkdirMock).toHaveBeenCalledWith('C:\\config', { recursive: true })
   })
 })
