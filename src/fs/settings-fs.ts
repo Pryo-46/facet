@@ -54,11 +54,6 @@ export async function readLastProjectDir(): Promise<string | null> {
     : null
 }
 
-/** 直近に開いていたフォルダのパスを保存する。設定ディレクトリが無ければ作る */
-export async function saveLastProjectDir(dir: string): Promise<void> {
-  await writeMerged({ lastProjectDir: dir })
-}
-
 /** 設定を読む。読めない・壊れているのいずれでも既定を返し、例外を投げない */
 export async function readSettings(): Promise<AppSettings> {
   return normalizeSettings(await readFile())

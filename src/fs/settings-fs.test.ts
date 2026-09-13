@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_SETTINGS } from '@/core/settings'
+import type { RegisteredProject } from '@/core/projects'
+
+const juchu: RegisteredProject = {
+  path: 'C:\\work\\juchu',
+  name: '受注',
+  favorite: false,
+  lastOpenedAt: '2026-03-01T00:00:00.000Z',
+}
 
 const existsMock = vi.fn()
 const mkdirMock = vi.fn()
@@ -20,7 +28,7 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 }))
 
 // モックの登録後に読む必要があるので動的 import にする
-const { readLastProjectDir, saveLastProjectDir, readSettings, saveSettings, readProjects, saveProjects } =
+const { readLastProjectDir, readSettings, saveSettings, readProjects, saveProjects } =
   await import('./settings-fs')
 
 beforeEach(() => {
@@ -55,26 +63,6 @@ describe('readLastProjectDir', () => {
   it('lastProjectDir が空文字列でも null（fs scope をルート全体に広げないため）', async () => {
     readTextFileMock.mockResolvedValue('{"lastProjectDir":""}')
     await expect(readLastProjectDir()).resolves.toBeNull()
-  })
-})
-
-describe('saveLastProjectDir', () => {
-  it('設定ディレクトリが無ければ作ってから書き込む', async () => {
-    existsMock.mockResolvedValue(false)
-    await saveLastProjectDir('C:\\proj')
-    expect(existsMock).toHaveBeenCalledWith('C:\\config')
-    expect(mkdirMock).toHaveBeenCalledWith('C:\\config', { recursive: true })
-    expect(writeTextFileMock).toHaveBeenCalledWith(
-      'C:\\config\\settings.json',
-      JSON.stringify({ lastProjectDir: 'C:\\proj' }),
-    )
-  })
-
-  it('設定ディレクトリが既にあれば mkdir を呼ばない', async () => {
-    existsMock.mockResolvedValue(true)
-    await saveLastProjectDir('C:\\proj')
-    expect(mkdirMock).not.toHaveBeenCalled()
-    expect(writeTextFileMock).toHaveBeenCalled()
   })
 })
 
@@ -114,24 +102,24 @@ describe('書き込みは読んで merge する', () => {
     })
   })
 
-  it('フォルダを開いても設定が残る', async () => {
+  it('登録を書いても設定が残る', async () => {
     existsMock.mockResolvedValue(true)
     readTextFileMock.mockResolvedValue('{"theme":"dark","canvas":{"panWithRightDrag":true}}')
-    await saveLastProjectDir('C:\\proj')
+    await saveProjects([juchu])
     const written: unknown = JSON.parse(writeTextFileMock.mock.calls[0][1] as string)
     expect(written).toEqual({
       theme: 'dark',
       canvas: { panWithRightDrag: true },
-      lastProjectDir: 'C:\\proj',
+      projects: [juchu],
     })
   })
 
   it('読めないファイルの上へは新しい内容だけを書く', async () => {
     existsMock.mockResolvedValue(true)
     readTextFileMock.mockRejectedValue(new Error('not found'))
-    await saveLastProjectDir('C:\\proj')
+    await saveProjects([juchu])
     expect(JSON.parse(writeTextFileMock.mock.calls[0][1] as string)).toEqual({
-      lastProjectDir: 'C:\\proj',
+      projects: [juchu],
     })
   })
 })

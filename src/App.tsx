@@ -5,6 +5,8 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { ExportMenu } from '@/components/ExportMenu'
 import { FileHeader } from '@/components/FileHeader'
 import { EDITOR_MIN_WIDTH, PANE_MIN_WIDTH, PaneSplitter } from '@/components/PaneSplitter'
+import { ProjectMenu } from '@/components/ProjectMenu'
+import { RenameProjectDialog } from '@/components/RenameProjectDialog'
 import { SettingsDialog } from '@/components/SettingsDialog'
 import { TableCopyDialog } from '@/components/TableCopyDialog'
 import { TerminalPane } from '@/components/TerminalPane'
@@ -42,6 +44,7 @@ import { describeLegacyArtifacts } from '@/core/legacy-artifacts'
 import { titleOf, withTitle } from '@/core/load'
 import { dropModal, pushModal, shiftModal, type ModalRequest } from '@/core/modal-queue'
 import type { ProjectFile } from '@/core/project-file'
+import { touchProject, type RegisteredProject } from '@/core/projects'
 import { scanFolder } from '@/core/scan'
 import { type AppSettings } from '@/core/settings'
 import { appSettings } from '@/core/settings-store'
@@ -90,6 +93,7 @@ import { findLegacyArtifacts } from '@/fs/legacy-artifacts-io'
 import {
   allowProjectDir,
   askSaveMarkdownPath,
+  dirsExist,
   fileExists,
   joinPath,
   listJsonFiles,
@@ -100,7 +104,7 @@ import {
   writeProjectFile,
 } from '@/fs/project-fs'
 import { killAllPtys, tauriPtyIo } from '@/fs/pty'
-import { readLastProjectDir, readSettings, saveLastProjectDir, saveSettings } from '@/fs/settings-fs'
+import { readProjects, readSettings, saveProjects, saveSettings } from '@/fs/settings-fs'
 import { checkForUpdate, type AvailableUpdate } from '@/fs/updater'
 import { appRegistry } from '@/modules'
 
@@ -373,6 +377,30 @@ function App() {
   //（terminalPaneRef の隣のコメントと同じ理由）
   const projectDirRef = useRef(projectDir)
   projectDirRef.current = projectDir
+  const [projects, setProjects] = useState<RegisteredProject[]>([])
+  // 確認ダイアログの onConfirm やメニューのコールバックから遅延して読むので、
+  // 最新値は ref から読む（projectDirRef と同じ理由）
+  const projectsRef = useRef(projects)
+  projectsRef.current = projects
+  /** 存在しないと分かっている登録のパス。メニューを開いたときに引き直す */
+  const [missingProjects, setMissingProjects] = useState<ReadonlySet<string>>(new Set())
+  /** 改名ダイアログの対象。null の間は閉じている */
+  const [renameTarget, setRenameTarget] = useState<RegisteredProject | null>(null)
+
+  /**
+   * 登録を差し替えて保存する。**保存に失敗してもトーストは出さない**——
+   * 次回の起動で復元されないだけで、このセッションの作業には響かない
+   */
+  const persistProjects = (next: readonly RegisteredProject[]) => {
+    setProjects([...next])
+    // **ref も同じ行で進める。** 続けて `projectsRef` を読む経路（選び直して
+    // そのまま開く等）が再レンダーを待たずに走るので、ここを省くと直前の
+    // 差し替えを取り逃がす
+    projectsRef.current = [...next]
+    saveProjects(next).catch((err: unknown) => {
+      console.error('プロジェクトの登録の保存に失敗しました', err)
+    })
+  }
   const handoffRef = useRef(handoffToTerminal)
   handoffRef.current = handoffToTerminal
   const [files, setFiles] = useState<ProjectFile[]>([])
@@ -396,8 +424,9 @@ function App() {
   //「外部変更の二択」の3つ。開いている間は操作言語を止める（rev 10章の境界規則）
   const [modals, setModals] = useState<ModalRequest[]>([])
   const head = modals[0] ?? null
-  // 設定画面はキューに積まないので、ここで数に足す（rev 10章の境界規則）
-  const modalOpen = modals.length > 0 || settingsOpen
+  // 設定画面と改名ダイアログはキューに積まないので、ここで数に足す
+  //（rev 10章の境界規則。どちらも利用者が能動的に開く画面）
+  const modalOpen = modals.length > 0 || settingsOpen || renameTarget !== null
   // window リスナーはマウント時の1回しか張らないので、最新値は ref から読む
   //（**state 直読みに「簡潔化」しないこと**。常に初期値 false になる）
   const modalOpenRef = useRef(modalOpen)
@@ -689,20 +718,16 @@ function App() {
   }, [controller])
 
   /**
-   * フォルダを開き、開けたときだけ最後に開いたフォルダとして保存する。
-   * 保存できなくても開くこと自体は成立させる。開けなかったフォルダは
-   * 保存しない（開けない場所を次回の復元先にしない）
+   * フォルダを開き、開けたときだけ登録の最終オープンを更新する。
+   * 開けなかったフォルダは登録しない（開けない場所を次回の復元先にしない）。
+   *
+   * **`projectsRef` から読む。** `openProject` は毎レンダー作り直されるが、
+   * 確認ダイアログの `onConfirm` に渡ると古いクロージャのまま後で走る
    */
   const openProject = async (dir: string): Promise<boolean> => {
     const opened = await controller.openFolder(dir)
     if (!opened) return false
-    // 保存できなくても次回単に復元されないだけで、このセッションの作業には
-    // 影響しない。だからトーストは出さない
-    try {
-      await saveLastProjectDir(dir)
-    } catch (err: unknown) {
-      console.error('最後に開いたフォルダの保存に失敗しました', err)
-    }
+    persistProjects(touchProject(projectsRef.current, dir, new Date().toISOString()))
     // 旧版が置いたものが残っていると、プロジェクトスコープの Skill が
     // プラグインより先に見つかって古い版が発火する。**消すのは利用者**
     try {
@@ -726,7 +751,10 @@ function App() {
   const hasAttemptedRestoreRef = useRef(false)
 
   /**
-   * 起動時に前回開いていたフォルダを自動で復元する。ダイアログを
+   * 起動時に最終オープンが最も新しい登録を復元する。**お気に入りは見ない**——
+   * お気に入りは一覧の並び順の都合で、最後に開いていたものとは別である。
+   *
+   * ダイアログを
    * 経由しないため、`fileExists` の前に `allowProjectDir` で fs の実行時 scope
    * を明示的に取り直す必要がある（`allow_project_dir` 参照。ダイアログ由来の
    * scope はセッション限りで次回起動には引き継がれない）。
@@ -746,11 +774,20 @@ function App() {
     hasAttemptedRestoreRef.current = true
     void (async () => {
       try {
-        const dir = await readLastProjectDir()
-        if (dir === null) return
-        await allowProjectDir(dir)
-        if (!(await fileExists(dir))) return
-        await openProject(dir)
+        const stored = await readProjects()
+        setProjects(stored)
+        // **ref も同じ行で進める。** 次の `openProject` は再レンダーを待たずに
+        // `projectsRef` を読むので、ここを省くと復元した1件が空配列から
+        // 作り直され、表示名とお気に入りが落ちる
+        projectsRef.current = stored
+        const latest = stored.reduce<RegisteredProject | null>(
+          (best, p) => (best === null || p.lastOpenedAt > best.lastOpenedAt ? p : best),
+          null,
+        )
+        if (latest === null) return
+        await allowProjectDir(latest.path)
+        if (!(await fileExists(latest.path))) return
+        await openProject(latest.path)
       } catch (err: unknown) {
         console.error('起動時のフォルダ復元に失敗しました', err)
       }
@@ -774,7 +811,7 @@ function App() {
    * 生きている端末が古い cwd のまま化けることはない（設計 決定12）
    *
    * **フォルダ切替の唯一の経路。** 実行中のタブが1本も無い場合もここを通る
-   *（確認ダイアログを挟むかどうかだけが `openFolder` 側の判断）。終了済み
+   *（確認ダイアログを挟むかどうかだけが `requestSwitch` 側の判断）。終了済み
    * （exited / failed）のタブは殺す PTY を持たないが、旧フォルダの残骸なので
    * 画面からも消す。**帰結として、端末を使っていなくてもフォルダを切り替えると
    * ペインは畳まれる**——旧フォルダのために開いていたペインを新フォルダで
@@ -796,13 +833,15 @@ function App() {
     setPaneOpen(false)
   }
 
-  const openFolder = async () => {
-    const dir = await pickProjectFolder()
-    if (dir === null) return
-    // **実行中のタブが無くても switchFolder を通す。** `hasRunning` は
-    // starting / running しか見ないので、ここで素通りさせると exited /
-    // failed のタブが旧フォルダの残骸として画面に残る。`hasRunning` は
-    // **確認ダイアログの要否だけ**に使い、後始末は1本の経路に寄せる
+  /**
+   * フォルダ切替の唯一の入口。実行中のタブがあるときだけ確認を挟む。
+   *
+   * **実行中のタブが無くても `switchFolder` を通す。** `hasRunning` は
+   * starting / running しか見ないので、ここで素通りさせると exited /
+   * failed のタブが旧フォルダの残骸として画面に残る。`hasRunning` は
+   * **確認ダイアログの要否だけ**に使い、後始末は1本の経路に寄せる
+   */
+  const requestSwitch = async (dir: string) => {
     if (!hasRunning(terminals)) {
       await switchFolder(dir)
       return
@@ -818,6 +857,47 @@ function App() {
         onConfirm: () => switchFolder(dir),
       }),
     )
+  }
+
+  /** フォルダを選んで開く。開けた時点で `openProject` が登録に足す */
+  const addProject = async () => {
+    const dir = await pickProjectFolder()
+    if (dir === null) return
+    await requestSwitch(dir)
+  }
+
+  /**
+   * 登録済みの行から切り替える。**`allowProjectDir` を先に呼ぶ**——
+   * ダイアログを経由しない経路なので、fs の実行時 scope を取り直さないと
+   * 走査が forbidden path で落ちる
+   */
+  const switchToProject = async (project: RegisteredProject) => {
+    try {
+      await allowProjectDir(project.path)
+    } catch (err: unknown) {
+      console.error('fs scope の再付与に失敗しました', err)
+      return
+    }
+    await requestSwitch(project.path)
+  }
+
+  /** メニューが開いた瞬間に、登録済みのフォルダがまだ在るかを引き直す */
+  const checkMissingProjects = () => {
+    const paths = projectsRef.current.map((p) => p.path)
+    dirsExist(paths).then(
+      (found) => setMissingProjects(new Set(paths.filter((_, i) => !found[i]))),
+      (err: unknown) => console.error('プロジェクトの存在を確認できませんでした', err),
+    )
+  }
+
+  /** 見つからない登録のパスを選び直す。表示名とお気に入りは保つ */
+  const relocateProject = async (project: RegisteredProject) => {
+    const dir = await pickProjectFolder()
+    if (dir === null) return
+    persistProjects(
+      projectsRef.current.map((p) => (p.path === project.path ? { ...p, path: dir } : p)),
+    )
+    await requestSwitch(dir)
   }
 
   const selected = files.find((f) => f.path === selectedPath) ?? null
@@ -1073,26 +1153,38 @@ function App() {
       {/* 額縁の帯（rev 9章）。中身はすべて幅の決まった操作なので、伸縮は
           `ml-auto` の余白だけが引き受ける（右端の保証は下の div のコメント） */}
       <header className="flex items-center gap-3 border-b border-rule bg-surface px-6 py-3">
-        {/* 見出しはサイドメニューと同じ幅（w-64）を占め、操作の始まりを
+        {/* 左端の一群はサイドメニューと同じ幅（w-64）を占め、操作の始まりを
             エディタの左端に揃える。**`-ml-6 pl-6` は帯の `px-6` を打ち消して
-            いる**——打ち消さないと見出しの箱が 24px ぶん右へずれ、幅を
+            いる**——打ち消さないと箱が 24px ぶん右へずれ、幅を
             サイドメニューに合わせた意味が無くなる。帯の `gap-3` があるので
             ボタンは実際には 12px ほど右から始まるが、表エディタ自身が
             `p-4` を持つのでちょうど本文の始まりの上に来る。
             **サイドメニューを畳んだときのずれは許容する**（畳んだ状態に
             合わせると、開いているときの方がずれる） */}
-        {/* 版番号は見出しの**外**に置く（h1 の中に入れると、見出しの
-            accessible name が「facet v1.0.1」になる——文書の見出しは
-            あくまで `facet`）。`w-64` を包む div に入っているので、
-            サイドメニューと幅を揃える意味は変わらない */}
-        <div className="-ml-6 flex w-64 shrink-0 items-baseline gap-2 pl-6">
-          <h1 className="text-xl font-medium text-ink">facet</h1>
-          {appVersion !== null && (
-            <span className="text-sm text-ink-muted">v{appVersion}</span>
-          )}
+        <div className="-ml-6 flex w-64 shrink-0 items-center gap-2 pl-6">
+          {/* **見出しを消さない。** 見える位置にはプロジェクト名が出るが、
+              文書の見出しは `facet` のまま残す */}
+          <h1 className="sr-only">facet</h1>
+          <ProjectMenu
+            projects={projects}
+            activePath={projectDir}
+            missing={missingProjects}
+            onCheckMissing={checkMissingProjects}
+            onSwitch={(project) => void switchToProject(project)}
+            onAdd={() => void addProject()}
+            onToggleFavorite={(project) =>
+              persistProjects(
+                projects.map((p) =>
+                  p.path === project.path ? { ...p, favorite: !p.favorite } : p,
+                ),
+              )
+            }
+            onRename={(project) => setRenameTarget(project)}
+            onRemove={(project) => persistProjects(projects.filter((p) => p.path !== project.path))}
+            onRelocate={(project) => void relocateProject(project)}
+          />
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button variant="outline" onClick={() => void openFolder()}>フォルダを開く</Button>
           {/* Undo/Redo はアイコンのみ。accessible name は aria-label で保つ
               （キーボードが本筋の操作なので、帯では幅を使わない） */}
           <Button
@@ -1411,6 +1503,14 @@ function App() {
         pluginInstalled={pluginInstalled}
         appVersion={appVersion}
         onClose={() => setSettingsOpen(false)}
+      />
+      <RenameProjectDialog
+        project={renameTarget}
+        onSubmit={(project, name) => {
+          persistProjects(projects.map((p) => (p.path === project.path ? { ...p, name } : p)))
+          setRenameTarget(null)
+        }}
+        onClose={() => setRenameTarget(null)}
       />
       <ConfirmDialog
         open={head?.kind === 'confirm'}
