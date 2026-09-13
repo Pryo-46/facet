@@ -14,7 +14,11 @@ function clickTab(name: string): void {
   fireEvent.mouseDown(screen.getByRole('tab', { name }))
 }
 
-function show(settings: AppSettings = DEFAULT_SETTINGS, pluginInstalled = false) {
+function show(
+  settings: AppSettings = DEFAULT_SETTINGS,
+  pluginInstalled = false,
+  appVersion: string | null = null,
+) {
   const onChange = vi.fn()
   const onClose = vi.fn()
   render(
@@ -22,6 +26,7 @@ function show(settings: AppSettings = DEFAULT_SETTINGS, pluginInstalled = false)
       open
       settings={settings}
       pluginInstalled={pluginInstalled}
+      appVersion={appVersion}
       onChange={onChange}
       onClose={onClose}
     />,
@@ -113,5 +118,15 @@ describe('SettingsDialog', () => {
     show()
     clickTab('AI')
     expect(screen.getByText('facet:write-term')).toBeTruthy()
+  })
+
+  it('一般タブに版番号が出る', () => {
+    show(DEFAULT_SETTINGS, false, '1.3.0')
+    expect(screen.getByText('facet v1.3.0')).toBeTruthy()
+  })
+
+  it('版番号が読めなければ行ごと出さない', () => {
+    show(DEFAULT_SETTINGS, false, null)
+    expect(screen.queryByText(/^facet v/)).toBeNull()
   })
 })

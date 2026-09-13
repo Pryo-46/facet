@@ -1409,6 +1409,7 @@ function App() {
         settings={settings}
         onChange={updateSettings}
         pluginInstalled={pluginInstalled}
+        appVersion={appVersion}
         onClose={() => setSettingsOpen(false)}
       />
       <ConfirmDialog
