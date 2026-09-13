@@ -79,14 +79,15 @@ export function decisionTableToMarkdown(
  * 整合性エラーがあるまま出力したとき、出力に何が起きるかの文
  *（`OutputProfile.describeIssueEffect`）。額縁の確認ダイアログが出す。
  *
- * **行の形を壊す2つの指摘にだけ固有の文を返す。** 行の集合が直積とずれていると、
- * 抜けた組み合わせが判定表から黙って消える。重複や未知の値は表の形を壊さないので、
+ * **行の形を壊す2つの指摘にだけ固有の文を返す。** `row-set` は欠け・余り・順序違いが
+ * そのまま出力に出る。直積から抜けた組み合わせは判定表から消える。`row-length` は
+ * 足りない欄を埋め、余った欄を落として出す。重複や未知の値は表の形を壊さないので、
  * 触れると読み手に空振りをさせる
  */
 export function describeDecisionTableIssueEffect(issues: readonly ConsistencyIssue[]): string {
   const effects: string[] = []
   if (issues.some((i) => i.rule === 'row-set')) {
-    effects.push('判定表には今ある行だけが並び、直積から欠けた組み合わせは表に現れません。')
+    effects.push('判定表にはファイルにある行をその順のまま並べ、直積から欠けた組み合わせは現れません。')
   }
   if (issues.some((i) => i.rule === 'row-length')) {
     effects.push(

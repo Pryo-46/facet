@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createSchemaValidator } from '@/core/schema-validation'
+import { DEFAULT_TABLE_OPTIONS } from '@/core/table-export'
 import { appRegistry } from '@/modules'
 import { decisionTableModule } from './module'
 
@@ -34,6 +35,9 @@ describe('decisionTableModule', () => {
     expect(tableExport?.options).toEqual(['numbering', 'showUndefined'])
     expect(tableExport?.variants.map((v) => v.id)).toEqual(['default'])
     expect(tableExport?.variants.map((v) => v.label)).toEqual(['判定表'])
+    expect(
+      tableExport?.variants[0].toTable(decisionTableModule.createEmpty('t'), DEFAULT_TABLE_OPTIONS),
+    ).toEqual({ header: ['No'], rows: [] })
   })
 
   it('クリップボード交換は宣言しない', () => {

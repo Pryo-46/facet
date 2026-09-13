@@ -1,6 +1,7 @@
 /**
- * 出力（Markdown 表 ＋ Mermaid）に現れる語。**1箇所に置く。**
+ * シーケンス固有の出力語（Markdown 表 ＋ Mermaid）を1箇所に持つ。
  * 表と図で同じ状態を別の語で書くと、読み手は2つの語彙を覚えることになる。
+ * 全ツール共通の空欄の語（`UNDEFINED_TEXT`）は `@/core/output-labels` から引く。
  *
  * `mermaid.ts` と `markdown.ts` の両方が読む。定数だけを持つ独立したファイルに
  * するのは、どちらか一方に置くと import が循環するため（markdown.ts は

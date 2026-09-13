@@ -134,6 +134,7 @@ describe('describeDecisionTableIssueEffect', () => {
   it('行の集合が直積とずれていると、欠けた組み合わせが表に現れないことを述べる', () => {
     const text = describeDecisionTableIssueEffect([issue('row-set')])
     expect(text).toContain('欠けた組み合わせ')
+    expect(text).toContain('その順のまま')
     expect(text).not.toContain('列数')
   })
 
