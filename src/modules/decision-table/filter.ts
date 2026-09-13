@@ -36,7 +36,7 @@ export function isFiltered(filter: GridFilter): boolean {
 }
 
 /**
- * 結果列が取りうる値の一覧。**先頭は空文字で、画面では未記入や「空にする」と書く**
+ * 結果列が取りうる値の一覧。**先頭は空文字で、画面では未記入と書く**
  *——空欄は欠落であり、一覧から外すと抜けだけを取り出せなくなる
  */
 export function outcomeFilterLabels(outcome: Outcome): string[] {
